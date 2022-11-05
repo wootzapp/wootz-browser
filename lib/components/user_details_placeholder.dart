@@ -58,6 +58,12 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
   }
 
   @override
+  void didUpdateWidget(UserDetailsPlaceHolder widget) {
+    super.didUpdateWidget(widget);
+    getUserDetails();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const loader = SizedBox(
       width: 20,
