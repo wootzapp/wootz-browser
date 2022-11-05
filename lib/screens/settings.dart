@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
+import 'package:cryptowallet/screens/language.dart';
 
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
@@ -146,6 +147,44 @@ class _SettingsState extends State<Settings> {
                                       ),
                                       Text(
                                         AppLocalizations.of(context).currency,
+                                        style: TextStyle(fontSize: 18),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(),
+                          InkWell(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (ctx) {
+                                  return const Language();
+                                }),
+                              );
+                            },
+                            child: SizedBox(
+                              height: 35,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // SvgPicture.asset(
+                                      //   'assets/currency_new.svg',
+                                      //   width: 25,
+                                      // )
+                                      Icon(Icons.language),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).language,
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],

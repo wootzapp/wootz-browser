@@ -3131,15 +3131,15 @@ Future<Map> decodeAbi(String txData) async {
   JavascriptRuntime javaScriptRuntime = getJavascriptRuntime();
 
   javaScriptRuntime.evaluate(js);
+  javaScriptRuntime.evaluate('''abiDecoder.addABI($oneInchAbi)''');
+  javaScriptRuntime.evaluate('''abiDecoder.addABI($uniswapAbi)''');
+  javaScriptRuntime.evaluate('''abiDecoder.addABI($wrappedEthAbi)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($erc20Abi)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($erc721Abi)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($tokenSaleAbi)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($ensResolver)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($ensInterface)''');
   javaScriptRuntime.evaluate('''abiDecoder.addABI($erc1155Abi)''');
-  javaScriptRuntime.evaluate('''abiDecoder.addABI($oneInchAbi)''');
-  javaScriptRuntime.evaluate('''abiDecoder.addABI($uniswapAbi)''');
-  javaScriptRuntime.evaluate('''abiDecoder.addABI($wrappedEthAbi)''');
 
   final decode = javaScriptRuntime
       .evaluate('JSON.stringify(abiDecoder.decodeMethod("$txData"))');

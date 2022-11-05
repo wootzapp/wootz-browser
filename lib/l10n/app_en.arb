@@ -219,5 +219,6 @@
   },
   "ignore": "Ignore",
   "trxSent": "Transaction Sent",
-  "sendingToYourself": "You are sending your tokens to yourself"
+  "sendingToYourself": "You are sending your tokens to yourself",
+  "language": "Language"
 }
