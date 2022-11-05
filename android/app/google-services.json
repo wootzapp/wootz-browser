@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "734209097355",
+    "project_id": "ecla-wallet",
+    "storage_bucket": "ecla-wallet.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:734209097355:android:0dd04b86fc600c6d3f1e8e",
+        "android_client_info": {
+          "package_name": "com.wootzapp.browser"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "734209097355-flbgpmaedoskiaag8mrsdich1lvf9t6v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wootzapp.browser",
+            "certificate_hash": "7946110963de5c2947711389123bf9b2d829a57c"
+          }
+        },
+        {
+          "client_id": "734209097355-8mh3tqvq128qi1c2oefoh820d5vfjpch.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-CanvBidO2oP87CeDLP-rlmg2i5pFDBY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "734209097355-8mh3tqvq128qi1c2oefoh820d5vfjpch.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>734209097355-jsggghvs2i3es75ag7tfi40r35fst9db.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.734209097355-jsggghvs2i3es75ag7tfi40r35fst9db</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>734209097355-flbgpmaedoskiaag8mrsdich1lvf9t6v.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDyrmEZrnBrIdr1-R5yx_3VV0QUwZ3MiFE</string>
+	<key>GCM_SENDER_ID</key>
+	<string>734209097355</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.wootzapp.browser</string>
+	<key>PROJECT_ID</key>
+	<string>ecla-wallet</string>
+	<key>STORAGE_BUCKET</key>
+	<string>ecla-wallet.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:734209097355:ios:87ed32d2072b7aa93f1e8e</string>
+</dict>
+</plist>
