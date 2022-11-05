@@ -178,7 +178,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     if (hasWallet) {
-      defaultSecurity = await authencate(
+      defaultSecurity = await authenticate(
         context,
         disableGoBack_: true,
       );

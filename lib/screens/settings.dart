@@ -451,7 +451,7 @@ class _SettingsState extends State<Settings> {
                               onTap: () async {
                                 String mnemonic = (Hive.box(secureStorageKey))
                                     .get(currentMmenomicKey);
-                                if (await authencate(context)) {
+                                if (await authenticate(context)) {
                                   ScaffoldMessenger.of(context)
                                       .hideCurrentSnackBar();
                                   Navigator.push(
@@ -504,7 +504,7 @@ class _SettingsState extends State<Settings> {
                             const Divider(),
                             InkWell(
                               onTap: () async {
-                                if (await authencate(
+                                if (await authenticate(
                                   context,
                                   useLocalAuth: false,
                                 )) {

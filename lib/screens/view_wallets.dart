@@ -278,7 +278,7 @@ class _ViewWalletsState extends State<ViewWallets> {
         Navigator.pop(context, false);
       },
       btnOkOnPress: () async {
-        if (await authencate(context)) {
+        if (await authenticate(context)) {
           mnemonicsList.removeAt(index);
 
           await pref.put(

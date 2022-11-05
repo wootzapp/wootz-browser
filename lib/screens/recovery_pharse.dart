@@ -33,7 +33,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
       case AppLifecycleState.resumed:
         if (invisiblemnemonic) {
           invisiblemnemonic = false;
-          if (await authencate(context)) {
+          if (await authenticate(context)) {
             await disEnableScreenShot();
             setState(() {
               securitydialogOpen = false;

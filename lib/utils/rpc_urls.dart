@@ -449,7 +449,7 @@ Future<bool> localAuthentication() async {
   return didAuthenticate ?? false;
 }
 
-Future<bool> authencate(BuildContext context,
+Future<bool> authenticate(BuildContext context,
     {bool disableGoBack_, bool useLocalAuth}) async {
   bool didAuthenticate = false;
   await disEnableScreenShot();
@@ -2851,7 +2851,7 @@ signTransaction({
                                               const Color(0xff007bff),
                                         ),
                                         onPressed: () async {
-                                          if (await authencate(context)) {
+                                          if (await authenticate(context)) {
                                             isSigningTransaction.value = true;
                                             try {
                                               await onConfirm();
@@ -3124,7 +3124,7 @@ signMessage({
                       backgroundColor: const Color(0xff007bff),
                     ),
                     onPressed: () async {
-                      if (await authencate(context)) {
+                      if (await authenticate(context)) {
                         onConfirm();
                       } else {
                         onReject();
