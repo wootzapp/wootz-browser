@@ -47,6 +47,9 @@ void main() async {
     RestartWidget(
       child: MyApp(
         userDarkMode: pref.get(darkModekey, defaultValue: false),
+        locale: Locale.fromSubtags(
+          languageCode: pref.get(languageKey, defaultValue: 'en'),
+        ),
       ),
     ),
   );
@@ -85,18 +88,36 @@ class _RestartWidgetState extends State<RestartWidget> {
 
 class MyApp extends StatefulWidget {
   static ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+
   static bool getCoinGeckoData = true;
   static DateTime lastcoinGeckoData = DateTime.now();
 
   final bool userDarkMode;
+  final Locale locale;
 
-  const MyApp({Key key, this.userDarkMode}) : super(key: key);
+  const MyApp({Key key, this.userDarkMode, this.locale}) : super(key: key);
+  static _MyAppState of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>();
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  Locale _locale;
+
+  @override
+  initState() {
+    super.initState();
+    _locale = widget.locale;
+  }
+
+  void setLocale(Locale value) {
+    setState(() {
+      _locale = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     MyApp.themeNotifier.value =
@@ -106,6 +127,7 @@ class _MyAppState extends State<MyApp> {
         valueListenable: MyApp.themeNotifier,
         builder: (_, ThemeMode currentMode, __) {
           return MaterialApp(
+            locale: _locale,
             debugShowCheckedModeBanner: false,
             theme: lightTheme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,

@@ -69,6 +69,7 @@ const infuraApiKey = '53163c736f1d4ba78f0a39ffda8d87b4';
 // settings key...not to be edited
 const userUnlockPasscodeKey = 'userUnlockPasscode';
 const darkModekey = 'userTheme';
+const languageKey = 'languageksks38q830qialdkjd';
 const hideBalanceKey = 'hideUserBalance';
 const dappChainIdKey = 'dappBrowserChainIdKey';
 const eIP681ProcessingErrorMsg =

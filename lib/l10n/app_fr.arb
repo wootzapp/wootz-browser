@@ -193,5 +193,6 @@
   "ignore": "Ignorer",
   "trxSent": "Transaction envoyée",
   "sendingToYourself": "Vous vous envoyez vos tokens",
-  "language": "Langue"
+  "language": "Langue",
+  "couldNotChangeLanguage": "Impossible de changer de langue, veuillez réessayer plus tard."
 }

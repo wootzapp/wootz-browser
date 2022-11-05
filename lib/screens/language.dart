@@ -1,11 +1,15 @@
 import 'dart:io';
 
+import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/utils/language_locale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/foundation/key.dart';
 import 'package:flutter/src/widgets/container.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:hive/hive.dart';
+
+import '../utils/app_config.dart';
 
 class Language extends StatefulWidget {
   const Language({Key key}) : super(key: key);
@@ -20,7 +24,7 @@ class _LanguageState extends State<Language> {
   @override
   initState() {
     super.initState();
-    languageCode = Platform.localeName.split('_')[0];
+
     languages = context
         .findAncestorWidgetOfExactType<MaterialApp>()
         ?.supportedLocales
@@ -29,6 +33,7 @@ class _LanguageState extends State<Language> {
 
   @override
   Widget build(BuildContext context) {
+    languageCode = Localizations.localeOf(context).languageCode;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -53,15 +58,20 @@ class _LanguageState extends State<Language> {
                     for (Locale locale in languages) ...[
                       InkWell(
                         onTap: () async {
-                          try {} catch (e) {
+                          try {
+                            MyApp.of(context).setLocale(locale);
+                            final pref = Hive.box(secureStorageKey);
+                            await pref.put(languageKey, locale.languageCode);
+                          } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 backgroundColor: Colors.red,
                                 content: Text(
-                                  'Could not change currency, please try again later.',
-                                  style: TextStyle(color: Colors.white),
+                                  AppLocalizations.of(context)
+                                      .couldNotChangeLanguage,
+                                  style: const TextStyle(color: Colors.white),
                                 ),
-                                duration: Duration(seconds: 2),
+                                duration: const Duration(seconds: 2),
                               ),
                             );
                           }
