@@ -175,11 +175,20 @@ class _SettingsState extends State<Settings> {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      // SvgPicture.asset(
-                                      //   'assets/currency_new.svg',
-                                      //   width: 25,
-                                      // )
-                                      Icon(Icons.language),
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          color: Colors.white,
+                                        ),
+                                        child: Icon(
+                                          Icons.language,
+                                          size: 22,
+                                          color: Color(0xff2469E9),
+                                        ),
+                                      ),
                                       const SizedBox(
                                         width: 10,
                                       ),
