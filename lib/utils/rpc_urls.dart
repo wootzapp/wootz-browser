@@ -2423,24 +2423,24 @@ signTransaction({
       gasPriceInWei_ == null ? 0 : BigInt.parse(gasPriceInWei_).toDouble();
   txData ??= '0x';
 
-  double userBalance =
-      (await _wcClient.getBalance(EthereumAddress.fromHex(from)))
-          .getInWei
-          .toDouble();
+  // double userBalance =
+  //     (await _wcClient.getBalance(EthereumAddress.fromHex(from)))
+  //         .getInWei
+  //         .toDouble();
 
   Uint8List trxDataList = txDataToUintList(txData);
-  double transactionFee = await getEtherTransactionFee(
-    rpc,
-    trxDataList,
-    web3.EthereumAddress.fromHex(from),
-    web3.EthereumAddress.fromHex(to),
-    value: value,
-    gasPrice: web3.EtherAmount.inWei(
-      BigInt.from(
-        gasPrice,
-      ),
-    ),
-  );
+  // double transactionFee = await getEtherTransactionFee(
+  //   rpc,
+  //   trxDataList,
+  //   web3.EthereumAddress.fromHex(from),
+  //   web3.EthereumAddress.fromHex(to),
+  //   value: value,
+  //   gasPrice: web3.EtherAmount.inWei(
+  //     BigInt.from(
+  //       gasPrice,
+  //     ),
+  //   ),
+  // );
 
   final Map decodedFunction = await decodeAbi(txData);
 
@@ -2471,7 +2471,7 @@ signTransaction({
 
   String info = AppLocalizations.of(context).info;
   info = info[0].toUpperCase() + info.substring(1).toLowerCase();
-  final isEnoughBalance = userBalance >= value + transactionFee;
+  // final isEnoughBalance = userBalance >= value + transactionFee;
   ValueNotifier<bool> isSigningTransaction = ValueNotifier(false);
   slideUpPanel(
     context,
@@ -2657,6 +2657,10 @@ signTransaction({
                                 token = BigInt.parse(params[i]['value']) /
                                     BigInt.from(pow(10, int.parse(decimals)));
                               }
+                              if (params[i]['name'] == 'amount') {
+                                token = BigInt.parse(params[i]['value']) /
+                                    BigInt.from(pow(10, int.parse(decimals)));
+                              }
                               if (params[i]['name'] == 'from') {
                                 from = params[i]['value'];
                               }
@@ -2689,17 +2693,18 @@ signTransaction({
                                         .couldNotFetchData,
                                     style: const TextStyle(fontSize: 16.0),
                                   )
-                                else
+                                else if (snapshot.hasData)
                                   Text(
-                                    snapshot.hasData
-                                        ? snapshot.data
-                                        : 'Getting Info',
+                                    snapshot.data,
                                     style: const TextStyle(fontSize: 16.0),
-                                  ),
+                                  )
+                                else
+                                  const Loader()
                               ],
                             ),
                           );
                         }),
+
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Column(
@@ -2720,46 +2725,46 @@ signTransaction({
                             ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppLocalizations.of(context).balance,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.0,
-                                ),
+                        FutureBuilder<double>(
+                          future: () async {
+                            return (await _wcClient
+                                    .getBalance(EthereumAddress.fromHex(from)))
+                                .getInWei
+                                .toDouble();
+                          }(),
+                          builder: (ctx, snapshot) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    AppLocalizations.of(context).balance,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8.0),
+                                  if (snapshot.hasError)
+                                    Text(
+                                      AppLocalizations.of(context)
+                                          .couldNotFetchData,
+                                      style: const TextStyle(fontSize: 16.0),
+                                    )
+                                  else if (snapshot.hasData)
+                                    Text(
+                                      '${snapshot.data / pow(10, etherDecimals)} $blockChainCurrencySymbol',
+                                      style: const TextStyle(fontSize: 16.0),
+                                    )
+                                  else
+                                    const Loader()
+                                ],
                               ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                '${userBalance / pow(10, etherDecimals)} $blockChainCurrencySymbol',
-                                style: const TextStyle(fontSize: 16.0),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppLocalizations.of(context).transactionFee,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.0,
-                                ),
-                              ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                '${transactionFee / pow(10, etherDecimals)} $blockChainCurrencySymbol',
-                                style: const TextStyle(fontSize: 16.0),
-                              ),
-                            ],
-                          ),
-                        ),
+
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Column(
@@ -2780,24 +2785,85 @@ signTransaction({
                             ],
                           ),
                         ),
-                        if (!isEnoughBalance)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Column(
+                        FutureBuilder<double>(
+                          future: () async {
+                            double transactionFee =
+                                await getEtherTransactionFee(
+                              rpc,
+                              trxDataList,
+                              web3.EthereumAddress.fromHex(from),
+                              web3.EthereumAddress.fromHex(to),
+                              value: value,
+                              gasPrice: web3.EtherAmount.inWei(
+                                BigInt.from(
+                                  gasPrice,
+                                ),
+                              ),
+                            );
+                            return transactionFee;
+                          }(),
+                          builder: (ctx, snapshot) {
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  AppLocalizations.of(context)
-                                      .insufficientBalance,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: red,
-                                    fontSize: 16.0,
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .transactionFee,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16.0,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8.0),
+                                      if (snapshot.hasError)
+                                        Text(
+                                          AppLocalizations.of(context)
+                                              .couldNotFetchData,
+                                          style:
+                                              const TextStyle(fontSize: 16.0),
+                                        )
+                                      else if (snapshot.hasData)
+                                        Text(
+                                          '${snapshot.data / pow(10, etherDecimals)} $blockChainCurrencySymbol',
+                                          style:
+                                              const TextStyle(fontSize: 16.0),
+                                        )
+                                      else
+                                        const Loader()
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .insufficientBalance,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: red,
+                                          fontSize: 16.0,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
+                            );
+                          },
+                        ),
+
+                        // if (!isEnoughBalance)
+
                         ValueListenableBuilder(
                             valueListenable: isSigningTransaction,
                             builder: (_, isSigningTransaction_, __) {
