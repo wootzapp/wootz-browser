@@ -2423,24 +2423,11 @@ signTransaction({
       gasPriceInWei_ == null ? 0 : BigInt.parse(gasPriceInWei_).toDouble();
   txData ??= '0x';
 
-  // double userBalance =
-  //     (await _wcClient.getBalance(EthereumAddress.fromHex(from)))
-  //         .getInWei
-  //         .toDouble();
+  double userBalance = 0;
 
   Uint8List trxDataList = txDataToUintList(txData);
-  // double transactionFee = await getEtherTransactionFee(
-  //   rpc,
-  //   trxDataList,
-  //   web3.EthereumAddress.fromHex(from),
-  //   web3.EthereumAddress.fromHex(to),
-  //   value: value,
-  //   gasPrice: web3.EtherAmount.inWei(
-  //     BigInt.from(
-  //       gasPrice,
-  //     ),
-  //   ),
-  // );
+  double transactionFee = 0;
+  String message = '';
 
   final Map decodedFunction = await decodeAbi(txData);
 
@@ -2554,127 +2541,160 @@ signTransaction({
             child: TabBarView(
               children: [
                 // first tab bar view widget
-                SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                        left: 25.0, right: 25, bottom: 25),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (networkIcon != null)
-                          Container(
-                            height: 50.0,
-                            width: 50.0,
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: CachedNetworkImage(
-                              imageUrl: ipfsTohttp(networkIcon),
-                              placeholder: (context, url) => Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: Loader(
-                                      color: appPrimaryColor,
-                                    ),
-                                  )
-                                ],
-                              ),
-                              errorWidget: (context, url, error) => const Icon(
-                                Icons.error,
-                                color: Colors.red,
+                FutureBuilder(future: () async {
+                  if (decodedFunction == null) return null;
+
+                  final List params = decodedFunction['params'];
+
+                  if (decodedName == 'safeBatchTransferFrom') {
+                    List nftAmount = [];
+                    for (int i = 0; i < params.length; i++) {
+                      if (params[i]['name'] == 'amounts') {
+                        nftAmount = params[i]['value'];
+                        break;
+                      }
+                    }
+                    int totalAmount = 0;
+                    for (var amount in nftAmount) {
+                      totalAmount += int.parse(amount);
+                    }
+                    message =
+                        "$totalAmount NFT${totalAmount > 1 ? "s" : ""} would be sent out.";
+                  } else if (decodedName == 'safeTransferFrom') {
+                    String spender;
+                    String from_;
+                    String tokenId;
+                    for (int i = 0; i < params.length; i++) {
+                      if (params[i]['name'] == 'from') {
+                        from_ = params[i]['value'].toString();
+                      }
+                      if (params[i]['name'] == 'to') {
+                        spender = params[i]['value'].toString();
+                      }
+                      if (params[i]['name'] == 'tokenId') {
+                        tokenId = params[i]['value'];
+                      }
+                      if (params[i]['name'] == 'id') {
+                        tokenId = params[i]['value'];
+                      }
+                    }
+                    return "Transfer NFT $tokenId ($to) from $from_ to $spender";
+                  } else if (decodedName == 'approve' ||
+                      decodedName == 'transfer' ||
+                      decodedName == 'transferFrom') {
+                    String spender;
+                    double token;
+                    String from_;
+                    Map tokenDetails = await getERC20TokenDetails(
+                      contractAddress: to,
+                      rpc: getEthereumDetailsFromChainId(chainId)['rpc'],
+                    );
+
+                    final decimals = tokenDetails['decimals'];
+                    for (int i = 0; i < params.length; i++) {
+                      if (params[i]['name'] == 'spender') {
+                        spender = params[i]['value'].toString();
+                      }
+                      if (params[i]['name'] == 'to') {
+                        spender = params[i]['value'].toString();
+                      }
+                      if (params[i]['name'] == 'tokens') {
+                        token = BigInt.parse(params[i]['value']) /
+                            BigInt.from(pow(10, int.parse(decimals)));
+                      }
+                      if (params[i]['name'] == 'amount') {
+                        token = BigInt.parse(params[i]['value']) /
+                            BigInt.from(pow(10, int.parse(decimals)));
+                      }
+                      if (params[i]['name'] == 'from') {
+                        from_ = params[i]['value'];
+                      }
+                    }
+                    if (decodedName == "approve") {
+                      message =
+                          "Allow $spender to spend $token ${tokenDetails['symbol']} ($to)";
+                    } else if (decodedName == 'transfer') {
+                      message =
+                          "Transfer $token ${tokenDetails['symbol']} ($to) to $spender";
+                    } else if (decodedName == 'transferFrom') {
+                      message =
+                          "Transfer $token ${tokenDetails['symbol']} ($to) from $from_ to $spender";
+                    }
+
+                    userBalance = (await _wcClient
+                            .getBalance(EthereumAddress.fromHex(from)))
+                        .getInWei
+                        .toDouble();
+                    transactionFee = await getEtherTransactionFee(
+                      rpc,
+                      trxDataList,
+                      web3.EthereumAddress.fromHex(from),
+                      web3.EthereumAddress.fromHex(to),
+                      value: value,
+                      gasPrice: web3.EtherAmount.inWei(
+                        BigInt.from(
+                          gasPrice,
+                        ),
+                      ),
+                    );
+                  }
+                  return true;
+                }(), builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    print(snapshot.error);
+                  }
+                  if (!snapshot.hasData) {
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Loader(),
+                      ],
+                    );
+                  }
+                  return SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                          left: 25.0, right: 25, bottom: 25),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (networkIcon != null)
+                            Container(
+                              height: 50.0,
+                              width: 50.0,
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: CachedNetworkImage(
+                                imageUrl: ipfsTohttp(networkIcon),
+                                placeholder: (context, url) => Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: Loader(
+                                        color: appPrimaryColor,
+                                      ),
+                                    )
+                                  ],
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                ),
                               ),
                             ),
-                          ),
-                        if (name != null)
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.normal,
-                              fontSize: 16.0,
+                          if (name != null)
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.normal,
+                                fontSize: 16.0,
+                              ),
                             ),
-                          ),
-                        FutureBuilder(future: () async {
-                          if (decodedFunction == null) return null;
-
-                          final List params = decodedFunction['params'];
-
-                          if (decodedName == 'safeBatchTransferFrom') {
-                            List nftAmount = [];
-                            for (int i = 0; i < params.length; i++) {
-                              if (params[i]['name'] == 'amounts') {
-                                nftAmount = params[i]['value'];
-                                break;
-                              }
-                            }
-                            int totalAmount = 0;
-                            for (var amount in nftAmount) {
-                              totalAmount += int.parse(amount);
-                            }
-                            return "$totalAmount NFT${totalAmount > 1 ? "s" : ""} would be sent out.";
-                          } else if (decodedName == 'safeTransferFrom') {
-                            String spender;
-                            String from;
-                            String tokenId;
-                            for (int i = 0; i < params.length; i++) {
-                              if (params[i]['name'] == 'from') {
-                                from = params[i]['value'].toString();
-                              }
-                              if (params[i]['name'] == 'to') {
-                                spender = params[i]['value'].toString();
-                              }
-                              if (params[i]['name'] == 'tokenId') {
-                                tokenId = params[i]['value'];
-                              }
-                              if (params[i]['name'] == 'id') {
-                                tokenId = params[i]['value'];
-                              }
-                            }
-                            return "Transfer NFT $tokenId ($to) from $from to $spender";
-                          } else if (decodedName == 'approve' ||
-                              decodedName == 'transfer' ||
-                              decodedName == 'transferFrom') {
-                            String spender;
-                            double token;
-                            String from;
-                            Map tokenDetails = await getERC20TokenDetails(
-                              contractAddress: to,
-                              rpc:
-                                  getEthereumDetailsFromChainId(chainId)['rpc'],
-                            );
-
-                            final decimals = tokenDetails['decimals'];
-                            for (int i = 0; i < params.length; i++) {
-                              if (params[i]['name'] == 'spender') {
-                                spender = params[i]['value'].toString();
-                              }
-                              if (params[i]['name'] == 'to') {
-                                spender = params[i]['value'].toString();
-                              }
-                              if (params[i]['name'] == 'tokens') {
-                                token = BigInt.parse(params[i]['value']) /
-                                    BigInt.from(pow(10, int.parse(decimals)));
-                              }
-                              if (params[i]['name'] == 'amount') {
-                                token = BigInt.parse(params[i]['value']) /
-                                    BigInt.from(pow(10, int.parse(decimals)));
-                              }
-                              if (params[i]['name'] == 'from') {
-                                from = params[i]['value'];
-                              }
-                            }
-                            if (decodedName == "approve") {
-                              return "Allow $spender to spend $token ${tokenDetails['symbol']} ($to)";
-                            } else if (decodedName == 'transfer') {
-                              return "Transfer $token ${tokenDetails['symbol']} ($to) to $spender";
-                            } else if (decodedName == 'transferFrom') {
-                              return "Transfer $token ${tokenDetails['symbol']} ($to) from $from to $spender";
-                            }
-                          }
-                        }(), builder: (ctx, snapshot) {
-                          return Padding(
+                          Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2695,239 +2715,206 @@ signTransaction({
                                   )
                                 else if (snapshot.hasData)
                                   Text(
-                                    snapshot.data,
+                                    message,
                                     style: const TextStyle(fontSize: 16.0),
                                   )
                                 else
                                   const Loader()
                               ],
                             ),
-                          );
-                        }),
-
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppLocalizations.of(context).receipientAddress,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.0,
-                                ),
-                              ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                to,
-                                style: const TextStyle(fontSize: 16.0),
-                              ),
-                            ],
                           ),
-                        ),
-                        FutureBuilder<double>(
-                          future: () async {
-                            return (await _wcClient
-                                    .getBalance(EthereumAddress.fromHex(from)))
-                                .getInWei
-                                .toDouble();
-                          }(),
-                          builder: (ctx, snapshot) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    AppLocalizations.of(context).balance,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16.0,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8.0),
-                                  if (snapshot.hasError)
-                                    Text(
-                                      AppLocalizations.of(context)
-                                          .couldNotFetchData,
-                                      style: const TextStyle(fontSize: 16.0),
-                                    )
-                                  else if (snapshot.hasData)
-                                    Text(
-                                      '${snapshot.data / pow(10, etherDecimals)} $blockChainCurrencySymbol',
-                                      style: const TextStyle(fontSize: 16.0),
-                                    )
-                                  else
-                                    const Loader()
-                                ],
-                              ),
-                            );
-                          },
-                        ),
 
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppLocalizations.of(context).transactionAmount,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16.0,
-                                ),
-                              ),
-                              const SizedBox(height: 8.0),
-                              Text(
-                                '${value / pow(10, etherDecimals)} $blockChainCurrencySymbol',
-                                style: const TextStyle(fontSize: 16.0),
-                              ),
-                            ],
-                          ),
-                        ),
-                        FutureBuilder<double>(
-                          future: () async {
-                            double transactionFee =
-                                await getEtherTransactionFee(
-                              rpc,
-                              trxDataList,
-                              web3.EthereumAddress.fromHex(from),
-                              web3.EthereumAddress.fromHex(to),
-                              value: value,
-                              gasPrice: web3.EtherAmount.inWei(
-                                BigInt.from(
-                                  gasPrice,
-                                ),
-                              ),
-                            );
-                            return transactionFee;
-                          }(),
-                          builder: (ctx, snapshot) {
-                            return Column(
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        AppLocalizations.of(context)
-                                            .transactionFee,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16.0,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8.0),
-                                      if (snapshot.hasError)
-                                        Text(
-                                          AppLocalizations.of(context)
-                                              .couldNotFetchData,
-                                          style:
-                                              const TextStyle(fontSize: 16.0),
-                                        )
-                                      else if (snapshot.hasData)
-                                        Text(
-                                          '${snapshot.data / pow(10, etherDecimals)} $blockChainCurrencySymbol',
-                                          style:
-                                              const TextStyle(fontSize: 16.0),
-                                        )
-                                      else
-                                        const Loader()
-                                    ],
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .receipientAddress,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16.0,
                                   ),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        AppLocalizations.of(context)
-                                            .insufficientBalance,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: red,
-                                          fontSize: 16.0,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  to,
+                                  style: const TextStyle(fontSize: 16.0),
                                 ),
                               ],
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  AppLocalizations.of(context).balance,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 8.0),
+                                if (snapshot.hasError)
+                                  Text(
+                                    AppLocalizations.of(context)
+                                        .couldNotFetchData,
+                                    style: const TextStyle(fontSize: 16.0),
+                                  )
+                                else if (snapshot.hasData)
+                                  Text(
+                                    '${userBalance / pow(10, etherDecimals)} $blockChainCurrencySymbol',
+                                    style: const TextStyle(fontSize: 16.0),
+                                  )
+                                else
+                                  const Loader()
+                              ],
+                            ),
+                          ),
 
-                        // if (!isEnoughBalance)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  AppLocalizations.of(context)
+                                      .transactionAmount,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 8.0),
+                                Text(
+                                  '${value / pow(10, etherDecimals)} $blockChainCurrencySymbol',
+                                  style: const TextStyle(fontSize: 16.0),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      AppLocalizations.of(context)
+                                          .transactionFee,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16.0,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8.0),
+                                    if (snapshot.hasError)
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .couldNotFetchData,
+                                        style: const TextStyle(fontSize: 16.0),
+                                      )
+                                    else if (snapshot.hasData)
+                                      Text(
+                                        '${transactionFee / pow(10, etherDecimals)} $blockChainCurrencySymbol',
+                                        style: const TextStyle(fontSize: 16.0),
+                                      )
+                                    else
+                                      const Loader()
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      AppLocalizations.of(context)
+                                          .insufficientBalance,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: red,
+                                        fontSize: 16.0,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          // if (!isEnoughBalance)
 
-                        ValueListenableBuilder(
-                            valueListenable: isSigningTransaction,
-                            builder: (_, isSigningTransaction_, __) {
-                              if (isSigningTransaction_) {
+                          ValueListenableBuilder(
+                              valueListenable: isSigningTransaction,
+                              builder: (_, isSigningTransaction_, __) {
+                                if (isSigningTransaction_) {
+                                  return Row(
+                                    children: const [
+                                      Loader(),
+                                    ],
+                                  );
+                                }
                                 return Row(
-                                  children: const [
-                                    Loader(),
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                          backgroundColor:
+                                              const Color(0xff007bff),
+                                        ),
+                                        onPressed: () async {
+                                          if (await authencate(context)) {
+                                            isSigningTransaction.value = true;
+                                            try {
+                                              await onConfirm();
+                                            } catch (_) {}
+                                            isSigningTransaction.value = false;
+                                          } else {
+                                            onReject();
+                                          }
+                                        },
+                                        child: Text(
+                                          AppLocalizations.of(context).confirm,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16.0),
+                                    Expanded(
+                                      child: TextButton(
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                          backgroundColor:
+                                              const Color(0xff007bff),
+                                        ),
+                                        onPressed: onReject,
+                                        child: Text(
+                                          AppLocalizations.of(context).reject,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 );
-                              }
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: TextButton(
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        backgroundColor:
-                                            const Color(0xff007bff),
-                                      ),
-                                      onPressed: () async {
-                                        if (await authencate(context)) {
-                                          isSigningTransaction.value = true;
-                                          try {
-                                            await onConfirm();
-                                          } catch (_) {}
-                                          isSigningTransaction.value = false;
-                                        } else {
-                                          onReject();
-                                        }
-                                      },
-                                      child: Text(
-                                        AppLocalizations.of(context).confirm,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18.0,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16.0),
-                                  Expanded(
-                                    child: TextButton(
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        backgroundColor:
-                                            const Color(0xff007bff),
-                                      ),
-                                      onPressed: onReject,
-                                      child: Text(
-                                        AppLocalizations.of(context).reject,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18.0,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
-                      ],
+                              }),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }),
 
                 // second tab bar viiew widget
                 if (decodedFunction != null)
