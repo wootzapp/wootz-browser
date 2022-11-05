@@ -52,7 +52,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         if (invisiblemnemonic) {
           invisiblemnemonic = false;
-          if (await authencate(context)) {
+          if (await authenticate(context)) {
             await disEnableScreenShot();
             setState(() {
               securitydialogOpen = false;

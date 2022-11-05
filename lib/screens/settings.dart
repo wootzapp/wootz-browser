@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
+import 'package:cryptowallet/screens/language.dart';
 
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
@@ -146,6 +147,53 @@ class _SettingsState extends State<Settings> {
                                       ),
                                       Text(
                                         AppLocalizations.of(context).currency,
+                                        style: TextStyle(fontSize: 18),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(),
+                          InkWell(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (ctx) {
+                                  return const Language();
+                                }),
+                              );
+                            },
+                            child: SizedBox(
+                              height: 35,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          color: Colors.white,
+                                        ),
+                                        child: Icon(
+                                          Icons.language,
+                                          size: 22,
+                                          color: Color(0xff2469E9),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).language,
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],
@@ -412,7 +460,7 @@ class _SettingsState extends State<Settings> {
                               onTap: () async {
                                 String mnemonic = (Hive.box(secureStorageKey))
                                     .get(currentMmenomicKey);
-                                if (await authencate(context)) {
+                                if (await authenticate(context)) {
                                   ScaffoldMessenger.of(context)
                                       .hideCurrentSnackBar();
                                   Navigator.push(
@@ -465,7 +513,7 @@ class _SettingsState extends State<Settings> {
                             const Divider(),
                             InkWell(
                               onTap: () async {
-                                if (await authencate(
+                                if (await authenticate(
                                   context,
                                   useLocalAuth: false,
                                 )) {

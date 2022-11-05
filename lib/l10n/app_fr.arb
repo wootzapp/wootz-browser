@@ -192,5 +192,7 @@
   "scamSiteDetectedDescription": "{url} est actuellement sur la liste d'avertissement du domaine {walletName}. Cela signifie que sur la base des informations dont nous disposons, {walletName} pense que ce domaine pourrait actuellement compromettre votre sécurité et, en tant que fonctionnalité de sécurité supplémentaire, {walletName} a restreint l'accès au site.",
   "ignore": "Ignorer",
   "trxSent": "Transaction envoyée",
-  "sendingToYourself": "Vous vous envoyez vos tokens"
+  "sendingToYourself": "Vous vous envoyez vos tokens",
+  "language": "Langue",
+  "couldNotChangeLanguage": "Impossible de changer de langue, veuillez réessayer plus tard."
 }

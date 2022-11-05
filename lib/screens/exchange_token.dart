@@ -174,7 +174,7 @@ class _ExchangeTokenState extends State<ExchangeToken>
     web3.Credentials credentials,
   ) async {
     try {
-      if (!await authencate(context)) {
+      if (!await authenticate(context)) {
         throw Exception(
           AppLocalizations.of(context).authFailed,
         );
