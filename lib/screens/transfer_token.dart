@@ -452,10 +452,10 @@ class _TransferTokenState extends State<TransferToken> {
                                     );
                                   }
                                 : () async {
+                                    if (isSending) return;
                                     if (await authenticate(context)) {
                                       ScaffoldMessenger.of(context)
                                           .hideCurrentSnackBar();
-                                      if (isSending) return;
                                       setState(() {
                                         isSending = true;
                                       });
