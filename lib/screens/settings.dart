@@ -181,7 +181,7 @@ class _SettingsState extends State<Settings> {
                                         decoration: BoxDecoration(
                                           borderRadius:
                                               BorderRadius.circular(14),
-                                          color: Colors.white,
+                                          color: Color(0xffEBF3FF),
                                         ),
                                         child: Icon(
                                           Icons.language,
