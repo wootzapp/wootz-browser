@@ -3,23 +3,23 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>734209097355-jsggghvs2i3es75ag7tfi40r35fst9db.apps.googleusercontent.com</string>
+	<string>753261675970-ddaipkqbidqkf6c1gp5klu6r2drb1igl.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.734209097355-jsggghvs2i3es75ag7tfi40r35fst9db</string>
+	<string>com.googleusercontent.apps.753261675970-ddaipkqbidqkf6c1gp5klu6r2drb1igl</string>
 	<key>ANDROID_CLIENT_ID</key>
-	<string>734209097355-flbgpmaedoskiaag8mrsdich1lvf9t6v.apps.googleusercontent.com</string>
+	<string>753261675970-nlmroat7dbk8b2ne9k51klpraan9ttmd.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
-	<string>AIzaSyDyrmEZrnBrIdr1-R5yx_3VV0QUwZ3MiFE</string>
+	<string>AIzaSyCgZEhbaF-KLBXW4J00GXg4Xmav8fS_EfU</string>
 	<key>GCM_SENDER_ID</key>
-	<string>734209097355</string>
+	<string>753261675970</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.wootzapp.browser</string>
 	<key>PROJECT_ID</key>
-	<string>ecla-wallet</string>
+	<string>browser-252c6</string>
 	<key>STORAGE_BUCKET</key>
-	<string>ecla-wallet.appspot.com</string>
+	<string>browser-252c6.appspot.com</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:734209097355:ios:87ed32d2072b7aa93f1e8e</string>
+	<string>1:753261675970:ios:00cd66a3716e9be4c4825b</string>
 </dict>
 </plist>
