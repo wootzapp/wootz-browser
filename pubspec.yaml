@@ -95,6 +95,9 @@ dependencies:
   blockfrost: ^1.0.0-dev.8
   receive_sharing_intent: ^1.4.5
   ntcdcrypto: ^0.2.0
+  firebase_crashlytics: ^3.0.4
+  firebase_core: ^2.1.1
+  firebase_analytics: ^10.0.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
