@@ -21,6 +21,18 @@ void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  if (Platform.isIOS) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyCgZEhbaF-KLBXW4J00GXg4Xmav8fS_EfU',
+        appId: '1:753261675970:ios:00cd66a3716e9be4c4825b',
+        messagingSenderId: '753261675970',
+        projectId: 'browser-252c6',
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
 
   FocusManager.instance.primaryFocus?.unfocus();
   // make app always in portrait mode
@@ -45,18 +57,6 @@ void main() async {
     );
   };
 
-  if (Platform.isIOS) {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyCgZEhbaF-KLBXW4J00GXg4Xmav8fS_EfU',
-        appId: '1:753261675970:ios:00cd66a3716e9be4c4825b',
-        messagingSenderId: '753261675970',
-        projectId: 'browser-252c6',
-      ),
-    );
-  } else {
-    await Firebase.initializeApp();
-  }
   FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
   };
