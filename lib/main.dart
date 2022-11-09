@@ -30,6 +30,7 @@ void main() async {
   ]);
   // change error widget
   ErrorWidget.builder = (FlutterErrorDetails details) {
+    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     if (kReleaseMode) {
       return Container();
     }
