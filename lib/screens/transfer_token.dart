@@ -385,6 +385,8 @@ class _TransferTokenState extends State<TransferToken> {
                   FutureBuilder(
                       future: getUserAddress(),
                       builder: (context, snapshot) {
+                        if (!snapshot.hasData) return Container();
+
                         if (snapshot.data['address'] ==
                             widget.data['recipient']) {
                           return Column(
