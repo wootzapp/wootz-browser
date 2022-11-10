@@ -369,6 +369,7 @@ class _SendTokenState extends State<SendToken> {
                             ),
                           ),
                     onPressed: () async {
+                      if (isLoading) return;
                       // hide snackbar if it is showing
                       ScaffoldMessenger.of(context).clearSnackBars();
                       FocusManager.instance.primaryFocus?.unfocus();
@@ -483,6 +484,9 @@ class _SendTokenState extends State<SendToken> {
                           web3.EthereumAddress.fromHex(recipient);
                         }
                       } catch (e) {
+                        setState(() {
+                          isLoading = false;
+                        });
                         if (kDebugMode) {
                           print(e);
                         }
