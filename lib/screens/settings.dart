@@ -176,12 +176,12 @@ class _SettingsState extends State<Settings> {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Container(
-                                        width: 28,
-                                        height: 28,
+                                        width: 26,
+                                        height: 26,
                                         decoration: BoxDecoration(
                                           borderRadius:
-                                              BorderRadius.circular(14),
-                                          color: Colors.white,
+                                              BorderRadius.circular(13),
+                                          color: Color(0xffEBF3FF),
                                         ),
                                         child: Icon(
                                           Icons.language,

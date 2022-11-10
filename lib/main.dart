@@ -6,6 +6,9 @@ import 'package:cryptowallet/screens/open_app_pin_failed.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +21,18 @@ void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  if (Platform.isIOS) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyCgZEhbaF-KLBXW4J00GXg4Xmav8fS_EfU',
+        appId: '1:753261675970:ios:00cd66a3716e9be4c4825b',
+        messagingSenderId: '753261675970',
+        projectId: 'browser-252c6',
+      ),
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
 
   FocusManager.instance.primaryFocus?.unfocus();
   // make app always in portrait mode
@@ -27,6 +42,7 @@ void main() async {
   ]);
   // change error widget
   ErrorWidget.builder = (FlutterErrorDetails details) {
+    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     if (kReleaseMode) {
       return Container();
     }
@@ -41,6 +57,13 @@ void main() async {
     );
   };
 
+  FlutterError.onError = (errorDetails) async {
+    await FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
   final pref = await Hive.openBox(secureStorageKey);
 
   runApp(

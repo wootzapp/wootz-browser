@@ -1,41 +1,41 @@
 {
   "project_info": {
-    "project_number": "734209097355",
-    "project_id": "ecla-wallet",
-    "storage_bucket": "ecla-wallet.appspot.com"
+    "project_number": "753261675970",
+    "project_id": "browser-252c6",
+    "storage_bucket": "browser-252c6.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:734209097355:android:0dd04b86fc600c6d3f1e8e",
+        "mobilesdk_app_id": "1:753261675970:android:7ae8e944c3e1db3cc4825b",
         "android_client_info": {
           "package_name": "com.wootzapp.browser"
         }
       },
       "oauth_client": [
         {
-          "client_id": "734209097355-flbgpmaedoskiaag8mrsdich1lvf9t6v.apps.googleusercontent.com",
+          "client_id": "753261675970-nlmroat7dbk8b2ne9k51klpraan9ttmd.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.wootzapp.browser",
-            "certificate_hash": "7946110963de5c2947711389123bf9b2d829a57c"
+            "certificate_hash": "72aa74fe32b6c8ff4fb8fb49390587ab04781441"
           }
         },
         {
-          "client_id": "734209097355-8mh3tqvq128qi1c2oefoh820d5vfjpch.apps.googleusercontent.com",
+          "client_id": "753261675970-eq4b67mmap854fj7gfqbe5l71qu7t9q9.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyA-CanvBidO2oP87CeDLP-rlmg2i5pFDBY"
+          "current_key": "AIzaSyAEc0_Zrh01nF0s0zAxPQbUwjIBUHuH8Yw"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "734209097355-8mh3tqvq128qi1c2oefoh820d5vfjpch.apps.googleusercontent.com",
+              "client_id": "753261675970-eq4b67mmap854fj7gfqbe5l71qu7t9q9.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:bech32/bech32.dart';
 import 'package:bitcoin_flutter/bitcoin_flutter.dart';
+import 'package:cryptowallet/components/loader.dart';
 import 'package:cryptowallet/screens/transfer_token.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
@@ -37,6 +38,7 @@ class _SendTokenState extends State<SendToken> {
   final recipientAddressController = TextEditingController();
   final amount = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -357,14 +359,17 @@ class _SendTokenState extends State<SendToken> {
                         (states) => const TextStyle(color: Colors.white),
                       ),
                     ),
-                    child: Text(
-                      AppLocalizations.of(context).send,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: isLoading
+                        ? const Loader()
+                        : Text(
+                            AppLocalizations.of(context).send,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                     onPressed: () async {
+                      if (isLoading) return;
                       // hide snackbar if it is showing
                       ScaffoldMessenger.of(context).clearSnackBars();
                       FocusManager.instance.primaryFocus?.unfocus();
@@ -388,16 +393,9 @@ class _SendTokenState extends State<SendToken> {
                       bool iscryptoDomain = recipient.contains('.');
 
                       try {
-                        if (iscryptoDomain) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                AppLocalizations.of(context)
-                                    .resolvingDomainAddress,
-                              ),
-                            ),
-                          );
-                        }
+                        setState(() {
+                          isLoading = true;
+                        });
                         if (widget.data['default'] == 'XLM' && iscryptoDomain) {
                           try {
                             stellar.FederationResponse response =
@@ -418,7 +416,9 @@ class _SendTokenState extends State<SendToken> {
                             Map unstoppableDomainAddr =
                                 await unstoppableDomainENS(
                               cryptoDomainName: recipient,
-                              currency: widget.data['default'],
+                              currency: widget.data['rpc'] == null
+                                  ? widget.data['default']
+                                  : null,
                             );
                             cryptoDomain = unstoppableDomainAddr['success']
                                 ? recipient
@@ -428,6 +428,10 @@ class _SendTokenState extends State<SendToken> {
                                 : recipient;
                           }
                         }
+
+                        setState(() {
+                          isLoading = false;
+                        });
 
                         if (widget.data['POSNetwork'] != null &&
                             !Address.validateAddress(
@@ -467,13 +471,22 @@ class _SendTokenState extends State<SendToken> {
                         } else if (widget.data['default'] == 'XLM') {
                           stellar.KeyPair.fromAccountId(recipient);
                         } else if (widget.data['default'] == 'FIL') {
+                          //FIXME:
                           // if (!await Flotus.validateAddress(recipient)) {
                           //   throw Exception('not a valid filecoin address');
                           // }
+                        } else if (widget.data['default'] == 'ATOM') {
+                          Bech32 sel = bech32.decode(recipient);
+                          if (sel.hrp != widget.data['bech32Hrp']) {
+                            throw Exception('not a valid cosmos address');
+                          }
                         } else if (widget.data['rpc'] != null) {
                           web3.EthereumAddress.fromHex(recipient);
                         }
                       } catch (e) {
+                        setState(() {
+                          isLoading = false;
+                        });
                         if (kDebugMode) {
                           print(e);
                         }

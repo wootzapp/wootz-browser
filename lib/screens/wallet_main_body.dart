@@ -76,6 +76,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
 
   List<Widget> blockChainsArray = <Widget>[];
   List<Timer> cryptoBalancesTimer = <Timer>[];
+  GlobalKey<UserAddedTokensState> globalKey = GlobalKey();
 
   @override
   void dispose() {
@@ -596,18 +597,15 @@ class _WalletMainBodyState extends State<WalletMainBody>
                       ),
                       //
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          await Navigator.push(
                             context,
                             PageTransition(
                               type: PageTransitionType.rightToLeft,
                               child: const AddCustomToken(),
                             ),
-                          ).then((value) {
-                            if (mounted) {
-                              setState(() {});
-                            }
-                          });
+                          );
+                          globalKey?.currentState?.getUserAddedToken();
                         },
                         child: Container(
                           color: Colors.transparent,
@@ -642,7 +640,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ...blockChainsArray,
-                      const UserAddedTokens(),
+                      UserAddedTokens(
+                        key: globalKey,
+                      ),
                       const SizedBox(
                         height: 20,
                       )

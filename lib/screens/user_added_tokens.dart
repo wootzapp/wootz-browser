@@ -16,10 +16,10 @@ class UserAddedTokens extends StatefulWidget {
   const UserAddedTokens({Key key}) : super(key: key);
 
   @override
-  State<UserAddedTokens> createState() => _UserAddedTokensState();
+  State<UserAddedTokens> createState() => UserAddedTokensState();
 }
 
-class _UserAddedTokensState extends State<UserAddedTokens> {
+class UserAddedTokensState extends State<UserAddedTokens> {
   List userAddedToken;
   List<ValueNotifier<double>> addedTokenListNotifiers =
       <ValueNotifier<double>>[];

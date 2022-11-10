@@ -9,30 +9,40 @@ Future<Map> unstoppableDomainENS({
   String currency,
 }) async {
   try {
-    const proxyReaderAddress = "0x1BDc0fD4fbABeed3E611fd6195fCd5d41dcEF393";
-    final web3.EthereumAddress proxyReader =
-        web3.EthereumAddress.fromHex(proxyReaderAddress);
+    cryptoDomainName = cryptoDomainName.toLowerCase();
+    final udResolvers = {
+      "0x049aba7510f45BA5b64ea9E658E342F904DB358D": "Ethereum",
+      "0x1BDc0fD4fbABeed3E611fd6195fCd5d41dcEF393": "Ethereum",
+      "0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f": "Polygon Matic",
+      "0x3E67b8c702a1292d1CEb025494C84367fcb12b45": "Polygon Matic"
+    };
+    for (String contractAddr in udResolvers.keys) {
+      final web3.EthereumAddress proxyReader =
+          web3.EthereumAddress.fromHex(contractAddr);
 
-    web3.DeployedContract contract = web3.DeployedContract(
-      web3.ContractAbi.fromJson(unstoppableDomainAbi, ''),
-      proxyReader,
-    );
+      web3.DeployedContract contract = web3.DeployedContract(
+        web3.ContractAbi.fromJson(unstoppableDomainAbi, ''),
+        proxyReader,
+      );
 
-    final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
+      final rpcUrl = getEVMBlockchains()[udResolvers[contractAddr]]['rpc'];
 
-    final client = web3.Web3Client(rpcUrl, Client());
+      final client = web3.Web3Client(rpcUrl, Client());
+      String udCryptoAddress = (await client.call(
+        contract: contract,
+        function: contract.function('get'),
+        params: [
+          "crypto.${currency ?? 'ETH'}.address",
+          BigInt.parse(nameHash(cryptoDomainName))
+        ],
+      ))
+          .first;
 
-    String udCryptoAddress = (await client.call(
-      contract: contract,
-      function: contract.function('getMany'),
-      params: [
-        ["crypto.${currency ?? 'ETH'}.address"],
-        BigInt.parse(nameHash(cryptoDomainName))
-      ],
-    ))
-        .first[0];
-
-    return {'success': true, 'msg': udCryptoAddress};
+      if (udCryptoAddress.isNotEmpty) {
+        return {'success': true, 'msg': udCryptoAddress};
+      }
+    }
+    return {'success': false, 'msg': 'Error resolving unstoppable domain ens'};
   } catch (e) {
     return {'success': false, 'msg': 'Error resolving unstoppable domain ens'};
   }
