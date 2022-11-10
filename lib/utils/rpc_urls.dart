@@ -1047,7 +1047,7 @@ Future ensToContentHashAndIPFS({String cryptoDomainName}) async {
 
 Future<Map> ensToAddress({String cryptoDomainName}) async {
   try {
-     cryptoDomainName = cryptoDomainName.toLowerCase();
+    cryptoDomainName = cryptoDomainName.toLowerCase();
     final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
     final client = web3.Web3Client(rpcUrl, Client());
     final nameHash_ = nameHash(cryptoDomainName);
@@ -2019,17 +2019,11 @@ Future<String> upload(
   }
 }
 
-Future<Uri> blockChainToHttps(String value) async {
+Uri blockChainToHttps(String value) {
   if (value == null) return Uri.parse(walletURL);
 
   value = value.trim();
   if (value.startsWith('ipfs://')) return Uri.parse(ipfsTohttp(value));
-
-  final response = await ensToContentHashAndIPFS(
-    cryptoDomainName: value,
-  );
-
-  if (response['success']) return Uri.parse(response['msg']);
 
   if (isURL(value)) return Uri.parse(value).replace(scheme: 'https');
 

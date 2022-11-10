@@ -133,7 +133,7 @@ class _DappState extends State<Dapp> {
                     child: TextFormField(
                       onFieldSubmitted: (value) async {
                         if (_controller != null) {
-                          Uri uri = await blockChainToHttps(value.trim());
+                          Uri uri = blockChainToHttps(value.trim());
                           await _controller.loadUrl(
                             urlRequest: URLRequest(url: WebUri.uri(uri)),
                           );
