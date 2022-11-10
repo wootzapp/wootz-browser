@@ -383,45 +383,46 @@ class _TransferTokenState extends State<TransferToken> {
                     height: 20,
                   ),
                   FutureBuilder(
-                      future: getUserAddress(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) return Container();
+                    future: getUserAddress(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return Container();
 
-                        if (snapshot.data['address'] ==
-                            widget.data['recipient']) {
-                          return Column(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.all(
-                                        Radius.circular(10)),
-                                    color: Colors.red[100]),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(10),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                          AppLocalizations.of(context)
-                                              .sendingToYourself,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: Colors.red,
-                                          )),
-                                    ],
-                                  ),
+                      if (snapshot.data['address'] ==
+                          widget.data['recipient']) {
+                        return Column(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                  borderRadius: const BorderRadius.all(
+                                      Radius.circular(10)),
+                                  color: Colors.red[100]),
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      AppLocalizations.of(context)
+                                          .sendingToYourself,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(
-                                height: 20,
-                              ),
-                            ],
-                          );
-                        }
-                        return Container();
-                      }),
+                            ),
+                            const SizedBox(
+                              height: 20,
+                            ),
+                          ],
+                        );
+                      }
+                      return Container();
+                    },
+                  ),
                   transactionFeeMap != null
                       ? Container(
                           color: Colors.transparent,
