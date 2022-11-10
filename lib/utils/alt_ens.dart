@@ -9,6 +9,7 @@ Future<Map> unstoppableDomainENS({
   String currency,
 }) async {
   try {
+    cryptoDomainName = cryptoDomainName.toLowerCase();
     final udResolvers = {
       "0x049aba7510f45BA5b64ea9E658E342F904DB358D": "Ethereum",
       "0x1BDc0fD4fbABeed3E611fd6195fCd5d41dcEF393": "Ethereum",

@@ -1047,6 +1047,7 @@ Future ensToContentHashAndIPFS({String cryptoDomainName}) async {
 
 Future<Map> ensToAddress({String cryptoDomainName}) async {
   try {
+     cryptoDomainName = cryptoDomainName.toLowerCase();
     final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
     final client = web3.Web3Client(rpcUrl, Client());
     final nameHash_ = nameHash(cryptoDomainName);
