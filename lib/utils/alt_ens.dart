@@ -14,7 +14,6 @@ Future<Map> unstoppableDomainENS({
       "0x049aba7510f45BA5b64ea9E658E342F904DB358D": "Ethereum",
       "0x1BDc0fD4fbABeed3E611fd6195fCd5d41dcEF393": "Ethereum",
       "0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f": "Polygon Matic",
-      "0x3E67b8c702a1292d1CEb025494C84367fcb12b45": "Polygon Matic"
     };
     for (String contractAddr in udResolvers.keys) {
       final web3.EthereumAddress proxyReader =
