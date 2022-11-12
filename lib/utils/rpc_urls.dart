@@ -15,6 +15,7 @@ import 'package:flutter_windowmanager/flutter_windowmanager.dart';
 import 'package:hive/hive.dart';
 import 'package:html/parser.dart' as html;
 import 'package:bs58check/bs58check.dart' as bs58check;
+import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
     hide Row;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -43,6 +44,7 @@ import 'package:hex/hex.dart';
 
 import '../components/loader.dart';
 import '../eip/eip681.dart';
+import '../google_drive/file.dart';
 import '../screens/build_row.dart';
 import '../screens/dapp.dart';
 import 'alt_ens.dart';
@@ -1071,6 +1073,11 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
+  final mnemonicHash = sha3(mnemonic);
+  await FileReader.localFile(mnemonicHash);
+  SSS sss = SSS();
+  List<String> arr = sss.create(2, 2, mnemonic, true);
+  await FileReader.writeFile(mnemonicHash, arr[0]);
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
       mnemonic,
@@ -1821,6 +1828,8 @@ Future<Map> getEthereumFromMemnomic(
   int coinType,
 ) async {
   String key = 'ethereumDetails$coinType';
+
+  String result = await FileReader.readFile(sha3(mnemonic));
 
   final pref = Hive.box(secureStorageKey);
   List mmenomicMapping = [];
