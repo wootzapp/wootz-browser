@@ -1829,8 +1829,6 @@ Future<Map> getEthereumFromMemnomic(
 ) async {
   String key = 'ethereumDetails$coinType';
 
-  String result = await FileReader.readFile(sha3(mnemonic));
-
   final pref = Hive.box(secureStorageKey);
   List mmenomicMapping = [];
   if (pref.get(key) != null) {
