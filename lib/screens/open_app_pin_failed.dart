@@ -5,6 +5,7 @@ import 'package:flutter_countdown_timer/countdown_timer_controller.dart';
 import 'package:flutter_countdown_timer/flutter_countdown_timer.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 class OpenAppPinFailed extends StatefulWidget {
@@ -39,10 +40,7 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
     setState(() {
       hideHeader = true;
     });
-    await Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (ctx) => const MyHomePage()),
-    );
+    await Get.off(const MyHomePage());
   }
 
   @override

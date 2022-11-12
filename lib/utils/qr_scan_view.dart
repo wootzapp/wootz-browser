@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:scan/scan.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:get/get.dart';
 
 class QRScanView extends StatefulWidget {
   const QRScanView({Key key}) : super(key: key);
@@ -60,7 +61,7 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                 scanAreaScale: 1,
                 scanLineColor: appBackgroundblue,
                 onCapture: (data) {
-                  Navigator.pop(context, data);
+                  Get.back(result: data);
                 },
               ),
               Positioned(
@@ -90,7 +91,7 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                         onSelect: (XFile file) async {
                           final data = await Scan.parse(file.path);
                           if (data != null) {
-                            Navigator.pop(context, data);
+                            Get.back(result: data);
                           } else {
                             showDialogWithMessage(
                               context: context,

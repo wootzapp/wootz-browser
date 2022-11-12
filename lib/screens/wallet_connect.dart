@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cryptowallet/components/wallet_logo.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:decimal/decimal.dart';import 'package:get/get.dart';
+import 'package:decimal/decimal.dart';
+import 'package:get/get.dart';
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -216,11 +217,8 @@ class _WalletConnectState extends State<WalletConnect> {
                                   ),
                                 ),
                                 onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const QRScanView(),
-                                    ),
+                                  Get.to(
+                                    const QRScanView(),
                                   ).then((value) {
                                     if (value != null) {
                                       _qrScanHandler(value);

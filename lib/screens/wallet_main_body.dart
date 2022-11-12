@@ -48,20 +48,11 @@ Future<void> handleAllIntent(String value, BuildContext context) async {
 
   SchedulerBinding.instance.addPostFrameCallback((_) {
     if (Navigator.canPop(context)) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (ctx) => navigateWidget,
-        ),
-      );
+      Get.off(navigateWidget);
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (ctx) => navigateWidget,
-      ),
-    );
+
+    Get.to(navigateWidget);
   });
 }
 
@@ -130,11 +121,8 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.addAll([
         InkWell(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (ctx) => Token(data: bitcoinBlockchain),
-                ),
+              Get.to(
+                Token(data: bitcoinBlockchain),
               );
             },
             child: GetBlockChainWidget(
@@ -195,12 +183,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.add(
         InkWell(
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (ctx) => Token(
-                  data: evmBlockchain,
-                ),
+            Get.to(
+              Token(
+                data: evmBlockchain,
               ),
             );
           },
@@ -266,12 +251,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.addAll([
         InkWell(
           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (ctx) => Token(
-                  data: solanaBlockchain,
-                ),
+            Get.to(
+              Token(
+                data: solanaBlockchain,
               ),
             );
           },
@@ -330,12 +312,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.addAll([
         InkWell(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (ctx) => Token(
-                    data: stellarBlockChain,
-                  ),
+              Get.to(
+                Token(
+                  data: stellarBlockChain,
                 ),
               );
             },
@@ -399,12 +378,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.addAll([
         InkWell(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (ctx) => Token(
-                    data: filecoinBlockchain,
-                  ),
+              Get.to(
+                Token(
+                  data: filecoinBlockchain,
                 ),
               );
             },
@@ -468,12 +444,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       blockChainsArray.addAll([
         InkWell(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (ctx) => Token(
-                    data: cardanoBlockchain,
-                  ),
+              Get.to(
+                Token(
+                  data: cardanoBlockchain,
                 ),
               );
             },
@@ -598,13 +571,11 @@ class _WalletMainBodyState extends State<WalletMainBody>
                       //
                       GestureDetector(
                         onTap: () async {
-                          await Navigator.push(
-                            context,
-                            PageTransition(
-                              type: PageTransitionType.rightToLeft,
-                              child: const AddCustomToken(),
-                            ),
+                          await Get.to(
+                            const AddCustomToken(),
+                            transition: Transition.rightToLeft,
                           );
+
                           globalKey?.currentState?.getUserAddedToken();
                         },
                         child: Container(

@@ -4,6 +4,7 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:get/get.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
@@ -90,11 +91,9 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       onPressed: () {
                         String mmemnomic = bip39.generateMnemonic();
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (ctx) => RecoveryPhrase(
-                                    data: mmemnomic, add: true)));
+                        Get.to(
+                          RecoveryPhrase(data: mmemnomic, add: true),
+                        );
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),
@@ -126,11 +125,7 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       onPressed: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (ctx) =>
-                                    const EnterPhrase(add: true)));
+                        Get.to(const EnterPhrase(add: true));
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),

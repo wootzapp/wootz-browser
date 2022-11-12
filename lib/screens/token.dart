@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:intl/intl.dart';
@@ -307,12 +308,9 @@ class _TokenState extends State<Token> {
                       ),
                 );
               }
-              await Navigator.push(
-                context,
-                PageTransition(
-                  child: nextWidget,
-                  type: PageTransitionType.leftToRight,
-                ),
+              await Get.to(
+                nextWidget,
+                transition: Transition.leftToRight,
               );
             },
             child: Container(
@@ -396,13 +394,10 @@ class _TokenState extends State<Token> {
           IconButton(
             onPressed: widget.data['default'] != null
                 ? () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (ctx) => CryptoChart(
-                          name: widget.data['name'],
-                          symbol: widget.data['default'],
-                        ),
+                    await Get.to(
+                      CryptoChart(
+                        name: widget.data['name'],
+                        symbol: widget.data['default'],
                       ),
                     );
                   }
@@ -565,14 +560,11 @@ class _TokenState extends State<Token> {
                                           children: [
                                             GestureDetector(
                                               onTap: () async {
-                                                Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (ctx) =>
-                                                          SendToken(
-                                                        data: widget.data,
-                                                      ),
-                                                    ));
+                                                Get.to(
+                                                  SendToken(
+                                                    data: widget.data,
+                                                  ),
+                                                );
                                               },
                                               child: Container(
                                                 width: 40,
@@ -604,14 +596,10 @@ class _TokenState extends State<Token> {
                                                     Hive.box(secureStorageKey)
                                                         .get('mmemonic');
 
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (ctx) =>
-                                                        ReceiveToken(
-                                                      data: widget.data,
-                                                      mnemonic: mnemonic,
-                                                    ),
+                                                Get.to(
+                                                  ReceiveToken(
+                                                    data: widget.data,
+                                                    mnemonic: mnemonic,
                                                   ),
                                                 );
                                               },

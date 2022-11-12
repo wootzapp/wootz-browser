@@ -460,13 +460,10 @@ Future<bool> authenticate(BuildContext context,
     didAuthenticate = await localAuthentication();
   }
   if (!didAuthenticate) {
-    didAuthenticate = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (ctx) => Security(
-          isEnterPin: true,
-          useLocalAuth: useLocalAuth,
-        ),
+    didAuthenticate = await Get.to(
+      Security(
+        isEnterPin: true,
+        useLocalAuth: useLocalAuth,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:get/get.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 
 import '../utils/rpc_urls.dart';
@@ -237,12 +238,9 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   ),
                                 ),
                                 onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (ctx) => Confirmmnemonic(
-                                        mmenomic: widget.data.split(' '),
-                                      ),
+                                  Get.off(
+                                    Confirmmnemonic(
+                                      mmenomic: widget.data.split(' '),
                                     ),
                                   );
                                 },

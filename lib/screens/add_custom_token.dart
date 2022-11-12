@@ -134,12 +134,8 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String contractAddr = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (ctx) => const QRScanView(),
-                              ),
-                            );
+                            String contractAddr =
+                                await Get.to(const QRScanView());
                             if (contractAddr == null) return;
                             contractAddressController.text = contractAddr;
                           },

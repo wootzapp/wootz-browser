@@ -14,6 +14,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
@@ -84,11 +85,8 @@ class _SendTokenState extends State<SendToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String recipientAddr = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (ctx) => const QRScanView(),
-                              ),
+                            String recipientAddr = await Get.to(
+                              const QRScanView(),
                             );
                             if (recipientAddr == null) return;
                             recipientAddressController.text = recipientAddr;
@@ -516,15 +514,10 @@ class _SendTokenState extends State<SendToken> {
 
                       ScaffoldMessenger.of(context).clearSnackBars();
 
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (ctx) => TransferToken(
-                            data: data,
-                            cryptoDomain: cryptoDomain,
-                          ),
-                        ),
-                      );
+                      await Get.to(TransferToken(
+                        data: data,
+                        cryptoDomain: cryptoDomain,
+                      ));
                     },
                   ),
                 ),
