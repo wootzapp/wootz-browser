@@ -225,8 +225,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                             ),
                             onPressed: () async {
                               FocusManager.instance.primaryFocus?.unfocus();
-                              ScaffoldMessenger.of(context)
-                                  .hideCurrentSnackBar();
+                              Get.closeAllSnackbars();
 
                               final String mnemonics =
                                   mnemonicController.text.trim();
@@ -248,18 +247,14 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
 
                                   for (Map phrases in decodedmnemonic) {
                                     if (phrases['phrase'] == mnemonics) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          backgroundColor: Colors.red,
-                                          content: Text(
-                                            AppLocalizations.of(context)
-                                                .mnemonicAlreadyImported,
-                                            style: const TextStyle(
-                                                color: Colors.white),
-                                          ),
-                                        ),
+                                      Get.snackbar(
+                                        '',
+                                        AppLocalizations.of(context)
+                                            .mnemonicAlreadyImported,
+                                        backgroundColor: Colors.red,
+                                        colorText: Colors.white,
                                       );
+
                                       setState(() {
                                         isLoading = false;
                                       });
@@ -273,17 +268,14 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                   mnemonics,
                                 );
                                 if (!mnemonicValid) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        AppLocalizations.of(context)
-                                            .invalidmnemonic,
-                                        style: const TextStyle(
-                                            color: Colors.white),
-                                      ),
-                                    ),
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context)
+                                        .invalidmnemonic,
+                                    backgroundColor: Colors.red,
+                                    colorText: Colors.white,
                                   );
+
                                   setState(() {
                                     isLoading = false;
                                   });
@@ -323,16 +315,11 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                 if (kDebugMode) {
                                   print(e);
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    backgroundColor: Colors.red,
-                                    content: Text(
-                                      AppLocalizations.of(context)
-                                          .errorTryAgain,
-                                      style:
-                                          const TextStyle(color: Colors.white),
-                                    ),
-                                  ),
+                                Get.snackbar(
+                                  '',
+                                  AppLocalizations.of(context).errorTryAgain,
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
                                 );
 
                                 setState(() {

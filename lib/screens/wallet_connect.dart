@@ -396,10 +396,11 @@ class _WalletConnectState extends State<WalletConnect> {
       debugPrint('_sessionStore $_sessionStore');
       _wcClient.connectFromSessionStore(_sessionStore);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).noPreviousSessionFound),
-        ),
+      Get.snackbar(
+        '',
+        AppLocalizations.of(context).noPreviousSessionFound,
+        colorText: Colors.white,
+        backgroundColor: Colors.red,
       );
     }
   }

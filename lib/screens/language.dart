@@ -7,6 +7,7 @@ import 'package:flutter/src/foundation/key.dart';
 import 'package:flutter/src/widgets/container.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/app_config.dart';
@@ -63,16 +64,12 @@ class _LanguageState extends State<Language> {
                             final pref = Hive.box(secureStorageKey);
                             await pref.put(languageKey, locale.languageCode);
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: Colors.red,
-                                content: Text(
-                                  AppLocalizations.of(context)
-                                      .couldNotChangeLanguage,
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                                duration: const Duration(seconds: 2),
-                              ),
+                            Get.snackbar(
+                              '',
+                              AppLocalizations.of(context)
+                                  .couldNotChangeLanguage,
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
                             );
                           }
                         },

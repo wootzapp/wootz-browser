@@ -312,16 +312,13 @@ class _SettingsState extends State<Settings> {
                                 const QRScanView(),
                               );
                               if (data == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    backgroundColor: Colors.red,
-                                    content: Text(
-                                      eIP681ProcessingErrorMsg,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    duration: Duration(seconds: 2),
-                                  ),
+                                Get.snackbar(
+                                  '',
+                                  eIP681ProcessingErrorMsg,
+                                  colorText: Colors.white,
+                                  backgroundColor: Colors.red,
                                 );
+
                                 return;
                               }
                               showDialog(
@@ -358,15 +355,11 @@ class _SettingsState extends State<Settings> {
                                 );
                                 return;
                               }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  backgroundColor: Colors.red,
-                                  content: Text(
-                                    scannedData['msg'],
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  duration: Duration(seconds: 2),
-                                ),
+                              Get.snackbar(
+                                '',
+                                scannedData['msg'],
+                                colorText: Colors.white,
+                                backgroundColor: Colors.red,
                               );
                             },
                             child: SizedBox(
@@ -436,8 +429,7 @@ class _SettingsState extends State<Settings> {
                                 String mnemonic = (Hive.box(secureStorageKey))
                                     .get(currentMmenomicKey);
                                 if (await authenticate(context)) {
-                                  ScaffoldMessenger.of(context)
-                                      .hideCurrentSnackBar();
+                                  Get.closeAllSnackbars();
                                   Get.to(
                                     RecoveryPhrase(
                                       data: mnemonic,
@@ -445,14 +437,11 @@ class _SettingsState extends State<Settings> {
                                     ),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        AppLocalizations.of(context).authFailed,
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).authFailed,
+                                    colorText: Colors.white,
+                                    backgroundColor: Colors.red,
                                   );
                                 }
                               },
@@ -491,22 +480,18 @@ class _SettingsState extends State<Settings> {
                                   context,
                                   useLocalAuth: false,
                                 )) {
-                                  ScaffoldMessenger.of(context)
-                                      .hideCurrentSnackBar();
+                                  Get.closeAllSnackbars();
                                   Get.to(
                                     const Security(
                                       isChangingPin: true,
                                     ),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        AppLocalizations.of(context).authFailed,
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).authFailed,
+                                    colorText: Colors.white,
+                                    backgroundColor: Colors.red,
                                   );
                                 }
                               },

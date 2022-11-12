@@ -369,19 +369,16 @@ class _SendTokenState extends State<SendToken> {
                     onPressed: () async {
                       if (isLoading) return;
                       // hide snackbar if it is showing
-                      ScaffoldMessenger.of(context).clearSnackBars();
+                      Get.closeAllSnackbars();
                       FocusManager.instance.primaryFocus?.unfocus();
                       // check if recipinet is valid eth address
 
                       if (double.tryParse(amount.text.trim()) == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).pleaseEnterAmount,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).pleaseEnterAmount,
+                          colorText: Colors.white,
+                          backgroundColor: Colors.red,
                         );
                         return;
                       }
@@ -488,19 +485,15 @@ class _SendTokenState extends State<SendToken> {
                         if (kDebugMode) {
                           print(e);
                         }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).canNotSend(
-                                widget.data['symbol'],
-                              ),
-                              style: const TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).canNotSend(
+                            widget.data['symbol'],
                           ),
+                          colorText: Colors.white,
+                          backgroundColor: Colors.red,
                         );
+
                         return;
                       }
                       if (amount.text.trim() == "" || recipient == "") {
@@ -512,7 +505,7 @@ class _SendTokenState extends State<SendToken> {
                         'recipient': recipient
                       };
 
-                      ScaffoldMessenger.of(context).clearSnackBars();
+                      Get.closeAllSnackbars();
 
                       await Get.to(TransferToken(
                         data: data,

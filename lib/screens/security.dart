@@ -165,12 +165,12 @@ class _SecurityState extends State<Security> {
 
                           await Get.off(const MainScreen());
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              backgroundColor: Colors.red,
-                              content: Text(
-                                AppLocalizations.of(context).passcodeMismatch,
-                                style: const TextStyle(color: Colors.white),
-                              )));
+                          Get.snackbar(
+                            '',
+                            AppLocalizations.of(context).passcodeMismatch,
+                            colorText: Colors.white,
+                          );
+
                           pinController.clear();
                           pinController2.clear();
                           setState(() {

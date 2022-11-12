@@ -5,7 +5,8 @@ import 'package:cryptowallet/eip/eip681.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:decimal/decimal.dart';
-import 'package:flutter/foundation.dart';import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
@@ -130,13 +131,9 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           await Clipboard.setData(ClipboardData(
                             text: (snapshot.data as Map)['address'],
                           ));
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(AppLocalizations.of(context)
-                                  .copiedToClipboard),
-                              duration: const Duration(seconds: 2),
-                            ),
+                          Get.snackbar(
+                            '',
+                            AppLocalizations.of(context).copiedToClipboard,
                           );
                         },
                         child: Card(
@@ -192,13 +189,10 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                       text: (snapshot.data as Map)['address'],
                                     ));
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            AppLocalizations.of(context)
-                                                .copiedToClipboard),
-                                        duration: const Duration(seconds: 2),
-                                      ),
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context)
+                                          .copiedToClipboard,
                                     );
                                   },
                                   child: Container(

@@ -298,7 +298,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                     onPressed: () async {
                       FocusManager.instance.primaryFocus?.unfocus();
                       final pref = Hive.box(secureStorageKey);
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      Get.closeCurrentSnackbar();
                       final contractAddr =
                           contractAddressController.text.trim();
                       final contractName = nameAddressController.text.trim();
@@ -315,32 +315,22 @@ class _AddCustomTokenState extends State<AddCustomToken> {
 
                       if (contractAddr.toLowerCase() ==
                           tokenContractAddress.toLowerCase()) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).tokenImportedAlready,
-                              style: const TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).tokenImportedAlready,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
 
                       if (double.tryParse(contractDecimals) == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context)
-                                  .invalidContractAddressOrNetworkTimeout,
-                              style: const TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context)
+                              .invalidContractAddressOrNetworkTimeout,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
@@ -349,14 +339,11 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           contractName.isEmpty ||
                           contractSymbol.isEmpty ||
                           contractDecimals.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).enterContractAddress,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).enterContractAddress,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
@@ -392,15 +379,13 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           bool sameNetwork = contractNetwork == network;
 
                           if (sameNetwork && sameContractAddress) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: Colors.red,
-                                content: Text(
-                                  'Token Imported Already',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
+                            Get.snackbar(
+                              '',
+                              'Token Imported Already',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
                             );
+
                             return;
                           }
                         }

@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:intl/intl.dart';
@@ -448,24 +449,18 @@ class _TransferTokenState extends State<TransferToken> {
                                           null ||
                                       transactionFeeMap['userBalance'] <= 0
                                   ? () {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            AppLocalizations.of(context)
-                                                .insufficientBalance,
-                                            style: const TextStyle(
-                                                color: Colors.white),
-                                          ),
-                                          backgroundColor: Colors.red,
-                                        ),
+                                      Get.snackbar(
+                                        '',
+                                        AppLocalizations.of(context)
+                                            .insufficientBalance,
+                                        colorText: Colors.white,
+                                        backgroundColor: Colors.red,
                                       );
                                     }
                                   : () async {
                                       if (isSending) return;
                                       if (await authenticate(context)) {
-                                        ScaffoldMessenger.of(context)
-                                            .hideCurrentSnackBar();
+                                        Get.closeAllSnackbars();
                                         setState(() {
                                           isSending = true;
                                         });
@@ -788,14 +783,10 @@ class _TransferTokenState extends State<TransferToken> {
                                           if (transactionHash == null) {
                                             throw Exception('Sending failed');
                                           }
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                AppLocalizations.of(context)
-                                                    .trxSent,
-                                              ),
-                                            ),
+                                          Get.snackbar(
+                                            '',
+                                            AppLocalizations.of(context)
+                                                .trxSent,
                                           );
 
                                           String tokenSent = isNFTTransfer
@@ -865,31 +856,21 @@ class _TransferTokenState extends State<TransferToken> {
                                         } catch (e) {
                                           setState(() {
                                             isSending = false;
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                backgroundColor: Colors.red,
-                                                content: Text(
-                                                  e.toString(),
-                                                  style: const TextStyle(
-                                                      color: Colors.white),
-                                                ),
-                                              ),
+                                            Get.snackbar(
+                                              '',
+                                              e.toString(),
+                                              colorText: Colors.white,
+                                              backgroundColor: Colors.red,
                                             );
                                           });
                                         }
                                       } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            backgroundColor: Colors.red,
-                                            content: Text(
-                                              AppLocalizations.of(context)
-                                                  .authFailed,
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
+                                        Get.snackbar(
+                                          '',
+                                          AppLocalizations.of(context)
+                                              .authFailed,
+                                          colorText: Colors.white,
+                                          backgroundColor: Colors.red,
                                         );
                                       }
                                     },

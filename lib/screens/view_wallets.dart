@@ -4,6 +4,7 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
@@ -149,7 +150,7 @@ class _ViewWalletsState extends State<ViewWallets> {
   }
 
   Future<bool> _editWalletName(int index) async {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Get.closeAllSnackbars();
 
     final pref = Hive.box(secureStorageKey);
     List mnemonicsList = json.decode(pref.get(mnemonicListKey));
@@ -201,16 +202,14 @@ class _ViewWalletsState extends State<ViewWallets> {
                 FocusManager.instance.primaryFocus?.unfocus();
 
                 if (walletName.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        AppLocalizations.of(context).enterName,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
+                  Get.snackbar(
+                    '',
+                    AppLocalizations.of(context).enterName,
+                    colorText: Colors.white,
+                    backgroundColor: Colors.red,
                   );
-                  Navigator.pop(context, false);
+
+                  Get.back(result: false);
                   return;
                 }
 
@@ -238,7 +237,7 @@ class _ViewWalletsState extends State<ViewWallets> {
   }
 
   Future<bool> _deleteWallet(int index) async {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Get.closeAllSnackbars();
 
     final pref = Hive.box(secureStorageKey);
     List mnemonicsList = json.decode(pref.get(mnemonicListKey));
@@ -246,17 +245,12 @@ class _ViewWalletsState extends State<ViewWallets> {
     if (pref.get(currentMmenomicKey).toString().toLowerCase() ==
         mnemonicsList[index]['phrase'].toString().toLowerCase()) {
       const secondsToShowError = Duration(seconds: 2);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          duration: secondsToShowError,
-          content: Text(
-            'Can not delete currently used wallet',
-            style: TextStyle(color: Colors.white),
-          ),
-          backgroundColor: Colors.red,
-        ),
+      Get.snackbar(
+        '',
+        'Can not delete currently used wallet',
+        colorText: Colors.white,
+        backgroundColor: Colors.red,
       );
-
       return false;
     }
     bool deleted = await AwesomeDialog(

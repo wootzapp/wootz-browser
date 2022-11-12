@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 import '../components/loader.dart';
@@ -79,16 +80,14 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   }
 
   void invalidSeedOrder() {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.red,
-        content: Text(
-          AppLocalizations.of(context).invalidmnemonic,
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+    Get.closeAllSnackbars();
+    Get.snackbar(
+      '',
+      AppLocalizations.of(context).invalidmnemonic,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
     );
+
     setState(() {
       finished = false;
       firstStep = true;
@@ -284,7 +283,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                     ),
                     onPressed: finished
                         ? () async {
-                            ScaffoldMessenger.of(context).clearSnackBars();
+                            Get.closeAllSnackbars();
                             if (isLoading) return;
                             setState(() {
                               isLoading = true;
@@ -325,14 +324,11 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                               if (kDebugMode) {
                                 print(e);
                               }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  backgroundColor: Colors.red,
-                                  content: Text(
-                                    AppLocalizations.of(context).errorTryAgain,
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
+                              Get.snackbar(
+                                '',
+                                AppLocalizations.of(context).errorTryAgain,
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
                               );
 
                               setState(() {
