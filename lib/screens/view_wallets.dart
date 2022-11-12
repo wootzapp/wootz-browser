@@ -156,7 +156,7 @@ class _ViewWalletsState extends State<ViewWallets> {
     String currentmnemonic = pref.get(currentMmenomicKey);
 
     final result = await AwesomeDialog(
-      showCloseIcon: true,
+      showCloseIcon: false,
       context: context,
       closeIcon: const Icon(
         Icons.close,
@@ -210,7 +210,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                       backgroundColor: Colors.red,
                     ),
                   );
-
+                  Navigator.pop(context, false);
                   return;
                 }
 
