@@ -7,6 +7,8 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:get/get_state_manager/get_state_manager.dart';
+import 'package:get/route_manager.dart';
 import 'firebase_options.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -149,7 +151,7 @@ class _MyAppState extends State<MyApp> {
     return ValueListenableBuilder(
         valueListenable: MyApp.themeNotifier,
         builder: (_, ThemeMode currentMode, __) {
-          return MaterialApp(
+          return GetMaterialApp(
             locale: _locale,
             debugShowCheckedModeBanner: false,
             theme: lightTheme,
@@ -189,12 +191,9 @@ class _MyHomePageState extends State<MyHomePage> {
     if (hasUnlockTime > 1) {
       nextWidget = OpenAppPinFailed(remainSec: hasUnlockTime);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacement(
-          context,
-          PageTransition(
-            child: nextWidget,
-            type: PageTransitionType.leftToRight,
-          ),
+        Get.off(
+          nextWidget,
+          transition: Transition.leftToRight,
         );
       });
       return;
@@ -223,12 +222,9 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     await Future.delayed(const Duration(milliseconds: 2500));
 
-    Navigator.pushReplacement(
-      context,
-      PageTransition(
-        child: nextWidget,
-        type: PageTransitionType.leftToRight,
-      ),
+    Get.off(
+      nextWidget,
+      transition: Transition.leftToRight,
     );
   }
 
