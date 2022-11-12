@@ -98,6 +98,9 @@ dependencies:
   firebase_crashlytics: ^3.0.4
   firebase_core: ^2.1.1
   firebase_analytics: ^10.0.4
+  googleapis: ^0.54.0
+  googleapis_auth: ^0.2.11
+  flutter_dotenv: ^5.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

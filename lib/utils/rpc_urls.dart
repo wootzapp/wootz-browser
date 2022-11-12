@@ -2554,7 +2554,7 @@ signTransaction({
                       ),
                     ),
                   );
-                  if (decodedFunction == null) return null;
+                  if (decodedFunction == null) return true;
 
                   final List params = decodedFunction['params'];
 
