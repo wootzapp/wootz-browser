@@ -226,7 +226,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                 );
                 seedList = json.decode(pref.get(mnemonicListKey));
 
-                Navigator.pop(context, true);
+                Get.back(result: true);
               },
             )
           ],
@@ -269,7 +269,7 @@ class _ViewWalletsState extends State<ViewWallets> {
       btnCancelColor: appBackgroundblue,
       desc: AppLocalizations.of(context).confirmWalletDeleteDescription,
       btnCancelOnPress: () {
-        Navigator.pop(context, false);
+        Get.back(result: false);
       },
       btnOkOnPress: () async {
         if (await authenticate(context)) {
@@ -281,9 +281,9 @@ class _ViewWalletsState extends State<ViewWallets> {
           );
 
           seedList = mnemonicsList;
-          Navigator.pop(context, true);
+          Get.back(result: true);
         } else {
-          Navigator.pop(context, false);
+          Get.back(result: false);
         }
       },
     ).show();

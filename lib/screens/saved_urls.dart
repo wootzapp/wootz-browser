@@ -4,7 +4,8 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:hive/hive.dart';import 'package:get/get.dart';
+import 'package:hive/hive.dart';
+import 'package:get/get.dart';
 
 import '../utils/app_config.dart';
 
@@ -133,7 +134,7 @@ class _SavedUrlsState extends State<SavedUrls> {
                 btnOkColor: Colors.red,
                 btnCancelColor: appBackgroundblue,
                 btnCancelOnPress: () {
-                  Navigator.pop(context, false);
+                  Get.back(result: false);
                 },
                 btnOkOnPress: () async {
                   final pref = Hive.box(secureStorageKey);

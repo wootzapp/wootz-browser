@@ -81,7 +81,7 @@ class _SecurityState extends State<Security> {
                               bool localAuthConfirmed =
                                   await localAuthentication();
                               if (localAuthConfirmed) {
-                                Navigator.pop(context, localAuthConfirmed);
+                                Get.back(result: localAuthConfirmed);
                               }
                             }
                           : null,
@@ -138,11 +138,11 @@ class _SecurityState extends State<Security> {
                                 pinController.text.trim();
                         bool userHasTrials = currentTrial < userPinTrials;
                         if (passcodeCorrect) {
-                          Navigator.pop(context, true);
+                          Get.back(result: true);
                         } else if (userHasTrials) {
                           pinController.clear();
                         } else {
-                          Navigator.pop(context, false);
+                          Get.back(result: false);
                         }
 
                         return;

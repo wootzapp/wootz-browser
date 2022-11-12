@@ -121,7 +121,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                 desc:
                     'Are you sure you want to delete (${userAddedToken[i]['symbol']}) token?',
                 btnCancelOnPress: () {
-                  Navigator.pop(context, false);
+                  Get.back(result: false);
                 },
                 onDissmissCallback: ((type) {}),
                 btnOkOnPress: () async {
@@ -144,7 +144,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                     userTokenListKey,
                     jsonEncode(userAddedToken),
                   );
-                  Navigator.pop(context, true);
+                  Get.back(result: true);
                 },
               ).show();
 

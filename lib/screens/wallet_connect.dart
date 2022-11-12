@@ -337,7 +337,7 @@ class _WalletConnectState extends State<WalletConnect> {
                                               children: [
                                                 TextButton(
                                                   onPressed: () =>
-                                                      Navigator.pop(context),
+                                                      Get.back(result: context),
                                                   child: Text(
                                                     AppLocalizations.of(context)
                                                         .confirm,
@@ -498,9 +498,7 @@ class _WalletConnectState extends State<WalletConnect> {
                             connectedWebsiteUrl = peerMeta.url;
                             setState(() {});
                             int count = 0;
-                            Navigator.popUntil(context, (route) {
-                              return count++ == 2;
-                            });
+                            Get.until((route) => count++ == 2);
                           });
                     },
                     child: Text(AppLocalizations.of(context).confirm),
