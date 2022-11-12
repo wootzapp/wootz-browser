@@ -12,7 +12,7 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:page_transition/page_transition.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -570,7 +570,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                         IconButton(
                           onPressed: () {
                             if (Navigator.canPop(context)) {
-                              Navigator.pop(context);
+                              Get.back();
                             }
                           },
                           icon: const Icon(

@@ -5,7 +5,7 @@ import 'package:cryptowallet/eip/eip681.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:decimal/decimal.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
@@ -295,7 +295,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                 pressEvent: () {
                                                   if (Navigator.canPop(
                                                       context)) {
-                                                    Navigator.pop(context);
+                                                    Get.back();
                                                   }
 
                                                   FocusManager

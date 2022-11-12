@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
+import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -273,7 +274,7 @@ buildSwapUi({
                 InkWell(
                   onTap: () {
                     onSelect(element);
-                    Navigator.pop(context);
+                    Get.back();
                   },
                   child: Row(children: [
                     Flexible(
@@ -367,7 +368,7 @@ buildSwapUi({
                           GestureDetector(
                             onTap: () {
                               if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
+                                Get.back();
                               }
                             },
                             child: const Icon(

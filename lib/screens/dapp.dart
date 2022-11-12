@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -203,7 +204,7 @@ class _DappState extends State<Dapp> {
                                 child: InkWell(
                                   onTap: () async {
                                     await goForward();
-                                    Navigator.pop(context);
+                                    Get.back();
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.all(15),
@@ -227,7 +228,7 @@ class _DappState extends State<Dapp> {
                                 child: InkWell(
                                   onTap: () async {
                                     await goBack();
-                                    Navigator.pop(context);
+                                    Get.back();
                                   },
                                   child: Padding(
                                     padding: const EdgeInsets.all(15),
@@ -252,7 +253,7 @@ class _DappState extends State<Dapp> {
                                   onTap: () async {
                                     if (_controller != null) {
                                       await _controller.reload();
-                                      Navigator.pop(context);
+                                      Get.back();
                                     }
                                   },
                                   child: Padding(
@@ -278,7 +279,7 @@ class _DappState extends State<Dapp> {
                                   onTap: () async {
                                     if (_controller != null) {
                                       await Share.share(url);
-                                      Navigator.pop(context);
+                                      Get.back();
                                     }
                                   },
                                   child: Padding(
@@ -321,7 +322,7 @@ class _DappState extends State<Dapp> {
                                           savedBookMarks,
                                         ),
                                       );
-                                      Navigator.pop(context);
+                                      Get.back();
                                     },
                                     child: Padding(
                                       padding: const EdgeInsets.all(15),
@@ -353,7 +354,7 @@ class _DappState extends State<Dapp> {
                                     onTap: () async {
                                       if (_controller != null) {
                                         await _controller.clearCache();
-                                        Navigator.pop(context);
+                                        Get.back();
                                       }
                                     },
                                     child: Container(
@@ -388,15 +389,13 @@ class _DappState extends State<Dapp> {
                                       historyList =
                                           jsonDecode(savedHistory) as List;
                                     }
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (ctx) => SavedUrls(
-                                          historyTitle,
-                                          historyEmpty,
-                                          historyKey,
-                                          data: historyList,
-                                        ),
+
+                                    Get.off(
+                                      SavedUrls(
+                                        historyTitle,
+                                        historyEmpty,
+                                        historyKey,
+                                        data: historyList,
                                       ),
                                     );
                                   },
@@ -434,10 +433,8 @@ class _DappState extends State<Dapp> {
                                               blockChainData['rpc'],
                                             );
                                             int count = 0;
-                                            Navigator.popUntil(context,
-                                                (route) {
-                                              return count++ == 2;
-                                            });
+
+                                            Get.until((route) => count++ == 2);
                                           },
                                           selectedChainId:
                                               pref.get(dappChainIdKey),
@@ -478,14 +475,9 @@ class _DappState extends State<Dapp> {
                                 width: double.infinity,
                                 child: InkWell(
                                   onTap: () async {
-                                    Navigator.pop(context);
-                                    await Navigator.push(
-                                      context,
-                                      PageTransition(
-                                        type: PageTransitionType.rightToLeft,
-                                        child: const Settings(),
-                                      ),
-                                    );
+                                    Get.back();
+
+                                    await Get.to(const Settings());
                                   },
                                   child: Container(
                                     color: Colors.transparent,
@@ -520,7 +512,7 @@ class _DappState extends State<Dapp> {
                                           pref.get(userUnlockPasscodeKey) !=
                                               null;
                                       Widget dappWidget;
-                                      Navigator.pop(context);
+                                      Get.back();
 
                                       if (hasWallet) {
                                         dappWidget = const WalletMainBody();
@@ -529,12 +521,7 @@ class _DappState extends State<Dapp> {
                                       } else {
                                         dappWidget = const Security();
                                       }
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (ctx) => dappWidget,
-                                        ),
-                                      );
+                                      await Get.to(dappWidget);
                                     },
                                     child: Container(
                                       color: Colors.transparent,
@@ -672,7 +659,7 @@ class _DappState extends State<Dapp> {
                                       ),
                                       onPressed: () async {
                                         shouldByPass = true;
-                                        Navigator.pop(context);
+                                        Get.back();
                                       },
                                       child: Text(
                                         AppLocalizations.of(context).ignore,
@@ -781,14 +768,14 @@ class _DappState extends State<Dapp> {
                                   source:
                                       'AlphaWallet.executeCallback($id, null, null);',
                                 );
-                                Navigator.pop(context);
+                                Get.back();
                               },
                               onReject: () async {
                                 await _controller.evaluateJavascript(
                                   source:
                                       'AlphaWallet.executeCallback($id, "user rejected switch", null);',
                                 );
-                                Navigator.pop(context);
+                                Get.back();
                               },
                             );
                           }
@@ -925,7 +912,7 @@ class _DappState extends State<Dapp> {
                                       'AlphaWallet.executeCallback($id, "$error",null);',
                                 );
                               } finally {
-                                Navigator.pop(context);
+                                Get.back();
                               }
                             },
                             onReject: () async {
@@ -933,7 +920,7 @@ class _DappState extends State<Dapp> {
                                 source:
                                     'AlphaWallet.executeCallback($id, "user rejected transaction",null);',
                               );
-                              Navigator.pop(context);
+                              Get.back();
                             },
                             title: 'Sign Transaction',
                             chainId: chainId,
@@ -1013,7 +1000,7 @@ class _DappState extends State<Dapp> {
                                       'AlphaWallet.executeCallback($id, "$error",null);',
                                 );
                               } finally {
-                                Navigator.pop(context);
+                                Get.back();
                               }
                             },
                             onReject: () {
@@ -1021,7 +1008,7 @@ class _DappState extends State<Dapp> {
                                 source:
                                     'AlphaWallet.executeCallback($id, "user rejected signature",null);',
                               );
-                              Navigator.pop(context);
+                              Get.back();
                             },
                           );
                         },

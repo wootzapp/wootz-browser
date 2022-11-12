@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cryptowallet/components/wallet_logo.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:decimal/decimal.dart';
+import 'package:decimal/decimal.dart';import 'package:get/get.dart';
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -515,7 +515,7 @@ class _WalletConnectState extends State<WalletConnect> {
                     ),
                     onPressed: () {
                       _wcClient.rejectSession();
-                      Navigator.pop(context);
+                      Get.back();
                     },
                     child: Text(AppLocalizations.of(context).reject),
                   ),
@@ -552,7 +552,7 @@ class _WalletConnectState extends State<WalletConnect> {
                     backgroundColor: Theme.of(context).colorScheme.secondary,
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Get.back();
                   },
                   child: Text(AppLocalizations.of(context).close),
                 ),
@@ -595,7 +595,7 @@ class _WalletConnectState extends State<WalletConnect> {
                     backgroundColor: Theme.of(context).colorScheme.secondary,
                   ),
                   onPressed: () {
-                    Navigator.pop(context);
+                    Get.back();
                   },
                   child: Text(AppLocalizations.of(context).close),
                 ),
@@ -630,12 +630,12 @@ class _WalletConnectState extends State<WalletConnect> {
         } catch (e) {
           _wcClient.rejectRequest(id: id);
         } finally {
-          Navigator.pop(context);
+          Get.back();
         }
       },
       onReject: () {
         _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
+        Get.back();
       },
     );
   }
@@ -664,12 +664,12 @@ class _WalletConnectState extends State<WalletConnect> {
         } catch (e) {
           _wcClient.rejectRequest(id: id);
         } finally {
-          Navigator.pop(context);
+          Get.back();
         }
       },
       onReject: () {
         _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
+        Get.back();
       },
     );
   }
@@ -736,11 +736,11 @@ class _WalletConnectState extends State<WalletConnect> {
           id: id,
           result: signedDataHex,
         );
-        Navigator.pop(context);
+        Get.back();
       },
       onReject: () {
         _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
+        Get.back();
       },
     );
   }

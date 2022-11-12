@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
 import 'package:cryptowallet/screens/language.dart';
-
+import 'package:get/get.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
@@ -369,7 +369,7 @@ class _SettingsState extends State<Settings> {
                               Map scannedData = await processEIP681(data);
 
                               if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
+                                Get.back();
                               }
 
                               if (scannedData['success']) {
