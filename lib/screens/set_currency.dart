@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -70,7 +70,7 @@ class _SetCurrencyState extends State<SetCurrency> {
                                     'defaultCurrency',
                                     currency,
                                   );
-                                  Navigator.pop(context);
+                                  Get.back();
                                 } else {
                                   ScaffoldMessenger.of(context)
                                       .showSnackBar(SnackBar(

@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
+import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -15,6 +16,7 @@ import 'package:flutter_windowmanager/flutter_windowmanager.dart';
 import 'package:hive/hive.dart';
 import 'package:html/parser.dart' as html;
 import 'package:bs58check/bs58check.dart' as bs58check;
+import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
     hide Row;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -43,6 +45,7 @@ import 'package:hex/hex.dart';
 
 import '../components/loader.dart';
 import '../eip/eip681.dart';
+import '../google_drive/file.dart';
 import '../screens/build_row.dart';
 import '../screens/dapp.dart';
 import 'alt_ens.dart';
@@ -271,7 +274,7 @@ buildSwapUi({
                 InkWell(
                   onTap: () {
                     onSelect(element);
-                    Navigator.pop(context);
+                    Get.back();
                   },
                   child: Row(children: [
                     Flexible(
@@ -365,7 +368,7 @@ buildSwapUi({
                           GestureDetector(
                             onTap: () {
                               if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
+                                Get.back();
                               }
                             },
                             child: const Icon(
@@ -457,13 +460,10 @@ Future<bool> authenticate(BuildContext context,
     didAuthenticate = await localAuthentication();
   }
   if (!didAuthenticate) {
-    didAuthenticate = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (ctx) => Security(
-          isEnterPin: true,
-          useLocalAuth: useLocalAuth,
-        ),
+    didAuthenticate = await Get.to(
+      Security(
+        isEnterPin: true,
+        useLocalAuth: useLocalAuth,
       ),
     );
   }
@@ -1047,7 +1047,7 @@ Future ensToContentHashAndIPFS({String cryptoDomainName}) async {
 
 Future<Map> ensToAddress({String cryptoDomainName}) async {
   try {
-     cryptoDomainName = cryptoDomainName.toLowerCase();
+    cryptoDomainName = cryptoDomainName.toLowerCase();
     final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
     final client = web3.Web3Client(rpcUrl, Client());
     final nameHash_ = nameHash(cryptoDomainName);
@@ -1071,6 +1071,11 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
+  final mnemonicHash = sha3(mnemonic);
+  await FileReader.localFile(mnemonicHash);
+  SSS sss = SSS();
+  List<String> arr = sss.create(2, 2, mnemonic, true);
+  await FileReader.writeFile(mnemonicHash, arr[0]);
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
       mnemonic,
@@ -2019,17 +2024,11 @@ Future<String> upload(
   }
 }
 
-Future<Uri> blockChainToHttps(String value) async {
+Uri blockChainToHttps(String value) {
   if (value == null) return Uri.parse(walletURL);
 
   value = value.trim();
   if (value.startsWith('ipfs://')) return Uri.parse(ipfsTohttp(value));
-
-  final response = await ensToContentHashAndIPFS(
-    cryptoDomainName: value,
-  );
-
-  if (response['success']) return Uri.parse(response['msg']);
 
   if (isURL(value)) return Uri.parse(value).replace(scheme: 'https');
 
@@ -2560,7 +2559,7 @@ signTransaction({
                       ),
                     ),
                   );
-                  if (decodedFunction == null) return null;
+                  if (decodedFunction == null) return true;
 
                   final List params = decodedFunction['params'];
 

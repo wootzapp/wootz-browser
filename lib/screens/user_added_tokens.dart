@@ -7,6 +7,7 @@ import 'package:cryptowallet/screens/token.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/get_blockchain_widget.dart';
@@ -199,12 +200,9 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                 ],
               ),
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (ctx) => Token(
-                      data: userAddedToken[i],
-                    ),
+                Get.to(
+                  Token(
+                    data: userAddedToken[i],
                   ),
                 );
               },

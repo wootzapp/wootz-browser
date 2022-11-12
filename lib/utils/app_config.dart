@@ -82,6 +82,7 @@ const mnemonicListKey = 'mnemonics_List';
 const currentMmenomicKey = 'mmemomic_mnemonic';
 const currentUserWalletNameKey = 'current__walletNameKey';
 const coinGeckoCryptoPriceKey = 'cryptoPricesKey';
+const googleDriveKey = 'sksi3u9pq08SPOAei839akAl838qasli839isarp484pakd';
 const bookMarkKey = 'bookMarks';
 const historyKey = 'broswer_kehsi_history';
 const coinMarketCapApiKey = 'a4e88d80-acc3-4bb5-a8a6-151a2ddb5f32';

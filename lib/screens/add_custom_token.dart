@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-
+import 'package:get/get.dart';
 import '../utils/app_config.dart';
 import '../utils/qr_scan_view.dart';
 
@@ -97,7 +97,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         showBlockChainDialog(
                           context: context,
                           onTap: (blockChainData) async {
-                            Navigator.pop(context);
+                            Get.back();
                             if (mounted) {
                               setState(() {
                                 network = blockChainData['name'];
@@ -134,12 +134,8 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String contractAddr = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (ctx) => const QRScanView(),
-                              ),
-                            );
+                            String contractAddr =
+                                await Get.to(const QRScanView());
                             if (contractAddr == null) return;
                             contractAddressController.text = contractAddr;
                           },
@@ -416,7 +412,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         userTokenListKey,
                         jsonEncode(userTokenList),
                       );
-                      if (Navigator.canPop(context)) Navigator.pop(context);
+                      if (Navigator.canPop(context)) Get.back();
                     },
                   ),
                 ),

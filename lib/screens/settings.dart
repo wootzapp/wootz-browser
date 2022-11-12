@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
 import 'package:cryptowallet/screens/language.dart';
-
+import 'package:get/get.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
@@ -121,11 +121,8 @@ class _SettingsState extends State<Settings> {
                         children: [
                           InkWell(
                             onTap: () async {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => const SetCurrency(),
-                                ),
+                              Get.to(
+                                const SetCurrency(),
                               );
                             },
                             child: SizedBox(
@@ -158,12 +155,7 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (ctx) {
-                                  return const Language();
-                                }),
-                              );
+                              await Get.to(const Language());
                             },
                             child: SizedBox(
                               height: 35,
@@ -205,12 +197,7 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (ctx) {
-                                  return const WalletConnect();
-                                }),
-                              );
+                              await Get.to(const WalletConnect());
                             },
                             child: Container(
                               color: Colors.transparent,
@@ -248,13 +235,10 @@ class _SettingsState extends State<Settings> {
                               final currentPhrase =
                                   pref.get(currentMmenomicKey);
 
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => ViewWallets(
-                                    data: (jsonDecode(mnemonics) as List),
-                                    currentPhrase: currentPhrase,
-                                  ),
+                              await Get.to(
+                                ViewWallets(
+                                  data: (jsonDecode(mnemonics) as List),
+                                  currentPhrase: currentPhrase,
                                 ),
                               );
                             },
@@ -289,11 +273,8 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => const MainScreen(),
-                                ),
+                              Get.to(
+                                const MainScreen(),
                               );
                             },
                             child: Container(
@@ -327,11 +308,8 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              String data = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => const QRScanView(),
-                                ),
+                              String data = await Get.to(
+                                const QRScanView(),
                               );
                               if (data == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -369,16 +347,13 @@ class _SettingsState extends State<Settings> {
                               Map scannedData = await processEIP681(data);
 
                               if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
+                                Get.back();
                               }
 
                               if (scannedData['success']) {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (ctx) => SendToken(
-                                      data: scannedData['msg'],
-                                    ),
+                                await Get.to(
+                                  SendToken(
+                                    data: scannedData['msg'],
                                   ),
                                 );
                                 return;
@@ -463,11 +438,10 @@ class _SettingsState extends State<Settings> {
                                 if (await authenticate(context)) {
                                   ScaffoldMessenger.of(context)
                                       .hideCurrentSnackBar();
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (ctx) => RecoveryPhrase(
-                                          data: mnemonic, verify: false),
+                                  Get.to(
+                                    RecoveryPhrase(
+                                      data: mnemonic,
+                                      verify: false,
                                     ),
                                   );
                                 } else {
@@ -519,12 +493,9 @@ class _SettingsState extends State<Settings> {
                                 )) {
                                   ScaffoldMessenger.of(context)
                                       .hideCurrentSnackBar();
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (ctx) => const Security(
-                                        isChangingPin: true,
-                                      ),
+                                  Get.to(
+                                    const Security(
+                                      isChangingPin: true,
                                     ),
                                   );
                                 } else {
@@ -607,15 +578,12 @@ class _SettingsState extends State<Settings> {
 
                               final bookmarkTitle = localize.bookMark;
                               final bookmarkEmpty = localize.noBookMark;
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => SavedUrls(
-                                    bookmarkTitle,
-                                    bookmarkEmpty,
-                                    bookMarkKey,
-                                    data: data,
-                                  ),
+                              await Get.to(
+                                SavedUrls(
+                                  bookmarkTitle,
+                                  bookmarkEmpty,
+                                  bookMarkKey,
+                                  data: data,
                                 ),
                               );
                             },

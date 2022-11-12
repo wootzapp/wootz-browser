@@ -7,6 +7,7 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:screenshot_callback/screenshot_callback.dart';
@@ -94,11 +95,8 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
         actions: [
           IconButton(
             onPressed: () async {
-              String seedPhrase = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (ctx) => const QRScanView(),
-                ),
+              String seedPhrase = await Get.to(
+                const QRScanView(),
               );
               if (seedPhrase == null) return;
               mnemonicController.text = seedPhrase;
