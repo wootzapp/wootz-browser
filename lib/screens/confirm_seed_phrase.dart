@@ -37,7 +37,6 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   RxList<String> mmenomicShuffled = [].obs;
   RxBool isLoading = false.obs;
   RxList<int> boxIndexGotten = [].obs;
-  // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   @override
   void initState() {
