@@ -19,12 +19,12 @@ class AddCustomToken extends StatefulWidget {
 class _AddCustomTokenState extends State<AddCustomToken> {
   List networks = getEVMBlockchains().keys.toList();
   String network;
-  String networkImage;
+  RxString networkImage = RxString('');
   @override
   void initState() {
     super.initState();
     network = networks[0];
-    networkImage = getEVMBlockchains().values.toList()[0]['image'];
+    networkImage.value = getEVMBlockchains().values.toList()[0]['image'];
     contractAddressController.addListener(() async {
       await autoFillNameDecimalSymbol(
         contractAddressController.text,
@@ -98,24 +98,22 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           context: context,
                           onTap: (blockChainData) async {
                             Get.back();
-                            if (mounted) {
-                              setState(() {
-                                network = blockChainData['name'];
-                                networkImage = blockChainData['image'];
-                              });
-                            }
+                            network = blockChainData['name'];
+                            networkImage.value = blockChainData['image'];
                           },
                           selectedChainId: getEVMBlockchains()[network]
                               ['chainId'],
                         );
                         emptyInput();
                       },
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundImage: AssetImage(
-                          networkImage ?? '',
-                        ),
-                      ),
+                      child: Obx(() {
+                        return CircleAvatar(
+                          radius: 20,
+                          backgroundImage: AssetImage(
+                            networkImage.value ?? '',
+                          ),
+                        );
+                      }),
                     ),
                   ],
                 ),

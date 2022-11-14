@@ -1023,11 +1023,7 @@ class _DappState extends State<Dapp> {
                     ]),
                     onLoadStart:
                         (InAppWebViewController controller, Uri url) async {
-                      if (mounted) {
-                        setState(() {
-                          browserController.text = url.toString();
-                        });
-                      }
+                      browserController.text = url.toString();
 
                       final pref = Hive.box(secureStorageKey);
 

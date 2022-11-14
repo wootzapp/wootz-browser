@@ -26,7 +26,7 @@ class _SecurityState extends State<Security> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final enterPinController = TextEditingController();
 
-  bool isConfirming = false;
+  RxBool isConfirming = RxBool(false);
   List allNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     ..shuffle();
   int currentTrial = 0;
@@ -60,7 +60,7 @@ class _SecurityState extends State<Security> {
   Widget build(BuildContext context) {
     final trialsRemaining = userPinTrials - currentTrial;
     TextEditingController currentController =
-        isConfirming ? pinController2 : pinController;
+        isConfirming.value ? pinController2 : pinController;
     return Scaffold(
       key: _scaffoldKey,
       body: SafeArea(
@@ -106,15 +106,17 @@ class _SecurityState extends State<Security> {
                             fontWeight: FontWeight.bold,
                           ),
                         )
-                      : Text(
-                          isConfirming
-                              ? AppLocalizations.of(context).confirmYourPin
-                              : AppLocalizations.of(context).createYourPin,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : Obx(() {
+                          return Text(
+                            isConfirming.value
+                                ? AppLocalizations.of(context).confirmYourPin
+                                : AppLocalizations.of(context).createYourPin,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        }),
                   const SizedBox(
                     height: 20,
                   ),
@@ -147,7 +149,7 @@ class _SecurityState extends State<Security> {
 
                         return;
                       }
-                      if (isConfirming) {
+                      if (isConfirming.value) {
                         if (pinController.text.trim() ==
                             pinController2.text.trim()) {
                           await pref.put(
@@ -173,14 +175,11 @@ class _SecurityState extends State<Security> {
 
                           pinController.clear();
                           pinController2.clear();
-                          setState(() {
-                            isConfirming = false;
-                          });
+
+                          isConfirming.value = false;
                         }
                       } else {
-                        setState(() {
-                          isConfirming = true;
-                        });
+                        isConfirming.value = true;
                       }
                     },
                     length: pinLength,

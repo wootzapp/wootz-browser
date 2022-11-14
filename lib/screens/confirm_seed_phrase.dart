@@ -25,18 +25,18 @@ class Confirmmnemonic extends StatefulWidget {
 }
 
 class _ConfirmmnemonicState extends State<Confirmmnemonic> {
-  bool finished = false;
-  bool firstStep = true;
-  bool secondStep = false;
-  bool thirdStep = false;
-  bool fourthStep = false;
+  RxBool finished = false.obs;
+  RxBool firstStep = true.obs;
+  RxBool secondStep = false.obs;
+  RxBool thirdStep = false.obs;
+  RxBool fourthStep = false.obs;
   final List numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   int currentCorrectItem = 0;
-  bool firstTime = true;
+  RxBool firstTime = true.obs;
   List<String> mmenomicArray = [];
-  List<String> mmenomicShuffled = [];
-  bool isLoading = false;
-  List<int> boxIndexGotten = [];
+  RxList<String> mmenomicShuffled = [].obs;
+  RxBool isLoading = false.obs;
+  RxList<int> boxIndexGotten = [].obs;
   // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   @override
@@ -54,26 +54,24 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   void verifySelection(int selectionIndex, List firstThree) {
     if (mmenomicShuffled[selectionIndex] ==
         mmenomicArray[firstThree[currentCorrectItem] - 1]) {
-      setState(() {
-        boxIndexGotten.add(selectionIndex);
-        if (currentCorrectItem == 2) {
-          if (firstStep == true) {
-            firstStep = false;
-            secondStep = true;
-          } else if (firstStep == false && secondStep == true) {
-            secondStep = false;
-            thirdStep = true;
-          } else if (secondStep == false && thirdStep == true) {
-            thirdStep = false;
-            fourthStep = true;
-          } else if (thirdStep == false && fourthStep == true) {
-            finished = true;
-          }
-          currentCorrectItem = 0;
-        } else {
-          currentCorrectItem++;
+      boxIndexGotten.add(selectionIndex);
+      if (currentCorrectItem == 2) {
+        if (firstStep.value == true) {
+          firstStep.value = false;
+          secondStep.value = true;
+        } else if (firstStep.value == false && secondStep.value == true) {
+          secondStep.value = false;
+          thirdStep.value = true;
+        } else if (secondStep.value == false && thirdStep.value == true) {
+          thirdStep.value = false;
+          fourthStep.value = true;
+        } else if (thirdStep.value == false && fourthStep.value == true) {
+          finished.value = true;
         }
-      });
+        currentCorrectItem = 0;
+      } else {
+        currentCorrectItem++;
+      }
     } else {
       invalidSeedOrder();
     }
@@ -89,34 +87,34 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
     );
 
     setState(() {
-      finished = false;
-      firstStep = true;
-      secondStep = false;
-      thirdStep = false;
-      fourthStep = false;
+      finished.value = false;
+      firstStep.value = true;
+      secondStep.value = false;
+      thirdStep.value = false;
+      fourthStep.value = false;
       currentCorrectItem = 0;
-      firstTime = true;
-      mmenomicShuffled.length = 0;
-      isLoading = false;
-      boxIndexGotten.length = 0;
+      firstTime.value = true;
+      mmenomicShuffled.value = [];
+      isLoading.value = false;
+      boxIndexGotten.value = [];
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (firstTime) {
+    if (firstTime.value) {
       mmenomicArray = widget.mmenomic;
       mmenomicShuffled = [...mmenomicArray]..shuffle();
-      firstTime = false;
+      firstTime.value = false;
     }
     List firstThree = [];
-    if (firstStep) {
+    if (firstStep.value) {
       firstThree = [numbers[0], numbers[1], numbers[2]];
-    } else if (secondStep) {
+    } else if (secondStep.value) {
       firstThree = [numbers[3], numbers[4], numbers[5]];
-    } else if (thirdStep) {
+    } else if (thirdStep.value) {
       firstThree = [numbers[6], numbers[7], numbers[8]];
-    } else if (fourthStep) {
+    } else if (fourthStep.value) {
       firstThree = [numbers[9], numbers[10], numbers[11]];
     }
 
@@ -183,175 +181,177 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         child: SingleChildScrollView(
           child: Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 20,
-                ),
-                if (!finished)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Column(
-                        children: [
-                          Text(
-                            AppLocalizations.of(context)
-                                .selectEachWordAsPresented,
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Card(
-                                  color:
-                                      currentCorrectItem >= 1 ? green1 : null,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Text(
-                                      currentCorrectItem >= 1
-                                          ? mmenomicArray[firstThree[0] - 1]
-                                          : firstThree[0].toString(),
-                                      style: TextStyle(
-                                        color: currentCorrectItem >= 1
-                                            ? green5
-                                            : null,
+            child: Obx(
+              () => Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 20,
+                  ),
+                  if (!finished.value)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(10.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              AppLocalizations.of(context)
+                                  .selectEachWordAsPresented,
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Card(
+                                    color:
+                                        currentCorrectItem >= 1 ? green1 : null,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Text(
+                                        currentCorrectItem >= 1
+                                            ? mmenomicArray[firstThree[0] - 1]
+                                            : firstThree[0].toString(),
+                                        style: TextStyle(
+                                          color: currentCorrectItem >= 1
+                                              ? green5
+                                              : null,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Card(
-                                  color:
-                                      currentCorrectItem == 2 ? green1 : null,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Text(
-                                      currentCorrectItem == 2
-                                          ? mmenomicArray[firstThree[1] - 1]
-                                              .toString()
-                                          : firstThree[1].toString(),
-                                      style: TextStyle(
-                                        color: currentCorrectItem == 2
-                                            ? green5
-                                            : null,
+                                Expanded(
+                                  child: Card(
+                                    color:
+                                        currentCorrectItem == 2 ? green1 : null,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Text(
+                                        currentCorrectItem == 2
+                                            ? mmenomicArray[firstThree[1] - 1]
+                                                .toString()
+                                            : firstThree[1].toString(),
+                                        style: TextStyle(
+                                          color: currentCorrectItem == 2
+                                              ? green5
+                                              : null,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(10),
-                                    child: Text(
-                                      firstThree[2].toString(),
-                                      style: TextStyle(color: null),
+                                Expanded(
+                                  child: Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(10),
+                                      child: Text(
+                                        firstThree[2].toString(),
+                                        style: TextStyle(color: null),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                Container(
-                  color: Colors.transparent,
-                  width: double.infinity,
-                  child: Column(
-                    children: seedPhraseWidget,
-                  ),
-                ),
-                const SizedBox(
-                  height: 40,
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ButtonStyle(
-                      backgroundColor: MaterialStateProperty.resolveWith(
-                        (states) => appBackgroundblue,
-                      ),
-                      shape: MaterialStateProperty.resolveWith(
-                        (states) => RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    onPressed: finished
-                        ? () async {
-                            Get.closeAllSnackbars();
-                            if (isLoading) return;
-                            setState(() {
-                              isLoading = true;
-                            });
-                            final pref = Hive.box(secureStorageKey);
-                            String mnemonics = widget.mmenomic.join(' ');
-                            try {
-                              final mnemonicsList = pref.get(mnemonicListKey);
-                              List decodedmnemonic = [];
-
-                              if (mnemonicsList != null) {
-                                decodedmnemonic =
-                                    jsonDecode(mnemonicsList) as List;
-
-                                for (Map phrases in decodedmnemonic) {
-                                  if (phrases['phrase'] == mnemonics) {
-                                    return;
-                                  }
-                                }
-                              }
-                              await initializeAllPrivateKeys(mnemonics);
-
-                              decodedmnemonic.add({'phrase': mnemonics});
-                              await pref.put(
-                                mnemonicListKey,
-                                jsonEncode(decodedmnemonic),
-                              );
-
-                              await pref.put(currentMmenomicKey, mnemonics);
-
-                              await pref.put(
-                                currentUserWalletNameKey,
-                                null,
-                              );
-
-                              RestartWidget.restartApp(context);
-                            } catch (e) {
-                              if (kDebugMode) {
-                                print(e);
-                              }
-                              Get.snackbar(
-                                '',
-                                AppLocalizations.of(context).errorTryAgain,
-                                backgroundColor: Colors.red,
-                                colorText: Colors.white,
-                              );
-
-                              setState(() {
-                                isLoading = false;
-                              });
-                            }
-                          }
-                        : null,
-                    child: Padding(
-                      padding: const EdgeInsets.all(15),
-                      child: isLoading
-                          ? Loader(color: white)
-                          : Text(
-                              AppLocalizations.of(context).continue_,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                  Container(
+                    color: Colors.transparent,
+                    width: double.infinity,
+                    child: Column(
+                      children: seedPhraseWidget,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(
+                    height: 40,
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ButtonStyle(
+                        backgroundColor: MaterialStateProperty.resolveWith(
+                          (states) => appBackgroundblue,
+                        ),
+                        shape: MaterialStateProperty.resolveWith(
+                          (states) => RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      onPressed: finished.value
+                          ? () async {
+                              Get.closeAllSnackbars();
+                              if (isLoading.value) return;
+                              setState(() {
+                                isLoading.value = true;
+                              });
+                              final pref = Hive.box(secureStorageKey);
+                              String mnemonics = widget.mmenomic.join(' ');
+                              try {
+                                final mnemonicsList = pref.get(mnemonicListKey);
+                                List decodedmnemonic = [];
+
+                                if (mnemonicsList != null) {
+                                  decodedmnemonic =
+                                      jsonDecode(mnemonicsList) as List;
+
+                                  for (Map phrases in decodedmnemonic) {
+                                    if (phrases['phrase'] == mnemonics) {
+                                      return;
+                                    }
+                                  }
+                                }
+                                await initializeAllPrivateKeys(mnemonics);
+
+                                decodedmnemonic.add({'phrase': mnemonics});
+                                await pref.put(
+                                  mnemonicListKey,
+                                  jsonEncode(decodedmnemonic),
+                                );
+
+                                await pref.put(currentMmenomicKey, mnemonics);
+
+                                await pref.put(
+                                  currentUserWalletNameKey,
+                                  null,
+                                );
+
+                                RestartWidget.restartApp(context);
+                              } catch (e) {
+                                if (kDebugMode) {
+                                  print(e);
+                                }
+                                Get.snackbar(
+                                  '',
+                                  AppLocalizations.of(context).errorTryAgain,
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
+                                );
+
+                                setState(() {
+                                  isLoading.value = false;
+                                });
+                              }
+                            }
+                          : null,
+                      child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: isLoading.value
+                            ? Loader(color: white)
+                            : Text(
+                                AppLocalizations.of(context).continue_,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
