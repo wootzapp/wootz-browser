@@ -27,10 +27,10 @@ class ReceiveToken extends StatefulWidget {
 
 class _ReceiveTokenState extends State<ReceiveToken> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
-  String userAddress = "";
+  RxString userAddress = "".obs;
 
-  bool isRequestingPayment = false;
-  String amountRequested;
+  RxBool isRequestingPayment = false.obs;
+  RxString amountRequested;
   TextEditingController amountField = TextEditingController();
 
   @override
@@ -94,7 +94,9 @@ class _ReceiveTokenState extends State<ReceiveToken> {
             }
           }
           if (snapshot.hasData) {
-            if (!isRequestingPayment) userAddress = snapshot.data['address'];
+            if (!isRequestingPayment.value) {
+              userAddress.value = snapshot.data['address'];
+            }
             return SafeArea(
               child: SingleChildScrollView(
                 child: Padding(
@@ -114,7 +116,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                               padding:
                                   const EdgeInsets.only(top: 10, bottom: 10),
                               child: QrImage(
-                                data: userAddress,
+                                data: userAddress.value,
                                 version: QrVersions.auto,
                                 size: 250,
                               ),
@@ -160,7 +162,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                         ),
                       ),
                       amountRequested != null
-                          ? Text(amountRequested)
+                          ? Text(amountRequested.value)
                           : Container(),
                       const SizedBox(
                         height: 40,
@@ -364,20 +366,18 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                     }
                                                   }
 
-                                                  setState(() {
-                                                    isRequestingPayment = true;
-                                                    amountRequested =
-                                                        ethereumRequestURL !=
-                                                                null
-                                                            ? "+${amountField.text.trim()} ${widget.data['symbol']}"
-                                                            : null;
-                                                    amountField.text = '';
-                                                    userAddress =
-                                                        ethereumRequestURL ??
-                                                            (snapshot.data
-                                                                    as Map)[
-                                                                'address'];
-                                                  });
+                                                  isRequestingPayment.value =
+                                                      true;
+                                                  amountRequested.value =
+                                                      ethereumRequestURL != null
+                                                          ? "+${amountField.text.trim()} ${widget.data['symbol']}"
+                                                          : null;
+                                                  amountField.text = '';
+                                                  userAddress =
+                                                      ethereumRequestURL ??
+                                                          (snapshot.data
+                                                                  as Map)[
+                                                              'address'];
                                                 },
                                               )
                                             ],
