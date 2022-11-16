@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:flutter/services.dart';
+import 'package:get/state_manager.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:charts_flutter/src/text_element.dart' as TextElement;
@@ -58,7 +59,7 @@ class _CryptoChartState extends State<CryptoChart> {
     'Nov',
     'Dec'
   ];
-  ValueNotifier<String> priceNotifier = ValueNotifier<String>('');
+  RxString priceNotifier = ''.obs;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,13 +88,12 @@ class _CryptoChartState extends State<CryptoChart> {
                           children: [
                             Padding(
                               padding: const EdgeInsets.only(top: 10.0),
-                              child: ValueListenableBuilder(
-                                valueListenable: priceNotifier,
-                                builder: ((context, value, child) {
-                                  return ChartPrice(
-                                    chartPriceData: {'price': value},
-                                  );
-                                }),
+                              child: Obx(
+                                () => ChartPrice(
+                                  chartPriceData: {
+                                    'price': priceNotifier.value
+                                  },
+                                ),
                               ),
                             ),
                             SizedBox(
