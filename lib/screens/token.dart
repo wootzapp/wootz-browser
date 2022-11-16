@@ -30,12 +30,12 @@ class Token extends StatefulWidget {
 }
 
 class _TokenState extends State<Token> {
-  RxMap tokenTransaction;
-  RxDouble cryptoBalance;
-  RxMap blockchainPrice;
+  RxMap tokenTransaction = {}.obs;
+  RxDouble cryptoBalance = 0.0.obs;
+  RxMap blockchainPrice = {}.obs;
   bool skipNetworkRequest = true;
   Timer timer;
-  ValueNotifier trxOpen = ValueNotifier(true);
+  RxBool trxOpen = true.obs;
   final List<String> months = [
     'Jan',
     'Feb',
@@ -109,8 +109,9 @@ class _TokenState extends State<Token> {
         'change': change,
         'symbol': symbol
       };
-      if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (_) {
+      print(_);
+    }
   }
 
   Future getBlockchainBalance() async {
@@ -271,120 +272,6 @@ class _TokenState extends State<Token> {
 
   @override
   Widget build(BuildContext context) {
-    final listTransactions = <Widget>[];
-    if (tokenTransaction != null) {
-      List data = tokenTransaction['trx'] as List;
-
-      int count = 1;
-
-      for (final datum in data) {
-        if (datum == null) continue;
-        if (count > maximumTransactionToSave) break;
-        if (datum['from'].toString().toLowerCase() !=
-            tokenTransaction['currentUser'].toString().toLowerCase()) continue;
-        final tokenSent = datum['value'] / pow(10, datum['decimal']);
-        DateTime trnDate =
-            DateFormat("yyyy-MM-dd hh:mm:ss").parse(datum['time']);
-
-        listTransactions.addAll([
-          GestureDetector(
-            onTap: () async {
-              final pref = Hive.box(secureStorageKey);
-              bool hasWallet = pref.get(currentMmenomicKey) != null;
-              Widget nextWidget;
-              if (hasWallet) {
-                nextWidget = await dappWidget(
-                  context,
-                  widget.data['blockExplorer'].toString().replaceFirst(
-                        transactionhashTemplateKey,
-                        datum['transactionHash'],
-                      ),
-                );
-              } else {
-                nextWidget = Dapp(
-                  provider: '',
-                  init: '',
-                  data: widget.data['blockExplorer'].toString().replaceFirst(
-                        transactionhashTemplateKey,
-                        datum['transactionHash'],
-                      ),
-                );
-              }
-              await Get.to(
-                nextWidget,
-                transition: Transition.leftToRight,
-              );
-            },
-            child: Container(
-              color: Colors.transparent,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(
-                    height: 10,
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Row(
-                          children: [
-                            SvgPicture.asset('assets/sent-trans.svg'),
-                            const SizedBox(
-                              width: 10,
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  UserBalance(
-                                    balance: tokenSent,
-                                    symbol: '-',
-                                    reversed: true,
-                                    textStyle: const TextStyle(
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    '${trnDate.day} ${months[trnDate.month - 1]} ${trnDate.year}',
-                                    style: const TextStyle(color: Colors.grey),
-                                  )
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Text('Sent'),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    ellipsify(
-                                      str: datum['to'],
-                                    ),
-                                    overflow: TextOverflow.fade,
-                                    style: const TextStyle(
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ),
-          const Divider()
-        ]);
-        count++;
-      }
-    }
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -417,9 +304,7 @@ class _TokenState extends State<Token> {
         height: double.infinity,
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () async {
-              setState(() {});
-            },
+            onRefresh: () async {},
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -462,41 +347,45 @@ class _TokenState extends State<Token> {
                                                       : null),
                                             )
                                           : Container(),
-                                      blockchainPrice != null
-                                          ? Row(
-                                              children: [
-                                                Text(
-                                                  '${widget.data['contractAddress'] != null ? ellipsify(str: blockchainPrice['symbol']) : (blockchainPrice)['symbol']}${formatMoney((blockchainPrice)['price'])}',
-                                                  style: const TextStyle(
-                                                      fontSize: 16),
-                                                ),
-                                                const SizedBox(
-                                                  width: 5,
-                                                ),
-                                                Text(
-                                                  ((blockchainPrice)['change'] >
-                                                              0
-                                                          ? '+'
-                                                          : '') +
-                                                      formatMoney(
-                                                          (blockchainPrice)[
-                                                              'change']) +
-                                                      '%',
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: ((blockchainPrice)[
-                                                                'change'] <
-                                                            0)
-                                                        ? red
-                                                        : green,
+                                      Obx(() {
+                                        return blockchainPrice != null &&
+                                                blockchainPrice.isNotEmpty
+                                            ? Row(
+                                                children: [
+                                                  Text(
+                                                    '${widget.data['contractAddress'] != null ? ellipsify(str: blockchainPrice['symbol']) : (blockchainPrice)['symbol']}${formatMoney((blockchainPrice)['price'])}',
+                                                    style: const TextStyle(
+                                                        fontSize: 16),
                                                   ),
-                                                )
-                                              ],
-                                            )
-                                          : const Text(
-                                              '',
-                                              style: TextStyle(fontSize: 18),
-                                            )
+                                                  const SizedBox(
+                                                    width: 5,
+                                                  ),
+                                                  Text(
+                                                    ((blockchainPrice)[
+                                                                    'change'] >
+                                                                0
+                                                            ? '+'
+                                                            : '') +
+                                                        formatMoney(
+                                                            (blockchainPrice)[
+                                                                'change']) +
+                                                        '%',
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      color: ((blockchainPrice)[
+                                                                  'change'] <
+                                                              0)
+                                                          ? red
+                                                          : green,
+                                                    ),
+                                                  )
+                                                ],
+                                              )
+                                            : const Text(
+                                                '',
+                                                style: TextStyle(fontSize: 18),
+                                              );
+                                      }),
                                     ],
                                   ),
                                   const SizedBox(
@@ -638,57 +527,190 @@ class _TokenState extends State<Token> {
                         const SizedBox(
                           height: 20,
                         ),
-                        ValueListenableBuilder(
-                            valueListenable: trxOpen,
-                            builder: (_, trxOpen_, __) {
-                              return Column(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      trxOpen.value = !trxOpen.value;
-                                    },
-                                    child: Card(
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(30)),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(15.0),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            const Text(
-                                              "Transactions",
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                            const SizedBox(
-                                              width: 5,
-                                            ),
-                                            Transform.rotate(
-                                              child: const Icon(
-                                                Icons.arrow_back_ios_new,
-                                                size: 15,
-                                              ),
-                                              angle: trxOpen_
-                                                  ? 90 * pi / 180
-                                                  : 270 * pi / 180,
-                                            )
-                                          ],
-                                        ),
+                        Obx(
+                          () => GestureDetector(
+                            onTap: () {
+                              trxOpen.value = !trxOpen.value;
+                            },
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(15.0),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      "Transactions",
+                                      style: TextStyle(
+                                        fontSize: 18,
                                       ),
                                     ),
-                                  ),
-                                  if (listTransactions.isNotEmpty && trxOpen_)
-                                    Column(
+                                    const SizedBox(
+                                      width: 5,
+                                    ),
+                                    Transform.rotate(
+                                      child: const Icon(
+                                        Icons.arrow_back_ios_new,
+                                        size: 15,
+                                      ),
+                                      angle: trxOpen.value
+                                          ? 90 * pi / 180
+                                          : 270 * pi / 180,
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Obx(() {
+                          final listTransactions = <Widget>[];
+                          if (tokenTransaction != null &&
+                              tokenTransaction.isNotEmpty) {
+                            List data = tokenTransaction['trx'] as List;
+
+                            int count = 1;
+
+                            for (final datum in data) {
+                              if (datum == null) continue;
+                              if (count > maximumTransactionToSave) break;
+                              if (datum['from'].toString().toLowerCase() !=
+                                  tokenTransaction['currentUser']
+                                      .toString()
+                                      .toLowerCase()) continue;
+                              final tokenSent =
+                                  datum['value'] / pow(10, datum['decimal']);
+                              DateTime trnDate =
+                                  DateFormat("yyyy-MM-dd hh:mm:ss")
+                                      .parse(datum['time']);
+
+                              listTransactions.addAll([
+                                GestureDetector(
+                                  onTap: () async {
+                                    final pref = Hive.box(secureStorageKey);
+                                    bool hasWallet =
+                                        pref.get(currentMmenomicKey) != null;
+                                    Widget nextWidget;
+                                    if (hasWallet) {
+                                      nextWidget = await dappWidget(
+                                        context,
+                                        widget.data['blockExplorer']
+                                            .toString()
+                                            .replaceFirst(
+                                              transactionhashTemplateKey,
+                                              datum['transactionHash'],
+                                            ),
+                                      );
+                                    } else {
+                                      nextWidget = Dapp(
+                                        provider: '',
+                                        init: '',
+                                        data: widget.data['blockExplorer']
+                                            .toString()
+                                            .replaceFirst(
+                                              transactionhashTemplateKey,
+                                              datum['transactionHash'],
+                                            ),
+                                      );
+                                    }
+                                    await Get.to(
+                                      nextWidget,
+                                      transition: Transition.leftToRight,
+                                    );
+                                  },
+                                  child: Container(
+                                    color: Colors.transparent,
+                                    child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
-                                      children: listTransactions,
+                                      children: [
+                                        const SizedBox(
+                                          height: 10,
+                                        ),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Flexible(
+                                              child: Row(
+                                                children: [
+                                                  SvgPicture.asset(
+                                                      'assets/sent-trans.svg'),
+                                                  const SizedBox(
+                                                    width: 10,
+                                                  ),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        UserBalance(
+                                                          balance: tokenSent,
+                                                          symbol: '-',
+                                                          reversed: true,
+                                                          textStyle:
+                                                              const TextStyle(
+                                                            fontSize: 18,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 10),
+                                                        Text(
+                                                          '${trnDate.day} ${months[trnDate.month - 1]} ${trnDate.year}',
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .grey),
+                                                        )
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .end,
+                                                      children: [
+                                                        const Text('Sent'),
+                                                        const SizedBox(
+                                                            height: 10),
+                                                        Text(
+                                                          ellipsify(
+                                                            str: datum['to'],
+                                                          ),
+                                                          overflow:
+                                                              TextOverflow.fade,
+                                                          style:
+                                                              const TextStyle(
+                                                            color: Colors.grey,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      ],
                                     ),
-                                ],
-                              );
-                            }),
+                                  ),
+                                ),
+                                const Divider()
+                              ]);
+                              count++;
+                            }
+                          }
+                          return (listTransactions.isNotEmpty && trxOpen.value)
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: listTransactions,
+                                )
+                              : Container();
+                        })
                       ],
                     ),
                   ),
