@@ -117,7 +117,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
               );
 
               if (pref.get(customTokenDetailsKey) != null) {
-                pref.delete(customTokenDetailsKey);
+                await pref.delete(customTokenDetailsKey);
               }
               userAddedToken.removeAt(i);
 
