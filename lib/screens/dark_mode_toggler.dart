@@ -25,9 +25,6 @@ class _DarkModeTogglerState extends State<DarkModeToggler> {
           darkModekey,
           !(Theme.of(context).brightness == Brightness.dark),
         );
-        if (mounted) {
-          setState(() {});
-        }
       },
       icon: Icon(
         Theme.of(context).brightness == Brightness.dark

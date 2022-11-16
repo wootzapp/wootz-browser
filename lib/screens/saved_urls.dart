@@ -26,7 +26,7 @@ class SavedUrls extends StatefulWidget {
 }
 
 class _SavedUrlsState extends State<SavedUrls> {
-  final savedUrl = ValueNotifier<List>([]);
+  RxList savedUrl = ([]).obs;
   int removals = 0;
 
   @override
@@ -37,80 +37,6 @@ class _SavedUrlsState extends State<SavedUrls> {
 
   @override
   Widget build(BuildContext context) {
-    final urlWidgets = <Widget>[];
-    for (int i = 0; i < savedUrl.value.length; i++) {
-      Map urlDetails = savedUrl.value[i];
-      if (urlDetails == null) continue;
-      urlWidgets.add(
-        Dismissible(
-          secondaryBackground: Container(
-            color: Colors.red,
-            margin: const EdgeInsets.symmetric(horizontal: 15),
-            alignment: Alignment.centerRight,
-            child: const Padding(
-              padding: EdgeInsets.only(right: 10),
-              child: Icon(
-                Icons.delete,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          background: Container(),
-          onDismissed: (DismissDirection direction) {
-            setState(() {});
-          },
-          key: UniqueKey(),
-          direction: DismissDirection.endToStart,
-          confirmDismiss: (DismissDirection direction) async {
-            if (direction.name == 'endToStart') {
-              final pref = Hive.box(secureStorageKey);
-              final List currentArrayState = [...savedUrl.value];
-              currentArrayState.removeAt(i);
-              savedUrl.value = currentArrayState;
-              await pref.put(widget.savedKey, jsonEncode(savedUrl.value));
-              return true;
-            }
-            return false;
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: () async {
-                  await dappWidget(context, urlDetails['url']);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        urlDetails['title'],
-                        style: const TextStyle(fontSize: 18),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(
-                        height: 5,
-                      ),
-                      Text(
-                        urlDetails['url'],
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Divider(),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -140,9 +66,6 @@ class _SavedUrlsState extends State<SavedUrls> {
                   final pref = Hive.box(secureStorageKey);
                   await pref.delete(widget.savedKey);
                   savedUrl.value = [];
-                  if (mounted) {
-                    setState(() {});
-                  }
                   Get.back();
                 },
               ).show();
@@ -158,19 +81,91 @@ class _SavedUrlsState extends State<SavedUrls> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...urlWidgets,
-                ValueListenableBuilder(
-                  valueListenable: savedUrl,
-                  builder: ((_, List savedUrl_, __) {
-                    if (savedUrl_.isEmpty) {
-                      return Text(
-                        widget.emptyText,
-                        style: const TextStyle(fontSize: 18),
-                      );
-                    }
-                    return Container();
-                  }),
-                )
+                Obx(() {
+                  final urlWidgets = <Widget>[];
+                  for (int i = 0; i < savedUrl.length; i++) {
+                    Map urlDetails = savedUrl[i];
+                    if (urlDetails == null) continue;
+                    urlWidgets.add(
+                      Dismissible(
+                        secondaryBackground: Container(
+                          color: Colors.red,
+                          margin: const EdgeInsets.symmetric(horizontal: 15),
+                          alignment: Alignment.centerRight,
+                          child: const Padding(
+                            padding: EdgeInsets.only(right: 10),
+                            child: Icon(
+                              Icons.delete,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        background: Container(),
+                        onDismissed: (DismissDirection direction) {
+                          setState(() {});
+                        },
+                        key: UniqueKey(),
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (DismissDirection direction) async {
+                          if (direction.name == 'endToStart') {
+                            final pref = Hive.box(secureStorageKey);
+                            final List currentArrayState = [...savedUrl.value];
+                            currentArrayState.removeAt(i);
+                            savedUrl.value = currentArrayState;
+                            await pref.put(
+                                widget.savedKey, jsonEncode(savedUrl.value));
+                            return true;
+                          }
+                          return false;
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            InkWell(
+                              onTap: () async {
+                                await dappWidget(context, urlDetails['url']);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      urlDetails['title'],
+                                      style: const TextStyle(fontSize: 18),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(
+                                      height: 5,
+                                    ),
+                                    Text(
+                                      urlDetails['url'],
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  if (urlWidgets.isEmpty) {
+                    return Text(
+                      widget.emptyText,
+                      style: const TextStyle(fontSize: 18),
+                    );
+                  }
+                  return Column(
+                    children: urlWidgets,
+                  );
+                }),
               ],
             ),
           ),
