@@ -28,9 +28,8 @@ class ReceiveToken extends StatefulWidget {
 class _ReceiveTokenState extends State<ReceiveToken> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
   RxString userAddress = "".obs;
-
   RxBool isRequestingPayment = false.obs;
-  RxString amountRequested;
+  RxString amountRequested = "".obs;
   TextEditingController amountField = TextEditingController();
 
   @override
@@ -115,10 +114,12 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                             child: Padding(
                               padding:
                                   const EdgeInsets.only(top: 10, bottom: 10),
-                              child: QrImage(
-                                data: userAddress.value,
-                                version: QrVersions.auto,
-                                size: 250,
+                              child: Obx(
+                                () => QrImage(
+                                  data: userAddress.value,
+                                  version: QrVersions.auto,
+                                  size: 250,
+                                ),
                               ),
                             ),
                           ),
@@ -161,9 +162,11 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           ),
                         ),
                       ),
-                      amountRequested != null
-                          ? Text(amountRequested.value)
-                          : Container(),
+                      Obx(() {
+                        return amountRequested != null
+                            ? Text(amountRequested.value)
+                            : Container();
+                      }),
                       const SizedBox(
                         height: 40,
                       ),
@@ -373,7 +376,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                           ? "+${amountField.text.trim()} ${widget.data['symbol']}"
                                                           : null;
                                                   amountField.text = '';
-                                                  userAddress =
+                                                  userAddress.value =
                                                       ethereumRequestURL ??
                                                           (snapshot.data
                                                                   as Map)[
