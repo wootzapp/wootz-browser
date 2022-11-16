@@ -30,9 +30,9 @@ class Token extends StatefulWidget {
 }
 
 class _TokenState extends State<Token> {
-  Map tokenTransaction;
-  double cryptoBalance;
-  Map blockchainPrice;
+  RxMap tokenTransaction;
+  RxDouble cryptoBalance;
+  RxMap blockchainPrice;
   bool skipNetworkRequest = true;
   Timer timer;
   ValueNotifier trxOpen = ValueNotifier(true);
@@ -104,7 +104,11 @@ class _TokenState extends State<Token> {
           (cryptoMarket[defaultCurrency.toLowerCase() + '_24h_change'] as num)
               .toDouble();
 
-      blockchainPrice = {'price': price, 'change': change, 'symbol': symbol};
+      blockchainPrice.value = {
+        'price': price,
+        'change': change,
+        'symbol': symbol
+      };
       if (mounted) setState(() {});
     } catch (_) {}
   }
@@ -113,7 +117,7 @@ class _TokenState extends State<Token> {
     try {
       final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
       if (widget.data['contractAddress'] != null) {
-        cryptoBalance = await getERC20TokenBalance(
+        cryptoBalance.value = await getERC20TokenBalance(
           widget.data,
           skipNetworkRequest: skipNetworkRequest,
         );
@@ -122,14 +126,14 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['POSNetwork'],
         );
-        cryptoBalance = await getBitcoinAddressBalance(
+        cryptoBalance.value = await getBitcoinAddressBalance(
           getBitcoinDetails['address'],
           widget.data['POSNetwork'],
           skipNetworkRequest: skipNetworkRequest,
         );
       } else if (widget.data['default'] == 'SOL') {
         final getSolanaDetails = await getSolanaFromMemnomic(mnemonic);
-        cryptoBalance = await getSolanaAddressBalance(
+        cryptoBalance.value = await getSolanaAddressBalance(
           getSolanaDetails['address'],
           widget.data['solanaCluster'],
           skipNetworkRequest: skipNetworkRequest,
@@ -139,7 +143,7 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['cardano_network'],
         );
-        cryptoBalance = await getCardanoAddressBalance(
+        cryptoBalance.value = await getCardanoAddressBalance(
           getCardanoDetails['address'],
           widget.data['cardano_network'],
           widget.data['blockFrostKey'],
@@ -150,7 +154,7 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['prefix'],
         );
-        cryptoBalance = await getFileCoinAddressBalance(
+        cryptoBalance.value = await getFileCoinAddressBalance(
           getFileCoinDetails['address'],
           baseUrl: widget.data['baseUrl'],
           skipNetworkRequest: skipNetworkRequest,
@@ -160,7 +164,7 @@ class _TokenState extends State<Token> {
           mnemonic,
         );
 
-        cryptoBalance = await getStellarAddressBalance(
+        cryptoBalance.value = await getStellarAddressBalance(
           getStellarDetails['address'],
           widget.data['sdk'],
           widget.data['cluster'],
@@ -177,9 +181,8 @@ class _TokenState extends State<Token> {
           coinType: widget.data['coinType'],
           skipNetworkRequest: skipNetworkRequest,
         );
-        cryptoBalance = ethBalance;
+        cryptoBalance.value = ethBalance;
       }
-      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -239,31 +242,30 @@ class _TokenState extends State<Token> {
       final isEvmAddress = widget.data['rpc'] != null;
 
       if (isContractAddress && pref.get(contractAddrLookUpkey) != null) {
-        tokenTransaction = {
+        tokenTransaction.value = {
           'trx': jsonDecode(pref.get(contractAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           isEvmAddress &&
           pref.get(evmAddrLookUpkey) != null) {
-        tokenTransaction = {
+        tokenTransaction.value = {
           'trx': jsonDecode(pref.get(evmAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           !isEvmAddress &&
           pref.get('${widget.data['default']} Details') != null) {
-        tokenTransaction = {
+        tokenTransaction.value = {
           'trx': jsonDecode(pref.get('${widget.data['default']} Details')),
           'currentUser': currentAddress
         };
       } else {
-        tokenTransaction = {
+        tokenTransaction.value = {
           'trx': [],
           'currentUser': currentAddress,
         };
       }
-      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -524,27 +526,29 @@ class _TokenState extends State<Token> {
                                   const SizedBox(
                                     height: 10,
                                   ),
-                                  if (cryptoBalance != null)
-                                    UserBalance(
-                                      iconSize: 20,
-                                      textStyle: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold),
-                                      balance: cryptoBalance,
-                                      symbol:
-                                          widget.data['contractAddress'] != null
-                                              ? ellipsify(
-                                                  str: widget.data['symbol'])
-                                              : widget.data['symbol'],
-                                    )
-                                  else
-                                    const Text(
-                                      '',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                  Obx(() {
+                                    return cryptoBalance != null
+                                        ? UserBalance(
+                                            iconSize: 20,
+                                            textStyle: const TextStyle(
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold),
+                                            balance: cryptoBalance.value,
+                                            symbol: widget.data[
+                                                        'contractAddress'] !=
+                                                    null
+                                                ? ellipsify(
+                                                    str: widget.data['symbol'])
+                                                : widget.data['symbol'],
+                                          )
+                                        : const Text(
+                                            '',
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          );
+                                  }),
                                   const SizedBox(
                                     height: 10,
                                   ),
