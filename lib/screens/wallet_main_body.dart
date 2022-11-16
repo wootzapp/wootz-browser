@@ -65,7 +65,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       <ValueNotifier<double>>[];
   ValueNotifier<double> walletNotifier = ValueNotifier(null);
 
-  List<Widget> blockChainsArray = <Widget>[];
+  RxList<Widget> blockChainsArray = <Widget>[].obs;
   List<Timer> cryptoBalancesTimer = <Timer>[];
   GlobalKey<UserAddedTokensState> globalKey = GlobalKey();
 
@@ -105,8 +105,8 @@ class _WalletMainBodyState extends State<WalletMainBody>
     });
   }
 
-  Future initializeBlockchains() async {
-    blockChainsArray = <Widget>[];
+  void initializeBlockchains() {
+    blockChainsArray = <Widget>[].obs;
 
     final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
 
@@ -500,7 +500,6 @@ class _WalletMainBodyState extends State<WalletMainBody>
       ]);
       blockChainsArray.add(const Divider());
     }
-    setState(() {});
   }
 
   @override
@@ -512,7 +511,6 @@ class _WalletMainBodyState extends State<WalletMainBody>
         child: RefreshIndicator(
           onRefresh: () async {
             await Future.delayed(const Duration(seconds: 2));
-            setState(() {});
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
