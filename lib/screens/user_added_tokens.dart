@@ -106,49 +106,26 @@ class UserAddedTokensState extends State<UserAddedTokens> {
               setState(() {});
             },
             confirmDismiss: (DismissDirection direction) async {
-              final result = await AwesomeDialog(
-                context: context,
-                autoDismiss: false,
-                dialogType: DialogType.WARNING,
-                animType: AnimType.BOTTOMSLIDE,
-                closeIcon: const Icon(
-                  Icons.close,
-                ),
-                title: 'Delete Token',
-                btnOkText: 'Delete',
-                btnOkColor: Colors.red,
-                btnCancelColor: appBackgroundblue,
-                desc:
-                    'Are you sure you want to delete (${userAddedToken[i]['symbol']}) token?',
-                btnCancelOnPress: () {
-                  Get.back(result: false);
-                },
-                onDissmissCallback: ((type) {}),
-                btnOkOnPress: () async {
-                  final pref = Hive.box(secureStorageKey);
+              final pref = Hive.box(secureStorageKey);
 
-                  final userTokenListKey = await getAddTokenKey();
+              final userTokenListKey = await getAddTokenKey();
 
-                  if (userAddedToken.isEmpty) return;
-                  String customTokenDetailsKey = await contractDetailsKey(
-                    userAddedToken[i]['rpc'],
-                    userAddedToken[i]['contractAddress'],
-                  );
+              if (userAddedToken.isEmpty) return false;
+              String customTokenDetailsKey = await contractDetailsKey(
+                userAddedToken[i]['rpc'],
+                userAddedToken[i]['contractAddress'],
+              );
 
-                  if (pref.get(customTokenDetailsKey) != null) {
-                    pref.delete(customTokenDetailsKey);
-                  }
-                  userAddedToken.removeAt(i);
+              if (pref.get(customTokenDetailsKey) != null) {
+                pref.delete(customTokenDetailsKey);
+              }
+              userAddedToken.removeAt(i);
 
-                  await pref.put(
-                    userTokenListKey,
-                    jsonEncode(userAddedToken),
-                  );
-                  Get.back(result: true);
-                },
-              ).show();
-
-              return result ?? false;
+              await pref.put(
+                userTokenListKey,
+                jsonEncode(userAddedToken),
+              );
+              return true;
             },
             child: InkWell(
               child: Column(

@@ -34,7 +34,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   int currentCorrectItem = 0;
   RxBool firstTime = true.obs;
   List<String> mmenomicArray = [];
-  RxList<String> mmenomicShuffled = [].obs;
+  RxList<dynamic> mmenomicShuffled = [].obs;
   RxBool isLoading = false.obs;
   RxList<int> boxIndexGotten = [].obs;
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
@@ -85,25 +85,23 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       colorText: Colors.white,
     );
 
-    setState(() {
-      finished.value = false;
-      firstStep.value = true;
-      secondStep.value = false;
-      thirdStep.value = false;
-      fourthStep.value = false;
-      currentCorrectItem = 0;
-      firstTime.value = true;
-      mmenomicShuffled.value = [];
-      isLoading.value = false;
-      boxIndexGotten.value = [];
-    });
+    finished.value = false;
+    firstStep.value = true;
+    secondStep.value = false;
+    thirdStep.value = false;
+    fourthStep.value = false;
+    currentCorrectItem = 0;
+    firstTime.value = true;
+    mmenomicShuffled.value = [];
+    isLoading.value = false;
+    boxIndexGotten.value = [];
   }
 
   @override
   Widget build(BuildContext context) {
     if (firstTime.value) {
       mmenomicArray = widget.mmenomic;
-      mmenomicShuffled = [...mmenomicArray]..shuffle();
+      mmenomicShuffled.value = [...mmenomicArray]..shuffle();
       firstTime.value = false;
     }
     List firstThree = [];
