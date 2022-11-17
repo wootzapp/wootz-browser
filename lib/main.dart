@@ -7,9 +7,8 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:get/get_state_manager/get_state_manager.dart';
-import 'package:get/route_manager.dart';
-import 'package:get/state_manager.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
+import 'package:get/get.dart';
 import 'firebase_options.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -70,14 +69,15 @@ void main() async {
   final pref = await Hive.openBox(secureStorageKey);
 
   runApp(
-    RestartWidget(
+    Phoenix(
+        child: RestartWidget(
       child: MyApp(
         userDarkMode: pref.get(darkModekey, defaultValue: false),
         locale: Locale.fromSubtags(
           languageCode: pref.get(languageKey, defaultValue: 'en'),
         ),
       ),
-    ),
+    )),
   );
 }
 
@@ -97,10 +97,10 @@ class RestartWidget extends StatefulWidget {
 class _RestartWidgetState extends State<RestartWidget> {
   Key key = UniqueKey();
 
-  void restartApp() {
-    setState(() {
-      key = UniqueKey();
-    });
+  void restartApp() async {
+    await Get.deleteAll(force: true);
+    Phoenix.rebirth(context);
+    Get.reset();
   }
 
   @override

@@ -102,6 +102,7 @@ dependencies:
   googleapis_auth: ^0.2.11
   flutter_dotenv: ^5.0.2
   get: ^4.6.5
+  flutter_phoenix: ^1.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
