@@ -83,7 +83,6 @@ class _WalletConnectState extends State<WalletConnect> {
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(seconds: 2));
-
         },
         child: SafeArea(
           child: SingleChildScrollView(
