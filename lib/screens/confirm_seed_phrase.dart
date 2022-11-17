@@ -264,86 +264,87 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                   const SizedBox(
                     height: 40,
                   ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.resolveWith(
-                          (states) => appBackgroundblue,
-                        ),
-                        shape: MaterialStateProperty.resolveWith(
-                          (states) => RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                  Obx(
+                    () => SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ButtonStyle(
+                          backgroundColor: MaterialStateProperty.resolveWith(
+                            (states) => appBackgroundblue,
+                          ),
+                          shape: MaterialStateProperty.resolveWith(
+                            (states) => RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
-                      ),
-                      onPressed: finished.value
-                          ? () async {
-                              Get.closeAllSnackbars();
-                              if (isLoading.value) return;
-                              setState(() {
+                        onPressed: finished.value
+                            ? () async {
+                                Get.closeAllSnackbars();
+                                if (isLoading.value) return;
+
                                 isLoading.value = true;
-                              });
-                              final pref = Hive.box(secureStorageKey);
-                              String mnemonics = widget.mmenomic.join(' ');
-                              try {
-                                final mnemonicsList = pref.get(mnemonicListKey);
-                                List decodedmnemonic = [];
 
-                                if (mnemonicsList != null) {
-                                  decodedmnemonic =
-                                      jsonDecode(mnemonicsList) as List;
+                                final pref = Hive.box(secureStorageKey);
+                                String mnemonics = widget.mmenomic.join(' ');
+                                try {
+                                  final mnemonicsList =
+                                      pref.get(mnemonicListKey);
+                                  List decodedmnemonic = [];
 
-                                  for (Map phrases in decodedmnemonic) {
-                                    if (phrases['phrase'] == mnemonics) {
-                                      return;
+                                  if (mnemonicsList != null) {
+                                    decodedmnemonic =
+                                        jsonDecode(mnemonicsList) as List;
+
+                                    for (Map phrases in decodedmnemonic) {
+                                      if (phrases['phrase'] == mnemonics) {
+                                        return;
+                                      }
                                     }
                                   }
-                                }
-                                await initializeAllPrivateKeys(mnemonics);
+                                  await initializeAllPrivateKeys(mnemonics);
 
-                                decodedmnemonic.add({'phrase': mnemonics});
-                                await pref.put(
-                                  mnemonicListKey,
-                                  jsonEncode(decodedmnemonic),
-                                );
+                                  decodedmnemonic.add({'phrase': mnemonics});
+                                  await pref.put(
+                                    mnemonicListKey,
+                                    jsonEncode(decodedmnemonic),
+                                  );
 
-                                await pref.put(currentMmenomicKey, mnemonics);
+                                  await pref.put(currentMmenomicKey, mnemonics);
 
-                                await pref.put(
-                                  currentUserWalletNameKey,
-                                  null,
-                                );
+                                  await pref.put(
+                                    currentUserWalletNameKey,
+                                    null,
+                                  );
 
-                                RestartWidget.restartApp(context);
-                              } catch (e) {
-                                if (kDebugMode) {
-                                  print(e);
-                                }
-                                Get.snackbar(
-                                  '',
-                                  AppLocalizations.of(context).errorTryAgain,
-                                  backgroundColor: Colors.red,
-                                  colorText: Colors.white,
-                                );
+                                  RestartWidget.restartApp(context);
+                                } catch (e) {
+                                  if (kDebugMode) {
+                                    print(e);
+                                  }
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).errorTryAgain,
+                                    backgroundColor: Colors.red,
+                                    colorText: Colors.white,
+                                  );
 
-                                setState(() {
                                   isLoading.value = false;
-                                });
+                                }
                               }
-                            }
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.all(15),
-                        child: isLoading.value
-                            ? Loader(color: white)
-                            : Text(
-                                AppLocalizations.of(context).continue_,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                            : null,
+                        child: Padding(
+                          padding: const EdgeInsets.all(15),
+                          child: isLoading.value
+                              ? Loader(color: white)
+                              : Text(
+                                  AppLocalizations.of(context).continue_,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
                     ),
                   ),

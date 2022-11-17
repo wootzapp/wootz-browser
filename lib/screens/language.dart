@@ -45,7 +45,6 @@ class _LanguageState extends State<Language> {
         child: RefreshIndicator(
           onRefresh: () async {
             await Future.delayed(const Duration(seconds: 2));
-            setState(() {});
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
