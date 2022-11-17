@@ -27,7 +27,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
   List<Timer> addedTokenListTimer = <Timer>[];
   double tokenBalance;
   int addedTokenListNotifiersCounter = 0;
-
+  RxBool toggler = false.obs;
   @override
   void initState() {
     super.initState();
@@ -101,7 +101,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                 ),
               ),
               onDismissed: (DismissDirection direction) {
-                setState(() {});
+                toggler.value = !toggler.value;
               },
               confirmDismiss: (DismissDirection direction) async {
                 final pref = Hive.box(secureStorageKey);
