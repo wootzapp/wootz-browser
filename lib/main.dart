@@ -9,6 +9,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get_state_manager/get_state_manager.dart';
 import 'package:get/route_manager.dart';
+import 'package:get/state_manager.dart';
 import 'firebase_options.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -129,18 +130,16 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Locale _locale;
+  Rx<Locale> _locale;
 
   @override
   initState() {
     super.initState();
-    _locale = widget.locale;
+    _locale = widget.locale.obs;
   }
 
   void setLocale(Locale value) {
-    setState(() {
-      _locale = value;
-    });
+    _locale.value = value;
   }
 
   @override
@@ -151,15 +150,17 @@ class _MyAppState extends State<MyApp> {
     return ValueListenableBuilder(
         valueListenable: MyApp.themeNotifier,
         builder: (_, ThemeMode currentMode, __) {
-          return GetMaterialApp(
-            locale: _locale,
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            darkTheme: darkTheme,
-            themeMode: currentMode,
-            home: const MyHomePage(),
+          return Obx(
+            () => GetMaterialApp(
+              locale: _locale.value,
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              darkTheme: darkTheme,
+              themeMode: currentMode,
+              home: const MyHomePage(),
+            ),
           );
         });
   }
