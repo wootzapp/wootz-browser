@@ -252,7 +252,6 @@ class _ViewWalletsState extends State<ViewWallets> {
 
     if (pref.get(currentMmenomicKey).toString().toLowerCase() ==
         mnemonicsList[index]['phrase'].toString().toLowerCase()) {
-      const secondsToShowError = Duration(seconds: 2);
       Get.snackbar(
         '',
         'Can not delete currently used wallet',
