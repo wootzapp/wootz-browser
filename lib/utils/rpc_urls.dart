@@ -250,7 +250,7 @@ buildSwapUi({
   await slideUpPanel(
     context,
     StatefulBuilder(
-      builder: ((context, setState) {
+      builder: ((context, __) {
         List<Widget> listToken = [];
         tokenList
             .where((element) {
@@ -402,7 +402,7 @@ buildSwapUi({
                           child: TextFormField(
                             controller: searchCoinController,
                             onChanged: (value) async {
-                              setState(() {});
+                              __(() {});
                             },
                             textInputAction: TextInputAction.search,
                             decoration: InputDecoration(
