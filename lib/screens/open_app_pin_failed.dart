@@ -35,11 +35,10 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
     });
   }
 
-  bool hideHeader = false;
+  RxBool hideHeader = false.obs;
   void onEnd() async {
-    setState(() {
-      hideHeader = true;
-    });
+    hideHeader.value = true;
+
     await Get.off(const MyHomePage());
   }
 
@@ -58,11 +57,15 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
               const SizedBox(
                 height: 30,
               ),
-              if (!hideHeader)
-                Text(
-                  AppLocalizations.of(context).lockedAppMessage,
-                  style: const TextStyle(fontSize: 18),
-                ),
+              Obx(() {
+                if (!hideHeader.value) {
+                  return Text(
+                    AppLocalizations.of(context).lockedAppMessage,
+                    style: const TextStyle(fontSize: 18),
+                  );
+                }
+                return Container();
+              }),
               const SizedBox(
                 height: 10,
               ),

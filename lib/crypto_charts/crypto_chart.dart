@@ -40,8 +40,7 @@ class _CryptoChartState extends State<CryptoChart> {
     super.initState();
   }
 
-  int days = 1;
-  int currentDays = 1;
+  RxInt days = 1.obs;
 
   Map savedData = {};
   final maxSecondsToRemakeRequest = 15;
@@ -126,7 +125,7 @@ class _CryptoChartState extends State<CryptoChart> {
                                       .get(
                                         Uri.parse(
                                           getMarketData(
-                                            days: days,
+                                            days: days.value,
                                             coinGeckoId:
                                                 coinGeckCryptoSymbolToID[
                                                     widget.symbol],
@@ -302,16 +301,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 1;
-                                      });
+                                      days.value = 1;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 1
+                                            color: days.value == 1
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -328,16 +325,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 7;
-                                      });
+                                      days.value = 7;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 7
+                                            color: days.value == 7
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -354,16 +349,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 30;
-                                      });
+                                      days.value = 30;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 30
+                                            color: days.value == 30
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -380,16 +373,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 365;
-                                      });
+                                      days.value = 365;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 365
+                                            color: days.value == 365
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),

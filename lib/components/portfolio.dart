@@ -6,6 +6,7 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import '../utils/app_config.dart';
@@ -18,7 +19,7 @@ class Portfolio extends StatefulWidget {
 }
 
 class _PortfolioState extends State<Portfolio> {
-  Map userBalance;
+  RxMap userBalance = {}.obs;
   Timer timer;
   final bool skipNetworkRequest = true;
 
@@ -63,14 +64,11 @@ class _PortfolioState extends State<Portfolio> {
         allCryptoPrice: allCryptoPrice,
         skipNetworkRequest: skipNetworkRequest,
       );
-      if (mounted) {
-        setState(() {
-          userBalance = {
-            'balance': balance,
-            'symbol': symbol,
-          };
-        });
-      }
+
+      userBalance.value = {
+        'balance': balance,
+        'symbol': symbol,
+      };
     } catch (_) {}
   }
 
@@ -113,39 +111,44 @@ class _PortfolioState extends State<Portfolio> {
                     const SizedBox(
                       height: 20,
                     ),
-                    if (userBalance != null)
-                      GestureDetector(
-                        onTap: () async {
-                          final pref = Hive.box(secureStorageKey);
-                          final userPreviousHidingBalance =
-                              pref.get(hideBalanceKey, defaultValue: false);
+                    Obx(() {
+                      if (userBalance != null && userBalance.isNotEmpty) {
+                        return GestureDetector(
+                          onTap: () async {
+                            final pref = Hive.box(secureStorageKey);
+                            final userPreviousHidingBalance =
+                                pref.get(hideBalanceKey, defaultValue: false);
 
-                          await pref.put(
-                              hideBalanceKey, !userPreviousHidingBalance);
-                        },
-                        child: SizedBox(
-                          height: 35,
-                          child: UserBalance(
-                            symbol: userBalance['symbol'],
-                            balance: userBalance['balance'],
-                            reversed: true,
-                            iconSize: 29,
-                            iconDivider: const SizedBox(
-                              width: 5,
-                            ),
-                            iconSuffix: const Icon(
-                              FontAwesomeIcons.eyeSlash,
-                              color: Colors.white,
-                              size: 29,
-                            ),
-                            iconColor: Colors.white,
-                            textStyle: const TextStyle(
+                            await pref.put(
+                                hideBalanceKey, !userPreviousHidingBalance);
+                          },
+                          child: SizedBox(
+                            height: 35,
+                            child: UserBalance(
+                              symbol: userBalance['symbol'],
+                              balance: userBalance['balance'],
+                              reversed: true,
+                              iconSize: 29,
+                              iconDivider: const SizedBox(
+                                width: 5,
+                              ),
+                              iconSuffix: const Icon(
+                                FontAwesomeIcons.eyeSlash,
                                 color: Colors.white,
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold),
+                                size: 29,
+                              ),
+                              iconColor: Colors.white,
+                              textStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold),
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      } else {
+                        return Container();
+                      }
+                    }),
                     const SizedBox(
                       height: 40,
                     ),
