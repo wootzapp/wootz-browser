@@ -6,6 +6,7 @@ import 'package:cryptowallet/utils/format_money.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/state_manager.dart';
 import 'package:hive/hive.dart';
 
 class GetBlockChainWidget extends StatefulWidget {
@@ -41,7 +42,7 @@ class GetBlockChainWidget extends StatefulWidget {
 
 class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
   Timer timer;
-  Map blockchainPrice;
+  RxMap blockchainPrice = {}.obs;
   bool skipNetworkRequest = true;
 
   @override
@@ -90,13 +91,12 @@ class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
       final double cryptoWidgetPrice =
           (cryptoMarket[defaultCurrency.toLowerCase()] as num).toDouble();
 
-      blockchainPrice = {
+      blockchainPrice.value = {
         'price': symbol + formatMoney(cryptoWidgetPrice),
         'change':
             (cryptoMarket[defaultCurrency.toLowerCase() + '_24h_change'] as num)
                 .toDouble()
       };
-      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -150,44 +150,50 @@ class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
                               child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              if (blockchainPrice != null)
-                                Row(
-                                  children: [
-                                    Text(
-                                      blockchainPrice['price'],
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          color: widget.hasPrice
-                                              ? null
-                                              : const Color(0x00ffffff)),
-                                    ),
-                                    const SizedBox(
-                                      width: 5,
-                                    ),
-                                    widget.hasPrice
-                                        ? Text(
-                                            (blockchainPrice['change'] > 0
-                                                    ? '+'
-                                                    : '') +
-                                                formatMoney(
-                                                    blockchainPrice['change']) +
-                                                '%',
-                                            style: widget.hasPrice
-                                                ? TextStyle(
-                                                    fontSize: 12,
-                                                    color: (blockchainPrice[
-                                                                'change'] <
-                                                            0)
-                                                        ? red
-                                                        : green,
-                                                  )
-                                                : const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Color(0x00ffffff)),
-                                          )
-                                        : Container()
-                                  ],
-                                )
+                              Obx(() {
+                                if (blockchainPrice != null &&
+                                    blockchainPrice.isNotEmpty) {
+                                  return Row(
+                                    children: [
+                                      Text(
+                                        blockchainPrice['price'],
+                                        style: TextStyle(
+                                            fontSize: 15,
+                                            color: widget.hasPrice
+                                                ? null
+                                                : const Color(0x00ffffff)),
+                                      ),
+                                      const SizedBox(
+                                        width: 5,
+                                      ),
+                                      widget.hasPrice
+                                          ? Text(
+                                              (blockchainPrice['change'] > 0
+                                                      ? '+'
+                                                      : '') +
+                                                  formatMoney(blockchainPrice[
+                                                      'change']) +
+                                                  '%',
+                                              style: widget.hasPrice
+                                                  ? TextStyle(
+                                                      fontSize: 12,
+                                                      color: (blockchainPrice[
+                                                                  'change'] <
+                                                              0)
+                                                          ? red
+                                                          : green,
+                                                    )
+                                                  : const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Color(0x00ffffff)),
+                                            )
+                                          : Container()
+                                    ],
+                                  );
+                                } else {
+                                  return Container();
+                                }
+                              })
                             ],
                           )),
                         ],
