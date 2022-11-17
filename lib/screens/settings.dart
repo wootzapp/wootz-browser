@@ -13,7 +13,6 @@ import 'package:cryptowallet/screens/recovery_pharse.dart';
 import 'package:cryptowallet/screens/send_token.dart';
 import 'package:cryptowallet/screens/set_currency.dart';
 import 'package:cryptowallet/screens/view_wallets.dart';
-import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -186,38 +185,6 @@ class _SettingsState extends State<Settings> {
                                       ),
                                       Text(
                                         AppLocalizations.of(context).language,
-                                        style: TextStyle(fontSize: 18),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const Divider(),
-                          InkWell(
-                            onTap: () async {
-                              await Get.to(const WalletConnect());
-                            },
-                            child: Container(
-                              color: Colors.transparent,
-                              height: 35,
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SvgPicture.asset(
-                                          'assets/wallet_connect_new.svg',
-                                          width: 25),
-                                      const SizedBox(
-                                        width: 10,
-                                      ),
-                                      Text(
-                                        'Wallet Connect',
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],

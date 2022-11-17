@@ -6,7 +6,6 @@ import 'package:cryptowallet/screens/send_token.dart';
 import 'package:cryptowallet/screens/user_added_tokens.dart';
 import 'package:cryptowallet/screens/add_custom_token.dart';
 import 'package:cryptowallet/screens/token.dart';
-import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:cryptowallet/utils/bitcoin_util.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
@@ -34,7 +33,6 @@ Future<void> handleAllIntent(String value, BuildContext context) async {
   Widget navigateWidget;
 
   if (isWalletConnect) {
-    navigateWidget = WalletConnect(wcLink: value);
   } else {
     Map scannedData = await processEIP681(value);
     navigateWidget = scannedData['success']
