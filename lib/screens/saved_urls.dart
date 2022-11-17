@@ -28,6 +28,7 @@ class SavedUrls extends StatefulWidget {
 class _SavedUrlsState extends State<SavedUrls> {
   RxList savedUrl = ([]).obs;
   int removals = 0;
+  RxBool toggler = false.obs;
 
   @override
   initState() {
@@ -102,7 +103,7 @@ class _SavedUrlsState extends State<SavedUrls> {
                         ),
                         background: Container(),
                         onDismissed: (DismissDirection direction) {
-                          setState(() {});
+                          toggler.value = !toggler.value;
                         },
                         key: UniqueKey(),
                         direction: DismissDirection.endToStart,
