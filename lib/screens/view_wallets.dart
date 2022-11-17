@@ -21,7 +21,8 @@ class ViewWallets extends StatefulWidget {
 class _ViewWalletsState extends State<ViewWallets> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   TextEditingController walletName = TextEditingController();
-  List seedList;
+  RxList seedList = [].obs;
+  RxBool toggler = false.obs;
 
   @override
   void dispose() {
@@ -31,119 +32,126 @@ class _ViewWalletsState extends State<ViewWallets> {
 
   @override
   Widget build(BuildContext context) {
-    seedList ??= widget.data;
-
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(title: Text(AppLocalizations.of(context).wallet)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(15),
-          child: ListView.builder(
-            itemCount: seedList.length,
-            itemBuilder: (BuildContext ctx, index) {
-              return Dismissible(
-                onDismissed: (DismissDirection direction) {
-                  setState(() {});
-                },
-                key: UniqueKey(),
-                confirmDismiss: (DismissDirection direction) async {
-                  if (direction.name == 'endToStart') {
-                    return await _deleteWallet(index);
-                  }
-                  return await _editWalletName(index);
-                },
-                child: GestureDetector(
-                  onTap: () async {
-                    final pref = Hive.box(secureStorageKey);
-                    await pref.put(
-                      currentMmenomicKey,
-                      seedList[index]['phrase'],
-                    );
-                    await pref.put(
-                      currentUserWalletNameKey,
-                      seedList[index]['name'],
-                    );
+          child: Obx(() {
+            if (seedList == null || seedList.isEmpty) {
+              seedList.value = widget.data;
+            }
 
-                    RestartWidget.restartApp(context);
+            List<Widget> userWallets = <Widget>[];
+            if (seedList != null) {
+              for (int index = 0; index < seedList.length; index++) {
+                userWallets.add(Dismissible(
+                  onDismissed: (DismissDirection direction) {
+                    toggler.value = !toggler.value;
                   },
-                  child: Container(
-                    color: Colors.transparent,
-                    width: double.infinity,
-                    height: 70,
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 15, vertical: 5),
-                      child: Center(
-                          child: Padding(
-                        padding: const EdgeInsets.all(10.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                seedList[index]['name'] ??
-                                    '${AppLocalizations.of(context).mainWallet} ${seedList.indexOf(seedList[index]) + 1}',
-                                style: const TextStyle(
-                                  fontSize: 20,
+                  key: UniqueKey(),
+                  confirmDismiss: (DismissDirection direction) async {
+                    if (direction.name == 'endToStart') {
+                      return await _deleteWallet(index);
+                    }
+                    return await _editWalletName(index);
+                  },
+                  child: GestureDetector(
+                    onTap: () async {
+                      final pref = Hive.box(secureStorageKey);
+                      await pref.put(
+                        currentMmenomicKey,
+                        seedList[index]['phrase'],
+                      );
+                      await pref.put(
+                        currentUserWalletNameKey,
+                        seedList[index]['name'],
+                      );
+
+                      RestartWidget.restartApp(context);
+                    },
+                    child: Container(
+                      color: Colors.transparent,
+                      width: double.infinity,
+                      height: 70,
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 15, vertical: 5),
+                        child: Center(
+                            child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  seedList[index]['name'] ??
+                                      '${AppLocalizations.of(context).mainWallet} ${seedList.indexOf(seedList[index]) + 1}',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: widget.currentPhrase ==
+                              Container(
+                                decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: widget.currentPhrase ==
+                                            seedList[index]['phrase']
+                                        ? Colors.blue
+                                        : null),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: widget.currentPhrase ==
                                           seedList[index]['phrase']
-                                      ? Colors.blue
-                                      : null),
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: widget.currentPhrase ==
-                                        seedList[index]['phrase']
-                                    ? const Icon(
-                                        Icons.check,
-                                        size: 20,
-                                        color: Colors.white,
-                                      )
-                                    : Container(),
+                                      ? const Icon(
+                                          Icons.check,
+                                          size: 20,
+                                          color: Colors.white,
+                                        )
+                                      : Container(),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )),
+                            ],
+                          ),
+                        )),
+                      ),
                     ),
                   ),
-                ),
-                secondaryBackground: Container(
-                  color: Colors.red,
-                  margin: const EdgeInsets.symmetric(horizontal: 15),
-                  alignment: Alignment.centerRight,
-                  child: const Padding(
-                    padding: EdgeInsets.only(right: 10),
-                    child: Icon(
-                      Icons.delete,
-                      color: Colors.white,
+                  secondaryBackground: Container(
+                    color: Colors.red,
+                    margin: const EdgeInsets.symmetric(horizontal: 15),
+                    alignment: Alignment.centerRight,
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 10),
+                      child: Icon(
+                        Icons.delete,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-                background: Container(
-                  color: Colors.blue,
-                  margin: const EdgeInsets.symmetric(horizontal: 15),
-                  alignment: Alignment.centerLeft,
-                  child: const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: Icon(
-                      Icons.edit,
-                      color: Colors.white,
+                  background: Container(
+                    color: Colors.blue,
+                    margin: const EdgeInsets.symmetric(horizontal: 15),
+                    alignment: Alignment.centerLeft,
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(
+                        Icons.edit,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+                ));
+              }
+            }
+            return Column(
+              children: userWallets,
+            );
+          }),
         ),
       ),
     );
@@ -280,7 +288,7 @@ class _ViewWalletsState extends State<ViewWallets> {
             json.encode(mnemonicsList),
           );
 
-          seedList = mnemonicsList;
+          seedList.value = mnemonicsList;
           Get.back(result: true);
         } else {
           Get.back(result: false);
