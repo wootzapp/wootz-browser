@@ -51,11 +51,6 @@ class GoogleDrive {
         },
       );
 
-      await saveCredentials(
-        authClient.credentials.accessToken,
-        authClient.credentials.refreshToken,
-      );
-
       return authClient;
     } else {
       return authenticatedClient(
