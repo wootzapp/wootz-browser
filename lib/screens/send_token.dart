@@ -486,9 +486,7 @@ class _SendTokenState extends State<SendToken> {
                           }
                           Get.snackbar(
                             '',
-                            AppLocalizations.of(context).canNotSend(
-                              widget.data['symbol'],
-                            ),
+                            AppLocalizations.of(context).invalidAddress,
                             colorText: Colors.white,
                             backgroundColor: Colors.red,
                           );
