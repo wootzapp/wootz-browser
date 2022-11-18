@@ -279,26 +279,6 @@ class _TokenState extends State<Token> {
               ? ellipsify(str: widget.data['name'])
               : widget.data['name'],
         ),
-        actions: [
-          // IconButton(
-          //   onPressed: widget.data['default'] != null
-          //       ? () async {
-          //           await Get.to(
-          //             CryptoChart(
-          //               name: widget.data['name'],
-          //               symbol: widget.data['default'],
-          //             ),
-          //           );
-          //         }
-          //       : null,
-          //   icon: SvgPicture.asset(
-          //     'assets/chart-mixed.svg',
-          //     color: widget.data['default'] != null
-          //         ? Colors.white
-          //         : const Color(0x00aaaaaa),
-          //   ),
-          // ),
-        ],
       ),
       body: SizedBox(
         height: double.infinity,
