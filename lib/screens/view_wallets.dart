@@ -232,7 +232,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                   mnemonicListKey,
                   json.encode(mnemonicsList),
                 );
-                seedList = json.decode(pref.get(mnemonicListKey));
+                seedList.value = json.decode(pref.get(mnemonicListKey));
 
                 Get.back(result: true);
               },
