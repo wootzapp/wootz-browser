@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:cryptowallet/screens/dapp.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -124,7 +125,28 @@ class _SavedUrlsState extends State<SavedUrls> {
                           children: [
                             InkWell(
                               onTap: () async {
-                                await dappWidget(context, urlDetails['url']);
+                                final pref = Hive.box(secureStorageKey);
+                                bool hasWallet =
+                                    pref.get(currentMmenomicKey) != null;
+
+                                Widget nextWidget;
+                                if (hasWallet) {
+                                  nextWidget = await dappWidget(
+                                    context,
+                                    walletURL,
+                                  );
+                                } else {
+                                  nextWidget = const Dapp(
+                                    provider: '',
+                                    init: '',
+                                    data: walletURL,
+                                  );
+                                }
+
+                                Get.to(
+                                  nextWidget,
+                                  transition: Transition.leftToRight,
+                                );
                               },
                               child: Padding(
                                 padding: const EdgeInsets.all(8.0),
