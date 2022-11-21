@@ -425,7 +425,9 @@ class _WalletConnectState extends State<WalletConnect> {
     }
   }
 
-  _onConnect() {}
+  _onConnect() {
+    toggler.value = !toggler.value;
+  }
 
   _onSessionRequest(int id, WCPeerMeta peerMeta) {
     showDialog(
@@ -544,6 +546,7 @@ class _WalletConnectState extends State<WalletConnect> {
   }
 
   _onSessionError(dynamic message) async {
+    toggler.value = !toggler.value;
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -578,7 +581,7 @@ class _WalletConnectState extends State<WalletConnect> {
 
   _onSessionClosed(int code, String reason) async {
     await _prefs.delete('session');
-
+    toggler.value = !toggler.value;
     showDialog(
       barrierDismissible: false,
       context: context,
