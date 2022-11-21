@@ -1776,7 +1776,9 @@ Future<double> getEtherTransactionFee(
         )
       : null;
 
-  gasPrice ??= await client.getGasPrice();
+  if (gasPrice == null || gasPrice.getInWei == BigInt.from(0)) {
+    gasPrice = await client.getGasPrice();
+  }
   BigInt gasUnit;
 
   try {
