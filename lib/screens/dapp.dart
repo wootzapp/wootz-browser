@@ -390,12 +390,18 @@ class _DappState extends State<Dapp> {
                                           jsonDecode(savedHistory) as List;
                                     }
 
-                                    Get.off(
+                                    final historyUrl = await Get.off(
                                       SavedUrls(
                                         historyTitle,
                                         historyEmpty,
                                         historyKey,
                                         data: historyList,
+                                      ),
+                                    );
+
+                                    _controller.loadUrl(
+                                      urlRequest: URLRequest(
+                                        url: WebUri(historyUrl),
                                       ),
                                     );
                                   },

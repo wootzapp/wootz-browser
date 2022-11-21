@@ -111,11 +111,11 @@ class _SavedUrlsState extends State<SavedUrls> {
                         confirmDismiss: (DismissDirection direction) async {
                           if (direction.name == 'endToStart') {
                             final pref = Hive.box(secureStorageKey);
-                            final List currentArrayState = [...savedUrl.value];
+                            final List currentArrayState = [...savedUrl];
                             currentArrayState.removeAt(i);
                             savedUrl.value = currentArrayState;
                             await pref.put(
-                                widget.savedKey, jsonEncode(savedUrl.value));
+                                widget.savedKey, jsonEncode(savedUrl));
                             return true;
                           }
                           return false;
@@ -133,20 +133,24 @@ class _SavedUrlsState extends State<SavedUrls> {
                                 if (hasWallet) {
                                   nextWidget = await dappWidget(
                                     context,
-                                    walletURL,
+                                    urlDetails['url'],
                                   );
                                 } else {
-                                  nextWidget = const Dapp(
+                                  nextWidget = Dapp(
                                     provider: '',
                                     init: '',
-                                    data: walletURL,
+                                    data: urlDetails['url'],
                                   );
                                 }
 
-                                Get.to(
-                                  nextWidget,
-                                  transition: Transition.leftToRight,
-                                );
+                                if (widget.savedKey == historyKey) {
+                                  Get.back(result: urlDetails['url']);
+                                } else {
+                                  Get.to(
+                                    nextWidget,
+                                    transition: Transition.leftToRight,
+                                  );
+                                }
                               },
                               child: Padding(
                                 padding: const EdgeInsets.all(8.0),
