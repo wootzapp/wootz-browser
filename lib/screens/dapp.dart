@@ -866,7 +866,6 @@ class _DappState extends State<Dapp> {
                           final data = args[6];
 
                           await signTransaction(
-                            id: id,
                             gasPriceInWei_: gasPrice,
                             to: to,
                             from: sendingAddress,

@@ -696,7 +696,6 @@ class _WalletConnectState extends State<WalletConnect> {
   }) async {
     List icons = _wcClient.remotePeerMeta.icons;
     await signTransaction(
-      id: id,
       gasPriceInWei_: ethereumTransaction.gasPrice,
       to: ethereumTransaction.to,
       from: ethereumTransaction.from,
