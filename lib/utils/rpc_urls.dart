@@ -1790,7 +1790,7 @@ Future<double> getEtherTransactionFee(
     );
   } catch (_) {}
 
-  if (gasUnit != null) {
+  if (gasUnit == null) {
     try {
       gasUnit = await client.estimateGas(
         sender: EthereumAddress.fromHex(zeroAddress),
@@ -1814,7 +1814,7 @@ Future<double> getEtherTransactionFee(
     }
   }
   return gasPrice.getInWei.toDouble() * gasUnit.toDouble();
-  }
+}
 
 Future<String> etherPrivateKeyToAddress(String privateKey) async {
   web3.EthPrivateKey ethereumPrivateKey =
@@ -2397,7 +2397,6 @@ switchEthereumChain({
 }
 
 signTransaction({
-  int id,
   Function onReject,
   String gasPriceInWei_,
   BuildContext context,
@@ -2459,8 +2458,7 @@ signTransaction({
   }
 
   String info = AppLocalizations.of(context).info;
-  info = info[0].toUpperCase() + info.substring(1).toLowerCase();
-  // final isEnoughBalance = userBalance >= value + transactionFee;
+
   ValueNotifier<bool> isSigningTransaction = ValueNotifier(false);
   slideUpPanel(
     context,
@@ -2934,8 +2932,7 @@ signTransaction({
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  key[0].toUpperCase() +
-                                      key.substring(1).toLowerCase(),
+                                  key,
                                   style: const TextStyle(
                                     fontSize: 16.0,
                                     fontWeight: FontWeight.bold,
