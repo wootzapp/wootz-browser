@@ -1813,8 +1813,8 @@ Future<double> getEtherTransactionFee(
       gasUnit = BigInt.from(0);
     }
   }
-  return gasPrice.getValueInUnit(web3.EtherUnit.wei) * gasUnit.toDouble();
-}
+  return gasPrice.getInWei.toDouble() * gasUnit.toDouble();
+  }
 
 Future<String> etherPrivateKeyToAddress(String privateKey) async {
   web3.EthPrivateKey ethereumPrivateKey =
