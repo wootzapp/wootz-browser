@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
+import 'package:cryptowallet/google_drive/drive.dart';
 import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
@@ -1070,17 +1071,21 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
   }
 }
 
-Future saveToDrive(String fileName, String mnemonic) async {
-  SSS sss = SSS();
-  List<String> arr = sss.create(2, 2, mnemonic, true);
+Future<bool> saveToDrive(String fileName, String mnemonic) async {
+  try {
+    final pref = Hive.box(secureStorageKey);
+    SSS sss = SSS();
+    List<String> arr = sss.create(2, 2, mnemonic, true);
+    File savedFile = await FileReader.writeFile(fileName, arr[0]);
+    await GoogleDrive().upload(savedFile, fileName);
+    await savedFile.delete();
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
-  final mnemonicHash = sha3(mnemonic);
-  await FileReader.localFile(mnemonicHash);
-  SSS sss = SSS();
-  List<String> arr = sss.create(2, 2, mnemonic, true);
-  await FileReader.writeFile(mnemonicHash, arr[0]);
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
       mnemonic,
