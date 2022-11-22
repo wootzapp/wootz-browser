@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:cryptowallet/components/wallet_logo.dart';
 import 'package:cryptowallet/main.dart';
+import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
@@ -291,6 +292,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                       );
 
                                       decodedmnemonic.add({
+                                        'key': sha3(mnemonics),
                                         'phrase': mnemonics,
                                         'name': walletName,
                                       });

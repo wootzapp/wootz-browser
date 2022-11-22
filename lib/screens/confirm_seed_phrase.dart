@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 
+import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -307,7 +308,10 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                     }
                                     await initializeAllPrivateKeys(mnemonics);
 
-                                    decodedmnemonic.add({'phrase': mnemonics});
+                                    decodedmnemonic.add({
+                                      'phrase': mnemonics,
+                                      'key': sha3(mnemonics),
+                                    });
                                     await pref.put(
                                       mnemonicListKey,
                                       jsonEncode(decodedmnemonic),

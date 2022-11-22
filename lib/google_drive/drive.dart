@@ -70,18 +70,19 @@ class GoogleDrive {
     }
   }
 
-  Future upload(File file) async {
+  Future upload(
+    File file,
+    String fileName,
+  ) async {
     var client = await getHttpClient();
     var drive = ga.DriveApi(client);
 
-    var response = await drive.files.create(
-      ga.File()..name = "",
+    await drive.files.create(
+      ga.File()..name = fileName,
       uploadMedia: ga.Media(
         file.openRead(),
         file.lengthSync(),
       ),
     );
-
-    print(response.toJson());
   }
 }

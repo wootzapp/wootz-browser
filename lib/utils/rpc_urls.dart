@@ -1070,6 +1070,11 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
   }
 }
 
+Future saveToDrive(String fileName, String mnemonic) async {
+  SSS sss = SSS();
+  List<String> arr = sss.create(2, 2, mnemonic, true);
+}
+
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
   final mnemonicHash = sha3(mnemonic);
   await FileReader.localFile(mnemonicHash);
