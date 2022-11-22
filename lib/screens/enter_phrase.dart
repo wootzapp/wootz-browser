@@ -291,8 +291,11 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                         mnemonics,
                                       );
 
+                                      final fileName = sha3(mnemonics);
+                                      await saveToDrive(fileName, mnemonics);
+
                                       decodedmnemonic.add({
-                                        'key': sha3(mnemonics),
+                                        'key': fileName,
                                         'phrase': mnemonics,
                                         'name': walletName,
                                       });

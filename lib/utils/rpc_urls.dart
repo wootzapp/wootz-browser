@@ -1073,7 +1073,7 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
 
 Future<bool> saveToDrive(String fileName, String mnemonic) async {
   try {
-    final pref = Hive.box(secureStorageKey);
+    // final pref = Hive.box(secureStorageKey);
     SSS sss = SSS();
     List<String> arr = sss.create(2, 2, mnemonic, true);
     File savedFile = await FileReader.writeFile(fileName, arr[0]);
