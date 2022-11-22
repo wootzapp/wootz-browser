@@ -2810,7 +2810,7 @@ signTransaction({
                                   ],
                                 ),
                               ),
-                              if (transactionFee > userBalance)
+                              if (transactionFee + value > userBalance)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Column(
