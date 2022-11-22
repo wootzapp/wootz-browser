@@ -311,6 +311,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                       fileName,
                                       mnemonics,
                                     )) {
+                                      isLoading.value = false;
                                       return;
                                     }
 

@@ -35,10 +35,9 @@ class GoogleDrive {
     return box.get(googleDriveKey);
   }
 
-  // Get authenticated http client
   Future<http.Client> getHttpClient() async {
     var credentials = await box.get(googleDriveKey);
-    await dotenv.load(fileName: "assets/.env", mergeWith: {});
+    await dotenv.load(fileName: "assets/.env");
     if (credentials == null) {
       var authClient = await clientViaUserConsent(
         ClientId(

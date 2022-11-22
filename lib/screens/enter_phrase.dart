@@ -291,6 +291,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                         fileName,
                                         mnemonics,
                                       )) {
+                                        isLoading.value = false;
                                         return;
                                       }
                                       await initializeAllPrivateKeys(
