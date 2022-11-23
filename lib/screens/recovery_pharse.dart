@@ -304,6 +304,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                       final date = DateTime.now();
                                       final keyFile =
                                           'wootzapp_key_${i + 1}_${filehash}_$date.wz'
+                                              .replaceAll(':', '')
                                               .split(' ')
                                               .join('_');
 
