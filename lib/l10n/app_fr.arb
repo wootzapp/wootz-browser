@@ -197,9 +197,9 @@
   "invalidAddress": "Adresse invalide",
   "restoreWithSecretShare": "Restaurer avec des partages secrets",
   "enterSecretShare": "Entrez le partage secret",
-  "doNotShareYourShemir": "Ne partagez pas votre secret partagé Shemir !",
-  "enterShemirSecretWithSpace": "Entrez votre secret partagé Shemir séparé par un espace, cela serait utilisé pour récupérer votre phrase mmenomic",
-  "convertToShemirSecret": "Convertir en actions secrètes Shemir",
+  "doNotShareYourShemir": "Ne partagez pas votre secret partagé Shamir !",
+  "enterShemirSecretWithSpace": "Entrez votre secret partagé Shamir séparé par un espace, cela serait utilisé pour récupérer votre phrase mmenomic",
+  "convertToShemirSecret": "Convertir en actions secrètes Shamir",
   "savedToDownloadFolder": "Enregistré dans le dossier Téléchargements",
   "alreadySaved": "Déjà enregistré dans le dossier de téléchargement"
 }
