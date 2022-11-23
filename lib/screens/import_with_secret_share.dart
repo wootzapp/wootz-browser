@@ -31,8 +31,7 @@ class ImportWithSecretShare extends StatefulWidget {
   State<ImportWithSecretShare> createState() => _ImportWithSecretShareState();
 }
 
-class _ImportWithSecretShareState extends State<ImportWithSecretShare>
-    with WidgetsBindingObserver {
+class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
   final secretSharesContrl = TextEditingController();
   final walletNameController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -55,40 +54,12 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
         message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
-    WidgetsBinding.instance?.addObserver(this);
     disEnableScreenShot();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    super.didChangeAppLifecycleState(state);
-    switch (state) {
-      case AppLifecycleState.resumed:
-        if (invisiblemnemonic) {
-          invisiblemnemonic = false;
-          if (await authenticate(context)) {
-            await disEnableScreenShot();
-            securitydialogOpen.value = false;
-          } else {
-            SystemNavigator.pop();
-          }
-        }
-        break;
-      case AppLifecycleState.paused:
-        if (!securitydialogOpen.value) {
-          invisiblemnemonic = true;
-          securitydialogOpen.value = true;
-        }
-        break;
-      default:
-        break;
-    }
   }
 
   @override
   void dispose() {
     enableScreenShot();
-    WidgetsBinding.instance?.removeObserver(this);
     secretSharesContrl.dispose();
     walletNameController.dispose();
     super.dispose();
