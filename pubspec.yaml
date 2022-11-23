@@ -70,6 +70,7 @@ dependencies:
   eth_sig_util: ^0.0.7
   flutter_inappwebview: 6.0.0-beta.11
   scan: ^1.6.0
+  path_provider: ^2.0.11
   cached_network_image: ^3.2.0
   decimal: ^2.2.0
   flutter_pin_code_fields: ^1.1.0

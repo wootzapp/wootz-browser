@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+const minShemirShare = 3;
 const walletAbbr = 'WTZ';
 const walletName = 'WootzApp';
 const walletURL = "https://google.com";

@@ -13,6 +13,14 @@ class FileReader {
     return File('$path/$fileName');
   }
 
+  static Future<File> downloadFile(String fileName) async {
+    final downloadDir =
+        (await getExternalStorageDirectories(type: StorageDirectory.downloads))
+            .first;
+
+    return File('${downloadDir.path}/$fileName');
+  }
+
   static Future<String> readFile(String fileName) async {
     try {
       final file = await localFile(fileName);
@@ -26,6 +34,11 @@ class FileReader {
 
   static Future<File> writeFile(String fileName, String content) async {
     final file = await localFile(fileName);
+    return file.writeAsString(content);
+  }
+
+  static Future<File> writeDownloadFile(String fileName, String content) async {
+    final file = await downloadFile(fileName);
     return file.writeAsString(content);
   }
 }

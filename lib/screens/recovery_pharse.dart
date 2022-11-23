@@ -1,10 +1,13 @@
+import 'package:blockfrost/blockfrost.dart';
+import 'package:cryptowallet/google_drive/file.dart';
 import 'package:cryptowallet/screens/confirm_seed_phrase.dart';
-import 'package:cryptowallet/screens/convert_to_shemir_secret.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:get/get.dart';
+import 'package:ntcdcrypto/ntcdcrypto.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 
 import '../utils/rpc_urls.dart';
@@ -272,12 +275,47 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     ),
                                   ),
                                 ),
-                                onPressed: () {
-                                  Get.to(
-                                    ConvertToShemirSecret(
-                                      secret: widget.data,
-                                    ),
+                                onPressed: () async {
+                                  SSS sss = SSS();
+                                  List secretShares = sss.create(
+                                    minShemirShare,
+                                    minShemirShare,
+                                    widget.data,
+                                    true,
                                   );
+
+                                  try {
+                                    for (int i = 0;
+                                        i < secretShares.length;
+                                        i++) {
+                                      final date = DateTime.now();
+                                      final keyFile =
+                                          'wootzapp_key_${i + 1}_$date.wz'
+                                              .split(' ')
+                                              .join('_');
+
+                                      await FileReader.writeDownloadFile(
+                                        keyFile,
+                                        secretShares[i],
+                                      );
+                                    }
+
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context)
+                                          .savedToDownloadFolder,
+                                      backgroundColor: Colors.green,
+                                      colorText: Colors.white,
+                                    );
+                                  } catch (e) {
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context)
+                                          .errorTryAgain,
+                                      backgroundColor: Colors.red,
+                                      colorText: Colors.white,
+                                    );
+                                  }
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),

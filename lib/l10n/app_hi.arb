@@ -199,5 +199,6 @@
   "enterSecretShare": "गुप्त शेयर दर्ज करें",
   "doNotShareYourShemir": "अपने शेमिर साझा रहस्य साझा न करें!",
   "enterShemirSecretWithSpace": "अंतरिक्ष के साथ अलग किया गया अपना शेमिर साझा रहस्य दर्ज करें, इसका उपयोग आपके मेमेनोमिक वाक्यांश को पुनर्प्राप्त करने के लिए किया जाएगा",
-  "convertToShemirSecret": "शेमिर गुप्त शेयरों में बदलें"
+  "convertToShemirSecret": "शेमिर गुप्त शेयरों में बदलें",
+  "savedToDownloadFolder": "डाउनलोड फ़ोल्डर में सहेजा गया"
 }
