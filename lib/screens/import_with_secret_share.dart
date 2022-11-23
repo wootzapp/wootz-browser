@@ -241,13 +241,6 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                           color: Colors.red,
                                           fontWeight: FontWeight.bold),
                                     ),
-                                    Text(
-                                        AppLocalizations.of(context)
-                                            .enterShemirSecretWithSpace,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.red,
-                                        )),
                                   ],
                                 ),
                               ),
