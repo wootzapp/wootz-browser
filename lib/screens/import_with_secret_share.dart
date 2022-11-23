@@ -5,6 +5,7 @@ import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +31,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
   final walletNameController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   RxBool isLoading = false.obs;
+  RxBool isBase64 = false.obs;
 
   // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
@@ -211,6 +213,26 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
                             const SizedBox(
                               height: 20,
                             ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Base64',
+                                  style: TextStyle(fontSize: 20),
+                                ),
+                                Obx(() {
+                                  return CupertinoSwitch(
+                                    value: isBase64.value,
+                                    onChanged: (va) {
+                                      isBase64.value = va;
+                                    },
+                                  );
+                                }),
+                              ],
+                            ),
+                            const SizedBox(
+                              height: 20,
+                            ),
                             Container(
                               decoration: BoxDecoration(
                                   borderRadius: const BorderRadius.all(
@@ -269,7 +291,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
 
                                       final String mnemonics = sss.combine(
                                         secretShares.split(' '),
-                                        false,
+                                        isBase64.value,
                                       );
                                       if (mnemonics == '') {
                                         return;
