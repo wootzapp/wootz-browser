@@ -216,5 +216,6 @@
   "sendingToYourself": "You are sending your tokens to yourself",
   "language": "Language",
   "couldNotChangeLanguage": "Could not change language, please try again later.",
-  "invalidAddress": "Invalid address"
+  "invalidAddress": "Invalid address",
+  "restoreWithSecretShare": "Restore with Secret Shares"
 }

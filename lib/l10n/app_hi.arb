@@ -194,5 +194,6 @@
   "sendingToYourself": "आप अपने टोकन स्वयं को भेज रहे हैं",
   "language": "भाषा",
   "couldNotChangeLanguage": "भाषा नहीं बदली जा सकी, कृपया बाद में पुन: प्रयास करें।",
-  "invalidAddress": "गलत पता"
+  "invalidAddress": "गलत पता",
+  "restoreWithSecretShare": "गुप्त शेयरों के साथ पुनर्स्थापित करें"
 }

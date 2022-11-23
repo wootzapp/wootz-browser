@@ -194,5 +194,6 @@
   "sendingToYourself": "Vous vous envoyez vos tokens",
   "language": "Langue",
   "couldNotChangeLanguage": "Impossible de changer de langue, veuillez réessayer plus tard.",
-  "invalidAddress": "Adresse invalide"
+  "invalidAddress": "Adresse invalide",
+  "restoreWithSecretShare": "Restaurer avec des partages secrets"
 }
