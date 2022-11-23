@@ -37,13 +37,14 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
   final walletNameController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   RxBool isLoading = false.obs;
+  RxBool togglerFile = false.obs;
 
   // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   bool invisiblemnemonic = false;
   RxBool securitydialogOpen = false.obs;
 
-  List<String> fileContent = [];
+  List<String> fileContent = [null, null, null];
 
   @override
   void initState() {
@@ -157,39 +158,96 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
                             const SizedBox(
                               height: 20,
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                for (int i = 0; i < minShemirShare; i++)
-                                  GestureDetector(
-                                    onTap: () async {
-                                      FilePickerResult result =
-                                          await FilePicker.platform.pickFiles();
-
-                                      if (result != null) {
-                                        File file =
-                                            File(result.files.single.path);
-                                        fileContent[i] = HEX.encode(base58
-                                            .decode(await file.readAsString()));
-                                      }
-                                    },
-                                    child: Column(
-                                      children: [
-                                        const Icon(
-                                          FontAwesomeIcons.file,
-                                          size: 40,
-                                        ),
-                                        const SizedBox(
-                                          height: 10,
-                                        ),
-                                        Text(
-                                          'File ${i + 1}.wz',
-                                          style: const TextStyle(fontSize: 20),
-                                        )
-                                      ],
-                                    ),
+                            Obx(
+                              () => Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Visibility(
+                                    child: Text(togglerFile.value.toString()),
+                                    visible: false,
                                   ),
-                              ],
+                                  for (int i = 0; i < minShemirShare; i++)
+                                    GestureDetector(
+                                      onTap: () async {
+                                        try {
+                                          FilePickerResult result =
+                                              await FilePicker.platform
+                                                  .pickFiles();
+
+                                          if (result != null) {
+                                            File file =
+                                                File(result.files.single.path);
+                                            fileContent[i] = HEX.encode(
+                                              base58.decode(
+                                                await file.readAsString(),
+                                              ),
+                                            );
+                                            togglerFile.value =
+                                                !togglerFile.value;
+                                          }
+                                        } catch (e) {
+                                          Get.snackbar(
+                                            '',
+                                            AppLocalizations.of(context)
+                                                .errorTryAgain,
+                                            backgroundColor: Colors.red,
+                                            colorText: Colors.white,
+                                          );
+                                        }
+                                      },
+                                      child: SizedBox(
+                                        child: Card(
+                                          color: const Color(0xffF1F1F1),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10)),
+                                          child: Align(
+                                            alignment: Alignment.center,
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(10),
+                                              child: Container(
+                                                child: Column(
+                                                  children: [
+                                                    if (fileContent.isEmpty)
+                                                      const Icon(
+                                                        FontAwesomeIcons.file,
+                                                        size: 40,
+                                                        color:
+                                                            appBackgroundblue,
+                                                      )
+                                                    else
+                                                      Icon(
+                                                        fileContent[i] == null
+                                                            ? FontAwesomeIcons
+                                                                .file
+                                                            : FontAwesomeIcons
+                                                                .fileAlt,
+                                                        size: 40,
+                                                        color:
+                                                            appBackgroundblue,
+                                                      ),
+                                                    const SizedBox(
+                                                      height: 10,
+                                                    ),
+                                                    Text(
+                                                      'File ${i + 1}.wz',
+                                                      style: const TextStyle(
+                                                        color:
+                                                            appBackgroundblue,
+                                                        fontSize: 20,
+                                                      ),
+                                                    )
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                             const SizedBox(
                               height: 20,
@@ -247,11 +305,9 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
 
                                     try {
                                       SSS sss = SSS();
-                                      String secretShares =
-                                          secretSharesContrl.text.trim();
 
                                       final String mnemonics = sss.combine(
-                                        secretShares.split(' '),
+                                        fileContent,
                                         isShemirBase64,
                                       );
                                       if (mnemonics == '') {
