@@ -58,6 +58,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
     }
   }
 
+  bool successSaving = false;
   @override
   void initState() {
     super.initState();
@@ -276,6 +277,15 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   ),
                                 ),
                                 onPressed: () async {
+                                  if (successSaving) {
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context).alreadySaved,
+                                      backgroundColor: Colors.green,
+                                      colorText: Colors.white,
+                                    );
+                                    return;
+                                  }
                                   SSS sss = SSS();
                                   List secretShares = sss.create(
                                     minShemirShare,
@@ -307,6 +317,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                       backgroundColor: Colors.green,
                                       colorText: Colors.white,
                                     );
+                                    successSaving = true;
                                   } catch (e) {
                                     Get.snackbar(
                                       '',

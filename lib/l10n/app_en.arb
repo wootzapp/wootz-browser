@@ -222,5 +222,6 @@
   "doNotShareYourShemir": "Do not share your Shemir shared secret!",
   "enterShemirSecretWithSpace": "Enter your Shemir shared secret seperated with space, this would  be used to recover your mmenomic phrase",
   "convertToShemirSecret": "Convert to Shemir secret shares",
-  "savedToDownloadFolder": "Saved to Downloads folder"
+  "savedToDownloadFolder": "Saved to Downloads folder",
+  "alreadySaved": "Already saved to Download folder"
 }
