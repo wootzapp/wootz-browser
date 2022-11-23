@@ -71,6 +71,7 @@ dependencies:
   flutter_inappwebview: 6.0.0-beta.11
   scan: ^1.6.0
   path_provider: ^2.0.11
+  file_picker: 4.6.1
   cached_network_image: ^3.2.0
   decimal: ^2.2.0
   flutter_pin_code_fields: ^1.1.0
@@ -122,6 +123,7 @@ dependency_overrides:
   convert: ^3.0.0
   bip32: ^2.0.0
   hex: ^0.2.0
+  ffi: ^1.0.0
   collection: 1.15.0
   http: ^0.13.4
   pinenacl: ^0.3.3

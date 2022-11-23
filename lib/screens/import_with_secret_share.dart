@@ -1,20 +1,26 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:bs58check/bs58check.dart';
 import 'package:cryptowallet/components/wallet_logo.dart';
 import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+import 'package:hex/hex.dart';
 import 'package:hive/hive.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:solana/base58.dart';
 import '../components/loader.dart';
 import '../utils/qr_scan_view.dart';
 
@@ -31,12 +37,13 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
   final walletNameController = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   RxBool isLoading = false.obs;
-  RxBool isBase64 = false.obs;
 
   // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   bool invisiblemnemonic = false;
   RxBool securitydialogOpen = false.obs;
+
+  List<String> fileContent = [];
 
   @override
   void initState() {
@@ -150,84 +157,38 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
                             const SizedBox(
                               height: 20,
                             ),
-                            Stack(
-                              children: [
-                                TextFormField(
-                                  maxLines: 3,
-                                  controller: secretSharesContrl,
-                                  keyboardType: TextInputType.visiblePassword,
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.only(
-                                      top: 100,
-                                      left: 12,
-                                      right: 12,
-                                    ),
-                                    hintText: AppLocalizations.of(context)
-                                        .enterSecretShare,
-                                    focusedBorder: const OutlineInputBorder(
-                                      borderRadius: BorderRadius.all(
-                                          Radius.circular(10.0)),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    border: const OutlineInputBorder(
-                                        borderRadius: BorderRadius.all(
-                                            Radius.circular(10.0)),
-                                        borderSide: BorderSide.none),
-                                    enabledBorder: const OutlineInputBorder(
-                                      borderRadius: BorderRadius.all(
-                                          Radius.circular(10.0)),
-                                      borderSide: BorderSide.none,
-                                    ), // you
-                                    filled: true,
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 10,
-                                  top: 10,
-                                  child: InkWell(
-                                    onTap: () async {
-                                      ClipboardData cdata =
-                                          await Clipboard.getData(
-                                              Clipboard.kTextPlain);
-                                      if (cdata == null) return;
-                                      if (cdata.text == null) return;
-                                      secretSharesContrl.text = cdata.text;
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .scaffoldBackgroundColor,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Text(
-                                          AppLocalizations.of(context).paste,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(
-                              height: 20,
-                            ),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  'Base64',
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                                Obx(() {
-                                  return CupertinoSwitch(
-                                    value: isBase64.value,
-                                    onChanged: (va) {
-                                      isBase64.value = va;
+                                for (int i = 0; i < minShemirShare; i++)
+                                  GestureDetector(
+                                    onTap: () async {
+                                      FilePickerResult result =
+                                          await FilePicker.platform.pickFiles();
+
+                                      if (result != null) {
+                                        File file =
+                                            File(result.files.single.path);
+                                        fileContent[i] = HEX.encode(base58
+                                            .decode(await file.readAsString()));
+                                      }
                                     },
-                                  );
-                                }),
+                                    child: Column(
+                                      children: [
+                                        const Icon(
+                                          FontAwesomeIcons.file,
+                                          size: 40,
+                                        ),
+                                        const SizedBox(
+                                          height: 10,
+                                        ),
+                                        Text(
+                                          'File ${i + 1}.wz',
+                                          style: const TextStyle(fontSize: 20),
+                                        )
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                             const SizedBox(
@@ -291,7 +252,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare>
 
                                       final String mnemonics = sss.combine(
                                         secretShares.split(' '),
-                                        isBase64.value,
+                                        isShemirBase64,
                                       );
                                       if (mnemonics == '') {
                                         return;

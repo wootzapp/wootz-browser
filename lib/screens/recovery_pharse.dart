@@ -1,11 +1,14 @@
 import 'package:blockfrost/blockfrost.dart';
+import 'package:bs58check/bs58check.dart';
 import 'package:cryptowallet/google_drive/file.dart';
 import 'package:cryptowallet/screens/confirm_seed_phrase.dart';
+import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:get/get.dart';
+import 'package:hex/hex.dart';
 import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
@@ -291,22 +294,24 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     minShemirShare,
                                     minShemirShare,
                                     widget.data,
-                                    true,
+                                    isShemirBase64,
                                   );
-
+                                  String filehash = sha3(widget.data);
                                   try {
                                     for (int i = 0;
                                         i < secretShares.length;
                                         i++) {
                                       final date = DateTime.now();
                                       final keyFile =
-                                          'wootzapp_key_${i + 1}_$date.wz'
+                                          'wootzapp_key_${i + 1}_${filehash}_$date.wz'
                                               .split(' ')
                                               .join('_');
 
                                       await FileReader.writeDownloadFile(
                                         keyFile,
-                                        secretShares[i],
+                                        base58.encode(
+                                          HEX.decode(secretShares[i]),
+                                        ),
                                       );
                                     }
 
@@ -319,6 +324,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     );
                                     successSaving = true;
                                   } catch (e) {
+                                    print(e);
                                     Get.snackbar(
                                       '',
                                       AppLocalizations.of(context)
