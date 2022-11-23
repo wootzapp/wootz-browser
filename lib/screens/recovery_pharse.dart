@@ -1,4 +1,5 @@
 import 'package:cryptowallet/screens/confirm_seed_phrase.dart';
+import 'package:cryptowallet/screens/convert_to_shemir_secret.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -219,42 +220,80 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                           const SizedBox(
                             height: 40,
                           ),
-                          widget.verify != null
-                              ? Container()
-                              : SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    style: ButtonStyle(
-                                      backgroundColor:
-                                          MaterialStateProperty.resolveWith(
-                                              (states) => appBackgroundblue),
-                                      shape: MaterialStateProperty.resolveWith(
-                                        (states) => RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Get.off(
-                                        Confirmmnemonic(
-                                          mmenomic: widget.data.split(' '),
-                                        ),
-                                      );
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(15),
-                                      child: Text(
-                                        AppLocalizations.of(context).continue_,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
+                          if (widget.verify == null) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                          (states) => appBackgroundblue),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
                                 ),
+                                onPressed: () {
+                                  Get.off(
+                                    Confirmmnemonic(
+                                      mmenomic: widget.data.split(' '),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Text(
+                                    AppLocalizations.of(context).continue_,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 20,
+                            ),
+                            Container(
+                              color: Colors.transparent,
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                    (states) => Colors.white,
+                                  ),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Get.to(
+                                    ConvertToShemirSecret(
+                                      secret: widget.data,
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Text(
+                                    AppLocalizations.of(context)
+                                        .convertToShemirSecret,
+                                    style: const TextStyle(
+                                      color: appBackgroundblue,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ]
                         ],
                       ),
                     ),

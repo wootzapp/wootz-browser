@@ -220,5 +220,6 @@
   "restoreWithSecretShare": "Restore with Secret Shares",
   "enterSecretShare": "Enter Secret Share",
   "doNotShareYourShemir": "Do not share your Shemir shared secret!",
-  "enterShemirSecretWithSpace": "Enter your Shemir shared secret seperated with space, this would  be used to recover your mmenomic phrase"
+  "enterShemirSecretWithSpace": "Enter your Shemir shared secret seperated with space, this would  be used to recover your mmenomic phrase",
+  "convertToShemirSecret": "Convert to Shemir secret shares"
 }
