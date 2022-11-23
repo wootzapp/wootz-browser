@@ -217,5 +217,8 @@
   "language": "Language",
   "couldNotChangeLanguage": "Could not change language, please try again later.",
   "invalidAddress": "Invalid address",
-  "restoreWithSecretShare": "Restore with Secret Shares"
+  "restoreWithSecretShare": "Restore with Secret Shares",
+  "enterSecretShare": "Enter Secret Share",
+  "doNotShareYourShemir": "Do not share your Shemir shared secret!",
+  "enterShemirSecretWithSpace": "Enter your Shemir shared secret seperated with space, this would  be used to recover your mmenomic phrase"
 }

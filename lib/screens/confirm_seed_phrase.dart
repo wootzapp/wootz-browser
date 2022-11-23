@@ -306,20 +306,11 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                         }
                                       }
                                     }
-                                    final fileName = sha3(mnemonics);
-                                    if (!await saveToDrive(
-                                      fileName,
-                                      mnemonics,
-                                    )) {
-                                      isLoading.value = false;
-                                      return;
-                                    }
 
                                     await initializeAllPrivateKeys(mnemonics);
 
                                     decodedmnemonic.add({
                                       'phrase': mnemonics,
-                                      'key': fileName,
                                     });
                                     await pref.put(
                                       mnemonicListKey,

@@ -195,5 +195,8 @@
   "language": "Langue",
   "couldNotChangeLanguage": "Impossible de changer de langue, veuillez réessayer plus tard.",
   "invalidAddress": "Adresse invalide",
-  "restoreWithSecretShare": "Restaurer avec des partages secrets"
+  "restoreWithSecretShare": "Restaurer avec des partages secrets",
+  "enterSecretShare": "Entrez le partage secret",
+  "doNotShareYourShemir": "Ne partagez pas votre secret partagé Shemir !",
+  "enterShemirSecretWithSpace": "Entrez votre secret partagé Shemir séparé par un espace, cela serait utilisé pour récupérer votre phrase mmenomic"
 }
