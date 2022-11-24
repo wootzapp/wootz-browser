@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:flutter/services.dart';
+import 'package:get/state_manager.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:charts_flutter/src/text_element.dart' as TextElement;
@@ -39,8 +40,7 @@ class _CryptoChartState extends State<CryptoChart> {
     super.initState();
   }
 
-  int days = 1;
-  int currentDays = 1;
+  RxInt days = 1.obs;
 
   Map savedData = {};
   final maxSecondsToRemakeRequest = 15;
@@ -58,7 +58,7 @@ class _CryptoChartState extends State<CryptoChart> {
     'Nov',
     'Dec'
   ];
-  ValueNotifier<String> priceNotifier = ValueNotifier<String>('');
+  RxString priceNotifier = ''.obs;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,7 +70,6 @@ class _CryptoChartState extends State<CryptoChart> {
           child: RefreshIndicator(
             onRefresh: () async {
               await Future.delayed(const Duration(seconds: 2));
-              setState(() {});
             },
             child: SafeArea(
               child: SingleChildScrollView(
@@ -87,13 +86,12 @@ class _CryptoChartState extends State<CryptoChart> {
                           children: [
                             Padding(
                               padding: const EdgeInsets.only(top: 10.0),
-                              child: ValueListenableBuilder(
-                                valueListenable: priceNotifier,
-                                builder: ((context, value, child) {
-                                  return ChartPrice(
-                                    chartPriceData: {'price': value},
-                                  );
-                                }),
+                              child: Obx(
+                                () => ChartPrice(
+                                  chartPriceData: {
+                                    'price': priceNotifier.value
+                                  },
+                                ),
                               ),
                             ),
                             SizedBox(
@@ -126,7 +124,7 @@ class _CryptoChartState extends State<CryptoChart> {
                                       .get(
                                         Uri.parse(
                                           getMarketData(
-                                            days: days,
+                                            days: days.value,
                                             coinGeckoId:
                                                 coinGeckCryptoSymbolToID[
                                                     widget.symbol],
@@ -302,16 +300,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 1;
-                                      });
+                                      days.value = 1;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 1
+                                            color: days.value == 1
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -328,16 +324,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 7;
-                                      });
+                                      days.value = 7;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 7
+                                            color: days.value == 7
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -354,16 +348,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 30;
-                                      });
+                                      days.value = 30;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 30
+                                            color: days.value == 30
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),
@@ -380,16 +372,14 @@ class _CryptoChartState extends State<CryptoChart> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      setState(() {
-                                        days = 365;
-                                      });
+                                      days.value = 365;
                                     },
                                     child: Container(
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
                                             width: 5,
-                                            color: days == 365
+                                            color: days.value == 365
                                                 ? Colors.blue
                                                 : Colors.transparent,
                                           ),

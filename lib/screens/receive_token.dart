@@ -5,7 +5,8 @@ import 'package:cryptowallet/eip/eip681.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:decimal/decimal.dart';
-import 'package:flutter/foundation.dart';import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
@@ -26,10 +27,9 @@ class ReceiveToken extends StatefulWidget {
 
 class _ReceiveTokenState extends State<ReceiveToken> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
-  String userAddress = "";
-
-  bool isRequestingPayment = false;
-  String amountRequested;
+  RxString userAddress = "".obs;
+  RxBool isRequestingPayment = false.obs;
+  RxString amountRequested = "".obs;
   TextEditingController amountField = TextEditingController();
 
   @override
@@ -93,7 +93,9 @@ class _ReceiveTokenState extends State<ReceiveToken> {
             }
           }
           if (snapshot.hasData) {
-            if (!isRequestingPayment) userAddress = snapshot.data['address'];
+            if (!isRequestingPayment.value) {
+              userAddress.value = snapshot.data['address'];
+            }
             return SafeArea(
               child: SingleChildScrollView(
                 child: Padding(
@@ -112,10 +114,12 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                             child: Padding(
                               padding:
                                   const EdgeInsets.only(top: 10, bottom: 10),
-                              child: QrImage(
-                                data: userAddress,
-                                version: QrVersions.auto,
-                                size: 250,
+                              child: Obx(
+                                () => QrImage(
+                                  data: userAddress.value,
+                                  version: QrVersions.auto,
+                                  size: 250,
+                                ),
                               ),
                             ),
                           ),
@@ -130,13 +134,9 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           await Clipboard.setData(ClipboardData(
                             text: (snapshot.data as Map)['address'],
                           ));
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(AppLocalizations.of(context)
-                                  .copiedToClipboard),
-                              duration: const Duration(seconds: 2),
-                            ),
+                          Get.snackbar(
+                            '',
+                            AppLocalizations.of(context).copiedToClipboard,
                           );
                         },
                         child: Card(
@@ -162,9 +162,11 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           ),
                         ),
                       ),
-                      amountRequested != null
-                          ? Text(amountRequested)
-                          : Container(),
+                      Obx(() {
+                        return amountRequested != null
+                            ? Text(amountRequested.value)
+                            : Container();
+                      }),
                       const SizedBox(
                         height: 40,
                       ),
@@ -192,13 +194,10 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                       text: (snapshot.data as Map)['address'],
                                     ));
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            AppLocalizations.of(context)
-                                                .copiedToClipboard),
-                                        duration: const Duration(seconds: 2),
-                                      ),
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context)
+                                          .copiedToClipboard,
                                     );
                                   },
                                   child: Container(
@@ -370,20 +369,18 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                     }
                                                   }
 
-                                                  setState(() {
-                                                    isRequestingPayment = true;
-                                                    amountRequested =
-                                                        ethereumRequestURL !=
-                                                                null
-                                                            ? "+${amountField.text.trim()} ${widget.data['symbol']}"
-                                                            : null;
-                                                    amountField.text = '';
-                                                    userAddress =
-                                                        ethereumRequestURL ??
-                                                            (snapshot.data
-                                                                    as Map)[
-                                                                'address'];
-                                                  });
+                                                  isRequestingPayment.value =
+                                                      true;
+                                                  amountRequested.value =
+                                                      ethereumRequestURL != null
+                                                          ? "+${amountField.text.trim()} ${widget.data['symbol']}"
+                                                          : null;
+                                                  amountField.text = '';
+                                                  userAddress.value =
+                                                      ethereumRequestURL ??
+                                                          (snapshot.data
+                                                                  as Map)[
+                                                              'address'];
                                                 },
                                               )
                                             ],

@@ -71,12 +71,6 @@
   "max": "Max",
   "pleaseEnterAmount": "please enter an amount",
   "resolvingDomainAddress": "Resolving domain address...",
-  "canNotSend": "Can not send {crypto} to this address, address may not be a valid {crypto} address",
-  "@canNotSend": {
-    "placeholders": {
-      "crypto": {}
-    }
-  },
   "address": "address",
   "transfer": "Transfer",
   "from": "From",
@@ -221,5 +215,13 @@
   "trxSent": "Transaction Sent",
   "sendingToYourself": "You are sending your tokens to yourself",
   "language": "Language",
-  "couldNotChangeLanguage": "Could not change language, please try again later."
+  "couldNotChangeLanguage": "Could not change language, please try again later.",
+  "invalidAddress": "Invalid address",
+  "restoreWithSecretShare": "Restore with Secret Shares",
+  "enterSecretShare": "Enter Secret Share",
+  "doNotShareYourShemir": "Do not share your Shamir shared secret!",
+  "enterShemirSecretWithSpace": "Enter your Shamir shared secret seperated with space, this would  be used to recover your mmenomic phrase",
+  "convertToShemirSecret": "Convert to Shamir secret shares",
+  "savedToDownloadFolder": "Saved to Downloads folder",
+  "alreadySaved": "Already saved to Download folder"
 }

@@ -35,10 +35,9 @@ class GoogleDrive {
     return box.get(googleDriveKey);
   }
 
-  // Get authenticated http client
   Future<http.Client> getHttpClient() async {
     var credentials = await box.get(googleDriveKey);
-    await dotenv.load(fileName: "assets/.env", mergeWith: {});
+    await dotenv.load(fileName: "assets/.env");
     if (credentials == null) {
       var authClient = await clientViaUserConsent(
         ClientId(
@@ -49,11 +48,6 @@ class GoogleDrive {
         (url) async {
           await launchUrl(Uri.parse(url));
         },
-      );
-
-      await saveCredentials(
-        authClient.credentials.accessToken,
-        authClient.credentials.refreshToken,
       );
 
       return authClient;
@@ -75,18 +69,19 @@ class GoogleDrive {
     }
   }
 
-  Future upload(File file) async {
+  Future upload(
+    File file,
+    String fileName,
+  ) async {
     var client = await getHttpClient();
     var drive = ga.DriveApi(client);
 
-    var response = await drive.files.create(
-      ga.File()..name = "",
+    await drive.files.create(
+      ga.File()..name = fileName,
       uploadMedia: ga.Media(
         file.openRead(),
         file.lengthSync(),
       ),
     );
-
-    print(response.toJson());
   }
 }

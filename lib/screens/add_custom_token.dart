@@ -19,12 +19,12 @@ class AddCustomToken extends StatefulWidget {
 class _AddCustomTokenState extends State<AddCustomToken> {
   List networks = getEVMBlockchains().keys.toList();
   String network;
-  String networkImage;
+  RxString networkImage = RxString('');
   @override
   void initState() {
     super.initState();
     network = networks[0];
-    networkImage = getEVMBlockchains().values.toList()[0]['image'];
+    networkImage.value = getEVMBlockchains().values.toList()[0]['image'];
     contractAddressController.addListener(() async {
       await autoFillNameDecimalSymbol(
         contractAddressController.text,
@@ -98,24 +98,22 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           context: context,
                           onTap: (blockChainData) async {
                             Get.back();
-                            if (mounted) {
-                              setState(() {
-                                network = blockChainData['name'];
-                                networkImage = blockChainData['image'];
-                              });
-                            }
+                            network = blockChainData['name'];
+                            networkImage.value = blockChainData['image'];
                           },
                           selectedChainId: getEVMBlockchains()[network]
                               ['chainId'],
                         );
                         emptyInput();
                       },
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundImage: AssetImage(
-                          networkImage ?? '',
-                        ),
-                      ),
+                      child: Obx(() {
+                        return CircleAvatar(
+                          radius: 20,
+                          backgroundImage: AssetImage(
+                            networkImage.value ?? '',
+                          ),
+                        );
+                      }),
                     ),
                   ],
                 ),
@@ -298,7 +296,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                     onPressed: () async {
                       FocusManager.instance.primaryFocus?.unfocus();
                       final pref = Hive.box(secureStorageKey);
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      Get.closeCurrentSnackbar();
                       final contractAddr =
                           contractAddressController.text.trim();
                       final contractName = nameAddressController.text.trim();
@@ -315,32 +313,22 @@ class _AddCustomTokenState extends State<AddCustomToken> {
 
                       if (contractAddr.toLowerCase() ==
                           tokenContractAddress.toLowerCase()) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).tokenImportedAlready,
-                              style: const TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).tokenImportedAlready,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
 
                       if (double.tryParse(contractDecimals) == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context)
-                                  .invalidContractAddressOrNetworkTimeout,
-                              style: const TextStyle(
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context)
+                              .invalidContractAddressOrNetworkTimeout,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
@@ -349,14 +337,11 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           contractName.isEmpty ||
                           contractSymbol.isEmpty ||
                           contractDecimals.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: Colors.red,
-                            content: Text(
-                              AppLocalizations.of(context).enterContractAddress,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
+                        Get.snackbar(
+                          '',
+                          AppLocalizations.of(context).enterContractAddress,
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
                         );
                         return;
                       }
@@ -392,15 +377,13 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           bool sameNetwork = contractNetwork == network;
 
                           if (sameNetwork && sameContractAddress) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: Colors.red,
-                                content: Text(
-                                  'Token Imported Already',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
+                            Get.snackbar(
+                              '',
+                              'Token Imported Already',
+                              backgroundColor: Colors.red,
+                              colorText: Colors.white,
                             );
+
                             return;
                           }
                         }

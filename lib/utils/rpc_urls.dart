@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
+import 'package:cryptowallet/google_drive/drive.dart';
 import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
@@ -250,7 +251,7 @@ buildSwapUi({
   await slideUpPanel(
     context,
     StatefulBuilder(
-      builder: ((context, setState) {
+      builder: ((context, __) {
         List<Widget> listToken = [];
         tokenList
             .where((element) {
@@ -402,7 +403,7 @@ buildSwapUi({
                           child: TextFormField(
                             controller: searchCoinController,
                             onChanged: (value) async {
-                              setState(() {});
+                              __(() {});
                             },
                             textInputAction: TextInputAction.search,
                             decoration: InputDecoration(
@@ -1070,12 +1071,21 @@ Future<Map> ensToAddress({String cryptoDomainName}) async {
   }
 }
 
+Future<bool> saveToDrive(String fileName, String mnemonic) async {
+  try {
+    // final pref = Hive.box(secureStorageKey);
+    SSS sss = SSS();
+    List<String> arr = sss.create(2, 2, mnemonic, true);
+    File savedFile = await FileReader.writeFile(fileName, arr[0]);
+    await GoogleDrive().upload(savedFile, fileName);
+    await savedFile.delete();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
-  final mnemonicHash = sha3(mnemonic);
-  await FileReader.localFile(mnemonicHash);
-  SSS sss = SSS();
-  List<String> arr = sss.create(2, 2, mnemonic, true);
-  await FileReader.writeFile(mnemonicHash, arr[0]);
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
       mnemonic,
@@ -1776,7 +1786,9 @@ Future<double> getEtherTransactionFee(
         )
       : null;
 
-  gasPrice ??= await client.getGasPrice();
+  if (gasPrice == null || gasPrice.getInWei == BigInt.from(0)) {
+    gasPrice = await client.getGasPrice();
+  }
   BigInt gasUnit;
 
   try {
@@ -1788,7 +1800,7 @@ Future<double> getEtherTransactionFee(
     );
   } catch (_) {}
 
-  if (gasUnit != null) {
+  if (gasUnit == null) {
     try {
       gasUnit = await client.estimateGas(
         sender: EthereumAddress.fromHex(zeroAddress),
@@ -1811,7 +1823,7 @@ Future<double> getEtherTransactionFee(
       gasUnit = BigInt.from(0);
     }
   }
-  return gasPrice.getValueInUnit(web3.EtherUnit.wei) * gasUnit.toDouble();
+  return gasPrice.getInWei.toDouble() * gasUnit.toDouble();
 }
 
 Future<String> etherPrivateKeyToAddress(String privateKey) async {
@@ -2395,7 +2407,6 @@ switchEthereumChain({
 }
 
 signTransaction({
-  int id,
   Function onReject,
   String gasPriceInWei_,
   BuildContext context,
@@ -2457,8 +2468,7 @@ signTransaction({
   }
 
   String info = AppLocalizations.of(context).info;
-  info = info[0].toUpperCase() + info.substring(1).toLowerCase();
-  // final isEnoughBalance = userBalance >= value + transactionFee;
+
   ValueNotifier<bool> isSigningTransaction = ValueNotifier(false);
   slideUpPanel(
     context,
@@ -2810,7 +2820,7 @@ signTransaction({
                                   ],
                                 ),
                               ),
-                              if (transactionFee > userBalance)
+                              if (transactionFee + value > userBalance)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Column(
@@ -2932,8 +2942,7 @@ signTransaction({
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  key[0].toUpperCase() +
-                                      key.substring(1).toLowerCase(),
+                                  key,
                                   style: const TextStyle(
                                     fontSize: 16.0,
                                     fontWeight: FontWeight.bold,

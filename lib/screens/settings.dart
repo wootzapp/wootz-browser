@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
 import 'package:cryptowallet/screens/language.dart';
+import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:get/get.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
@@ -13,7 +14,6 @@ import 'package:cryptowallet/screens/recovery_pharse.dart';
 import 'package:cryptowallet/screens/send_token.dart';
 import 'package:cryptowallet/screens/set_currency.dart';
 import 'package:cryptowallet/screens/view_wallets.dart';
-import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -197,38 +197,6 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              await Get.to(const WalletConnect());
-                            },
-                            child: Container(
-                              color: Colors.transparent,
-                              height: 35,
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SvgPicture.asset(
-                                          'assets/wallet_connect_new.svg',
-                                          width: 25),
-                                      const SizedBox(
-                                        width: 10,
-                                      ),
-                                      Text(
-                                        'Wallet Connect',
-                                        style: TextStyle(fontSize: 18),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const Divider(),
-                          InkWell(
-                            onTap: () async {
                               final pref = Hive.box(secureStorageKey);
                               final mnemonics = pref.get(mnemonicListKey);
 
@@ -262,6 +230,38 @@ class _SettingsState extends State<Settings> {
                                       Text(
                                         AppLocalizations.of(context)
                                             .viewWallets,
+                                        style: TextStyle(fontSize: 18),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const Divider(),
+                          InkWell(
+                            onTap: () async {
+                              await Get.to(WalletConnect());
+                            },
+                            child: Container(
+                              color: Colors.transparent,
+                              height: 35,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      SvgPicture.asset(
+                                          'assets/wallet_connect_new.svg',
+                                          width: 25),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        'Wallet Connect',
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],
@@ -312,16 +312,13 @@ class _SettingsState extends State<Settings> {
                                 const QRScanView(),
                               );
                               if (data == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    backgroundColor: Colors.red,
-                                    content: Text(
-                                      eIP681ProcessingErrorMsg,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    duration: Duration(seconds: 2),
-                                  ),
+                                Get.snackbar(
+                                  '',
+                                  eIP681ProcessingErrorMsg,
+                                  colorText: Colors.white,
+                                  backgroundColor: Colors.red,
                                 );
+
                                 return;
                               }
                               showDialog(
@@ -358,15 +355,11 @@ class _SettingsState extends State<Settings> {
                                 );
                                 return;
                               }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  backgroundColor: Colors.red,
-                                  content: Text(
-                                    scannedData['msg'],
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  duration: Duration(seconds: 2),
-                                ),
+                              Get.snackbar(
+                                '',
+                                scannedData['msg'],
+                                colorText: Colors.white,
+                                backgroundColor: Colors.red,
                               );
                             },
                             child: SizedBox(
@@ -436,8 +429,7 @@ class _SettingsState extends State<Settings> {
                                 String mnemonic = (Hive.box(secureStorageKey))
                                     .get(currentMmenomicKey);
                                 if (await authenticate(context)) {
-                                  ScaffoldMessenger.of(context)
-                                      .hideCurrentSnackBar();
+                                  Get.closeAllSnackbars();
                                   Get.to(
                                     RecoveryPhrase(
                                       data: mnemonic,
@@ -445,14 +437,11 @@ class _SettingsState extends State<Settings> {
                                     ),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        AppLocalizations.of(context).authFailed,
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).authFailed,
+                                    colorText: Colors.white,
+                                    backgroundColor: Colors.red,
                                   );
                                 }
                               },
@@ -491,22 +480,18 @@ class _SettingsState extends State<Settings> {
                                   context,
                                   useLocalAuth: false,
                                 )) {
-                                  ScaffoldMessenger.of(context)
-                                      .hideCurrentSnackBar();
+                                  Get.closeAllSnackbars();
                                   Get.to(
                                     const Security(
                                       isChangingPin: true,
                                     ),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red,
-                                      content: Text(
-                                        AppLocalizations.of(context).authFailed,
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).authFailed,
+                                    colorText: Colors.white,
+                                    backgroundColor: Colors.red,
                                   );
                                 }
                               },
