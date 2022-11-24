@@ -2,6 +2,8 @@
 
 # Files and directories created by pub
 .dart_tool/
+.DS_Store
+.flutter-plugins-dependencies
 .packages
 build/
 # If you're building an application, you may want to check-in your pubspec.lock

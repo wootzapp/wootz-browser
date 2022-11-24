@@ -1,4 +1,5 @@
 import 'package:cryptowallet/screens/enter_phrase.dart';
+import 'package:cryptowallet/screens/import_with_secret_share.dart';
 import 'package:cryptowallet/screens/recovery_pharse.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
@@ -131,6 +132,39 @@ class _MainScreenState extends State<MainScreen> {
                         padding: const EdgeInsets.all(15),
                         child: Text(
                           AppLocalizations.of(context).restoreWithPassphrase,
+                          style: const TextStyle(
+                            color: appBackgroundblue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 20,
+                  ),
+                  Container(
+                    color: Colors.transparent,
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ButtonStyle(
+                        backgroundColor: MaterialStateProperty.resolveWith(
+                          (states) => Colors.white,
+                        ),
+                        shape: MaterialStateProperty.resolveWith(
+                          (states) => RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      onPressed: () {
+                        Get.to(const ImportWithSecretShare());
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Text(
+                          AppLocalizations.of(context).restoreWithSecretShare,
                           style: const TextStyle(
                             color: appBackgroundblue,
                             fontWeight: FontWeight.bold,

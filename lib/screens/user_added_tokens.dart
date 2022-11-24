@@ -21,13 +21,13 @@ class UserAddedTokens extends StatefulWidget {
 }
 
 class UserAddedTokensState extends State<UserAddedTokens> {
-  List userAddedToken;
+  RxList userAddedToken = [].obs;
   List<ValueNotifier<double>> addedTokenListNotifiers =
       <ValueNotifier<double>>[];
   List<Timer> addedTokenListTimer = <Timer>[];
   double tokenBalance;
   int addedTokenListNotifiersCounter = 0;
-
+  RxBool toggler = false.obs;
   @override
   void initState() {
     super.initState();
@@ -72,148 +72,124 @@ class UserAddedTokensState extends State<UserAddedTokens> {
         'noPrice': true,
       });
     }
-    userAddedToken = tokenList;
-    if (mounted) {
-      setState(() {});
-    }
+    userAddedToken.value = tokenList;
   }
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> addedTokens = <Widget>[];
-    if (userAddedToken != null) {
-      for (int i = 0; i < userAddedToken.length; i++) {
-        final notifier = ValueNotifier<double>(null);
-        addedTokenListNotifiers.add(notifier);
-        addedTokens.addAll([
-          Dismissible(
-            background: Container(),
-            key: UniqueKey(),
-            direction: DismissDirection.endToStart,
-            secondaryBackground: Container(
-              color: Colors.red,
-              margin: const EdgeInsets.symmetric(horizontal: 15),
-              alignment: Alignment.centerRight,
-              child: const Padding(
-                padding: EdgeInsets.only(right: 10),
-                child: Icon(
-                  Icons.delete,
-                  color: Colors.white,
+    return Obx(() {
+      List<Widget> addedTokens = <Widget>[];
+      if (userAddedToken != null) {
+        for (int i = 0; i < userAddedToken.length; i++) {
+          final notifier = ValueNotifier<double>(null);
+          addedTokenListNotifiers.add(notifier);
+          addedTokens.addAll([
+            Dismissible(
+              background: Container(),
+              key: UniqueKey(),
+              direction: DismissDirection.endToStart,
+              secondaryBackground: Container(
+                color: Colors.red,
+                margin: const EdgeInsets.symmetric(horizontal: 15),
+                alignment: Alignment.centerRight,
+                child: const Padding(
+                  padding: EdgeInsets.only(right: 10),
+                  child: Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
-            onDismissed: (DismissDirection direction) {
-              setState(() {});
-            },
-            confirmDismiss: (DismissDirection direction) async {
-              final result = await AwesomeDialog(
-                context: context,
-                autoDismiss: false,
-                dialogType: DialogType.WARNING,
-                animType: AnimType.BOTTOMSLIDE,
-                closeIcon: const Icon(
-                  Icons.close,
-                ),
-                title: 'Delete Token',
-                btnOkText: 'Delete',
-                btnOkColor: Colors.red,
-                btnCancelColor: appBackgroundblue,
-                desc:
-                    'Are you sure you want to delete (${userAddedToken[i]['symbol']}) token?',
-                btnCancelOnPress: () {
-                  Navigator.pop(context, false);
-                },
-                onDissmissCallback: ((type) {}),
-                btnOkOnPress: () async {
-                  final pref = Hive.box(secureStorageKey);
-
-                  final userTokenListKey = await getAddTokenKey();
-
-                  if (userAddedToken.isEmpty) return;
-                  String customTokenDetailsKey = await contractDetailsKey(
-                    userAddedToken[i]['rpc'],
-                    userAddedToken[i]['contractAddress'],
-                  );
-
-                  if (pref.get(customTokenDetailsKey) != null) {
-                    pref.delete(customTokenDetailsKey);
-                  }
-                  userAddedToken.removeAt(i);
-
-                  await pref.put(
-                    userTokenListKey,
-                    jsonEncode(userAddedToken),
-                  );
-                  Navigator.pop(context, true);
-                },
-              ).show();
-
-              return result ?? false;
-            },
-            child: InkWell(
-              child: Column(
-                children: [
-                  GetBlockChainWidget(
-                    name_: ellipsify(str: userAddedToken[i]['name']),
-                    image_: userAddedToken[i]['image'] != null
-                        ? AssetImage(userAddedToken[i]['image'])
-                        : null,
-                    priceWithCurrency_: '0',
-                    hasPrice_: false,
-                    cryptoChange_: 0,
-                    symbol_: userAddedToken[i]['symbol'],
-                    cryptoAmount_: ValueListenableBuilder(
-                      valueListenable: notifier,
-                      builder: ((_, double value, Widget __) {
-                        if (value == null) {
-                          () async {
-                            try {
-                              notifier.value = await getERC20TokenBalance(
-                                userAddedToken[i],
-                                skipNetworkRequest: notifier.value == null,
-                              );
-                            } catch (_) {}
-                            addedTokenListTimer.add(
-                              Timer.periodic(httpPollingDelay, (timer) async {
-                                try {
-                                  notifier.value = await getERC20TokenBalance(
-                                    userAddedToken[i],
-                                    skipNetworkRequest: notifier.value == null,
-                                  );
-                                } catch (_) {}
-                              }),
-                            );
-                          }();
-
-                          return Container();
-                        }
-                        return UserBalance(
-                          symbol: ellipsify(
-                            str: userAddedToken[i]['symbol'],
-                          ),
-                          balance: value,
-                        );
-                      }),
-                    ),
-                  ),
-                  const Divider()
-                ],
-              ),
-              onTap: () {
-                Get.to(
-                  Token(
-                    data: userAddedToken[i],
-                  ),
-                );
+              onDismissed: (DismissDirection direction) {
+                toggler.value = !toggler.value;
               },
-            ),
-          ),
-        ]);
-      }
-    }
+              confirmDismiss: (DismissDirection direction) async {
+                final pref = Hive.box(secureStorageKey);
 
-    return Column(
-      children: addedTokens,
-    );
+                final userTokenListKey = await getAddTokenKey();
+
+                if (userAddedToken.isEmpty) return false;
+                String customTokenDetailsKey = await contractDetailsKey(
+                  userAddedToken[i]['rpc'],
+                  userAddedToken[i]['contractAddress'],
+                );
+
+                if (pref.get(customTokenDetailsKey) != null) {
+                  await pref.delete(customTokenDetailsKey);
+                }
+                userAddedToken.removeAt(i);
+
+                await pref.put(
+                  userTokenListKey,
+                  jsonEncode(userAddedToken),
+                );
+                return true;
+              },
+              child: InkWell(
+                child: Column(
+                  children: [
+                    GetBlockChainWidget(
+                      name_: ellipsify(str: userAddedToken[i]['name']),
+                      image_: userAddedToken[i]['image'] != null
+                          ? AssetImage(userAddedToken[i]['image'])
+                          : null,
+                      priceWithCurrency_: '0',
+                      hasPrice_: false,
+                      cryptoChange_: 0,
+                      symbol_: userAddedToken[i]['symbol'],
+                      cryptoAmount_: ValueListenableBuilder(
+                        valueListenable: notifier,
+                        builder: ((_, double value, Widget __) {
+                          if (value == null) {
+                            () async {
+                              try {
+                                notifier.value = await getERC20TokenBalance(
+                                  userAddedToken[i],
+                                  skipNetworkRequest: notifier.value == null,
+                                );
+                              } catch (_) {}
+                              addedTokenListTimer.add(
+                                Timer.periodic(httpPollingDelay, (timer) async {
+                                  try {
+                                    notifier.value = await getERC20TokenBalance(
+                                      userAddedToken[i],
+                                      skipNetworkRequest:
+                                          notifier.value == null,
+                                    );
+                                  } catch (_) {}
+                                }),
+                              );
+                            }();
+
+                            return Container();
+                          }
+                          return UserBalance(
+                            symbol: ellipsify(
+                              str: userAddedToken[i]['symbol'],
+                            ),
+                            balance: value,
+                          );
+                        }),
+                      ),
+                    ),
+                    const Divider()
+                  ],
+                ),
+                onTap: () {
+                  Get.to(
+                    Token(
+                      data: userAddedToken[i],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]);
+        }
+      }
+      return Column(
+        children: addedTokens,
+      );
+    });
   }
 }

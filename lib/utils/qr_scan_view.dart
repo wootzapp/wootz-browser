@@ -18,7 +18,7 @@ class QRScanView extends StatefulWidget {
 
 class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
   final ScanController controller = ScanController();
-  bool cameraOn = false;
+  RxBool cameraOn = false.obs;
   File image;
 
   @override
@@ -70,14 +70,14 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                   onPressed: () {
                     controller.toggleTorchMode();
 
-                    setState(() {
-                      cameraOn = !cameraOn;
-                    });
+                    cameraOn.value = !cameraOn.value;
                   },
-                  icon: Icon(
-                    FontAwesomeIcons.bolt,
-                    color: cameraOn ? Colors.grey : Colors.white,
-                    size: 35,
+                  icon: Obx(
+                    () => Icon(
+                      FontAwesomeIcons.bolt,
+                      color: cameraOn.value ? Colors.grey : Colors.white,
+                      size: 35,
+                    ),
                   ),
                 ),
               ),

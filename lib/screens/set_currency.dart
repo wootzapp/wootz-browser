@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';import 'package:get/get.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -72,27 +73,19 @@ class _SetCurrencyState extends State<SetCurrency> {
                                   );
                                   Get.back();
                                 } else {
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(SnackBar(
+                                  Get.snackbar(
+                                    '',
+                                    '$currency is not supported yet',
+                                    colorText: Colors.white,
                                     backgroundColor: Colors.red,
-                                    content: Text(
-                                      '$currency is not supported yet',
-                                      style:
-                                          const TextStyle(color: Colors.white),
-                                    ),
-                                    duration: const Duration(seconds: 2),
-                                  ));
+                                  );
                                 }
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    backgroundColor: Colors.red,
-                                    content: Text(
-                                      'Could not change currency, please try again later.',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    duration: Duration(seconds: 2),
-                                  ),
+                                Get.snackbar(
+                                  '',
+                                  'Could not change currency, please try again later.',
+                                  colorText: Colors.white,
+                                  backgroundColor: Colors.red,
                                 );
                               }
                             },

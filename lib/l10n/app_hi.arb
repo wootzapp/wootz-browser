@@ -61,7 +61,6 @@
   "max": "मैक्स",
   "pleaseEnterAmount": "कृपया एक राशि दर्ज करें",
   "resolvingDomainAddress": "डोमेन पता हल किया जा रहा है...",
-  "canNotSend": "इस पते पर {crypto} नहीं भेजा जा सकता, हो सकता है कि पता एक मान्य {crypto} पता न हो",
   "address": "पता",
   "transfer": "स्थानांतरण करना",
   "from": "से",
@@ -194,5 +193,13 @@
   "trxSent": "लेन-देन भेजा गया",
   "sendingToYourself": "आप अपने टोकन स्वयं को भेज रहे हैं",
   "language": "भाषा",
-  "couldNotChangeLanguage": "भाषा नहीं बदली जा सकी, कृपया बाद में पुन: प्रयास करें।"
+  "couldNotChangeLanguage": "भाषा नहीं बदली जा सकी, कृपया बाद में पुन: प्रयास करें।",
+  "invalidAddress": "गलत पता",
+  "restoreWithSecretShare": "गुप्त शेयरों के साथ पुनर्स्थापित करें",
+  "enterSecretShare": "गुप्त शेयर दर्ज करें",
+  "doNotShareYourShemir": "अपने शमीर साझा रहस्य साझा न करें!",
+  "enterShemirSecretWithSpace": "अंतरिक्ष के साथ अलग किया गया अपना शमीर साझा रहस्य दर्ज करें, इसका उपयोग आपके मेमेनोमिक वाक्यांश को पुनर्प्राप्त करने के लिए किया जाएगा",
+  "convertToShemirSecret": "शमीर गुप्त शेयरों में कनवर्ट करें",
+  "savedToDownloadFolder": "डाउनलोड फ़ोल्डर में सहेजा गया",
+  "alreadySaved": "डाउनलोड फ़ोल्डर में पहले ही सहेजा जा चुका है"
 }

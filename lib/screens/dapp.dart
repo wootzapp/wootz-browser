@@ -390,12 +390,18 @@ class _DappState extends State<Dapp> {
                                           jsonDecode(savedHistory) as List;
                                     }
 
-                                    Get.off(
+                                    final historyUrl = await Get.off(
                                       SavedUrls(
                                         historyTitle,
                                         historyEmpty,
                                         historyKey,
                                         data: historyList,
+                                      ),
+                                    );
+
+                                    _controller.loadUrl(
+                                      urlRequest: URLRequest(
+                                        url: WebUri(historyUrl),
                                       ),
                                     );
                                   },
@@ -860,7 +866,6 @@ class _DappState extends State<Dapp> {
                           final data = args[6];
 
                           await signTransaction(
-                            id: id,
                             gasPriceInWei_: gasPrice,
                             to: to,
                             from: sendingAddress,
@@ -1023,11 +1028,7 @@ class _DappState extends State<Dapp> {
                     ]),
                     onLoadStart:
                         (InAppWebViewController controller, Uri url) async {
-                      if (mounted) {
-                        setState(() {
-                          browserController.text = url.toString();
-                        });
-                      }
+                      browserController.text = url.toString();
 
                       final pref = Hive.box(secureStorageKey);
 
