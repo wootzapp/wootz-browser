@@ -664,6 +664,10 @@ class _WalletConnectState extends State<WalletConnect> {
       currentChainIdData: currentChainIdData,
       switchChainIdData: switchChainIdData,
       onConfirm: () async {
+        _web3client = Web3Client(
+          switchChainIdData['rpc'],
+          http.Client(),
+        );
         await _wcClient.updateSession(chainId: chainIdNew);
         _wcClient.approveRequest<void>(id: id, result: null);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
