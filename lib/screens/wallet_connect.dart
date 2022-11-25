@@ -659,6 +659,15 @@ class _WalletConnectState extends State<WalletConnect> {
   _onSwitchNetwork(int id, int chainIdNew) async {
     final currentChainIdData = getEthereumDetailsFromChainId(chainId);
     final switchChainIdData = getEthereumDetailsFromChainId(chainIdNew);
+    if (chainId == chainIdNew) {
+      _wcClient.rejectRequest(id: id);
+      return;
+    }
+
+    if (switchChainIdData == null) {
+      _wcClient.rejectRequest(id: id);
+      return;
+    }
     switchEthereumChain(
       context: context,
       currentChainIdData: currentChainIdData,
