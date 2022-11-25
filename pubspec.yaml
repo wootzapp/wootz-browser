@@ -48,7 +48,7 @@ dependencies:
   share: ^2.0.4
   local_auth: ^1.1.11
   url_launcher: ^6.0.20
-  wallet_connect: ^1.0.2
+  wallet_connect: ^1.0.4
   bitcoin_flutter: ^2.0.2
   percent_indicator: ^3.4.0
   flutter_svg: ^1.0.0

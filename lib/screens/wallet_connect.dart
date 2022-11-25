@@ -33,6 +33,7 @@ class _WalletConnectState extends State<WalletConnect> {
   Box _prefs;
   TextEditingController _textEditingController;
   String walletAddress, privateKey;
+  int chainId;
   WCSessionStore _sessionStore;
   Web3Client _web3client;
   String currencySymbol;
@@ -68,6 +69,7 @@ class _WalletConnectState extends State<WalletConnect> {
       onEthSendTransaction: _onSendTransaction,
       onCustomRequest: (_, __) {},
       onConnect: _onConnect,
+      onWalletSwitchNetwork: _onSwitchNetwork,
     );
 
     _textEditingController = TextEditingController();
@@ -497,6 +499,7 @@ class _WalletConnectState extends State<WalletConnect> {
                               mnemonic,
                               blockChainData['coinType'],
                             );
+                            chainId = blockChainData['chainId'];
                             walletAddress = response['eth_wallet_address'];
                             privateKey = response['eth_wallet_privateKey'];
                             _web3client = Web3Client(
@@ -647,6 +650,29 @@ class _WalletConnectState extends State<WalletConnect> {
         }
       },
       onReject: () {
+        _wcClient.rejectRequest(id: id);
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  _onSwitchNetwork(int id, int chainIdNew) async {
+    final currentChainIdData = getEthereumDetailsFromChainId(chainId);
+    final switchChainIdData = getEthereumDetailsFromChainId(chainIdNew);
+    switchEthereumChain(
+      context: context,
+      currentChainIdData: currentChainIdData,
+      switchChainIdData: switchChainIdData,
+      onConfirm: () async {
+        await _wcClient.updateSession(chainId: chainIdNew);
+        _wcClient.approveRequest<void>(id: id, result: null);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Changed network to $chainIdNew.'),
+        ));
+        chainId = chainIdNew;
+        Navigator.pop(context);
+      },
+      onReject: () async {
         _wcClient.rejectRequest(id: id);
         Navigator.pop(context);
       },
