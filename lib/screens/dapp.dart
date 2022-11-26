@@ -968,6 +968,7 @@ class _DappState extends State<Dapp> {
                             onConfirm: () async {
                               try {
                                 String signedDataHex;
+                                Uint8List signedData;
                                 if (messageType == typedMessageSignKey) {
                                   signedDataHex = EthSigUtil.signTypedData(
                                     privateKey: privateKey,
@@ -975,18 +976,19 @@ class _DappState extends State<Dapp> {
                                     version: TypedDataVersion.V4,
                                   );
                                 } else if (messageType == personalSignKey) {
+                                  signedData =
+                                      await credentials.signPersonalMessage(
+                                    txDataToUintList(data),
+                                  );
                                   signedDataHex =
-                                      EthSigUtil.signPersonalMessage(
-                                    message: txDataToUintList(data),
-                                    privateKeyInBytes: credentials.privateKey,
-                                  );
+                                      bytesToHex(signedData, include0x: true);
                                 } else if (messageType == normalSignKey) {
-                                  signedDataHex = EthSigUtil.signMessage(
-                                    message: txDataToUintList(data),
-                                    privateKeyInBytes: credentials.privateKey,
+                                  signedData = await credentials.sign(
+                                    txDataToUintList(data),
                                   );
+                                  signedDataHex =
+                                      bytesToHex(signedData, include0x: true);
                                 }
-
                                 await _controller.evaluateJavascript(
                                   source:
                                       'AlphaWallet.executeCallback($id, null, "$signedDataHex");',
