@@ -94,7 +94,8 @@
             window.flutter_inappwebview.callHandler(
               "signMessage",
               id,
-              JSON.stringify(msgParams)
+              JSON.stringify(msgParams),
+              "Typed Message"
             );
           }
         }, 100);
@@ -104,7 +105,6 @@
         const { id = Math.floor(Math.random() * 100000 + 1) } = msgParams;
         AlphaWallet.addCallback(id, cb);
 
-        // run loop until isFlutterInAppWebViewReady is true
         const interval = setInterval(() => {
           if (isFlutterInAppWebViewReady) {
             clearInterval(interval);
