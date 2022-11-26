@@ -777,7 +777,7 @@ class _WalletConnectState extends State<WalletConnect> {
               ),
             );
           } catch (e) {
-            Uint8List signedData = await credentials.sign(
+            Uint8List signedData = await credentials.signPersonalMessage(
               txDataToUintList(
                 ethereumSignMessage.data,
               ),

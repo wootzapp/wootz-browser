@@ -969,7 +969,7 @@ class _DappState extends State<Dapp> {
                               try {
                                 String signedDataHex;
                                 Uint8List signedData;
-                               if (messageType == typedMessageSignKey) {
+                                if (messageType == typedMessageSignKey) {
                                   signedDataHex = EthSigUtil.signTypedData(
                                     privateKey: privateKey,
                                     jsonData: data,
@@ -990,7 +990,7 @@ class _DappState extends State<Dapp> {
                                     );
                                   } catch (e) {
                                     signedData =
-                                        await credentials.sign(
+                                        await credentials.signPersonalMessage(
                                       txDataToUintList(data),
                                     );
                                     signedDataHex =
