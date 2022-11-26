@@ -990,7 +990,7 @@ class _DappState extends State<Dapp> {
                                     );
                                   } catch (e) {
                                     signedData =
-                                        await credentials.signPersonalMessage(
+                                        await credentials.sign(
                                       txDataToUintList(data),
                                     );
                                     signedDataHex =

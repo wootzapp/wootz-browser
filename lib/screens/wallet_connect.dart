@@ -755,7 +755,7 @@ class _WalletConnectState extends State<WalletConnect> {
       onConfirm: () async {
         String signedDataHex;
         final credentials = EthPrivateKey.fromHex(privateKey);
-         if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
+        if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
           signedDataHex = EthSigUtil.signTypedData(
             privateKey: privateKey,
             jsonData: ethereumSignMessage.data,
@@ -777,7 +777,7 @@ class _WalletConnectState extends State<WalletConnect> {
               ),
             );
           } catch (e) {
-            Uint8List signedData = await credentials.signPersonalMessage(
+            Uint8List signedData = await credentials.sign(
               txDataToUintList(
                 ethereumSignMessage.data,
               ),
