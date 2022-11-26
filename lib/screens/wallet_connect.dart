@@ -762,12 +762,21 @@ class _WalletConnectState extends State<WalletConnect> {
             version: TypedDataVersion.V4,
           );
         } else {
-          Uint8List signedData = await credentials.signPersonalMessage(
-            txDataToUintList(
-              ethereumSignMessage.data,
-            ),
-          );
-          signedDataHex = bytesToHex(signedData, include0x: true);
+          try {
+            signedDataHex = EthSigUtil.signMessage(
+              privateKey: privateKey,
+              message: txDataToUintList(
+                ethereumSignMessage.data,
+              ),
+            );
+          } catch (e) {
+            Uint8List signedData = await credentials.signPersonalMessage(
+              txDataToUintList(
+                ethereumSignMessage.data,
+              ),
+            );
+            signedDataHex = bytesToHex(signedData, include0x: true);
+          }
         }
         debugPrint('SIGNED $signedDataHex');
         _wcClient.approveRequest<String>(

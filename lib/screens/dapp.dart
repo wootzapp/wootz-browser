@@ -975,19 +975,20 @@ class _DappState extends State<Dapp> {
                                     jsonData: data,
                                     version: TypedDataVersion.V4,
                                   );
-                                } else if (messageType == personalSignKey) {
-                                  signedData =
-                                      await credentials.signPersonalMessage(
-                                    txDataToUintList(data),
-                                  );
-                                  signedDataHex =
-                                      bytesToHex(signedData, include0x: true);
-                                } else if (messageType == normalSignKey) {
-                                  signedData = await credentials.sign(
-                                    txDataToUintList(data),
-                                  );
-                                  signedDataHex =
-                                      bytesToHex(signedData, include0x: true);
+                                } else {
+                                  try {
+                                    signedDataHex = EthSigUtil.signMessage(
+                                      privateKey: privateKey,
+                                      message: txDataToUintList(data),
+                                    );
+                                  } catch (e) {
+                                    signedData =
+                                        await credentials.signPersonalMessage(
+                                      txDataToUintList(data),
+                                    );
+                                    signedDataHex =
+                                        bytesToHex(signedData, include0x: true);
+                                  }
                                 }
                                 await _controller.evaluateJavascript(
                                   source:
