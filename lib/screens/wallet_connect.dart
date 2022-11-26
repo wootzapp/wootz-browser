@@ -755,13 +755,20 @@ class _WalletConnectState extends State<WalletConnect> {
       onConfirm: () async {
         String signedDataHex;
         final credentials = EthPrivateKey.fromHex(privateKey);
-        if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
+         if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
           signedDataHex = EthSigUtil.signTypedData(
             privateKey: privateKey,
             jsonData: ethereumSignMessage.data,
             version: TypedDataVersion.V4,
           );
-        } else {
+        } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
+          Uint8List signedData = await credentials.signPersonalMessage(
+            txDataToUintList(
+              ethereumSignMessage.data,
+            ),
+          );
+          signedDataHex = bytesToHex(signedData, include0x: true);
+        } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
           try {
             signedDataHex = EthSigUtil.signMessage(
               privateKey: privateKey,

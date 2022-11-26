@@ -969,13 +969,20 @@ class _DappState extends State<Dapp> {
                               try {
                                 String signedDataHex;
                                 Uint8List signedData;
-                                if (messageType == typedMessageSignKey) {
+                               if (messageType == typedMessageSignKey) {
                                   signedDataHex = EthSigUtil.signTypedData(
                                     privateKey: privateKey,
                                     jsonData: data,
                                     version: TypedDataVersion.V4,
                                   );
-                                } else {
+                                } else if (messageType == personalSignKey) {
+                                  signedData =
+                                      await credentials.signPersonalMessage(
+                                    txDataToUintList(data),
+                                  );
+                                  signedDataHex =
+                                      bytesToHex(signedData, include0x: true);
+                                } else if (messageType == normalSignKey) {
                                   try {
                                     signedDataHex = EthSigUtil.signMessage(
                                       privateKey: privateKey,
