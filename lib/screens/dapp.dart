@@ -968,7 +968,6 @@ class _DappState extends State<Dapp> {
                             onConfirm: () async {
                               try {
                                 String signedDataHex;
-                                Uint8List signedData;
                                 if (messageType == typedMessageSignKey) {
                                   signedDataHex = EthSigUtil.signTypedData(
                                     privateKey: privateKey,
@@ -976,18 +975,16 @@ class _DappState extends State<Dapp> {
                                     version: TypedDataVersion.V4,
                                   );
                                 } else if (messageType == personalSignKey) {
-                                  signedData =
-                                      await credentials.signPersonalMessage(
-                                    txDataToUintList(data),
-                                  );
                                   signedDataHex =
-                                      bytesToHex(signedData, include0x: true);
+                                      EthSigUtil.signPersonalMessage(
+                                    message: txDataToUintList(data),
+                                    privateKeyInBytes: credentials.privateKey,
+                                  );
                                 } else if (messageType == normalSignKey) {
-                                  signedData = await credentials.sign(
-                                    txDataToUintList(data),
+                                  signedDataHex = EthSigUtil.signMessage(
+                                    message: txDataToUintList(data),
+                                    privateKeyInBytes: credentials.privateKey,
                                   );
-                                  signedDataHex =
-                                      bytesToHex(signedData, include0x: true);
                                 }
 
                                 await _controller.evaluateJavascript(
