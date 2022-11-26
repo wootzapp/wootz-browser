@@ -17,6 +17,7 @@ import 'package:flutter_windowmanager/flutter_windowmanager.dart';
 import 'package:hive/hive.dart';
 import 'package:html/parser.dart' as html;
 import 'package:bs58check/bs58check.dart' as bs58check;
+import 'package:json_view/json_view.dart';
 import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
     hide Row;
@@ -3119,10 +3120,27 @@ signMessage({
                     ),
                   ),
                   children: [
-                    Text(
-                      decoded,
-                      style: const TextStyle(fontSize: 16.0),
-                    ),
+                    if (messageType == typedMessageSignKey || true)
+                      JsonView(
+                        shrinkWrap: true,
+                        animation: false,
+                        styleScheme: const JsonStyleScheme(
+                          keysStyle: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 18,
+                          ),
+                          valuesStyle: TextStyle(
+                            fontSize: 18,
+                          ),
+                          arrow: Icon(Icons.arrow_right),
+                        ),
+                        json: json.decode(decoded),
+                      )
+                    else
+                      Text(
+                        decoded,
+                        style: const TextStyle(fontSize: 16.0),
+                      ),
                   ],
                 ),
               ),

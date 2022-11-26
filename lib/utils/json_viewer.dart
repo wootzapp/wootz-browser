@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 class JsonViewer extends StatefulWidget {
   final dynamic jsonObj;
-  JsonViewer(this.jsonObj);
+  final double fontSize;
+  const JsonViewer(this.jsonObj, {Key key, this.fontSize}) : super(key: key);
   @override
   _JsonViewerState createState() => _JsonViewerState();
 }
@@ -10,16 +11,16 @@ class JsonViewer extends StatefulWidget {
 class _JsonViewerState extends State<JsonViewer> {
   @override
   Widget build(BuildContext context) {
-    return getContentWidget(widget.jsonObj);
+    return getContentWidget(widget.jsonObj, widget.fontSize);
   }
 
-  static getContentWidget(dynamic content) {
-    if (content == null)
-      return Text('{}');
-    else if (content is List) {
-      return JsonArrayViewer(content, notRoot: false);
+  static getContentWidget(dynamic content, double fontSize) {
+    if (content == null) {
+      return const Text('{}');
+    } else if (content is List) {
+      return JsonArrayViewer(content, notRoot: false, fontSize: fontSize);
     } else {
-      return JsonObjectViewer(content, notRoot: false);
+      return JsonObjectViewer(content, notRoot: false, fontSize: fontSize);
     }
   }
 }
@@ -27,21 +28,27 @@ class _JsonViewerState extends State<JsonViewer> {
 class JsonObjectViewer extends StatefulWidget {
   final Map<String, dynamic> jsonObj;
   final bool notRoot;
+  final double fontSize;
 
-  JsonObjectViewer(this.jsonObj, {this.notRoot: false});
+  const JsonObjectViewer(
+    this.jsonObj, {
+    Key key,
+    this.notRoot = false,
+    this.fontSize,
+  }) : super(key: key);
 
   @override
-  JsonObjectViewerState createState() => new JsonObjectViewerState();
+  JsonObjectViewerState createState() => JsonObjectViewerState();
 }
 
 class JsonObjectViewerState extends State<JsonObjectViewer> {
-  Map<String, bool> openFlag = Map();
+  Map<String, bool> openFlag = {};
 
   @override
   Widget build(BuildContext context) {
     if (widget.notRoot) {
       return Container(
-        padding: EdgeInsets.only(left: 14.0),
+        padding: const EdgeInsets.only(left: 14.0),
         child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: _getList()),
       );
@@ -70,7 +77,8 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
                 ),
           (ex && ink)
               ? InkWell(
-                  child: Text(entry.key, style: TextStyle()),
+                  child: Text(entry.key,
+                      style: TextStyle(fontSize: widget.fontSize)),
                   onTap: () {
                     setState(() {
                       openFlag[entry.key] = !(openFlag[entry.key] ?? false);
@@ -78,10 +86,11 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
                   })
               : Text(entry.key,
                   style: TextStyle(
+                      fontSize: widget.fontSize,
                       color: entry.value == null ? Colors.grey : null)),
           Text(
             ':',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
           ),
           const SizedBox(width: 3),
           getValueWidget(entry)
@@ -129,43 +138,43 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
       return Expanded(
           child: Text(
         'undefined',
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
       ));
     } else if (entry.value is int) {
       return Expanded(
           child: Text(
         entry.value.toString(),
-        style: TextStyle(color: Colors.teal),
+        style: TextStyle(color: Colors.teal, fontSize: widget.fontSize),
       ));
     } else if (entry.value is String) {
       return Expanded(
           child: Text(
         '\"' + entry.value + '\"',
-        style: TextStyle(color: Colors.redAccent),
+        style: TextStyle(color: Colors.redAccent, fontSize: widget.fontSize),
       ));
     } else if (entry.value is bool) {
       return Expanded(
           child: Text(
         entry.value.toString(),
-        style: TextStyle(color: Colors.purple),
+        style: TextStyle(color: Colors.purple, fontSize: widget.fontSize),
       ));
     } else if (entry.value is double) {
       return Expanded(
           child: Text(
         entry.value.toString(),
-        style: TextStyle(color: Colors.teal),
+        style: TextStyle(color: Colors.teal, fontSize: widget.fontSize),
       ));
     } else if (entry.value is List) {
       if (entry.value.isEmpty) {
         return Text(
           'Array[0]',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
         );
       } else {
         return InkWell(
             child: Text(
               'Array<${getTypeName(entry.value[0])}>[${entry.value.length}]',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
             ),
             onTap: () {
               setState(() {
@@ -177,7 +186,7 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
     return InkWell(
         child: Text(
           'Object',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
         ),
         onTap: () {
           setState(() {
@@ -221,11 +230,17 @@ class JsonArrayViewer extends StatefulWidget {
   final List<dynamic> jsonArray;
 
   final bool notRoot;
+  final double fontSize;
 
-  JsonArrayViewer(this.jsonArray, {this.notRoot: false});
+  const JsonArrayViewer(
+    this.jsonArray, {
+    Key key,
+    this.notRoot = false,
+    this.fontSize,
+  }) : super(key: key);
 
   @override
-  _JsonArrayViewerState createState() => new _JsonArrayViewerState();
+  _JsonArrayViewerState createState() => _JsonArrayViewerState();
 }
 
 class _JsonArrayViewerState extends State<JsonArrayViewer> {
@@ -235,7 +250,7 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
   Widget build(BuildContext context) {
     if (widget.notRoot) {
       return Container(
-          padding: EdgeInsets.only(left: 14.0),
+          padding: const EdgeInsets.only(left: 14.0),
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: _getList()));
@@ -273,11 +288,11 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
               ? getInkWell(i)
               : Text('[$i]',
                   style: TextStyle(
-                      color:
-                          content == null ? Colors.grey : Colors.purple[900])),
+                      color: content == null ? Colors.grey : Colors.purple[900],
+                      fontSize: widget.fontSize)),
           Text(
             ':',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
           ),
           const SizedBox(width: 3),
           getValueWidget(content, i)
@@ -294,7 +309,7 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
 
   getInkWell(int index) {
     return InkWell(
-        child: Text('[$index]', style: TextStyle(color: Colors.purple[900])),
+        child: Text('[$index]', style: TextStyle(fontSize: widget.fontSize)),
         onTap: () {
           setState(() {
             openFlag[index] = !(openFlag[index]);
@@ -307,43 +322,43 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
       return Expanded(
           child: Text(
         'undefined',
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
       ));
     } else if (content is int) {
       return Expanded(
           child: Text(
         content.toString(),
-        style: TextStyle(color: Colors.teal),
+        style: TextStyle(color: Colors.teal, fontSize: widget.fontSize),
       ));
     } else if (content is String) {
       return Expanded(
           child: Text(
         '\"' + content + '\"',
-        style: TextStyle(color: Colors.redAccent),
+        style: TextStyle(color: Colors.redAccent, fontSize: widget.fontSize),
       ));
     } else if (content is bool) {
       return Expanded(
           child: Text(
         content.toString(),
-        style: TextStyle(color: Colors.purple),
+        style: TextStyle(color: Colors.purple, fontSize: widget.fontSize),
       ));
     } else if (content is double) {
       return Expanded(
           child: Text(
         content.toString(),
-        style: TextStyle(color: Colors.teal),
+        style: TextStyle(color: Colors.teal, fontSize: widget.fontSize),
       ));
     } else if (content is List) {
       if (content.isEmpty) {
         return Text(
           'Array[0]',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
         );
       } else {
         return InkWell(
             child: Text(
               'Array<${JsonObjectViewerState.getTypeName(content)}>[${content.length}]',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
             ),
             onTap: () {
               setState(() {
@@ -355,7 +370,7 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
     return InkWell(
         child: Text(
           'Object',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(color: Colors.grey, fontSize: widget.fontSize),
         ),
         onTap: () {
           setState(() {
