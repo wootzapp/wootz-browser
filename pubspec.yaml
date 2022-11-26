@@ -38,7 +38,6 @@ dependencies:
   cupertino_icons: ^1.0.2
   animated_splash_screen: ^1.1.0
   flutter_launcher_icons: ^0.9.2
-  json_view: ^0.4.0
   bip39: ^1.0.6
   flutter_js: ^0.5.0+6
   bip32: ^2.0.0

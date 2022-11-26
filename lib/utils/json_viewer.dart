@@ -48,7 +48,7 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
   Widget build(BuildContext context) {
     if (widget.notRoot) {
       return Container(
-        padding: const EdgeInsets.only(left: 14.0),
+        padding: const EdgeInsets.only(left: 20.0),
         child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: _getList()),
       );
@@ -65,20 +65,19 @@ class JsonObjectViewerState extends State<JsonObjectViewer> {
       list.add(Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ex
-              ? ((openFlag[entry.key] ?? false)
-                  ? Icon(Icons.arrow_drop_down,
-                      size: 14, color: Colors.grey[700])
-                  : Icon(Icons.arrow_right, size: 14, color: Colors.grey[700]))
-              : const Icon(
-                  Icons.arrow_right,
-                  color: Color.fromARGB(0, 0, 0, 0),
-                  size: 14,
-                ),
           (ex && ink)
               ? InkWell(
-                  child: Text(entry.key,
-                      style: TextStyle(fontSize: widget.fontSize)),
+                  child: Row(
+                    children: [
+                      ((openFlag[entry.key] ?? false)
+                          ? Icon(Icons.arrow_drop_down,
+                              size: 20, color: Colors.grey[700])
+                          : Icon(Icons.arrow_right,
+                              size: 20, color: Colors.grey[700])),
+                      Text(entry.key,
+                          style: TextStyle(fontSize: widget.fontSize)),
+                    ],
+                  ),
                   onTap: () {
                     setState(() {
                       openFlag[entry.key] = !(openFlag[entry.key] ?? false);
@@ -250,7 +249,7 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
   Widget build(BuildContext context) {
     if (widget.notRoot) {
       return Container(
-          padding: const EdgeInsets.only(left: 14.0),
+          padding: const EdgeInsets.only(left: 20.0),
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: _getList()));
@@ -274,16 +273,6 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
       list.add(Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ex
-              ? ((openFlag[i])
-                  ? Icon(Icons.arrow_drop_down,
-                      size: 14, color: Colors.grey[700])
-                  : Icon(Icons.arrow_right, size: 14, color: Colors.grey[700]))
-              : const Icon(
-                  Icons.arrow_right,
-                  color: Color.fromARGB(0, 0, 0, 0),
-                  size: 14,
-                ),
           (ex && ink)
               ? getInkWell(i)
               : Text('[$i]',
@@ -309,7 +298,14 @@ class _JsonArrayViewerState extends State<JsonArrayViewer> {
 
   getInkWell(int index) {
     return InkWell(
-        child: Text('[$index]', style: TextStyle(fontSize: widget.fontSize)),
+        child: Row(
+          children: [
+            ((openFlag[index])
+                ? Icon(Icons.arrow_drop_down, size: 20, color: Colors.grey[700])
+                : Icon(Icons.arrow_right, size: 20, color: Colors.grey[700])),
+            Text('[$index]', style: TextStyle(fontSize: widget.fontSize)),
+          ],
+        ),
         onTap: () {
           setState(() {
             openFlag[index] = !(openFlag[index]);
