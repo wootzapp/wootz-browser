@@ -1944,7 +1944,7 @@ Future<double> totalCryptoBalance({
       );
 
       totalBalance += cryptoEVMCompBalance * cryptoEVMCompPrice;
-    } catch (e) {}
+    } catch (_) {}
   }
   for (String i in getStellarBlockChains().keys) {
     final Map stellarBlockchain = getStellarBlockChains()[i];
