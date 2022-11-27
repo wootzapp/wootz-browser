@@ -654,6 +654,26 @@ Map getEVMBlockchains() {
       'image': 'assets/optimism.png',
       'coinType': 60
     },
+    'Shardeum_1.6': {
+      "rpc": 'https://liberty10.shardeum.org/',
+      'chainId': 8080,
+      'blockExplorer':
+          'https://explorer-liberty10.shardeum.org/transaction/$transactionhashTemplateKey',
+      'symbol': 'SHM',
+      'default': 'SHM',
+      'image': 'assets/shardeum.jpeg',
+      'coinType': 60
+    },
+    'Shardeum_2.0': {
+      "rpc": 'https://liberty20.shardeum.org/',
+      'chainId': 8081,
+      'blockExplorer':
+          'https://explorer-liberty20.shardeum.org/transaction/$transactionhashTemplateKey',
+      'symbol': 'SHM',
+      'default': 'SHM',
+      'image': 'assets/shardeum.jpeg',
+      'coinType': 60
+    },
     'Ethereum Classic': {
       'symbol': 'ETC',
       'default': 'ETH',
@@ -954,6 +974,7 @@ const coinGeckCryptoSymbolToID = {
   'LINK': 'chainlink',
   'USDC': 'usd-coin',
   'XLM': 'stellar',
+  'SHM': 'shardeum',
   'AAVE': 'aave',
   'DAI': 'dai',
   'CEL': 'celsius-degree-token',
