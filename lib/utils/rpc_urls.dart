@@ -1925,23 +1925,26 @@ Future<double> totalCryptoBalance({
   }
 
   for (String i in getEVMBlockchains().keys) {
-    final Map evmBlockchain = getEVMBlockchains()[i];
-    final cryptoEVMCompPrice =
-        (allCryptoPrice[coinGeckCryptoSymbolToID[evmBlockchain['symbol']]]
-                [defaultCurrency.toLowerCase()] as num)
-            .toDouble();
-    final getEthereumDetails = await getEthereumFromMemnomic(
-      mnemonic,
-      evmBlockchain['coinType'],
-    );
-    final cryptoEVMCompBalance = await getEthereumAddressBalance(
-      getEthereumDetails['eth_wallet_address'],
-      evmBlockchain['rpc'],
-      coinType: evmBlockchain['coinType'],
-      skipNetworkRequest: skipNetworkRequest,
-    );
+    try {
+      final Map evmBlockchain = getEVMBlockchains()[i];
+      final cryptoEVMCompPrice =
+          (allCryptoPrice[coinGeckCryptoSymbolToID[evmBlockchain['symbol']]]
+                  [defaultCurrency.toLowerCase()] as num)
+              .toDouble();
+      final getEthereumDetails = await getEthereumFromMemnomic(
+        mnemonic,
+        evmBlockchain['coinType'],
+      );
 
-    totalBalance += cryptoEVMCompBalance * cryptoEVMCompPrice;
+      final cryptoEVMCompBalance = await getEthereumAddressBalance(
+        getEthereumDetails['eth_wallet_address'],
+        evmBlockchain['rpc'],
+        coinType: evmBlockchain['coinType'],
+        skipNetworkRequest: skipNetworkRequest,
+      );
+
+      totalBalance += cryptoEVMCompBalance * cryptoEVMCompPrice;
+    } catch (e) {}
   }
   for (String i in getStellarBlockChains().keys) {
     final Map stellarBlockchain = getStellarBlockChains()[i];
