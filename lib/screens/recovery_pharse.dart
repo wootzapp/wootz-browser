@@ -310,9 +310,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
 
                                       await FileReader.writeDownloadFile(
                                         keyFile,
-                                        base58.encode(
-                                          HEX.decode(secretShares[i]),
-                                        ),
+                                        secretShares[i],
                                       );
                                     }
 

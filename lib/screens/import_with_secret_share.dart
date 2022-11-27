@@ -149,11 +149,8 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                           if (result != null) {
                                             File file =
                                                 File(result.files.single.path);
-                                            fileContent[i] = HEX.encode(
-                                              base58.decode(
-                                                await file.readAsString(),
-                                              ),
-                                            );
+                                            fileContent[i] =
+                                                await file.readAsString();
                                             togglerFile.value =
                                                 !togglerFile.value;
                                           }
