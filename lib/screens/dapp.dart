@@ -954,11 +954,9 @@ class _DappState extends State<Dapp> {
 
                           final id = args[0];
                           String data = args[1];
-                          String messageType = "";
-                          if (args.length == 2) {
+                          String messageType = args[2];
+                          if (messageType == typedMessageSignKey) {
                             data = json.decode(data)['data'];
-                          } else {
-                            messageType = args[2];
                           }
 
                           await signMessage(
@@ -971,7 +969,7 @@ class _DappState extends State<Dapp> {
                               try {
                                 String signedDataHex;
                                 Uint8List signedData;
-                                if (messageType == "") {
+                                if (messageType == typedMessageSignKey) {
                                   signedDataHex = EthSigUtil.signTypedData(
                                     privateKey: privateKey,
                                     jsonData: data,
@@ -984,14 +982,21 @@ class _DappState extends State<Dapp> {
                                   );
                                   signedDataHex =
                                       bytesToHex(signedData, include0x: true);
-                                } else {
-                                  signedData = await credentials.sign(
-                                    txDataToUintList(data),
-                                  );
-                                  signedDataHex =
-                                      bytesToHex(signedData, include0x: true);
+                                } else if (messageType == normalSignKey) {
+                                  try {
+                                    signedDataHex = EthSigUtil.signMessage(
+                                      privateKey: privateKey,
+                                      message: txDataToUintList(data),
+                                    );
+                                  } catch (e) {
+                                    signedData =
+                                        await credentials.signPersonalMessage(
+                                      txDataToUintList(data),
+                                    );
+                                    signedDataHex =
+                                        bytesToHex(signedData, include0x: true);
+                                  }
                                 }
-
                                 await _controller.evaluateJavascript(
                                   source:
                                       'AlphaWallet.executeCallback($id, null, "$signedDataHex");',
