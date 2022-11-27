@@ -229,8 +229,10 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                         ?.unfocus();
                                     Get.closeAllSnackbars();
 
-                                    final String mnemonics =
-                                        mnemonicController.text.trim();
+                                    final String mnemonics = mnemonicController
+                                        .text
+                                        .trim()
+                                        .toLowerCase();
                                     if (mnemonics == '') {
                                       return;
                                     }
