@@ -788,12 +788,9 @@ class _DappState extends State<Dapp> {
                           int chainId = pref.get(dappChainIdKey);
                           final id = args[0];
 
-                          final switchChainId = BigInt.parse(
-                            json
-                                .decode(args[1])['chainId']
-                                .replaceFirst("0x", ""),
-                            radix: 16,
-                          ).toInt();
+                          final switchChainId =
+                              BigInt.parse(json.decode(args[1])['chainId'])
+                                  .toInt();
 
                           final currentChainIdData =
                               getEthereumDetailsFromChainId(chainId);
