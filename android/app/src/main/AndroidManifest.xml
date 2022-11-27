@@ -19,6 +19,7 @@
         android:requestLegacyExternalStorage="true"
         android:label="WootzApp"
         android:name="${applicationName}"
+        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
          <provider
                 android:name="com.pichillilorenzo.flutter_inappwebview.InAppWebViewFileProvider"

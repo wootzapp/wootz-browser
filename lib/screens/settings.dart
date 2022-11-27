@@ -6,6 +6,7 @@ import 'package:cryptowallet/components/user_details_placeholder.dart';
 import 'package:cryptowallet/screens/dark_mode_toggler.dart';
 import 'package:cryptowallet/screens/language.dart';
 import 'package:cryptowallet/screens/wallet_connect.dart';
+import 'package:cryptowallet/utils/json_viewer.dart';
 import 'package:get/get.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';

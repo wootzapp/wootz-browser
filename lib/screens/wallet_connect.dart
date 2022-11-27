@@ -8,7 +8,6 @@ import 'package:decimal/decimal.dart';
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:get/state_manager.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:wallet_connect/wallet_connect.dart';
@@ -33,10 +32,10 @@ class _WalletConnectState extends State<WalletConnect> {
   Box _prefs;
   TextEditingController _textEditingController;
   String walletAddress, privateKey;
+  int chainId;
   WCSessionStore _sessionStore;
   Web3Client _web3client;
   String currencySymbol;
-  RxBool toggler = false.obs;
   String connectedWebsiteUrl = "";
 
   @override
@@ -68,6 +67,7 @@ class _WalletConnectState extends State<WalletConnect> {
       onEthSendTransaction: _onSendTransaction,
       onCustomRequest: (_, __) {},
       onConnect: _onConnect,
+      onWalletSwitchNetwork: _onSwitchNetwork,
     );
 
     _textEditingController = TextEditingController();
@@ -83,58 +83,192 @@ class _WalletConnectState extends State<WalletConnect> {
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(seconds: 2));
+          setState(() {});
         },
         child: SafeArea(
           child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Obx(() {
-                return Column(
-                  children: [
-                    Visibility(
-                      child: Text(toggler.value.toString()),
-                      visible: false,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(25.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const WalletLogo(),
-                          const SizedBox(
-                            height: 30,
-                          ),
-                          const Text(
-                            ' Wallet Connect',
-                            style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(25.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const WalletLogo(),
+                      const SizedBox(
+                        height: 30,
+                      ),
+                      const Text(
+                        ' Wallet Connect',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 50),
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ButtonStyle(
+                            backgroundColor: MaterialStateProperty.resolveWith(
+                              (states) => Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const Color(0xff5D5E81)
+                                  : const Color(0xffEBF3FF),
                             ),
-                            textAlign: TextAlign.center,
+                            shape: MaterialStateProperty.resolveWith(
+                              (states) => RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 50),
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.85,
-                            height: 50,
-                            child: ElevatedButton(
-                              style: ButtonStyle(
-                                backgroundColor:
-                                    MaterialStateProperty.resolveWith(
-                                  (states) => Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xff5D5E81)
-                                      : const Color(0xffEBF3FF),
-                                ),
-                                shape: MaterialStateProperty.resolveWith(
-                                  (states) => RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: Text.rich(
+                              TextSpan(
+                                text: 'Connect Previous Session?',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context)
+                                      .primaryTextTheme
+                                      .bodyLarge
+                                      .color,
                                 ),
                               ),
-                              child: Align(
-                                alignment: Alignment.center,
-                                child: Text.rich(
-                                  TextSpan(
-                                    text: 'Connect Previous Session?',
+                            ),
+                          ),
+                          onPressed: () {
+                            _connectToPreviousSession();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _wcClient.isConnected
+                          ? SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: 50,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                          (states) => appBackgroundblue),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    AppLocalizations.of(context).killSession,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  _wcClient.killSession();
+                                },
+                              ),
+                            )
+                          : SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: 50,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                          (states) => appBackgroundblue),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      SvgPicture.asset(
+                                        'assets/Qrcode.svg',
+                                        color: Colors.transparent,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context)
+                                            .connectViAQR,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      SvgPicture.asset('assets/Qrcode.svg'),
+                                    ],
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const QRScanView(),
+                                    ),
+                                  ).then((value) {
+                                    if (value != null) {
+                                      _qrScanHandler(value);
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                      _wcClient.isConnected
+                          ? Container()
+                          : const SizedBox(height: 20),
+                      _wcClient.isConnected
+                          ? Container()
+                          : Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Theme.of(context)
+                                      .primaryTextTheme
+                                      .bodyLarge
+                                      .color,
+                                ),
+                                borderRadius: const BorderRadius.all(
+                                  Radius.circular(10),
+                                ),
+                              ),
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: 50,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  elevation: MaterialStateProperty.resolveWith(
+                                    (states) => 0,
+                                  ),
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                    (states) => Theme.of(context)
+                                        .scaffoldBackgroundColor,
+                                  ),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    AppLocalizations.of(context).connectViACode,
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -145,251 +279,99 @@ class _WalletConnectState extends State<WalletConnect> {
                                     ),
                                   ),
                                 ),
-                              ),
-                              onPressed: () {
-                                _connectToPreviousSession();
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _wcClient.isConnected
-                              ? SizedBox(
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.85,
-                                  height: 50,
-                                  child: ElevatedButton(
-                                    style: ButtonStyle(
-                                      backgroundColor:
-                                          MaterialStateProperty.resolveWith(
-                                              (states) => appBackgroundblue),
-                                      shape: MaterialStateProperty.resolveWith(
-                                        (states) => RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        AppLocalizations.of(context)
-                                            .killSession,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      _wcClient.killSession();
-                                    },
-                                  ),
-                                )
-                              : SizedBox(
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.85,
-                                  height: 50,
-                                  child: ElevatedButton(
-                                    style: ButtonStyle(
-                                      backgroundColor:
-                                          MaterialStateProperty.resolveWith(
-                                              (states) => appBackgroundblue),
-                                      shape: MaterialStateProperty.resolveWith(
-                                        (states) => RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.center,
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          SvgPicture.asset(
-                                            'assets/Qrcode.svg',
-                                            color: Colors.transparent,
-                                          ),
-                                          Text(
+                                onPressed: () {
+                                  showGeneralDialog(
+                                      context: context,
+                                      barrierDismissible: true,
+                                      barrierLabel: AppLocalizations.of(context)
+                                          .pasteCode,
+                                      pageBuilder: (context, _, __) {
+                                        return SimpleDialog(
+                                          title: Text(
                                             AppLocalizations.of(context)
-                                                .connectViAQR,
-                                            style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white),
-                                            textAlign: TextAlign.center,
+                                                .pasteCode,
                                           ),
-                                          SvgPicture.asset('assets/Qrcode.svg'),
-                                        ],
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const QRScanView(),
-                                        ),
-                                      ).then((value) {
-                                        if (value != null) {
-                                          _qrScanHandler(value);
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ),
-                          _wcClient.isConnected
-                              ? Container()
-                              : const SizedBox(height: 20),
-                          _wcClient.isConnected
-                              ? Container()
-                              : Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Theme.of(context)
-                                          .primaryTextTheme
-                                          .bodyLarge
-                                          .color,
-                                    ),
-                                    borderRadius: const BorderRadius.all(
-                                      Radius.circular(10),
-                                    ),
-                                  ),
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.85,
-                                  height: 50,
-                                  child: ElevatedButton(
-                                    style: ButtonStyle(
-                                      elevation:
-                                          MaterialStateProperty.resolveWith(
-                                        (states) => 0,
-                                      ),
-                                      backgroundColor:
-                                          MaterialStateProperty.resolveWith(
-                                        (states) => Theme.of(context)
-                                            .scaffoldBackgroundColor,
-                                      ),
-                                      shape: MaterialStateProperty.resolveWith(
-                                        (states) => RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        AppLocalizations.of(context)
-                                            .connectViACode,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context)
-                                              .primaryTextTheme
-                                              .bodyLarge
-                                              .color,
-                                        ),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      showGeneralDialog(
-                                          context: context,
-                                          barrierDismissible: true,
-                                          barrierLabel:
-                                              AppLocalizations.of(context)
-                                                  .pasteCode,
-                                          pageBuilder: (context, _, __) {
-                                            return SimpleDialog(
-                                              title: Text(
-                                                AppLocalizations.of(context)
-                                                    .pasteCode,
-                                              ),
-                                              titlePadding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      16.0, 16.0, 16.0, .0),
-                                              contentPadding:
-                                                  const EdgeInsets.all(16.0),
-                                              children: [
-                                                TextFormField(
-                                                  controller:
-                                                      _textEditingController,
-                                                  decoration: InputDecoration(
-                                                    label: Text(
-                                                      AppLocalizations.of(
-                                                              context)
-                                                          .enterCode,
-                                                    ),
+                                          titlePadding:
+                                              const EdgeInsets.fromLTRB(
+                                                  16.0, 16.0, 16.0, .0),
+                                          contentPadding:
+                                              const EdgeInsets.all(16.0),
+                                          children: [
+                                            TextFormField(
+                                              controller:
+                                                  _textEditingController,
+                                              decoration: InputDecoration(
+                                                label: Text(
+                                                  AppLocalizations.of(context)
+                                                      .enterCode,
+                                                ),
 
-                                                    focusedBorder:
-                                                        const OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.all(
-                                                                    Radius.circular(
-                                                                        10.0)),
-                                                            borderSide:
-                                                                BorderSide
-                                                                    .none),
-                                                    border: const OutlineInputBorder(
+                                                focusedBorder:
+                                                    const OutlineInputBorder(
                                                         borderRadius:
                                                             BorderRadius.all(
                                                                 Radius.circular(
                                                                     10.0)),
                                                         borderSide:
                                                             BorderSide.none),
-                                                    enabledBorder:
-                                                        const OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.all(
-                                                                    Radius.circular(
-                                                                        10.0)),
-                                                            borderSide: BorderSide
-                                                                .none), // you
-                                                    filled: true,
+                                                border:
+                                                    const OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                                Radius.circular(
+                                                                    10.0)),
+                                                        borderSide:
+                                                            BorderSide.none),
+                                                enabledBorder:
+                                                    const OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                                Radius.circular(
+                                                                    10.0)),
+                                                        borderSide: BorderSide
+                                                            .none), // you
+                                                filled: true,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16.0),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: Text(
+                                                    AppLocalizations.of(context)
+                                                        .confirm,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 16.0),
-                                                Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.end,
-                                                  children: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                              context),
-                                                      child: Text(
-                                                        AppLocalizations.of(
-                                                                context)
-                                                            .confirm,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
                                               ],
-                                            );
-                                          }).then((_) {
-                                        if (_textEditingController
-                                            .text.isNotEmpty) {
-                                          _qrScanHandler(
-                                              _textEditingController.text);
-                                          _textEditingController.clear();
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ),
-                          const SizedBox(height: 20),
-                          _wcClient.isConnected
-                              ? Text(
-                                  '${AppLocalizations.of(context).connectedTo} $connectedWebsiteUrl')
-                              : Container()
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              })),
+                                            ),
+                                          ],
+                                        );
+                                      }).then((_) {
+                                    if (_textEditingController
+                                        .text.isNotEmpty) {
+                                      _qrScanHandler(
+                                          _textEditingController.text);
+                                      _textEditingController.clear();
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                      const SizedBox(height: 20),
+                      _wcClient.isConnected
+                          ? Text(
+                              '${AppLocalizations.of(context).connectedTo} $connectedWebsiteUrl')
+                          : Container()
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -426,7 +408,7 @@ class _WalletConnectState extends State<WalletConnect> {
   }
 
   _onConnect() {
-    toggler.value = !toggler.value;
+    setState(() {});
   }
 
   _onSessionRequest(int id, WCPeerMeta peerMeta) {
@@ -497,6 +479,7 @@ class _WalletConnectState extends State<WalletConnect> {
                               mnemonic,
                               blockChainData['coinType'],
                             );
+                            chainId = blockChainData['chainId'];
                             walletAddress = response['eth_wallet_address'];
                             privateKey = response['eth_wallet_privateKey'];
                             _web3client = Web3Client(
@@ -514,7 +497,7 @@ class _WalletConnectState extends State<WalletConnect> {
                             );
 
                             connectedWebsiteUrl = peerMeta.url;
-                            toggler.value = !toggler.value;
+                            setState(() {});
                             int count = 0;
                             Navigator.popUntil(context, (route) {
                               return count++ == 2;
@@ -546,7 +529,7 @@ class _WalletConnectState extends State<WalletConnect> {
   }
 
   _onSessionError(dynamic message) async {
-    toggler.value = !toggler.value;
+    setState(() {});
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -581,7 +564,7 @@ class _WalletConnectState extends State<WalletConnect> {
 
   _onSessionClosed(int code, String reason) async {
     await _prefs.delete('session');
-    toggler.value = !toggler.value;
+    setState(() {});
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -653,6 +636,42 @@ class _WalletConnectState extends State<WalletConnect> {
     );
   }
 
+  _onSwitchNetwork(int id, int chainIdNew) async {
+    final currentChainIdData = getEthereumDetailsFromChainId(chainId);
+    final switchChainIdData = getEthereumDetailsFromChainId(chainIdNew);
+    if (chainId == chainIdNew) {
+      _wcClient.rejectRequest(id: id);
+      return;
+    }
+
+    if (switchChainIdData == null) {
+      _wcClient.rejectRequest(id: id);
+      return;
+    }
+    switchEthereumChain(
+      context: context,
+      currentChainIdData: currentChainIdData,
+      switchChainIdData: switchChainIdData,
+      onConfirm: () async {
+        _web3client = Web3Client(
+          switchChainIdData['rpc'],
+          http.Client(),
+        );
+        await _wcClient.updateSession(chainId: chainIdNew);
+        _wcClient.approveRequest<void>(id: id, result: null);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Changed network to $chainIdNew.'),
+        ));
+        chainId = chainIdNew;
+        Navigator.pop(context);
+      },
+      onReject: () async {
+        _wcClient.rejectRequest(id: id);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   _onSendTransaction(
     int id,
     WCEthereumTransaction ethereumTransaction,
@@ -718,10 +737,17 @@ class _WalletConnectState extends State<WalletConnect> {
     WCEthereumSignMessage ethereumSignMessage,
   ) async {
     List icon = _wcClient.remotePeerMeta.icons;
+    String messageType = '';
+    if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
+      messageType = personalSignKey;
+    } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
+      messageType = normalSignKey;
+    } else if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
+      messageType = typedMessageSignKey;
+    }
+
     await signMessage(
-      messageType: ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE
-          ? personalSignKey
-          : '',
+      messageType: messageType,
       context: context,
       data: ethereumSignMessage.data,
       networkIcon: icon.isNotEmpty ? icon[0] : null,
@@ -735,13 +761,29 @@ class _WalletConnectState extends State<WalletConnect> {
             jsonData: ethereumSignMessage.data,
             version: TypedDataVersion.V4,
           );
-        } else {
+        } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
           Uint8List signedData = await credentials.signPersonalMessage(
             txDataToUintList(
               ethereumSignMessage.data,
             ),
           );
           signedDataHex = bytesToHex(signedData, include0x: true);
+        } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
+          try {
+            signedDataHex = EthSigUtil.signMessage(
+              privateKey: privateKey,
+              message: txDataToUintList(
+                ethereumSignMessage.data,
+              ),
+            );
+          } catch (e) {
+            Uint8List signedData = await credentials.signPersonalMessage(
+              txDataToUintList(
+                ethereumSignMessage.data,
+              ),
+            );
+            signedDataHex = bytesToHex(signedData, include0x: true);
+          }
         }
         debugPrint('SIGNED $signedDataHex');
         _wcClient.approveRequest<String>(
