@@ -127,7 +127,11 @@
         const interval = setInterval(() => {
           if (isFlutterInAppWebViewReady) {
             clearInterval(interval);
-            AlphaWallet.executeCallback(id, "can not add network now", null);
+            window.flutter_inappwebview.callHandler(
+              "walletAddEthereumChain",
+              id,
+              JSON.stringify(msgParams)
+            );
             // window.flutter_inappwebview.callHandler("walletAddEthereumChain", id);
           } else {
             console.log("handler not ready");

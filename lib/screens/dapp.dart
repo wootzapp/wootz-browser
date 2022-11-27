@@ -727,6 +727,61 @@ class _DappState extends State<Dapp> {
                         },
                       );
                       _controller.addJavaScriptHandler(
+                        handlerName: 'walletAddEthereumChain',
+                        callback: (args) async {
+                          final pref = Hive.box(secureStorageKey);
+                          int chainId = pref.get(dappChainIdKey);
+                          final id = args[0];
+
+                          final switchChainId =
+                              BigInt.parse(json.decode(args[1])['chainId'])
+                                  .toInt();
+
+                          final currentChainIdData =
+                              getEthereumDetailsFromChainId(chainId);
+
+                          final switchChainIdData =
+                              getEthereumDetailsFromChainId(switchChainId);
+
+                          if (chainId == switchChainId) {
+                            await _controller.evaluateJavascript(
+                                source:
+                                    'AlphaWallet.executeCallback($id, "cancelled", null);');
+                            return;
+                          }
+
+                          if (switchChainIdData == null) {
+                            await _controller.evaluateJavascript(
+                                source:
+                                    'AlphaWallet.executeCallback($id, "we can not add this block", null);');
+                          } else {
+                            switchEthereumChain(
+                              context: context,
+                              currentChainIdData: currentChainIdData,
+                              switchChainIdData: switchChainIdData,
+                              onConfirm: () async {
+                                await changeBrowserChainId_(
+                                  switchChainIdData['chainId'],
+                                  switchChainIdData['rpc'],
+                                );
+
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, null, null);',
+                                );
+                                Navigator.pop(context);
+                              },
+                              onReject: () async {
+                                await _controller.evaluateJavascript(
+                                    source:
+                                        'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                                Navigator.pop(context);
+                              },
+                            );
+                          }
+                        },
+                      );
+                      _controller.addJavaScriptHandler(
                         handlerName: 'walletSwitchEthereumChain',
                         callback: (args) async {
                           final pref = Hive.box(secureStorageKey);
