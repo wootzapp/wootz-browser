@@ -289,20 +289,12 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                           walletNameController.text.trim();
 
                                       if (walletName.isEmpty) walletName = null;
-                                      final fileName = sha3(mnemonics);
-                                      if (!await saveToDrive(
-                                        fileName,
-                                        mnemonics,
-                                      )) {
-                                        isLoading.value = false;
-                                        return;
-                                      }
+
                                       await initializeAllPrivateKeys(
                                         mnemonics,
                                       );
 
                                       decodedmnemonic.add({
-                                        'key': fileName,
                                         'phrase': mnemonics,
                                         'name': walletName,
                                       });
