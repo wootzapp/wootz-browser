@@ -11,6 +11,7 @@ Future slideUpPanel(context, screen, {bool canDismiss = true}) async {
       useRootNavigator: true,
       isScrollControlled: true,
       isDismissible: canDismiss,
+      enableDrag: canDismiss,
       builder: (context) {
         return Padding(
           padding: MediaQuery.of(context).viewInsets,
