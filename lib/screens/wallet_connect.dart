@@ -65,7 +65,11 @@ class _WalletConnectState extends State<WalletConnect> {
       onEthSign: _onSign,
       onEthSignTransaction: _onSignTransaction,
       onEthSendTransaction: _onSendTransaction,
-      onCustomRequest: (_, __) {},
+      onCustomRequest: (int id, String request) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('id $id request $request.'),
+        ));
+      },
       onConnect: _onConnect,
       onWalletSwitchNetwork: _onSwitchNetwork,
     );

@@ -3046,7 +3046,9 @@ signMessage({
   String decoded = data;
 
   if (messageType == personalSignKey && data != null && isHexString(data)) {
-    decoded = ascii.decode(txDataToUintList(data));
+    try {
+      decoded = ascii.decode(txDataToUintList(data));
+    } catch (_) {}
   }
 
   slideUpPanel(
