@@ -210,13 +210,6 @@ class _ViewWalletsState extends State<ViewWallets> {
                 FocusManager.instance.primaryFocus?.unfocus();
 
                 if (walletName.text.trim().isEmpty) {
-                  Get.snackbar(
-                    '',
-                    AppLocalizations.of(context).enterName,
-                    colorText: Colors.white,
-                    backgroundColor: Colors.red,
-                  );
-
                   Get.back(result: false);
                   return;
                 }
