@@ -108,11 +108,18 @@ class _DappState extends State<Dapp> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               IconButton(
-                constraints: const BoxConstraints(maxWidth: 35),
-                onPressed: () {
-                  _addWebViewTab();
+                onPressed: () async {
+                  if (webViewTabs[currentTabIndex].controller != null) {
+                    webViewTabs[currentTabIndex].controller.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri(walletURL),
+                          ),
+                        );
+                  }
                 },
-                icon: const Icon(Icons.add),
+                icon: const Icon(
+                  Icons.home_filled,
+                ),
               ),
               Flexible(
                 child: TextFormField(
@@ -1067,13 +1074,13 @@ class _DappState extends State<Dapp> {
   AppBar _buildWebViewTabViewerAppBar() {
     return AppBar(
       leading: IconButton(
-          onPressed: () {
-            setState(() {
-              showWebViewTabsViewer = false;
-            });
-          },
-          icon: const Icon(Icons.arrow_back)),
-      title: const Text('Tabs'),
+        constraints: const BoxConstraints(maxWidth: 35),
+        onPressed: () {
+          _addWebViewTab();
+        },
+        icon: const Icon(Icons.add),
+      ),
+      title: const Text('New Tab'),
       actions: _buildWebViewTabsViewerActions(),
     );
   }
