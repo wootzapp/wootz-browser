@@ -68,7 +68,7 @@ dependencies:
   path: ^1.8.0
   prompt_dialog: ^1.0.9
   eth_sig_util: ^0.0.7
-  flutter_inappwebview: 6.0.0-beta.11
+  flutter_inappwebview: 6.0.0-beta.20
   scan: ^1.6.0
   path_provider: ^2.0.11
   file_picker: 4.6.1

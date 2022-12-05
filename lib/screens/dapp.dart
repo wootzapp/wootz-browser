@@ -106,6 +106,7 @@ class _DappState extends State<Dapp> {
           icon: const Icon(Icons.add)),
       title: TextFormField(
         onFieldSubmitted: (value) async {
+          FocusManager.instance.primaryFocus?.unfocus();
           if (webViewTabs[currentTabIndex].controller != null) {
             Uri uri = blockChainToHttps(value.trim());
             await webViewTabs[currentTabIndex].controller.loadUrl(
