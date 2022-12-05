@@ -46,7 +46,6 @@ class Dapp extends StatefulWidget {
 class _DappState extends State<Dapp> {
   ValueNotifier loadingPercent = ValueNotifier<double>(0);
   String urlLoaded = '';
-  final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool showWebViewTabsViewer = false;
   String initJs = '';
   List<WebViewTab> webViewTabs = [];
