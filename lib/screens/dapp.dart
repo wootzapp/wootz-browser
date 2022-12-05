@@ -109,16 +109,12 @@ class _DappState extends State<Dapp> {
             children: [
               IconButton(
                 onPressed: () async {
-                  if (webViewTabs[currentTabIndex].controller != null) {
-                    webViewTabs[currentTabIndex].controller.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri(walletURL),
-                          ),
-                        );
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
                   }
                 },
                 icon: const Icon(
-                  Icons.home_filled,
+                  Icons.close,
                 ),
               ),
               Flexible(
@@ -635,7 +631,6 @@ class _DappState extends State<Dapp> {
       //     // ),
       //   ],
       // ),
-
       actions: _buildWebViewTabActions(),
     );
   }
@@ -1072,21 +1067,57 @@ class _DappState extends State<Dapp> {
     ];
   }
 
-  AppBar _buildWebViewTabViewerAppBar() {
-    return AppBar(
-      leading: IconButton(
-        constraints: const BoxConstraints(maxWidth: 35),
-        onPressed: () {
-          _addWebViewTab();
-          setState(() {
-            showWebViewTabsViewer = false;
-          });
-        },
-        icon: const Icon(Icons.add),
-      ),
-      title: const Text('New Tab'),
-      actions: _buildWebViewTabsViewerActions(),
-    );
+  PreferredSize _buildWebViewTabViewerAppBar() {
+    return PreferredSize(
+        child: SafeArea(
+          child: GestureDetector(
+            onTap: () {
+              _addWebViewTab();
+              setState(() {
+                showWebViewTabsViewer = false;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: SizedBox(
+                height: 50,
+                child: Row(
+                  children: const [
+                    Icon(Icons.add),
+                    SizedBox(
+                      width: 20,
+                    ),
+                    Text('New Tab'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        preferredSize: Size.fromHeight(150));
+    // return AppBar(
+    //   leading: IconButton(
+    //     constraints: const BoxConstraints(maxWidth: 35),
+    //     onPressed: () {
+    //       _addWebViewTab();
+    //       setState(() {
+    //         showWebViewTabsViewer = false;
+    //       });
+    //     },
+    //     icon: const Icon(Icons.add),
+    //   ),
+    //   title: InkWell(
+    //     constraints: const BoxConstraints(maxWidth: 35),
+    //     onPressed: () {
+    //       _addWebViewTab();
+    //       setState(() {
+    //         showWebViewTabsViewer = false;
+    //       });
+    //     },
+    //     icon: const Text('New Tab'),
+    //   ),
+    //   actions: _buildWebViewTabsViewerActions(),
+    // );
   }
 
   Widget _buildWebViewTabsViewer() {
