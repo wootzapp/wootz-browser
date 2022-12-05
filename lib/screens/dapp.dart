@@ -44,7 +44,7 @@ class Dapp extends StatefulWidget {
 }
 
 class _DappState extends State<Dapp> {
-  final browserController = TextEditingController();
+
 
   ValueNotifier loadingPercent = ValueNotifier<double>(0);
   String urlLoaded = '';
@@ -64,7 +64,7 @@ class _DappState extends State<Dapp> {
 
   @override
   void dispose() {
-    browserController.dispose();
+    // browserController.dispose();
     super.dispose();
   }
 
@@ -104,43 +104,90 @@ class _DappState extends State<Dapp> {
             _addWebViewTab();
           },
           icon: const Icon(Icons.add)),
-      title: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            webViewTabs[currentTabIndex].title ?? '',
-            overflow: TextOverflow.fade,
+      title: TextFormField(
+        onFieldSubmitted: (value) async {
+          if (webViewTabs[currentTabIndex].controller != null) {
+            Uri uri = blockChainToHttps(value.trim());
+            await webViewTabs[currentTabIndex].controller.loadUrl(
+                  urlRequest: URLRequest(url: WebUri.uri(uri)),
+                );
+          }
+        },
+        textInputAction: TextInputAction.search,
+        controller:  webViewTabs[currentTabIndex].browserController,
+        decoration: InputDecoration(
+          prefixIcon: webViewTabs[currentTabIndex].isSecure != null
+              ? Icon(
+                  webViewTabs[currentTabIndex].isSecure == true
+                      ? Icons.lock
+                      : Icons.lock_open,
+                  color: webViewTabs[currentTabIndex].isSecure == true
+                      ? Colors.green
+                      : Colors.red,
+                  size: 12)
+              : Container(),
+          isDense: true,
+          suffixIcon: IconButton(
+            icon: const Icon(
+              Icons.cancel,
+            ),
+            onPressed: () {
+              webViewTabs[currentTabIndex].browserController.clear();
+            },
           ),
-          Row(
-            mainAxisSize: MainAxisSize.max,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              webViewTabs[currentTabIndex].isSecure != null
-                  ? Icon(
-                      webViewTabs[currentTabIndex].isSecure == true
-                          ? Icons.lock
-                          : Icons.lock_open,
-                      color: webViewTabs[currentTabIndex].isSecure == true
-                          ? Colors.green
-                          : Colors.red,
-                      size: 12)
-                  : Container(),
-              const SizedBox(
-                width: 5,
-              ),
-              Flexible(
-                child: Text(
-                  webViewTabs[currentTabIndex].currentUrl ??
-                      webViewTabs[currentTabIndex].url ??
-                      '',
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
-                  overflow: TextOverflow.fade,
-                ),
-              ),
-            ],
-          ),
-        ],
+          hintText: AppLocalizations.of(context).searchOrEnterUrl,
+
+          filled: true,
+          focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10.0)),
+              borderSide: BorderSide.none),
+          border: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10.0)),
+              borderSide: BorderSide.none),
+          enabledBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10.0)),
+            borderSide: BorderSide.none,
+          ), // you
+        ),
       ),
+
+      // title: Column(
+      //   mainAxisAlignment: MainAxisAlignment.center,
+      //   children: [
+      //     Text(
+      //       webViewTabs[currentTabIndex].title ?? '',
+      //       overflow: TextOverflow.fade,
+      //     ),
+      //     // Row(
+      //     //   mainAxisSize: MainAxisSize.max,
+      //     //   mainAxisAlignment: MainAxisAlignment.center,
+      //     //   children: [
+      //     //     webViewTabs[currentTabIndex].isSecure != null
+      //     //         ? Icon(
+      //     //             webViewTabs[currentTabIndex].isSecure == true
+      //     //                 ? Icons.lock
+      //     //                 : Icons.lock_open,
+      //     //             color: webViewTabs[currentTabIndex].isSecure == true
+      //     //                 ? Colors.green
+      //     //                 : Colors.red,
+      //     //             size: 12)
+      //     //         : Container(),
+      //     //     const SizedBox(
+      //     //       width: 5,
+      //     //     ),
+      //     //     // Flexible(
+      //     //     //   child: Text(
+      //     //     //     webViewTabs[currentTabIndex].currentUrl ??
+      //     //     //         webViewTabs[currentTabIndex].url ??
+      //     //     //         '',
+      //     //     //     style: const TextStyle(fontSize: 12, color: Colors.white70),
+      //     //     //     overflow: TextOverflow.fade,
+      //     //     //   ),
+      //     //     // ),
+      //     //   ],
+      //     // ),
+      //   ],
+      // ),
       actions: _buildWebViewTabActions(),
     );
   }
@@ -176,12 +223,12 @@ class _DappState extends State<Dapp> {
         ),
       ),
       IconButton(
-        icon: Icon(Icons.more_vert),
+        icon: const Icon(Icons.more_vert),
         onPressed: () {
           if (webViewTabs[currentTabIndex].controller == null) return;
           final pref = Hive.box(secureStorageKey);
           final bookMark = pref.get(bookMarkKey);
-          final url = browserController.text;
+          final url = webViewTabs[currentTabIndex].browserController.text;
           List savedBookMarks = [];
 
           if (bookMark != null) {
@@ -410,11 +457,13 @@ class _DappState extends State<Dapp> {
                           ),
                         );
 
-                        webViewTabs[currentTabIndex].controller.loadUrl(
-                              urlRequest: URLRequest(
-                                url: WebUri(historyUrl),
-                              ),
-                            );
+                        if (historyUrl != null) {
+                          webViewTabs[currentTabIndex].controller.loadUrl(
+                                urlRequest: URLRequest(
+                                  url: WebUri(historyUrl),
+                                ),
+                              );
+                        }
                       },
                       child: Container(
                         color: Colors.transparent,

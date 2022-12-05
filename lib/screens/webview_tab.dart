@@ -25,6 +25,7 @@ class WebViewTab extends StatefulWidget {
   final String provider;
   final String init;
   final String data;
+
   final Function() onStateUpdated;
   final Function(CreateWindowAction createWindowAction) onCreateTabRequested;
   final Function() onCloseTabRequested;
@@ -42,6 +43,11 @@ class WebViewTab extends StatefulWidget {
   InAppWebViewController get controller {
     final state = (key as GlobalKey).currentState as _WebViewTabState;
     return state?._controller;
+  }
+
+  TextEditingController get browserController {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    return state?._browserController;
   }
 
   Uint8List get screenshot {
@@ -113,6 +119,7 @@ class WebViewTab extends StatefulWidget {
 
 class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   InAppWebViewController _controller;
+  final _browserController = TextEditingController();
   Uint8List _screenshot;
   String _url = '';
   bool _isSecure;
@@ -675,7 +682,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 )
               ]),
               onLoadStart: (InAppWebViewController controller, Uri url) async {
-                // browserController.text = url.toString();
+                _browserController.text = url.toString();
 
                 final pref = Hive.box(secureStorageKey);
 
