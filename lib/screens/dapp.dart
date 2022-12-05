@@ -131,6 +131,20 @@ class _DappState extends State<Dapp> {
                   textInputAction: TextInputAction.search,
                   controller: webViewTabs[currentTabIndex].browserController,
                   decoration: InputDecoration(
+                    prefix: webViewTabs[currentTabIndex].isSecure != null
+                        ? Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Icon(
+                                webViewTabs[currentTabIndex].isSecure == true
+                                    ? Icons.lock
+                                    : Icons.lock_open,
+                                color: webViewTabs[currentTabIndex].isSecure ==
+                                        true
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 15),
+                          )
+                        : Container(),
                     isDense: true,
                     suffixIcon: IconButton(
                       icon: const Icon(
