@@ -1,12 +1,30 @@
+import 'dart:collection';
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:cryptowallet/utils/slide_up_panel.dart';
+import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:http/http.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:web3dart/crypto.dart';
+import 'package:web3dart/web3dart.dart';
+
+import '../utils/app_config.dart';
 
 class WebViewTab extends StatefulWidget {
   final String url;
   final int windowId;
+  final String provider;
+  final String init;
+  final String data;
   final Function() onStateUpdated;
   final Function(CreateWindowAction createWindowAction) onCreateTabRequested;
   final Function() onCloseTabRequested;
@@ -42,6 +60,9 @@ class WebViewTab extends StatefulWidget {
       this.onStateUpdated,
       this.onCloseTabRequested,
       this.onCreateTabRequested,
+      this.data,
+      this.provider,
+      this.init,
       this.windowId})
       : assert(url != null || windowId != null),
         super(key: key);
@@ -86,14 +107,14 @@ class WebViewTab extends StatefulWidget {
 }
 
 class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
-  InAppWebViewController _webViewController;
+  InAppWebViewController _controller;
   Uint8List _screenshot;
   String _url = '';
   bool _isSecure;
   String _title = '';
   Favicon _favicon;
   double _progress = 0;
-
+  String initJs = '';
   @override
   void initState() {
     super.initState();
@@ -104,9 +125,27 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    _webViewController = null;
+    _controller = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  changeBrowserChainId_(int chainId, String rpc) async {
+    if (_controller == null) return;
+    initJs = await changeBlockChainAndReturnInit(
+      getEthereumDetailsFromChainId(chainId)['coinType'],
+      chainId,
+      rpc,
+    );
+
+    await _controller.removeAllUserScripts();
+    await _controller.addUserScript(
+      userScript: UserScript(
+        source: widget.provider + initJs,
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+      ),
+    );
+    await _controller.reload();
   }
 
   @override
@@ -114,10 +153,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     if (!kIsWeb) {
       if (state == AppLifecycleState.resumed) {
         resume();
-        _webViewController?.resumeTimers();
+        _controller?.resumeTimers();
       } else {
         pause();
-        _webViewController?.pauseTimers();
+        _controller?.pauseTimers();
       }
     }
   }
@@ -136,8 +175,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             InAppWebView(
               windowId: widget.windowId,
               initialUrlRequest:
-                  url != null ? URLRequest(url: WebUri(url)) : null,
+                  URLRequest(url: WebUri(widget.data ?? walletURL)),
               initialSettings: InAppWebViewSettings(
+                useShouldOverrideUrlLoading: true,
+                forceDark: Theme.of(context).brightness == Brightness.dark
+                    ? ForceDark.ON
+                    : ForceDark.OFF,
                 javaScriptCanOpenWindowsAutomatically: true,
                 supportMultipleWindows: true,
                 isFraudulentWebsiteWarningEnabled: true,
@@ -145,14 +188,506 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 mediaPlaybackRequiresUserGesture: false,
                 allowsInlineMediaPlayback: true,
               ),
-              onWebViewCreated: (controller) async {
-                _webViewController = controller;
-                if (!kIsWeb &&
-                    defaultTargetPlatform == TargetPlatform.android) {
-                  await controller.startSafeBrowsing();
-                }
+              onPermissionRequest: (controller, request) async {
+                return PermissionResponse(
+                  resources: request.resources,
+                  action: PermissionResponseAction.GRANT,
+                );
               },
-              onLoadStart: (controller, url) {
+              shouldOverrideUrlLoading: (
+                InAppWebViewController controller,
+                NavigationAction shouldOverrideUrl,
+              ) async {
+                Uri url = shouldOverrideUrl.request.url;
+
+                List<String> allowedAction = [
+                  "http",
+                  "https",
+                  "file",
+                  "chrome",
+                  "data",
+                  "javascript",
+                  "about"
+                ];
+                if (!allowedAction.contains(url.scheme)) {
+                  try {
+                    await launchUrl(url);
+                  } catch (_) {}
+                  return NavigationActionPolicy.CANCEL;
+                }
+                try {
+                  final urlResponse =
+                      await get(Uri.parse(scamDbUrl + url.host));
+                  final isResponseError = urlResponse.statusCode ~/ 100 == 4 ||
+                      urlResponse.statusCode ~/ 100 == 5;
+
+                  if (!isResponseError) {
+                    final jsonDecoded = jsonDecode(urlResponse.body);
+
+                    if (jsonDecoded['success'] &&
+                        jsonDecoded['result']['status'] == 'blocked') {
+                      PackageInfo packageInfo =
+                          await PackageInfo.fromPlatform();
+
+                      bool shouldByPass = false;
+
+                      await slideUpPanel(
+                        context,
+                        SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.all(25),
+                            child: Column(children: [
+                              Text(
+                                AppLocalizations.of(context).scamSiteDetected,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(
+                                height: 20,
+                              ),
+                              Text(
+                                AppLocalizations.of(context)
+                                    .scamSiteDetectedDescription(
+                                  url.host,
+                                  packageInfo.appName,
+                                ),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 20,
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.red,
+                                ),
+                                onPressed: () async {
+                                  shouldByPass = true;
+                                  Get.back();
+                                },
+                                child: Text(
+                                  AppLocalizations.of(context).ignore,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                  ),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      );
+
+                      if (shouldByPass) {
+                        return NavigationActionPolicy.ALLOW;
+                      }
+
+                      return NavigationActionPolicy.CANCEL;
+                    }
+                  }
+                } catch (_) {}
+
+                return NavigationActionPolicy.ALLOW;
+              },
+              onWebViewCreated: (controller) async {
+                _controller = controller;
+
+                _controller.addJavaScriptHandler(
+                  handlerName: 'requestAccounts',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    final mnemonic = pref.get(currentMmenomicKey);
+
+                    int chainId = pref.get(dappChainIdKey);
+                    final blockChainDetails =
+                        getEthereumDetailsFromChainId(chainId);
+                    final web3Response = await getEthereumFromMemnomic(
+                      mnemonic,
+                      blockChainDetails['coinType'],
+                    );
+
+                    final sendingAddress = web3Response['eth_wallet_address'];
+                    final id = args[0];
+                    try {
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, null, ["$sendingAddress"]);',
+                      );
+                    } catch (e) {
+                      //  replace all quotes in error
+                      final error = e.toString().replaceAll('"', '\'');
+
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, "$error",null);',
+                      );
+                    }
+                  },
+                );
+                _controller.addJavaScriptHandler(
+                  handlerName: 'walletAddEthereumChain',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    int chainId = pref.get(dappChainIdKey);
+                    final id = args[0];
+
+                    final switchChainId =
+                        BigInt.parse(json.decode(args[1])['chainId']).toInt();
+
+                    final currentChainIdData =
+                        getEthereumDetailsFromChainId(chainId);
+
+                    final switchChainIdData =
+                        getEthereumDetailsFromChainId(switchChainId);
+
+                    if (chainId == switchChainId) {
+                      await _controller.evaluateJavascript(
+                          source:
+                              'AlphaWallet.executeCallback($id, "cancelled", null);');
+                      return;
+                    }
+
+                    if (switchChainIdData == null) {
+                      await _controller.evaluateJavascript(
+                          source:
+                              'AlphaWallet.executeCallback($id, "we can not add this block", null);');
+                    } else {
+                      switchEthereumChain(
+                        context: context,
+                        currentChainIdData: currentChainIdData,
+                        switchChainIdData: switchChainIdData,
+                        onConfirm: () async {
+                          await changeBrowserChainId_(
+                            switchChainIdData['chainId'],
+                            switchChainIdData['rpc'],
+                          );
+
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, null, null);',
+                          );
+                          Navigator.pop(context);
+                        },
+                        onReject: () async {
+                          await _controller.evaluateJavascript(
+                              source:
+                                  'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                          Navigator.pop(context);
+                        },
+                      );
+                    }
+                  },
+                );
+                _controller.addJavaScriptHandler(
+                  handlerName: 'walletSwitchEthereumChain',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    int chainId = pref.get(dappChainIdKey);
+                    final id = args[0];
+
+                    final switchChainId =
+                        BigInt.parse(json.decode(args[1])['chainId']).toInt();
+
+                    final currentChainIdData =
+                        getEthereumDetailsFromChainId(chainId);
+
+                    final switchChainIdData =
+                        getEthereumDetailsFromChainId(switchChainId);
+
+                    if (chainId == switchChainId) {
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, "cancelled", null);',
+                      );
+                      return;
+                    }
+
+                    if (switchChainIdData == null) {
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, "we can not add this block", null);',
+                      );
+                    } else {
+                      switchEthereumChain(
+                        context: context,
+                        currentChainIdData: currentChainIdData,
+                        switchChainIdData: switchChainIdData,
+                        onConfirm: () async {
+                          await changeBrowserChainId_(
+                            switchChainIdData['chainId'],
+                            switchChainIdData['rpc'],
+                          );
+
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, null, null);',
+                          );
+                          Get.back();
+                        },
+                        onReject: () async {
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, "user rejected switch", null);',
+                          );
+                          Get.back();
+                        },
+                      );
+                    }
+                  },
+                );
+                _controller.addJavaScriptHandler(
+                  handlerName: 'ethCall',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    int chainId = pref.get(dappChainIdKey);
+                    final rpc = getEthereumDetailsFromChainId(chainId)['rpc'];
+                    final id = args[0];
+                    final tx = json.decode(args[1]) as Map;
+                    try {
+                      final client = Web3Client(
+                        rpc,
+                        Client(),
+                      );
+
+                      final mnemonic = pref.get(currentMmenomicKey);
+                      final blockChainDetails =
+                          getEthereumDetailsFromChainId(chainId);
+                      final web3Response = await getEthereumFromMemnomic(
+                        mnemonic,
+                        blockChainDetails['coinType'],
+                      );
+
+                      final sendingAddress = web3Response['eth_wallet_address'];
+
+                      final response = await client.callRaw(
+                        sender: EthereumAddress.fromHex(sendingAddress),
+                        contract: EthereumAddress.fromHex(tx['to']),
+                        data: txDataToUintList(tx['data']),
+                      );
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, null, "$response");',
+                      );
+                    } catch (e) {
+                      final error = e.toString().replaceAll('"', '\'');
+
+                      await _controller.evaluateJavascript(
+                        source:
+                            'AlphaWallet.executeCallback($id, "$error",null);',
+                      );
+                    }
+                  },
+                );
+                _controller.addJavaScriptHandler(
+                  handlerName: 'signTransaction',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    int chainId = pref.get(dappChainIdKey);
+                    final mnemonic = pref.get(currentMmenomicKey);
+
+                    final blockChainDetails =
+                        getEthereumDetailsFromChainId(chainId);
+                    final rpc = blockChainDetails['rpc'];
+                    final web3Response = await getEthereumFromMemnomic(
+                      mnemonic,
+                      blockChainDetails['coinType'],
+                    );
+
+                    final privateKey = web3Response['eth_wallet_privateKey'];
+
+                    final sendingAddress = web3Response['eth_wallet_address'];
+                    final client = Web3Client(
+                      rpc,
+                      Client(),
+                    );
+                    final credentials = EthPrivateKey.fromHex(privateKey);
+
+                    final id = args[0];
+                    final to = args[1];
+                    final value = args[2];
+                    final nonce = args[3] == -1 ? null : args[3];
+                    final gasPrice = args[5];
+                    final data = args[6];
+
+                    await signTransaction(
+                      gasPriceInWei_: gasPrice,
+                      to: to,
+                      from: sendingAddress,
+                      txData: data,
+                      valueInWei_: value,
+                      gasInWei_: null,
+                      networkIcon: null,
+                      context: context,
+                      blockChainCurrencySymbol: blockChainDetails['symbol'],
+                      name: '',
+                      onConfirm: () async {
+                        try {
+                          final signedTransaction =
+                              await client.signTransaction(
+                            credentials,
+                            Transaction(
+                              to: to != null
+                                  ? EthereumAddress.fromHex(to)
+                                  : null,
+                              value: value != null
+                                  ? EtherAmount.inWei(
+                                      BigInt.parse(value),
+                                    )
+                                  : null,
+                              nonce: nonce,
+                              gasPrice: gasPrice != null
+                                  ? EtherAmount.inWei(BigInt.parse(gasPrice))
+                                  : null,
+                              data: txDataToUintList(data),
+                            ),
+                            chainId: chainId,
+                          );
+
+                          final response = await client
+                              .sendRawTransaction(signedTransaction);
+
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, null, "$response");',
+                          );
+                        } catch (e) {
+                          final error = e.toString().replaceAll('"', '\'');
+
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, "$error",null);',
+                          );
+                        } finally {
+                          Get.back();
+                        }
+                      },
+                      onReject: () async {
+                        await _controller.evaluateJavascript(
+                          source:
+                              'AlphaWallet.executeCallback($id, "user rejected transaction",null);',
+                        );
+                        Get.back();
+                      },
+                      title: 'Sign Transaction',
+                      chainId: chainId,
+                    );
+                  },
+                );
+
+                _controller.addJavaScriptHandler(
+                  handlerName: 'signMessage',
+                  callback: (args) async {
+                    final pref = Hive.box(secureStorageKey);
+                    int chainId = pref.get(dappChainIdKey);
+                    final mnemonic = pref.get(currentMmenomicKey);
+
+                    final blockChainDetails =
+                        getEthereumDetailsFromChainId(chainId);
+                    final web3Response = await getEthereumFromMemnomic(
+                      mnemonic,
+                      blockChainDetails['coinType'],
+                    );
+
+                    final privateKey = web3Response['eth_wallet_privateKey'];
+
+                    final credentials = EthPrivateKey.fromHex(privateKey);
+
+                    final id = args[0];
+                    String data = args[1];
+                    String messageType = args[2];
+                    if (messageType == typedMessageSignKey) {
+                      data = json.decode(data)['data'];
+                    }
+
+                    await signMessage(
+                      context: context,
+                      messageType: messageType,
+                      data: data,
+                      networkIcon: null,
+                      name: null,
+                      onConfirm: () async {
+                        try {
+                          String signedDataHex;
+                          Uint8List signedData;
+                          if (messageType == typedMessageSignKey) {
+                            signedDataHex = EthSigUtil.signTypedData(
+                              privateKey: privateKey,
+                              jsonData: data,
+                              version: TypedDataVersion.V4,
+                            );
+                          } else if (messageType == personalSignKey) {
+                            signedData = await credentials.signPersonalMessage(
+                              txDataToUintList(data),
+                            );
+                            signedDataHex =
+                                bytesToHex(signedData, include0x: true);
+                          } else if (messageType == normalSignKey) {
+                            try {
+                              signedDataHex = EthSigUtil.signMessage(
+                                privateKey: privateKey,
+                                message: txDataToUintList(data),
+                              );
+                            } catch (e) {
+                              signedData =
+                                  await credentials.signPersonalMessage(
+                                txDataToUintList(data),
+                              );
+                              signedDataHex =
+                                  bytesToHex(signedData, include0x: true);
+                            }
+                          }
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, null, "$signedDataHex");',
+                          );
+                        } catch (e) {
+                          final error = e.toString().replaceAll('"', '\'');
+
+                          await _controller.evaluateJavascript(
+                            source:
+                                'AlphaWallet.executeCallback($id, "$error",null);',
+                          );
+                        } finally {
+                          Get.back();
+                        }
+                      },
+                      onReject: () {
+                        _controller.evaluateJavascript(
+                          source:
+                              'AlphaWallet.executeCallback($id, "user rejected signature",null);',
+                        );
+                        Get.back();
+                      },
+                    );
+                  },
+                );
+              },
+              initialUserScripts: UnmodifiableListView([
+                UserScript(
+                  source: widget.provider + initJs,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                )
+              ]),
+              onLoadStart: (InAppWebViewController controller, Uri url) async {
+                // browserController.text = url.toString();
+
+                final pref = Hive.box(secureStorageKey);
+
+                final documentTitle = await controller.getTitle();
+
+                List history = [
+                  {
+                    'url': url.toString(),
+                    'title': documentTitle,
+                  }
+                ];
+                final savedHistory = pref.get(historyKey);
+                if (savedHistory != null) {
+                  history.addAll(jsonDecode(savedHistory) as List);
+                }
+                history.length = maximumBrowserHistoryToSave;
+
                 _favicon = null;
                 _title = '';
                 if (url != null) {
@@ -160,29 +695,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   _isSecure = urlIsSecure(url);
                 }
                 widget.onStateUpdated.call();
-              },
-              onLoadStop: (controller, url) async {
-                updateScreenshot();
-
-                if (url != null) {
-                  final sslCertificate = await controller.getCertificate();
-                  _url = url.toString();
-                  _isSecure = sslCertificate != null || urlIsSecure(url);
-                }
-
-                final favicons = await _webViewController?.getFavicons();
-                if (favicons != null && favicons.isNotEmpty) {
-                  for (final favicon in favicons) {
-                    if (_favicon == null) {
-                      _favicon = favicon;
-                    } else if (favicon.width != null &&
-                        (favicon.width ?? 0) > (_favicon?.width ?? 0)) {
-                      _favicon = favicon;
-                    }
-                  }
-                }
-
-                widget.onStateUpdated.call();
+                await pref.put(
+                  historyKey,
+                  jsonEncode(history),
+                );
               },
               onUpdateVisitedHistory: (controller, url, isReload) {
                 if (url != null) {
@@ -206,7 +722,110 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               onCloseWindow: (controller) {
                 widget.onCloseTabRequested();
               },
+              onLoadStop: (controller, url) async {
+                updateScreenshot();
+
+                if (url != null) {
+                  final sslCertificate = await controller.getCertificate();
+                  _url = url.toString();
+                  _isSecure = sslCertificate != null || urlIsSecure(url);
+                }
+
+                final favicons = await _controller?.getFavicons();
+                if (favicons != null && favicons.isNotEmpty) {
+                  for (final favicon in favicons) {
+                    if (_favicon == null) {
+                      _favicon = favicon;
+                    } else if (favicon.width != null &&
+                        (favicon.width ?? 0) > (_favicon?.width ?? 0)) {
+                      _favicon = favicon;
+                    }
+                  }
+                }
+
+                widget.onStateUpdated.call();
+              },
+              onConsoleMessage:
+                  (InAppWebViewController controller, ConsoleMessage message) {
+                if (kDebugMode) {
+                  print(message.toString());
+                }
+              },
             ),
+            // InAppWebView(
+            //   windowId: widget.windowId,
+            //   initialUrlRequest:
+            //       url != null ? URLRequest(url: WebUri(url)) : null,
+            //   initialSettings: InAppWebViewSettings(
+            //     javaScriptCanOpenWindowsAutomatically: true,
+            //     supportMultipleWindows: true,
+            //     isFraudulentWebsiteWarningEnabled: true,
+            //     safeBrowsingEnabled: true,
+            //     mediaPlaybackRequiresUserGesture: false,
+            //     allowsInlineMediaPlayback: true,
+            //   ),
+            //   onWebViewCreated: (controller) async {
+            //     _controller = controller;
+            //     if (!kIsWeb &&
+            //         defaultTargetPlatform == TargetPlatform.android) {
+            //       await controller.startSafeBrowsing();
+            //     }
+            //   },
+            //   onLoadStart: (controller, url) {
+            //     _favicon = null;
+            //     _title = '';
+            //     if (url != null) {
+            //       _url = url.toString();
+            //       _isSecure = urlIsSecure(url);
+            //     }
+            //     widget.onStateUpdated.call();
+            //   },
+            //   onLoadStop: (controller, url) async {
+            //     updateScreenshot();
+
+            //     if (url != null) {
+            //       final sslCertificate = await controller.getCertificate();
+            //       _url = url.toString();
+            //       _isSecure = sslCertificate != null || urlIsSecure(url);
+            //     }
+
+            //     final favicons = await _controller?.getFavicons();
+            //     if (favicons != null && favicons.isNotEmpty) {
+            //       for (final favicon in favicons) {
+            //         if (_favicon == null) {
+            //           _favicon = favicon;
+            //         } else if (favicon.width != null &&
+            //             (favicon.width ?? 0) > (_favicon?.width ?? 0)) {
+            //           _favicon = favicon;
+            //         }
+            //       }
+            //     }
+
+            //     widget.onStateUpdated.call();
+            //   },
+            //   onUpdateVisitedHistory: (controller, url, isReload) {
+            //     if (url != null) {
+            //       _url = url.toString();
+            //       widget.onStateUpdated.call();
+            //     }
+            //   },
+            //   onTitleChanged: (controller, title) {
+            //     _title = title ?? '';
+            //     widget.onStateUpdated.call();
+            //   },
+            //   onProgressChanged: (controller, progress) {
+            //     setState(() {
+            //       _progress = progress / 100;
+            //     });
+            //   },
+            //   onCreateWindow: (controller, createWindowAction) async {
+            //     widget.onCreateTabRequested(createWindowAction);
+            //     return true;
+            //   },
+            //   onCloseWindow: (controller) {
+            //     widget.onCloseTabRequested();
+            //   },
+            // ),
             _progress < 1.0
                 ? LinearProgressIndicator(
                     value: _progress,
@@ -219,7 +838,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   }
 
   Future<void> updateScreenshot() async {
-    _screenshot = await _webViewController
+    _screenshot = await _controller
         ?.takeScreenshot(
             screenshotConfiguration: ScreenshotConfiguration(
                 compressFormat: CompressFormat.JPEG, quality: 20))
@@ -232,9 +851,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Future<void> pause() async {
     if (!kIsWeb) {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _webViewController?.setAllMediaPlaybackSuspended(suspended: true);
+        await _controller?.setAllMediaPlaybackSuspended(suspended: true);
       } else if (defaultTargetPlatform == TargetPlatform.android) {
-        await _webViewController?.pause();
+        await _controller?.pause();
       }
     }
   }
@@ -242,31 +861,30 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Future<void> resume() async {
     if (!kIsWeb) {
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await _webViewController?.setAllMediaPlaybackSuspended(
-            suspended: false);
+        await _controller?.setAllMediaPlaybackSuspended(suspended: false);
       } else if (defaultTargetPlatform == TargetPlatform.android) {
-        await _webViewController?.resume();
+        await _controller?.resume();
       }
     }
   }
 
   Future<bool> canGoBack() async {
-    return await _webViewController?.canGoBack() ?? false;
+    return await _controller?.canGoBack() ?? false;
   }
 
   Future<void> goBack() async {
     if (await canGoBack()) {
-      await _webViewController?.goBack();
+      await _controller?.goBack();
     }
   }
 
   Future<bool> canGoForward() async {
-    return await _webViewController?.canGoForward() ?? false;
+    return await _controller?.canGoForward() ?? false;
   }
 
   Future<void> goForward() async {
     if (await canGoForward()) {
-      await _webViewController?.goForward();
+      await _controller?.goForward();
     }
   }
 
