@@ -176,8 +176,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final url = widget.url;
-
     return Column(children: <Widget>[
       Expanded(
         child: Stack(

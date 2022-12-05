@@ -41,3 +41,4 @@ change lcdurl for cosmos to sdk 0.37.9 / cosmoshub-3
 find a lcd with this version.
 
 update xcode to version 14 for run app.
+fix userscripts not working on new tab

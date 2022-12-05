@@ -44,8 +44,6 @@ class Dapp extends StatefulWidget {
 }
 
 class _DappState extends State<Dapp> {
-
-
   ValueNotifier loadingPercent = ValueNotifier<double>(0);
   String urlLoaded = '';
   final _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -64,7 +62,9 @@ class _DappState extends State<Dapp> {
 
   @override
   void dispose() {
-    // browserController.dispose();
+    try {
+      webViewTabs[currentTabIndex].browserController.dispose();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -114,7 +114,7 @@ class _DappState extends State<Dapp> {
           }
         },
         textInputAction: TextInputAction.search,
-        controller:  webViewTabs[currentTabIndex].browserController,
+        controller: webViewTabs[currentTabIndex].browserController,
         decoration: InputDecoration(
           prefixIcon: webViewTabs[currentTabIndex].isSecure != null
               ? Icon(
