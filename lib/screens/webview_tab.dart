@@ -855,7 +855,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         ?.takeScreenshot(
             screenshotConfiguration: ScreenshotConfiguration(
                 compressFormat: CompressFormat.JPEG, quality: 20))
-        .timeout(
+        ?.timeout(
           const Duration(milliseconds: 1500),
           onTimeout: () => null,
         );
