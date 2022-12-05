@@ -117,6 +117,11 @@ class WebViewTab extends StatefulWidget {
     final state = (key as GlobalKey).currentState as _WebViewTabState;
     await state?.goForward();
   }
+
+  Future<void> changeBrowserChainId_(int chainId, String rpc) async {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    await state?.changeBrowserChainId_(chainId, rpc);
+  }
 }
 
 class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {

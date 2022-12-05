@@ -494,7 +494,8 @@ class _DappState extends State<Dapp> {
                             showBlockChainDialog(
                               context: context,
                               onTap: (blockChainData) async {
-                                await changeBrowserChainId_(
+                                await webViewTabs[currentTabIndex]
+                                    .changeBrowserChainId_(
                                   blockChainData['chainId'],
                                   blockChainData['rpc'],
                                 );
@@ -753,24 +754,6 @@ class _DappState extends State<Dapp> {
     setState(() {
       currentTabIndex = 0;
     });
-  }
-
-  changeBrowserChainId_(int chainId, String rpc) async {
-    if (webViewTabs[currentTabIndex].controller == null) return;
-    initJs = await changeBlockChainAndReturnInit(
-      getEthereumDetailsFromChainId(chainId)['coinType'],
-      chainId,
-      rpc,
-    );
-
-    await webViewTabs[currentTabIndex].controller.removeAllUserScripts();
-    await webViewTabs[currentTabIndex].controller.addUserScript(
-          userScript: UserScript(
-            source: widget.provider + initJs,
-            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-          ),
-        );
-    await webViewTabs[currentTabIndex].controller.reload();
   }
 
   Future<bool> goBack() async {
