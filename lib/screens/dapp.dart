@@ -681,6 +681,8 @@ class _DappState extends State<Dapp> {
       IconButton(
         icon: const Icon(Icons.more_vert),
         onPressed: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+
           if (webViewTabs[currentTabIndex].controller == null) return;
           final pref = Hive.box(secureStorageKey);
           final bookMark = pref.get(bookMarkKey);
