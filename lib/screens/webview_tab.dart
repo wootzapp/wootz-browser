@@ -199,8 +199,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 forceDark: Theme.of(context).brightness == Brightness.dark
                     ? ForceDark.ON
                     : ForceDark.OFF,
-                // javaScriptCanOpenWindowsAutomatically: true,
-                // supportMultipleWindows: true,
                 isFraudulentWebsiteWarningEnabled: true,
                 safeBrowsingEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,

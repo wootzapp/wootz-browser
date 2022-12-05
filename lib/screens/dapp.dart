@@ -108,17 +108,18 @@ class _DappState extends State<Dapp> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               IconButton(
-                constraints: BoxConstraints(maxWidth: 35),
+                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () async {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
+                  if (webViewTabs[currentTabIndex].controller != null) {
+                    webViewTabs[currentTabIndex].controller.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri(walletURL),
+                          ),
+                        );
                   }
                 },
-                icon: Transform.rotate(
-                  child: const Icon(
-                    Icons.add,
-                  ),
-                  angle: 45 * pi / 180,
+                icon: const Icon(
+                  Icons.home_filled,
                 ),
               ),
               IconButton(
