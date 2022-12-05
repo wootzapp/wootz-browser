@@ -635,6 +635,7 @@ class _DappState extends State<Dapp> {
       //     // ),
       //   ],
       // ),
+
       actions: _buildWebViewTabActions(),
     );
   }
@@ -1077,6 +1078,9 @@ class _DappState extends State<Dapp> {
         constraints: const BoxConstraints(maxWidth: 35),
         onPressed: () {
           _addWebViewTab();
+          setState(() {
+            showWebViewTabsViewer = false;
+          });
         },
         icon: const Icon(Icons.add),
       ),
