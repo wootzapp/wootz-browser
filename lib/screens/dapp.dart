@@ -111,11 +111,9 @@ class _DappState extends State<Dapp> {
             children: [
               IconButton(
                 onPressed: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
+                  _addWebViewTab();
                 },
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.add),
               ),
               Flexible(
                 child: TextFormField(
@@ -174,6 +172,29 @@ class _DappState extends State<Dapp> {
                 width: 5,
               ),
               IconButton(
+                onPressed: () async {
+                  await webViewTabs[currentTabIndex].updateScreenshot();
+                  setState(() {
+                    showWebViewTabsViewer = true;
+                  });
+                },
+                icon: Container(
+                  decoration: BoxDecoration(
+                      border: Border.all(
+                        width: 2.0,
+                      ),
+                      shape: BoxShape.rectangle,
+                      borderRadius: BorderRadius.circular(5.0)),
+                  constraints: const BoxConstraints(minWidth: 25.0),
+                  child: Center(
+                      child: Text(
+                    webViewTabs.length.toString(),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14.0),
+                  )),
+                ),
+              ),
+              IconButton(
                 onPressed: () {
                   if (webViewTabs[currentTabIndex].controller == null) return;
 
@@ -201,6 +222,31 @@ class _DappState extends State<Dapp> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  if (Navigator.canPop(context)) {
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.close),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).close,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
                             SizedBox(
                               width: double.infinity,
                               child: InkWell(
