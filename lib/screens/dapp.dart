@@ -96,7 +96,406 @@ class _DappState extends State<Dapp> {
     return webViewTab;
   }
 
-  AppBar _buildWebViewTabAppBar() {
+  Widget _buildWebViewTabAppBar() {
+    final localize = AppLocalizations.of(context);
+    final historyTitle = localize.history;
+    final historyEmpty = localize.noHistory;
+    final pref = Hive.box(secureStorageKey);
+    return PreferredSize(
+      child: SafeArea(
+        child: SizedBox(
+          height: 80,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: const Icon(Icons.close),
+              ),
+              Flexible(
+                child: TextFormField(
+                  onFieldSubmitted: (value) async {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    if (webViewTabs[currentTabIndex].controller != null) {
+                      Uri uri = blockChainToHttps(value.trim());
+                      await webViewTabs[currentTabIndex].controller.loadUrl(
+                            urlRequest: URLRequest(url: WebUri.uri(uri)),
+                          );
+                    }
+                  },
+                  textInputAction: TextInputAction.search,
+                  controller: webViewTabs[currentTabIndex].browserController,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        Icons.cancel,
+                      ),
+                      onPressed: () {
+                        webViewTabs[currentTabIndex].browserController.clear();
+                      },
+                    ),
+                    hintText: AppLocalizations.of(context).searchOrEnterUrl,
+
+                    filled: true,
+                    focusedBorder: const OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                        borderSide: BorderSide.none),
+                    border: const OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                        borderSide: BorderSide.none),
+                    enabledBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                      borderSide: BorderSide.none,
+                    ), // you
+                  ),
+                ),
+              ),
+              const SizedBox(
+                width: 5,
+              ),
+              IconButton(
+                onPressed: () {
+                  if (webViewTabs[currentTabIndex].controller == null) return;
+
+                  final bookMark = pref.get(bookMarkKey);
+                  final url =
+                      webViewTabs[currentTabIndex].browserController.text;
+                  List savedBookMarks = [];
+
+                  if (bookMark != null) {
+                    savedBookMarks.addAll(
+                      jsonDecode(bookMark) as List,
+                    );
+                  }
+                  final bookMarkIndex = savedBookMarks.indexWhere(
+                    (bookmark) => bookmark != null && bookmark['url'] == url,
+                  );
+
+                  bool urlBookMarked = bookMarkIndex != -1;
+                  slideUpPanel(
+                    context,
+                    SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  await goForward();
+                                  Navigator.pop(context);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.arrow_forward),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).forward,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  await goBack();
+                                  Navigator.pop(context);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.arrow_back),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).back,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  if (webViewTabs[currentTabIndex].controller !=
+                                      null) {
+                                    await webViewTabs[currentTabIndex]
+                                        .controller
+                                        .reload();
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.replay_outlined),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).reload,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  if (webViewTabs[currentTabIndex].controller !=
+                                      null) {
+                                    await Share.share(url);
+                                    Navigator.pop(context);
+                                  }
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.share),
+                                      const SizedBox(
+                                        width: 10,
+                                      ),
+                                      Text(
+                                        AppLocalizations.of(context).share,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                  onTap: () async {
+                                    if (urlBookMarked) {
+                                      savedBookMarks.removeAt(
+                                        bookMarkIndex,
+                                      );
+                                    } else if (webViewTabs[currentTabIndex]
+                                            .controller !=
+                                        null) {
+                                      final title =
+                                          await webViewTabs[currentTabIndex]
+                                              .controller
+                                              .getTitle();
+
+                                      savedBookMarks.addAll([
+                                        {'url': url, 'title': title}
+                                      ]);
+                                    }
+
+                                    await pref.put(
+                                      bookMarkKey,
+                                      jsonEncode(
+                                        savedBookMarks,
+                                      ),
+                                    );
+                                    Navigator.pop(context);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(15),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.bookmark,
+                                        ),
+                                        const SizedBox(
+                                          width: 10,
+                                        ),
+                                        Text(
+                                          urlBookMarked
+                                              ? AppLocalizations.of(
+                                                  context,
+                                                ).removeBookMark
+                                              : AppLocalizations.of(
+                                                  context,
+                                                ).bookMark,
+                                        )
+                                      ],
+                                    ),
+                                  )),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                  onTap: () async {
+                                    if (webViewTabs[currentTabIndex]
+                                            .controller !=
+                                        null) {
+                                      await webViewTabs[currentTabIndex]
+                                          .controller
+                                          .clearCache();
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  child: Container(
+                                    color: Colors.transparent,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(15),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.delete),
+                                          const SizedBox(
+                                            width: 10,
+                                          ),
+                                          Text(
+                                            AppLocalizations.of(context)
+                                                .clearBrowserCache,
+                                          )
+                                        ],
+                                      ),
+                                    ),
+                                  )),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                onTap: () async {
+                                  List historyList = [];
+
+                                  final savedHistory = pref.get(historyKey);
+
+                                  if (savedHistory != null) {
+                                    historyList =
+                                        jsonDecode(savedHistory) as List;
+                                  }
+                                  final historyUrl =
+                                      await Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (ctx) => SavedUrls(
+                                        historyTitle,
+                                        historyEmpty,
+                                        historyKey,
+                                        data: historyList,
+                                      ),
+                                    ),
+                                  );
+
+                                  if (historyUrl != null) {
+                                    webViewTabs[currentTabIndex]
+                                        .controller
+                                        .loadUrl(
+                                          urlRequest: URLRequest(
+                                            url: WebUri(historyUrl),
+                                          ),
+                                        );
+                                  }
+                                },
+                                child: Container(
+                                  color: Colors.transparent,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(15),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.history),
+                                        const SizedBox(
+                                          width: 10,
+                                        ),
+                                        Text(
+                                          AppLocalizations.of(context).history,
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                  onTap: () {
+                                    showBlockChainDialog(
+                                      context: context,
+                                      onTap: (blockChainData) async {
+                                        await webViewTabs[currentTabIndex]
+                                            .changeBrowserChainId_(
+                                          blockChainData['chainId'],
+                                          blockChainData['rpc'],
+                                        );
+                                        int count = 0;
+                                        Navigator.popUntil(context, (route) {
+                                          return count++ == 2;
+                                        });
+                                      },
+                                      selectedChainId: pref.get(dappChainIdKey),
+                                    );
+                                  },
+                                  child: Container(
+                                    color: Colors.transparent,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(15),
+                                      child: Row(
+                                        children: [
+                                          const Icon(FontAwesomeIcons.ethereum),
+                                          const SizedBox(
+                                            width: 10,
+                                          ),
+                                          FutureBuilder(future: () async {
+                                            final pref =
+                                                Hive.box(secureStorageKey);
+                                            final chainId =
+                                                pref.get(dappChainIdKey);
+                                            return getEthereumDetailsFromChainId(
+                                                chainId)['symbol'];
+                                          }(), builder: (context, snapshot) {
+                                            return Text(
+                                              '${AppLocalizations.of(context).network}: ${snapshot.hasData ? snapshot.data : ''}',
+                                            );
+                                          })
+                                        ],
+                                      ),
+                                    ),
+                                  )),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                  return;
+                },
+                icon: const Icon(
+                  Icons.more_vert,
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+      preferredSize: const Size.fromHeight(100),
+    );
     return AppBar(
       leading: IconButton(
           onPressed: () {
