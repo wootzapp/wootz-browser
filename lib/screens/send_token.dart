@@ -361,7 +361,7 @@ class _SendTokenState extends State<SendToken> {
                       child: isLoading.value
                           ? const Loader()
                           : Text(
-                              AppLocalizations.of(context).send,
+                              AppLocalizations.of(context).continue_,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,

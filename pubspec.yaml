@@ -51,7 +51,7 @@ dependencies:
   wallet_connect: ^1.0.4
   bitcoin_flutter: ^2.0.2
   percent_indicator: ^3.4.0
-  flutter_svg: ^1.0.0
+  flutter_svg: ^1.1.6
   page_transition: ^2.0.5
   hex: ^0.2.0
   ed25519_hd_key: ^2.2.0
