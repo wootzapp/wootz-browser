@@ -10,7 +10,6 @@ import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -151,7 +150,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   }
 
   changeBrowserChainId_(int chainId, String rpc) async {
-    FocusManager.instance.primaryFocus?.unfocus();
     if (_controller == null) return;
     initJs = await changeBlockChainAndReturnInit(
       getEthereumDetailsFromChainId(chainId)['coinType'],
@@ -259,78 +257,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   } catch (_) {}
                   return NavigationActionPolicy.CANCEL;
                 }
-                try {
-                  final urlResponse =
-                      await get(Uri.parse(scamDbUrl + url.host));
-                  final isResponseError = urlResponse.statusCode ~/ 100 == 4 ||
-                      urlResponse.statusCode ~/ 100 == 5;
-
-                  if (!isResponseError) {
-                    final jsonDecoded = jsonDecode(urlResponse.body);
-
-                    if (jsonDecoded['success'] &&
-                        jsonDecoded['result']['status'] == 'blocked') {
-                      PackageInfo packageInfo =
-                          await PackageInfo.fromPlatform();
-
-                      bool shouldByPass = false;
-
-                      await slideUpPanel(
-                        context,
-                        SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.all(25),
-                            child: Column(children: [
-                              Text(
-                                AppLocalizations.of(context).scamSiteDetected,
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(
-                                height: 20,
-                              ),
-                              Text(
-                                AppLocalizations.of(context)
-                                    .scamSiteDetectedDescription(
-                                  url.host,
-                                  packageInfo.appName,
-                                ),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 20,
-                              ),
-                              TextButton(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () async {
-                                  shouldByPass = true;
-                                  Get.back();
-                                },
-                                child: Text(
-                                  AppLocalizations.of(context).ignore,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                  ),
-                                ),
-                              ),
-                            ]),
-                          ),
-                        ),
-                      );
-
-                      if (shouldByPass) {
-                        return NavigationActionPolicy.ALLOW;
-                      }
-
-                      return NavigationActionPolicy.CANCEL;
-                    }
-                  }
-                } catch (_) {}
 
                 return NavigationActionPolicy.ALLOW;
               },
@@ -467,14 +393,14 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             source:
                                 'AlphaWallet.executeCallback($id, null, null);',
                           );
-                          Get.back();
+                          Navigator.pop(context);
                         },
                         onReject: () async {
                           await _controller.evaluateJavascript(
                             source:
                                 'AlphaWallet.executeCallback($id, "user rejected switch", null);',
                           );
-                          Get.back();
+                          Navigator.pop(context);
                         },
                       );
                     }
@@ -603,7 +529,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                 'AlphaWallet.executeCallback($id, "$error",null);',
                           );
                         } finally {
-                          Get.back();
+                          Navigator.pop(context);
                         }
                       },
                       onReject: () async {
@@ -611,7 +537,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           source:
                               'AlphaWallet.executeCallback($id, "user rejected transaction",null);',
                         );
-                        Get.back();
+                        Navigator.pop(context);
                       },
                       title: 'Sign Transaction',
                       chainId: chainId,
@@ -693,7 +619,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                 'AlphaWallet.executeCallback($id, "$error",null);',
                           );
                         } finally {
-                          Get.back();
+                          Navigator.pop(context);
                         }
                       },
                       onReject: () {
@@ -701,7 +627,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           source:
                               'AlphaWallet.executeCallback($id, "user rejected signature",null);',
                         );
-                        Get.back();
+                        Navigator.pop(context);
                       },
                     );
                   },
@@ -796,80 +722,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 }
               },
             ),
-            // InAppWebView(
-            //   windowId: widget.windowId,
-            //   initialUrlRequest:
-            //       url != null ? URLRequest(url: WebUri(url)) : null,
-            //   initialSettings: InAppWebViewSettings(
-            //     javaScriptCanOpenWindowsAutomatically: true,
-            //     supportMultipleWindows: true,
-            //     isFraudulentWebsiteWarningEnabled: true,
-            //     safeBrowsingEnabled: true,
-            //     mediaPlaybackRequiresUserGesture: false,
-            //     allowsInlineMediaPlayback: true,
-            //   ),
-            //   onWebViewCreated: (controller) async {
-            //     _controller = controller;
-            //     if (!kIsWeb &&
-            //         defaultTargetPlatform == TargetPlatform.android) {
-            //       await controller.startSafeBrowsing();
-            //     }
-            //   },
-            //   onLoadStart: (controller, url) {
-            //     _favicon = null;
-            //     _title = '';
-            //     if (url != null) {
-            //       _url = url.toString();
-            //       _isSecure = urlIsSecure(url);
-            //     }
-            //     widget.onStateUpdated.call();
-            //   },
-            //   onLoadStop: (controller, url) async {
-            //     updateScreenshot();
-
-            //     if (url != null) {
-            //       final sslCertificate = await controller.getCertificate();
-            //       _url = url.toString();
-            //       _isSecure = sslCertificate != null || urlIsSecure(url);
-            //     }
-
-            //     final favicons = await _controller?.getFavicons();
-            //     if (favicons != null && favicons.isNotEmpty) {
-            //       for (final favicon in favicons) {
-            //         if (_favicon == null) {
-            //           _favicon = favicon;
-            //         } else if (favicon.width != null &&
-            //             (favicon.width ?? 0) > (_favicon?.width ?? 0)) {
-            //           _favicon = favicon;
-            //         }
-            //       }
-            //     }
-
-            //     widget.onStateUpdated.call();
-            //   },
-            //   onUpdateVisitedHistory: (controller, url, isReload) {
-            //     if (url != null) {
-            //       _url = url.toString();
-            //       widget.onStateUpdated.call();
-            //     }
-            //   },
-            //   onTitleChanged: (controller, title) {
-            //     _title = title ?? '';
-            //     widget.onStateUpdated.call();
-            //   },
-            //   onProgressChanged: (controller, progress) {
-            //     setState(() {
-            //       _progress = progress / 100;
-            //     });
-            //   },
-            //   onCreateWindow: (controller, createWindowAction) async {
-            //     widget.onCreateTabRequested(createWindowAction);
-            //     return true;
-            //   },
-            //   onCloseWindow: (controller) {
-            //     widget.onCloseTabRequested();
-            //   },
-            // ),
             _progress < 1.0
                 ? LinearProgressIndicator(
                     value: _progress,
