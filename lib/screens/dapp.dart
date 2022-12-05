@@ -103,7 +103,7 @@ class _DappState extends State<Dapp> {
     return PreferredSize(
       child: SafeArea(
         child: SizedBox(
-          height: 80,
+          height: 75,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
