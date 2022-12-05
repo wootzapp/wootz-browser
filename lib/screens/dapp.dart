@@ -757,6 +757,7 @@ class _DappState extends State<Dapp> {
                     child: InkWell(
                       onTap: () async {
                         if (webViewTabs[currentTabIndex].controller != null) {
+                          FocusManager.instance.primaryFocus?.unfocus();
                           await webViewTabs[currentTabIndex]
                               .controller
                               .reload();

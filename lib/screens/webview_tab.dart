@@ -151,6 +151,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   }
 
   changeBrowserChainId_(int chainId, String rpc) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (_controller == null) return;
     initJs = await changeBlockChainAndReturnInit(
       getEthereumDetailsFromChainId(chainId)['coinType'],
