@@ -17,7 +17,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -109,6 +108,21 @@ class _DappState extends State<Dapp> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               IconButton(
+                constraints: BoxConstraints(maxWidth: 35),
+                onPressed: () async {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: Transform.rotate(
+                  child: const Icon(
+                    Icons.add,
+                  ),
+                  angle: 45 * pi / 180,
+                ),
+              ),
+              IconButton(
+                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () {
                   _addWebViewTab();
                 },
@@ -128,9 +142,14 @@ class _DappState extends State<Dapp> {
                   textInputAction: TextInputAction.search,
                   controller: webViewTabs[currentTabIndex].browserController,
                   decoration: InputDecoration(
-                    prefix: webViewTabs[currentTabIndex].isSecure != null
+                    prefixIconConstraints:
+                        const BoxConstraints(minWidth: 35, maxWidth: 35),
+                    contentPadding: const EdgeInsets.all(0),
+                    suffixIconConstraints:
+                        const BoxConstraints(minWidth: 35, maxWidth: 35),
+                    prefixIcon: webViewTabs[currentTabIndex].isSecure != null
                         ? Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
+                            padding: const EdgeInsets.only(left: 8.0, right: 8),
                             child: Icon(
                                 webViewTabs[currentTabIndex].isSecure == true
                                     ? Icons.lock
@@ -139,7 +158,7 @@ class _DappState extends State<Dapp> {
                                         true
                                     ? Colors.green
                                     : Colors.red,
-                                size: 15),
+                                size: 18),
                           )
                         : Container(),
                     isDense: true,
@@ -171,6 +190,7 @@ class _DappState extends State<Dapp> {
                 width: 5,
               ),
               IconButton(
+                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () async {
                   await webViewTabs[currentTabIndex].updateScreenshot();
                   setState(() {
@@ -181,6 +201,7 @@ class _DappState extends State<Dapp> {
                   decoration: BoxDecoration(
                       border: Border.all(
                         width: 2.0,
+                        color: Theme.of(context).iconTheme.color,
                       ),
                       shape: BoxShape.rectangle,
                       borderRadius: BorderRadius.circular(5.0)),
@@ -194,6 +215,7 @@ class _DappState extends State<Dapp> {
                 ),
               ),
               IconButton(
+                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () {
                   if (webViewTabs[currentTabIndex].controller == null) return;
 
@@ -221,31 +243,6 @@ class _DappState extends State<Dapp> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: InkWell(
-                                onTap: () async {
-                                  if (Navigator.canPop(context)) {
-                                    Navigator.pop(context);
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(15),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.close),
-                                      const SizedBox(
-                                        width: 10,
-                                      ),
-                                      Text(
-                                        AppLocalizations.of(context).close,
-                                      )
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const Divider(),
                             SizedBox(
                               width: double.infinity,
                               child: InkWell(
@@ -555,6 +552,99 @@ class _DappState extends State<Dapp> {
       ),
       preferredSize: const Size.fromHeight(100),
     );
+    return AppBar(
+      leading: IconButton(
+          onPressed: () {
+            _addWebViewTab();
+          },
+          icon: const Icon(Icons.add)),
+      title: TextFormField(
+        onFieldSubmitted: (value) async {
+          FocusManager.instance.primaryFocus?.unfocus();
+          if (webViewTabs[currentTabIndex].controller != null) {
+            Uri uri = blockChainToHttps(value.trim());
+            await webViewTabs[currentTabIndex].controller.loadUrl(
+                  urlRequest: URLRequest(url: WebUri.uri(uri)),
+                );
+          }
+        },
+        textInputAction: TextInputAction.search,
+        controller: webViewTabs[currentTabIndex].browserController,
+        decoration: InputDecoration(
+          prefixIcon: webViewTabs[currentTabIndex].isSecure != null
+              ? Icon(
+                  webViewTabs[currentTabIndex].isSecure == true
+                      ? Icons.lock
+                      : Icons.lock_open,
+                  color: webViewTabs[currentTabIndex].isSecure == true
+                      ? Colors.green
+                      : Colors.red,
+                  size: 12)
+              : Container(),
+          isDense: true,
+          suffixIcon: IconButton(
+            icon: const Icon(
+              Icons.cancel,
+            ),
+            onPressed: () {
+              webViewTabs[currentTabIndex].browserController.clear();
+            },
+          ),
+          hintText: AppLocalizations.of(context).searchOrEnterUrl,
+
+          filled: true,
+          focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10.0)),
+              borderSide: BorderSide.none),
+          border: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10.0)),
+              borderSide: BorderSide.none),
+          enabledBorder: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10.0)),
+            borderSide: BorderSide.none,
+          ), // you
+        ),
+      ),
+
+      // title: Column(
+      //   mainAxisAlignment: MainAxisAlignment.center,
+      //   children: [
+      //     Text(
+      //       webViewTabs[currentTabIndex].title ?? '',
+      //       overflow: TextOverflow.fade,
+      //     ),
+      //     // Row(
+      //     //   mainAxisSize: MainAxisSize.max,
+      //     //   mainAxisAlignment: MainAxisAlignment.center,
+      //     //   children: [
+      //     //     webViewTabs[currentTabIndex].isSecure != null
+      //     //         ? Icon(
+      //     //             webViewTabs[currentTabIndex].isSecure == true
+      //     //                 ? Icons.lock
+      //     //                 : Icons.lock_open,
+      //     //             color: webViewTabs[currentTabIndex].isSecure == true
+      //     //                 ? Colors.green
+      //     //                 : Colors.red,
+      //     //             size: 12)
+      //     //         : Container(),
+      //     //     const SizedBox(
+      //     //       width: 5,
+      //     //     ),
+      //     //     // Flexible(
+      //     //     //   child: Text(
+      //     //     //     webViewTabs[currentTabIndex].currentUrl ??
+      //     //     //         webViewTabs[currentTabIndex].url ??
+      //     //     //         '',
+      //     //     //     style: const TextStyle(fontSize: 12, color: Colors.white70),
+      //     //     //     overflow: TextOverflow.fade,
+      //     //     //   ),
+      //     //     // ),
+      //     //   ],
+      //     // ),
+      //   ],
+      // ),
+      actions: _buildWebViewTabActions(),
+    );
   }
 
   Widget _buildWebViewTabs() {
@@ -573,10 +663,7 @@ class _DappState extends State<Dapp> {
         icon: Container(
           margin: const EdgeInsets.only(top: 5, bottom: 5),
           decoration: BoxDecoration(
-              border: Border.all(
-                width: 2.0,
-                color: Theme.of(context).iconTheme.color,
-              ),
+              border: Border.all(width: 2.0, color: Colors.white),
               shape: BoxShape.rectangle,
               borderRadius: BorderRadius.circular(5.0)),
           constraints: const BoxConstraints(minWidth: 25.0),
@@ -621,7 +708,7 @@ class _DappState extends State<Dapp> {
                     child: InkWell(
                       onTap: () async {
                         await goForward();
-                        Get.back();
+                        Navigator.pop(context);
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),
@@ -645,7 +732,7 @@ class _DappState extends State<Dapp> {
                     child: InkWell(
                       onTap: () async {
                         await goBack();
-                        Get.back();
+                        Navigator.pop(context);
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),
@@ -672,7 +759,7 @@ class _DappState extends State<Dapp> {
                           await webViewTabs[currentTabIndex]
                               .controller
                               .reload();
-                          Get.back();
+                          Navigator.pop(context);
                         }
                       },
                       child: Padding(
@@ -698,7 +785,7 @@ class _DappState extends State<Dapp> {
                       onTap: () async {
                         if (webViewTabs[currentTabIndex].controller != null) {
                           await Share.share(url);
-                          Get.back();
+                          Navigator.pop(context);
                         }
                       },
                       child: Padding(
@@ -743,7 +830,7 @@ class _DappState extends State<Dapp> {
                               savedBookMarks,
                             ),
                           );
-                          Get.back();
+                          Navigator.pop(context);
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(15),
@@ -777,7 +864,7 @@ class _DappState extends State<Dapp> {
                             await webViewTabs[currentTabIndex]
                                 .controller
                                 .clearCache();
-                            Get.back();
+                            Navigator.pop(context);
                           }
                         },
                         child: Container(
@@ -816,12 +903,15 @@ class _DappState extends State<Dapp> {
                         final historyTitle = localize.history;
                         final historyEmpty = localize.noHistory;
 
-                        final historyUrl = await Get.off(
-                          SavedUrls(
-                            historyTitle,
-                            historyEmpty,
-                            historyKey,
-                            data: historyList,
+                        final historyUrl = await Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (ctx) => SavedUrls(
+                              historyTitle,
+                              historyEmpty,
+                              historyKey,
+                              data: historyList,
+                            ),
                           ),
                         );
 
@@ -868,7 +958,8 @@ class _DappState extends State<Dapp> {
                                 );
                                 int count = 0;
 
-                                Get.until((route) => count++ == 2);
+                                Navigator.popUntil(
+                                    context, (route) => count++ == 2);
                               },
                               selectedChainId: pref.get(dappChainIdKey),
                             );
@@ -903,9 +994,13 @@ class _DappState extends State<Dapp> {
                     width: double.infinity,
                     child: InkWell(
                       onTap: () async {
-                        Get.back();
-
-                        await Get.to(const Settings());
+                        Navigator.pop(context);
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (ctx) => const Settings(),
+                          ),
+                        );
                       },
                       child: Container(
                         color: Colors.transparent,
@@ -937,7 +1032,7 @@ class _DappState extends State<Dapp> {
                           bool hasPasscode =
                               pref.get(userUnlockPasscodeKey) != null;
                           Widget dappWidget;
-                          Get.back();
+                          Navigator.pop(context);
 
                           if (hasWallet) {
                             dappWidget = const WalletMainBody();
@@ -946,7 +1041,12 @@ class _DappState extends State<Dapp> {
                           } else {
                             dappWidget = const Security();
                           }
-                          await Get.to(dappWidget);
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (ctx) => dappWidget,
+                            ),
+                          );
                         },
                         child: Container(
                           color: Colors.transparent,
