@@ -1,139 +1,161 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cryptowallet/components/wallet_logo.dart';
+import 'package:cryptowallet/screens/wallet_connect_preview.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:decimal/decimal.dart';
-import 'package:eth_sig_util/eth_sig_util.dart';
+import 'package:cryptowallet/utils/wc_connector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:hive/hive.dart';
-import 'package:http/http.dart' as http;
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:wallet_connect/wallet_connect.dart';
 import '../components/loader.dart';
+import '../main.dart';
 import '../utils/app_config.dart';
-import 'package:web3dart/crypto.dart';
-import 'package:web3dart/web3dart.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import '../utils/qr_scan_view.dart';
 
 class WalletConnect extends StatefulWidget {
-  final String wcLink;
-  const WalletConnect({Key key, this.wcLink}) : super(key: key);
+  const WalletConnect({Key key}) : super(key: key);
 
   @override
   _WalletConnectState createState() => _WalletConnectState();
 }
 
 class _WalletConnectState extends State<WalletConnect> {
-  WCClient _wcClient;
-  Box _prefs;
+  Box prefs;
   TextEditingController _textEditingController;
-  String walletAddress, privateKey;
-  int chainId;
-  WCSessionStore _sessionStore;
-  Web3Client _web3client;
-  String currencySymbol;
   String connectedWebsiteUrl = "";
+  List previousSessions;
 
   @override
   void initState() {
-    super.initState();
-    _initialize();
-    if (widget.wcLink != null) {
-      _qrScanHandler(widget.wcLink);
+    prefs = Hive.box(secureStorageKey);
+    if (prefs.get(wcSessionKey) != null) {
+      previousSessions = jsonDecode(prefs.get(wcSessionKey)) as List;
+      previousSessions = previousSessions.reversed.toList();
     }
+    super.initState();
+    _textEditingController = TextEditingController();
   }
 
   @override
   void dispose() {
-    if (_wcClient.isConnected) {
-      _wcClient.killSession();
-      _wcClient.disconnect();
-    }
     _textEditingController.dispose();
     super.dispose();
-  }
-
-  _initialize() async {
-    _wcClient = WCClient(
-      onSessionRequest: _onSessionRequest,
-      onFailure: _onSessionError,
-      onDisconnect: _onSessionClosed,
-      onEthSign: _onSign,
-      onEthSignTransaction: _onSignTransaction,
-      onEthSendTransaction: _onSendTransaction,
-      onCustomRequest: (int id, String request) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('id $id request $request.'),
-        ));
-      },
-      onConnect: _onConnect,
-      onWalletSwitchNetwork: _onSwitchNetwork,
-    );
-
-    _textEditingController = TextEditingController();
-    _prefs = Hive.box(secureStorageKey);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('$walletAbbr WalletConnect'),
+        title: const Text('WalletConnect'),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(seconds: 2));
-          setState(() {});
+          if (mounted) {
+            setState(() {});
+          }
         },
         child: SafeArea(
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(25.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const WalletLogo(),
-                      const SizedBox(
-                        height: 30,
-                      ),
-                      const Text(
-                        ' Wallet Connect',
-                        style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 50),
-                      SizedBox(
-                        width: MediaQuery.of(context).size.width * 0.85,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ButtonStyle(
-                            backgroundColor: MaterialStateProperty.resolveWith(
-                              (states) => Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xff5D5E81)
-                                  : const Color(0xffEBF3FF),
-                            ),
-                            shape: MaterialStateProperty.resolveWith(
-                              (states) => RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.all(25.0),
+              child: ValueListenableBuilder(
+                  valueListenable: Hive.box(secureStorageKey)
+                      .listenable(keys: [wcSessionKey]),
+                  builder: (context, _, __) {
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.85,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ButtonStyle(
+                              backgroundColor:
+                                  MaterialStateProperty.resolveWith(
+                                      (states) => appBackgroundblue),
+                              shape: MaterialStateProperty.resolveWith(
+                                (states) => RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/Qrcode.svg',
+                                    color: Colors.transparent,
+                                  ),
+                                  Text(
+                                    AppLocalizations.of(context).connectViAQR,
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  SvgPicture.asset('assets/Qrcode.svg'),
+                                ],
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const QRScanView(),
+                                ),
+                              ).then((value) {
+                                if (value != null) {
+                                  WcConnector.qrScanHandler(value);
+                                }
+                              });
+                            },
                           ),
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: Text.rich(
-                              TextSpan(
-                                text: 'Connect Previous Session?',
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .primaryTextTheme
+                                  .bodyLarge
+                                  .color,
+                            ),
+                            borderRadius: const BorderRadius.all(
+                              Radius.circular(10),
+                            ),
+                          ),
+                          width: MediaQuery.of(context).size.width * 0.85,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ButtonStyle(
+                              elevation: MaterialStateProperty.resolveWith(
+                                (states) => 0,
+                              ),
+                              backgroundColor:
+                                  MaterialStateProperty.resolveWith(
+                                (states) =>
+                                    Theme.of(context).scaffoldBackgroundColor,
+                              ),
+                              shape: MaterialStateProperty.resolveWith(
+                                (states) => RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: Text(
+                                AppLocalizations.of(context).connectViACode,
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -144,680 +166,302 @@ class _WalletConnectState extends State<WalletConnect> {
                                 ),
                               ),
                             ),
+                            onPressed: () {
+                              showGeneralDialog(
+                                  context: context,
+                                  barrierDismissible: true,
+                                  barrierLabel:
+                                      AppLocalizations.of(context).pasteCode,
+                                  pageBuilder: (context, _, __) {
+                                    return SimpleDialog(
+                                      title: Text(
+                                        AppLocalizations.of(context).pasteCode,
+                                      ),
+                                      titlePadding: const EdgeInsets.fromLTRB(
+                                          16.0, 16.0, 16.0, .0),
+                                      contentPadding:
+                                          const EdgeInsets.all(16.0),
+                                      children: [
+                                        TextFormField(
+                                          controller: _textEditingController,
+                                          decoration: InputDecoration(
+                                            label: Text(
+                                              AppLocalizations.of(context)
+                                                  .enterCode,
+                                            ),
+
+                                            focusedBorder:
+                                                const OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                            Radius.circular(
+                                                                10.0)),
+                                                    borderSide:
+                                                        BorderSide.none),
+                                            border: const OutlineInputBorder(
+                                                borderRadius: BorderRadius.all(
+                                                    Radius.circular(10.0)),
+                                                borderSide: BorderSide.none),
+                                            enabledBorder:
+                                                const OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                            Radius.circular(
+                                                                10.0)),
+                                                    borderSide:
+                                                        BorderSide.none), // you
+                                            filled: true,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16.0),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: Text(
+                                                AppLocalizations.of(context)
+                                                    .confirm,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  }).then((_) {
+                                if (_textEditingController.text.isNotEmpty) {
+                                  WcConnector.qrScanHandler(
+                                    _textEditingController.text,
+                                  );
+                                  _textEditingController.clear();
+                                }
+                              });
+                            },
                           ),
-                          onPressed: () {
-                            _connectToPreviousSession();
-                          },
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      _wcClient.isConnected
-                          ? SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: 50,
-                              child: ElevatedButton(
-                                style: ButtonStyle(
-                                  backgroundColor:
-                                      MaterialStateProperty.resolveWith(
-                                          (states) => appBackgroundblue),
-                                  shape: MaterialStateProperty.resolveWith(
-                                    (states) => RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
+                        if (WcConnector.wcClient.isConnected) ...[
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.85,
+                            height: 50,
+                            child: ElevatedButton(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    MaterialStateProperty.resolveWith(
+                                        (states) => red),
+                                shape: MaterialStateProperty.resolveWith(
+                                  (states) => RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    AppLocalizations.of(context).killSession,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  _wcClient.killSession();
-                                },
                               ),
-                            )
-                          : SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: 50,
-                              child: ElevatedButton(
-                                style: ButtonStyle(
-                                  backgroundColor:
-                                      MaterialStateProperty.resolveWith(
-                                          (states) => appBackgroundblue),
-                                  shape: MaterialStateProperty.resolveWith(
-                                    (states) => RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: Text(
+                                  AppLocalizations.of(context).killSession,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              onPressed: () async {
+                                await WcConnector.wcClient.killSession();
+                                await WcConnector.removedCurrentSession();
+                              },
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        if (previousSessions != null)
+                          for (int i = 0; i < previousSessions.length; i++) ...[
+                            Dismissible(
+                              onDismissed: (DismissDirection direction) {
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                              },
+                              direction: DismissDirection.endToStart,
+                              secondaryBackground: Container(
+                                color: Colors.red,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 15),
+                                alignment: Alignment.centerRight,
+                                child: const Padding(
+                                  padding: EdgeInsets.only(right: 10),
+                                  child: Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      SvgPicture.asset(
-                                        'assets/Qrcode.svg',
-                                        color: Colors.transparent,
-                                      ),
-                                      Text(
-                                        AppLocalizations.of(context)
-                                            .connectViAQR,
-                                        style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      SvgPicture.asset('assets/Qrcode.svg'),
-                                    ],
+                              ),
+                              background: Container(
+                                color: Colors.blue,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 15),
+                                alignment: Alignment.centerLeft,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Icon(
+                                    Icons.edit,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                onPressed: () {
+                              ),
+                              key: UniqueKey(),
+                              confirmDismiss:
+                                  (DismissDirection direction) async {
+                                if (direction.name == 'endToStart') {
+                                  try {
+                                    if (prefs.get(wcSessionKey) == null) {
+                                      return false;
+                                    }
+                                    List sessions =
+                                        jsonDecode(prefs.get(wcSessionKey))
+                                            as List;
+
+                                    sessions.removeAt(i);
+                                    previousSessions = sessions;
+                                    await prefs.put(
+                                        wcSessionKey, jsonEncode(sessions));
+                                    return true;
+                                  } catch (_) {
+                                    return false;
+                                  }
+                                }
+                                return false;
+                              },
+                              child: GestureDetector(
+                                onTap: () async {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => const QRScanView(),
+                                      builder: (ctx) => WalletConnectPreview(
+                                          data: previousSessions[i]),
                                     ),
-                                  ).then((value) {
-                                    if (value != null) {
-                                      _qrScanHandler(value);
-                                    }
-                                  });
+                                  );
                                 },
-                              ),
-                            ),
-                      _wcClient.isConnected
-                          ? Container()
-                          : const SizedBox(height: 20),
-                      _wcClient.isConnected
-                          ? Container()
-                          : Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Theme.of(context)
-                                      .primaryTextTheme
-                                      .bodyLarge
-                                      .color,
-                                ),
-                                borderRadius: const BorderRadius.all(
-                                  Radius.circular(10),
-                                ),
-                              ),
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: 50,
-                              child: ElevatedButton(
-                                style: ButtonStyle(
-                                  elevation: MaterialStateProperty.resolveWith(
-                                    (states) => 0,
-                                  ),
-                                  backgroundColor:
-                                      MaterialStateProperty.resolveWith(
-                                    (states) => Theme.of(context)
-                                        .scaffoldBackgroundColor,
-                                  ),
-                                  shape: MaterialStateProperty.resolveWith(
-                                    (states) => RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                ),
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    AppLocalizations.of(context).connectViACode,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context)
-                                          .primaryTextTheme
-                                          .bodyLarge
-                                          .color,
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  showGeneralDialog(
-                                      context: context,
-                                      barrierDismissible: true,
-                                      barrierLabel: AppLocalizations.of(context)
-                                          .pasteCode,
-                                      pageBuilder: (context, _, __) {
-                                        return SimpleDialog(
-                                          title: Text(
-                                            AppLocalizations.of(context)
-                                                .pasteCode,
-                                          ),
-                                          titlePadding:
-                                              const EdgeInsets.fromLTRB(
-                                                  16.0, 16.0, 16.0, .0),
-                                          contentPadding:
-                                              const EdgeInsets.all(16.0),
-                                          children: [
-                                            TextFormField(
-                                              controller:
-                                                  _textEditingController,
-                                              decoration: InputDecoration(
-                                                label: Text(
-                                                  AppLocalizations.of(context)
-                                                      .enterCode,
-                                                ),
-
-                                                focusedBorder:
-                                                    const OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(
-                                                                Radius.circular(
-                                                                    10.0)),
-                                                        borderSide:
-                                                            BorderSide.none),
-                                                border:
-                                                    const OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(
-                                                                Radius.circular(
-                                                                    10.0)),
-                                                        borderSide:
-                                                            BorderSide.none),
-                                                enabledBorder:
-                                                    const OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(
-                                                                Radius.circular(
-                                                                    10.0)),
-                                                        borderSide: BorderSide
-                                                            .none), // you
-                                                filled: true,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 16.0),
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.end,
-                                              children: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context),
-                                                  child: Text(
-                                                    AppLocalizations.of(context)
-                                                        .confirm,
+                                child: Card(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              if (previousSessions[i]
+                                                              ['remotePeerMeta']
+                                                          ['icons'] !=
+                                                      null &&
+                                                  previousSessions[i][
+                                                                  'remotePeerMeta']
+                                                              ['icons']
+                                                          .length !=
+                                                      0)
+                                                Container(
+                                                  height: 50.0,
+                                                  width: 50.0,
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          bottom: 8.0),
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: ipfsTohttp(
+                                                      previousSessions[i]
+                                                              ['remotePeerMeta']
+                                                          ['icons'][0],
+                                                    ),
+                                                    placeholder:
+                                                        (context, url) =>
+                                                            Column(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: const [
+                                                        SizedBox(
+                                                          width: 20,
+                                                          height: 20,
+                                                          child: Loader(
+                                                            color:
+                                                                appPrimaryColor,
+                                                          ),
+                                                        )
+                                                      ],
+                                                    ),
+                                                    errorWidget:
+                                                        (context, url, error) =>
+                                                            const Icon(
+                                                      Icons.error,
+                                                      color: Colors.red,
+                                                    ),
                                                   ),
+                                                )
+                                              else
+                                                const SizedBox(
+                                                  height: 50.0,
+                                                  width: 50.0,
                                                 ),
-                                              ],
-                                            ),
-                                          ],
-                                        );
-                                      }).then((_) {
-                                    if (_textEditingController
-                                        .text.isNotEmpty) {
-                                      _qrScanHandler(
-                                          _textEditingController.text);
-                                      _textEditingController.clear();
-                                    }
-                                  });
-                                },
+                                              const SizedBox(
+                                                width: 10,
+                                              ),
+                                              Flexible(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      previousSessions[i]
+                                                              ['remotePeerMeta']
+                                                          ['name'],
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    Text(
+                                                      previousSessions[i]
+                                                              ['remotePeerMeta']
+                                                          ['url'],
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Icon(Icons.arrow_forward_ios)
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                      const SizedBox(height: 20),
-                      _wcClient.isConnected
-                          ? Text(
-                              '${AppLocalizations.of(context).connectedTo} $connectedWebsiteUrl')
-                          : Container()
-                    ],
-                  ),
-                ),
-              ],
+                            const Divider(
+                              height: 10,
+                            ),
+                          ],
+                      ],
+                    );
+                  }),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  _qrScanHandler(String value) {
-    final session = WCSession.from(value);
-    debugPrint('session $session');
-    final peerMeta = WCPeerMeta(
-      name: walletName,
-      url: walletURL,
-      description: walletAbbr,
-      icons: [walletIconURL],
-    );
-    _wcClient.connectNewSession(session: session, peerMeta: peerMeta);
-  }
-
-  _connectToPreviousSession() {
-    final _sessionSaved = _prefs.get('session');
-    debugPrint('_sessionSaved $_sessionSaved');
-    _sessionStore = _sessionSaved != null
-        ? WCSessionStore.fromJson(jsonDecode(_sessionSaved))
-        : null;
-    if (_sessionStore != null) {
-      debugPrint('_sessionStore $_sessionStore');
-      _wcClient.connectFromSessionStore(_sessionStore);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).noPreviousSessionFound),
-        ),
-      );
-    }
-  }
-
-  _onConnect() {
-    setState(() {});
-  }
-
-  _onSessionRequest(int id, WCPeerMeta peerMeta) {
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (_) {
-        return SimpleDialog(
-          title: Column(
-            children: [
-              if (peerMeta.icons.isNotEmpty)
-                Container(
-                  height: 100.0,
-                  width: 100.0,
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: CachedNetworkImage(
-                    imageUrl: ipfsTohttp(peerMeta.icons.first),
-                    placeholder: (context, url) => Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Loader(
-                            color: appPrimaryColor,
-                          ),
-                        )
-                      ],
-                    ),
-                    errorWidget: (context, url, error) => const Icon(
-                      Icons.error,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              Text(peerMeta.name),
-            ],
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
-          children: [
-            if (peerMeta.description.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(peerMeta.description),
-              ),
-            if (peerMeta.url.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                    '${AppLocalizations.of(context).connectedTo} ${peerMeta.url}'),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                    ),
-                    onPressed: () async {
-                      showBlockChainDialog(
-                          context: context,
-                          onTap: (blockChainData) async {
-                            currencySymbol = blockChainData['symbol'];
-                            final mnemonic = Hive.box(secureStorageKey)
-                                .get(currentMmenomicKey);
-                            final response = await getEthereumFromMemnomic(
-                              mnemonic,
-                              blockChainData['coinType'],
-                            );
-                            chainId = blockChainData['chainId'];
-                            walletAddress = response['eth_wallet_address'];
-                            privateKey = response['eth_wallet_privateKey'];
-                            _web3client = Web3Client(
-                              blockChainData['rpc'],
-                              http.Client(),
-                            );
-                            _wcClient.approveSession(
-                              accounts: [walletAddress],
-                              chainId: blockChainData['chainId'],
-                            );
-                            _sessionStore = _wcClient.sessionStore;
-                            await _prefs.put(
-                              'session',
-                              jsonEncode(_wcClient.sessionStore.toJson()),
-                            );
-
-                            connectedWebsiteUrl = peerMeta.url;
-                            setState(() {});
-                            int count = 0;
-                            Navigator.popUntil(context, (route) {
-                              return count++ == 2;
-                            });
-                          });
-                    },
-                    child: Text(AppLocalizations.of(context).confirm),
-                  ),
-                ),
-                const SizedBox(width: 16.0),
-                Expanded(
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                    ),
-                    onPressed: () {
-                      _wcClient.rejectSession();
-                      Navigator.pop(context);
-                    },
-                    child: Text(AppLocalizations.of(context).reject),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  _onSessionError(dynamic message) async {
-    setState(() {});
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (_) {
-        return SimpleDialog(
-          title: Text(AppLocalizations.of(context).error),
-          contentPadding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                  '${AppLocalizations.of(context).someErrorOccured}. $message'),
-            ),
-            Row(
-              children: [
-                TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.secondary,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text(AppLocalizations.of(context).close),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  _onSessionClosed(int code, String reason) async {
-    await _prefs.delete('session');
-    setState(() {});
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (_) {
-        return SimpleDialog(
-          title: Text(AppLocalizations.of(context).sessionEnded),
-          contentPadding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                  '${AppLocalizations.of(context).someErrorOccured}. ERROR CODE: $code'),
-            ),
-            if (reason != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                    '${AppLocalizations.of(context).failureReason}: $reason'),
-              ),
-            Row(
-              children: [
-                TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.secondary,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text(AppLocalizations.of(context).close),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  _onSignTransaction(
-    int id,
-    WCEthereumTransaction ethereumTransaction,
-  ) {
-    _onTransaction(
-      id: id,
-      ethereumTransaction: ethereumTransaction,
-      title: AppLocalizations.of(context).signTransaction,
-      onConfirm: () async {
-        try {
-          final creds = EthPrivateKey.fromHex(privateKey);
-          final tx = await _web3client.signTransaction(
-            creds,
-            _wcEthTxToWeb3Tx(ethereumTransaction),
-            chainId: _wcClient.chainId,
-          );
-          _wcClient.approveRequest<String>(
-            id: id,
-            result: bytesToHex(tx),
-          );
-        } catch (e) {
-          _wcClient.rejectRequest(id: id);
-        } finally {
-          Navigator.pop(context);
-        }
-      },
-      onReject: () {
-        _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  _onSwitchNetwork(int id, int chainIdNew) async {
-    final currentChainIdData = getEthereumDetailsFromChainId(chainId);
-    final switchChainIdData = getEthereumDetailsFromChainId(chainIdNew);
-    if (chainId == chainIdNew) {
-      _wcClient.rejectRequest(id: id);
-      return;
-    }
-
-    if (switchChainIdData == null) {
-      _wcClient.rejectRequest(id: id);
-      return;
-    }
-    switchEthereumChain(
-      context: context,
-      currentChainIdData: currentChainIdData,
-      switchChainIdData: switchChainIdData,
-      onConfirm: () async {
-        _web3client = Web3Client(
-          switchChainIdData['rpc'],
-          http.Client(),
-        );
-        await _wcClient.updateSession(chainId: chainIdNew);
-        _wcClient.approveRequest<void>(id: id, result: null);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Changed network to $chainIdNew.'),
-        ));
-        chainId = chainIdNew;
-        Navigator.pop(context);
-      },
-      onReject: () async {
-        _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  _onSendTransaction(
-    int id,
-    WCEthereumTransaction ethereumTransaction,
-  ) {
-    _onTransaction(
-      id: id,
-      ethereumTransaction: ethereumTransaction,
-      title: AppLocalizations.of(context).sendTransaction,
-      onConfirm: () async {
-        try {
-          final creds = EthPrivateKey.fromHex(privateKey);
-          final txhash = await _web3client.sendTransaction(
-            creds,
-            _wcEthTxToWeb3Tx(ethereumTransaction),
-            chainId: _wcClient.chainId,
-          );
-          debugPrint('txhash $txhash');
-          _wcClient.approveRequest<String>(
-            id: id,
-            result: txhash,
-          );
-        } catch (e) {
-          _wcClient.rejectRequest(id: id);
-        } finally {
-          Navigator.pop(context);
-        }
-      },
-      onReject: () {
-        _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  _onTransaction({
-    int id,
-    WCEthereumTransaction ethereumTransaction,
-    String title,
-    VoidCallback onConfirm,
-    VoidCallback onReject,
-  }) async {
-    List icons = _wcClient.remotePeerMeta.icons;
-    await signTransaction(
-      gasPriceInWei_: ethereumTransaction.gasPrice,
-      to: ethereumTransaction.to,
-      from: ethereumTransaction.from,
-      txData: ethereumTransaction.data,
-      valueInWei_: ethereumTransaction.value,
-      gasInWei_: ethereumTransaction.gas,
-      networkIcon: icons.isNotEmpty ? icons[0] : null,
-      context: context,
-      blockChainCurrencySymbol: currencySymbol,
-      name: _wcClient.remotePeerMeta.name,
-      onConfirm: onConfirm,
-      onReject: onReject,
-      title: title,
-      chainId: _wcClient.chainId,
-    );
-  }
-
-  _onSign(
-    int id,
-    WCEthereumSignMessage ethereumSignMessage,
-  ) async {
-    List icon = _wcClient.remotePeerMeta.icons;
-    String messageType = '';
-    if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
-      messageType = personalSignKey;
-    } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
-      messageType = normalSignKey;
-    } else if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
-      messageType = typedMessageSignKey;
-    }
-
-    await signMessage(
-      messageType: messageType,
-      context: context,
-      data: ethereumSignMessage.data,
-      networkIcon: icon.isNotEmpty ? icon[0] : null,
-      name: _wcClient.remotePeerMeta.name,
-      onConfirm: () async {
-        String signedDataHex;
-        final credentials = EthPrivateKey.fromHex(privateKey);
-        if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
-          signedDataHex = EthSigUtil.signTypedData(
-            privateKey: privateKey,
-            jsonData: ethereumSignMessage.data,
-            version: TypedDataVersion.V4,
-          );
-        } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
-          Uint8List signedData = await credentials.signPersonalMessage(
-            txDataToUintList(
-              ethereumSignMessage.data,
-            ),
-          );
-          signedDataHex = bytesToHex(signedData, include0x: true);
-        } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
-          try {
-            signedDataHex = EthSigUtil.signMessage(
-              privateKey: privateKey,
-              message: txDataToUintList(
-                ethereumSignMessage.data,
-              ),
-            );
-          } catch (e) {
-            Uint8List signedData = await credentials.signPersonalMessage(
-              txDataToUintList(
-                ethereumSignMessage.data,
-              ),
-            );
-            signedDataHex = bytesToHex(signedData, include0x: true);
-          }
-        }
-        debugPrint('SIGNED $signedDataHex');
-        _wcClient.approveRequest<String>(
-          id: id,
-          result: signedDataHex,
-        );
-        Navigator.pop(context);
-      },
-      onReject: () {
-        _wcClient.rejectRequest(id: id);
-        Navigator.pop(context);
-      },
-    );
-  }
-
-  Transaction _wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
-    return Transaction(
-      from: EthereumAddress.fromHex(ethereumTransaction.from),
-      to: EthereumAddress.fromHex(ethereumTransaction.to),
-      maxGas: ethereumTransaction.gasLimit != null
-          ? int.tryParse(ethereumTransaction.gasLimit)
-          : null,
-      gasPrice: ethereumTransaction.gasPrice != null
-          ? EtherAmount.inWei(BigInt.parse(ethereumTransaction.gasPrice))
-          : null,
-      value: EtherAmount.inWei(BigInt.parse(ethereumTransaction.value ?? '0')),
-      data: hexToBytes(ethereumTransaction.data),
-      nonce: ethereumTransaction.nonce != null
-          ? int.tryParse(ethereumTransaction.nonce)
-          : null,
     );
   }
 }

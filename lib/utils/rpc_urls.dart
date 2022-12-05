@@ -30,6 +30,7 @@ import 'package:http/http.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:validators/validators.dart';
+import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/web3dart.dart' as web3;
 import 'package:web3dart/web3dart.dart';
 import 'package:path/path.dart';
@@ -3432,4 +3433,36 @@ selectImage({
       onSelect(file);
     },
   ).show();
+}
+
+final List<String> months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+];
+web3.Transaction wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
+  return web3.Transaction(
+    from: EthereumAddress.fromHex(ethereumTransaction.from),
+    to: EthereumAddress.fromHex(ethereumTransaction.to),
+    maxGas: ethereumTransaction.gasLimit != null
+        ? int.tryParse(ethereumTransaction.gasLimit)
+        : null,
+    gasPrice: ethereumTransaction.gasPrice != null
+        ? EtherAmount.inWei(BigInt.parse(ethereumTransaction.gasPrice))
+        : null,
+    value: EtherAmount.inWei(BigInt.parse(ethereumTransaction.value ?? '0')),
+    data: hexToBytes(ethereumTransaction.data),
+    nonce: ethereumTransaction.nonce != null
+        ? int.tryParse(ethereumTransaction.nonce)
+        : null,
+  );
 }

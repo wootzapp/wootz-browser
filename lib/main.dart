@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cryptowallet/screens/dapp.dart';
 import 'package:cryptowallet/screens/open_app_pin_failed.dart';
 import 'package:cryptowallet/utils/app_config.dart';
+import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -18,6 +19,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:page_transition/page_transition.dart';
 
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+
+import 'utils/wc_connector.dart';
 
 void main() async {
   Paint.enableDithering = true;
@@ -152,6 +155,7 @@ class _MyAppState extends State<MyApp> {
         builder: (_, ThemeMode currentMode, __) {
           return Obx(
             () => GetMaterialApp(
+              navigatorKey: NavigationService.navigatorKey, // set property
               locale: _locale.value,
               debugShowCheckedModeBanner: false,
               theme: lightTheme,
@@ -178,6 +182,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     checkNavigation();
+    WcConnector();
   }
 
   Future<void> checkNavigation() async {

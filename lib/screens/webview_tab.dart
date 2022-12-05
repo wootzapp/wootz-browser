@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:cryptowallet/utils/wc_connector.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import 'package:cryptowallet/utils/rpc_urls.dart';
@@ -14,6 +15,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:web3dart/web3dart.dart';
 
@@ -192,8 +194,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 forceDark: Theme.of(context).brightness == Brightness.dark
                     ? ForceDark.ON
                     : ForceDark.OFF,
-                javaScriptCanOpenWindowsAutomatically: true,
-                supportMultipleWindows: true,
+                // javaScriptCanOpenWindowsAutomatically: true,
+                // supportMultipleWindows: true,
                 isFraudulentWebsiteWarningEnabled: true,
                 safeBrowsingEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,
@@ -210,7 +212,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 NavigationAction shouldOverrideUrl,
               ) async {
                 Uri url = shouldOverrideUrl.request.url;
-
+                String url_ = url.toString();
                 List<String> allowedAction = [
                   "http",
                   "https",
@@ -220,6 +222,33 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   "javascript",
                   "about"
                 ];
+                if (url_.contains('wc?uri=')) {
+                  final wcUri = Uri.parse(
+                    Uri.decodeFull(
+                      Uri.parse(url_).queryParameters['uri'],
+                    ),
+                  );
+
+                  final session = WCSession.from(wcUri.toString());
+
+                  if (session != WCSession.empty()) {
+                    await WcConnector.qrScanHandler(wcUri.toString());
+                  } else {
+                    await WcConnector.wcReconnect();
+                  }
+
+                  return NavigationActionPolicy.CANCEL;
+                } else if (url_.startsWith('wc:')) {
+                  final session = WCSession.from(url_);
+
+                  if (session != WCSession.empty()) {
+                    await WcConnector.qrScanHandler(url_);
+                  } else {
+                    await WcConnector.wcReconnect();
+                  }
+
+                  return NavigationActionPolicy.CANCEL;
+                }
                 if (!allowedAction.contains(url.scheme)) {
                   try {
                     await launchUrl(url);
