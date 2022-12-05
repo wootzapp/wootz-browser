@@ -50,7 +50,6 @@ class _DappState extends State<Dapp> {
   String initJs = '';
   List<WebViewTab> webViewTabs = [];
   int currentTabIndex = 0;
-  final kHomeUrl = 'https://google.com';
   @override
   initState() {
     super.initState();
@@ -71,7 +70,7 @@ class _DappState extends State<Dapp> {
     WebViewTab webViewTab;
 
     if (url == null && windowId == null) {
-      url = kHomeUrl;
+      url = walletURL;
     }
 
     webViewTab = WebViewTab(
@@ -556,99 +555,6 @@ class _DappState extends State<Dapp> {
       ),
       preferredSize: const Size.fromHeight(100),
     );
-    return AppBar(
-      leading: IconButton(
-          onPressed: () {
-            _addWebViewTab();
-          },
-          icon: const Icon(Icons.add)),
-      title: TextFormField(
-        onFieldSubmitted: (value) async {
-          FocusManager.instance.primaryFocus?.unfocus();
-          if (webViewTabs[currentTabIndex].controller != null) {
-            Uri uri = blockChainToHttps(value.trim());
-            await webViewTabs[currentTabIndex].controller.loadUrl(
-                  urlRequest: URLRequest(url: WebUri.uri(uri)),
-                );
-          }
-        },
-        textInputAction: TextInputAction.search,
-        controller: webViewTabs[currentTabIndex].browserController,
-        decoration: InputDecoration(
-          prefixIcon: webViewTabs[currentTabIndex].isSecure != null
-              ? Icon(
-                  webViewTabs[currentTabIndex].isSecure == true
-                      ? Icons.lock
-                      : Icons.lock_open,
-                  color: webViewTabs[currentTabIndex].isSecure == true
-                      ? Colors.green
-                      : Colors.red,
-                  size: 12)
-              : Container(),
-          isDense: true,
-          suffixIcon: IconButton(
-            icon: const Icon(
-              Icons.cancel,
-            ),
-            onPressed: () {
-              webViewTabs[currentTabIndex].browserController.clear();
-            },
-          ),
-          hintText: AppLocalizations.of(context).searchOrEnterUrl,
-
-          filled: true,
-          focusedBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10.0)),
-              borderSide: BorderSide.none),
-          border: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10.0)),
-              borderSide: BorderSide.none),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(10.0)),
-            borderSide: BorderSide.none,
-          ), // you
-        ),
-      ),
-
-      // title: Column(
-      //   mainAxisAlignment: MainAxisAlignment.center,
-      //   children: [
-      //     Text(
-      //       webViewTabs[currentTabIndex].title ?? '',
-      //       overflow: TextOverflow.fade,
-      //     ),
-      //     // Row(
-      //     //   mainAxisSize: MainAxisSize.max,
-      //     //   mainAxisAlignment: MainAxisAlignment.center,
-      //     //   children: [
-      //     //     webViewTabs[currentTabIndex].isSecure != null
-      //     //         ? Icon(
-      //     //             webViewTabs[currentTabIndex].isSecure == true
-      //     //                 ? Icons.lock
-      //     //                 : Icons.lock_open,
-      //     //             color: webViewTabs[currentTabIndex].isSecure == true
-      //     //                 ? Colors.green
-      //     //                 : Colors.red,
-      //     //             size: 12)
-      //     //         : Container(),
-      //     //     const SizedBox(
-      //     //       width: 5,
-      //     //     ),
-      //     //     // Flexible(
-      //     //     //   child: Text(
-      //     //     //     webViewTabs[currentTabIndex].currentUrl ??
-      //     //     //         webViewTabs[currentTabIndex].url ??
-      //     //     //         '',
-      //     //     //     style: const TextStyle(fontSize: 12, color: Colors.white70),
-      //     //     //     overflow: TextOverflow.fade,
-      //     //     //   ),
-      //     //     // ),
-      //     //   ],
-      //     // ),
-      //   ],
-      // ),
-      actions: _buildWebViewTabActions(),
-    );
   }
 
   Widget _buildWebViewTabs() {
@@ -667,7 +573,10 @@ class _DappState extends State<Dapp> {
         icon: Container(
           margin: const EdgeInsets.only(top: 5, bottom: 5),
           decoration: BoxDecoration(
-              border: Border.all(width: 2.0, color: Colors.white),
+              border: Border.all(
+                width: 2.0,
+                color: Theme.of(context).iconTheme.color,
+              ),
               shape: BoxShape.rectangle,
               borderRadius: BorderRadius.circular(5.0)),
           constraints: const BoxConstraints(minWidth: 25.0),
