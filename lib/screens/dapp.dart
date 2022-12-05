@@ -977,31 +977,42 @@ class _DappState extends State<Dapp> {
   PreferredSize _buildWebViewTabViewerAppBar() {
     return PreferredSize(
         child: SafeArea(
-          child: GestureDetector(
-            onTap: () {
-              _addWebViewTab();
-              setState(() {
-                showWebViewTabsViewer = false;
-              });
-            },
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8.0),
-              child: SizedBox(
-                height: 50,
-                child: Row(
-                  children: const [
-                    Icon(Icons.add),
-                    SizedBox(
-                      width: 20,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InkWell(
+                onTap: () {
+                  _addWebViewTab();
+                  setState(() {
+                    showWebViewTabsViewer = false;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: SizedBox(
+                    height: 50,
+                    child: Row(
+                      children: const [
+                        Icon(Icons.add),
+                        SizedBox(
+                          width: 20,
+                        ),
+                        Text('New Tab'),
+                      ],
                     ),
-                    Text('New Tab'),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              IconButton(
+                onPressed: () {
+                  _closeAllWebViewTabs();
+                },
+                icon: const Icon(Icons.clear_all),
+              )
+            ],
           ),
         ),
-        preferredSize: Size.fromHeight(150));
+        preferredSize: const Size.fromHeight(150));
   }
 
   Widget _buildWebViewTabsViewer() {
