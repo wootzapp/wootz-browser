@@ -39,6 +39,11 @@ class WebViewTab extends StatefulWidget {
     return state?._isSecure;
   }
 
+  InAppWebViewController get controller {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    return state?._controller;
+  }
+
   Uint8List get screenshot {
     final state = (key as GlobalKey).currentState as _WebViewTabState;
     return state?._screenshot;
