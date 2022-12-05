@@ -616,7 +616,7 @@ class _DappState extends State<Dapp> {
             });
           },
           icon: const Icon(Icons.arrow_back)),
-      title: const Text('WebView Tab Viewer'),
+      title: const Text('Tabs'),
       actions: _buildWebViewTabsViewerActions(),
     );
   }
