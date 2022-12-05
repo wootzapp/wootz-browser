@@ -109,21 +109,6 @@ class _DappState extends State<Dapp> {
             children: [
               IconButton(
                 constraints: const BoxConstraints(maxWidth: 35),
-                onPressed: () async {
-                  if (webViewTabs[currentTabIndex].controller != null) {
-                    webViewTabs[currentTabIndex].controller.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri(walletURL),
-                          ),
-                        );
-                  }
-                },
-                icon: const Icon(
-                  Icons.home_filled,
-                ),
-              ),
-              IconButton(
-                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () {
                   _addWebViewTab();
                 },
@@ -191,7 +176,6 @@ class _DappState extends State<Dapp> {
                 width: 5,
               ),
               IconButton(
-                constraints: const BoxConstraints(maxWidth: 35),
                 onPressed: () async {
                   await webViewTabs[currentTabIndex].updateScreenshot();
                   setState(() {
