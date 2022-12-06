@@ -109,12 +109,16 @@ class _DappState extends State<Dapp> {
             children: [
               IconButton(
                 onPressed: () async {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
+                  if (webViewTabs[currentTabIndex].controller != null) {
+                    webViewTabs[currentTabIndex].controller.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri(walletURL),
+                          ),
+                        );
                   }
                 },
                 icon: const Icon(
-                  Icons.close,
+                  Icons.home_filled,
                 ),
               ),
               Flexible(
