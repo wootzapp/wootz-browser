@@ -6,6 +6,7 @@ import 'package:cryptowallet/screens/open_app_pin_failed.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:cryptowallet/utils/web_notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
@@ -27,6 +28,7 @@ void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
   await FlutterDownloader.initialize();
+  await WebNotificationPermissionDb.loadSavedPermissions();
   await Hive.initFlutter();
   if (Platform.isIOS) {
     await Firebase.initializeApp(

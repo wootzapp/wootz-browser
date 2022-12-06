@@ -140,6 +140,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Favicon _favicon;
   double _progress = 0;
   String initJs = '';
+  final jsonNotification =
+      jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
 
   final ReceivePort _port = ReceivePort();
@@ -728,7 +730,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                     injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
                 UserScript(source: """
     (function(window) {
-      var notificationPermissionDb = $json;
+      var notificationPermissionDb = $jsonNotification;
       if (notificationPermissionDb[window.location.host] === 'granted') {
         Notification._permission = 'granted';
       } 
@@ -852,6 +854,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         ),
       ),
     ]);
+  }
+
+  resetNotificationPermission() async {
+    WebNotificationPermissionDb.clear();
+    await webNotificationController?.resetPermission();
   }
 
   Future<WebNotificationPermission> onNotificationRequestPermission() async {
