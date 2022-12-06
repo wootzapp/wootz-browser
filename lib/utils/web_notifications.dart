@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:hive/hive.dart';
 
+// ignore: constant_identifier_names
 enum WebNotificationPermission { GRANTED, DENIED, DEFAULT }
 
 class WebNotificationAction {
