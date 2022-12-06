@@ -28,8 +28,8 @@ void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
   await FlutterDownloader.initialize();
-  await WebNotificationPermissionDb.loadSavedPermissions();
   await Hive.initFlutter();
+
   if (Platform.isIOS) {
     await Firebase.initializeApp(
       options: const FirebaseOptions(
@@ -74,7 +74,7 @@ void main() async {
     return true;
   };
   final pref = await Hive.openBox(secureStorageKey);
-
+  await WebNotificationPermissionDb.loadSavedPermissions();
   runApp(
     Phoenix(
         child: RestartWidget(
