@@ -198,6 +198,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 forceDark: Theme.of(context).brightness == Brightness.dark
                     ? ForceDark.ON
                     : ForceDark.OFF,
+                javaScriptCanOpenWindowsAutomatically: true,
+                supportMultipleWindows: true,
                 isFraudulentWebsiteWarningEnabled: true,
                 safeBrowsingEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,
@@ -686,6 +688,37 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 });
               },
               onCreateWindow: (controller, createWindowAction) async {
+                WebUri url = createWindowAction.request.url;
+
+                if (url != null) {
+                  String url_ = url.toString();
+
+                  if (url_.contains('wc?uri=')) {
+                    final wcUri = Uri.parse(
+                      Uri.decodeFull(
+                        Uri.parse(url_).queryParameters['uri'],
+                      ),
+                    );
+
+                    final session = WCSession.from(wcUri.toString());
+
+                    if (session != WCSession.empty()) {
+                      await WcConnector.qrScanHandler(wcUri.toString());
+                    } else {
+                      await WcConnector.wcReconnect();
+                    }
+                    return false;
+                  } else if (url_.startsWith('wc:')) {
+                    final session = WCSession.from(url_);
+
+                    if (session != WCSession.empty()) {
+                      await WcConnector.qrScanHandler(url_);
+                    } else {
+                      await WcConnector.wcReconnect();
+                    }
+                    return false;
+                  }
+                }
                 widget.onCreateTabRequested(createWindowAction);
                 return true;
               },
