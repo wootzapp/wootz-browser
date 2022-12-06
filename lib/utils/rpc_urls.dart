@@ -2269,8 +2269,38 @@ showBlockChainDialog({
         shrinkWrap: true,
         children: <Widget>[
           const SizedBox(height: 20),
-          Center(
-            child: Text(AppLocalizations.of(context).selectBlockchains),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  onPressed: null,
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.transparent,
+                  ),
+                ),
+              ),
+              Text(
+                AppLocalizations.of(context).selectBlockchains,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20.0,
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  onPressed: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           ...ethEnabledBlockChain,
@@ -2278,6 +2308,7 @@ showBlockChainDialog({
         ],
       ),
     ),
+    canDismiss: false,
   );
 }
 
@@ -2432,6 +2463,7 @@ switchEthereumChain({
         ],
       ),
     ),
+    canDismiss: false,
   );
 }
 
