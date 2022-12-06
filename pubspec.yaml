@@ -108,6 +108,7 @@ dependencies:
   flutter_phoenix: ^1.1.0
   flutter_downloader: ^1.9.1
   permission_handler: ^10.2.0
+  vibration: ^1.7.6
 dev_dependencies:
   flutter_test:
     sdk: flutter

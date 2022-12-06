@@ -1,6 +1,4 @@
-import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:cryptowallet/screens/custom_image.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
@@ -11,32 +9,26 @@ import 'package:cryptowallet/screens/wallet_main_body.dart';
 import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/slide_up_panel.dart';
-import 'package:eth_sig_util/eth_sig_util.dart';
-import 'package:eth_sig_util/util/utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:http/http.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:page_transition/page_transition.dart';
 import 'package:share/share.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:web3dart/web3dart.dart';
-import 'package:web3dart/web3dart.dart' as web3;
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class Dapp extends StatefulWidget {
   final String provider;
+  final String webNotifier;
   final String init;
   final String data;
   const Dapp({
     Key key,
     this.data,
     this.provider,
+    this.webNotifier,
     this.init,
   }) : super(key: key);
   @override
@@ -80,6 +72,7 @@ class _DappState extends State<Dapp> {
       init: widget.init,
       data: widget.data,
       windowId: windowId,
+      webNotifier: widget.webNotifier,
       onStateUpdated: () {
         setState(() {});
       },

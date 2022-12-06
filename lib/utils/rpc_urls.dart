@@ -2352,6 +2352,8 @@ Future<Widget> dappWidget(
     );
   }
 
+  final webNotifer = await rootBundle.loadString('js/web_notification.js');
+
   int chainId = pref.get(dappChainIdKey);
   final rpc = getEthereumDetailsFromChainId(chainId)['rpc'];
 
@@ -2363,6 +2365,7 @@ Future<Widget> dappWidget(
 
   return Dapp(
     provider: provider,
+    webNotifier: webNotifer,
     init: init,
     data: data,
   );

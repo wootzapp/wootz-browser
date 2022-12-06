@@ -17,11 +17,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:vibration/vibration.dart';
 import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:web3dart/web3dart.dart';
 
 import '../utils/app_config.dart';
+import '../utils/web_notifications.dart';
 
 class WebViewTab extends StatefulWidget {
   final String url;
@@ -29,6 +31,7 @@ class WebViewTab extends StatefulWidget {
   final String provider;
   final String init;
   final String data;
+  final String webNotifier;
 
   final Function() onStateUpdated;
   final Function(CreateWindowAction createWindowAction) onCreateTabRequested;
@@ -77,6 +80,7 @@ class WebViewTab extends StatefulWidget {
       this.onCreateTabRequested,
       this.data,
       this.provider,
+      this.webNotifier,
       this.init,
       this.windowId})
       : assert(url != null || windowId != null),
@@ -136,6 +140,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Favicon _favicon;
   double _progress = 0;
   String initJs = '';
+  WebNotificationController webNotificationController;
+
   final ReceivePort _port = ReceivePort();
   @override
   void initState() {
@@ -314,7 +320,34 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               },
               onWebViewCreated: (controller) async {
                 _controller = controller;
+                webNotificationController =
+                    WebNotificationController(controller);
+                _controller.addJavaScriptHandler(
+                  handlerName: 'Notification.requestPermission',
+                  callback: (arguments) async {
+                    final permission = await onNotificationRequestPermission();
+                    return permission.name.toLowerCase();
+                  },
+                );
 
+                _controller.addJavaScriptHandler(
+                  handlerName: 'Notification.show',
+                  callback: (arguments) {
+                    if (_controller != null) {
+                      final notification =
+                          WebNotification.fromJson(arguments[0], _controller);
+                      onShowNotification(notification);
+                    }
+                  },
+                );
+
+                _controller.addJavaScriptHandler(
+                  handlerName: 'Notification.close',
+                  callback: (arguments) {
+                    final notificationId = arguments[0];
+                    onCloseNotification(notificationId);
+                  },
+                );
                 _controller.addJavaScriptHandler(
                   handlerName: 'requestAccounts',
                   callback: (args) async {
@@ -689,7 +722,18 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 UserScript(
                   source: widget.provider + initJs,
                   injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                )
+                ),
+                UserScript(
+                    source: widget.webNotifier,
+                    injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+                UserScript(source: """
+    (function(window) {
+      var notificationPermissionDb = $json;
+      if (notificationPermissionDb[window.location.host] === 'granted') {
+        Notification._permission = 'granted';
+      } 
+    })(window);
+    """, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START)
               ]),
               onLoadStart: (InAppWebViewController controller, Uri url) async {
                 _browserController.text = url.toString();
@@ -808,6 +852,117 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         ),
       ),
     ]);
+  }
+
+  Future<WebNotificationPermission> onNotificationRequestPermission() async {
+    final url = await _controller.getUrl();
+
+    if (url != null) {
+      final savedPermission =
+          WebNotificationPermissionDb.getPermission(url.host);
+      if (savedPermission != null) {
+        return savedPermission;
+      }
+    }
+
+    final permission = await showDialog<WebNotificationPermission>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text('${url?.host} wants to show notifications'),
+              actions: [
+                ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop<WebNotificationPermission>(
+                          context, WebNotificationPermission.DENIED);
+                    },
+                    child: const Text('Deny')),
+                ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop<WebNotificationPermission>(
+                          context, WebNotificationPermission.GRANTED);
+                    },
+                    child: const Text('Grant'))
+              ],
+            );
+          },
+        ) ??
+        WebNotificationPermission.DENIED;
+
+    if (url != null) {
+      await WebNotificationPermissionDb.savePermission(url.host, permission);
+    }
+
+    return permission;
+  }
+
+  void onShowNotification(WebNotification notification) async {
+    webNotificationController?.notifications[notification.id] = notification;
+    final snackBar = SnackBar(
+      duration: const Duration(seconds: 5),
+      action: SnackBarAction(
+        label: 'Action',
+        onPressed: () async {
+          await notification.dispatchClick();
+        },
+      ),
+      content: Row(
+        children: <Widget>[
+          notification.icon != null
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Image.network(
+                    notification.icon,
+                    width: 50,
+                  ),
+                )
+              : Container(),
+          // add your preferred text content here
+          Expanded(
+              child: Text(
+                  notification.title +
+                      (notification.body != null
+                          ? '\n${notification.body}'
+                          : ''),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+    notification.snackBarController =
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    notification.snackBarController?.closed.then((value) async {
+      notification.snackBarController = null;
+      await notification.close();
+    });
+
+    final vibrate = notification.vibrate;
+    final hasVibrator = await Vibration.hasVibrator() ?? false;
+    if (hasVibrator && vibrate != null && vibrate.isNotEmpty) {
+      if (vibrate.length % 2 != 0) {
+        vibrate.add(0);
+      }
+      final intensities = <int>[];
+      for (int i = 0; i < vibrate.length; i++) {
+        if (i % 2 == 0 && vibrate[i] > 0) {
+          intensities.add(255);
+        } else {
+          intensities.add(0);
+        }
+      }
+      await Vibration.vibrate(pattern: vibrate, intensities: intensities);
+    }
+  }
+
+  void onCloseNotification(int id) {
+    final notification = webNotificationController?.notifications[id];
+    if (notification != null) {
+      final snackBarController = notification.snackBarController;
+      if (snackBarController != null) {
+        snackBarController.close();
+      }
+      webNotificationController?.notifications?.remove(id);
+    }
   }
 
   Future<void> updateScreenshot() async {
