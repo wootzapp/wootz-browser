@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -484,25 +485,107 @@ class _DappState extends State<Dapp> {
                               ),
                             ),
                             const Divider(),
+                            if (pref.get(currentMmenomicKey) != null)
+                              SizedBox(
+                                width: double.infinity,
+                                child: InkWell(
+                                    onTap: () {
+                                      showBlockChainDialog(
+                                        context: context,
+                                        onTap: (blockChainData) async {
+                                          await webViewTabs[currentTabIndex]
+                                              .changeBrowserChainId_(
+                                            blockChainData['chainId'],
+                                            blockChainData['rpc'],
+                                          );
+                                          int count = 0;
+                                          Navigator.popUntil(context, (route) {
+                                            return count++ == 2;
+                                          });
+                                        },
+                                        selectedChainId:
+                                            pref.get(dappChainIdKey),
+                                      );
+                                    },
+                                    child: Container(
+                                      color: Colors.transparent,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(15),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                                FontAwesomeIcons.ethereum),
+                                            const SizedBox(
+                                              width: 10,
+                                            ),
+                                            FutureBuilder(future: () async {
+                                              final pref =
+                                                  Hive.box(secureStorageKey);
+                                              final chainId =
+                                                  pref.get(dappChainIdKey);
+                                              return getEthereumDetailsFromChainId(
+                                                  chainId)['symbol'];
+                                            }(), builder: (context, snapshot) {
+                                              return Text(
+                                                '${AppLocalizations.of(context).network}: ${snapshot.hasData ? snapshot.data : ''}',
+                                              );
+                                            })
+                                          ],
+                                        ),
+                                      ),
+                                    )),
+                              ),
+                            if (pref.get(dappChainIdKey) != null)
+                              const Divider(),
                             SizedBox(
                               width: double.infinity,
                               child: InkWell(
-                                  onTap: () {
-                                    showBlockChainDialog(
-                                      context: context,
-                                      onTap: (blockChainData) async {
-                                        await webViewTabs[currentTabIndex]
-                                            .changeBrowserChainId_(
-                                          blockChainData['chainId'],
-                                          blockChainData['rpc'],
-                                        );
-                                        int count = 0;
-                                        Navigator.popUntil(context, (route) {
-                                          return count++ == 2;
-                                        });
-                                      },
-                                      selectedChainId: pref.get(dappChainIdKey),
-                                    );
+                                onTap: () async {
+                                  Get.back();
+
+                                  await Get.to(const Settings());
+                                },
+                                child: Container(
+                                  color: Colors.transparent,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(15),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.settings),
+                                        const SizedBox(
+                                          width: 10,
+                                        ),
+                                        Text(
+                                          AppLocalizations.of(context).settings,
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Divider(),
+                            SizedBox(
+                              width: double.infinity,
+                              child: InkWell(
+                                  onTap: () async {
+                                    final pref = Hive.box(secureStorageKey);
+                                    bool hasWallet =
+                                        pref.get(currentMmenomicKey) != null;
+
+                                    bool hasPasscode =
+                                        pref.get(userUnlockPasscodeKey) != null;
+                                    Widget dappWidget;
+                                    Get.back();
+
+                                    if (hasWallet) {
+                                      dappWidget = const WalletMainBody();
+                                    } else if (hasPasscode) {
+                                      dappWidget = const MainScreen();
+                                    } else {
+                                      dappWidget = const Security();
+                                    }
+                                    await Get.to(dappWidget);
                                   },
                                   child: Container(
                                     color: Colors.transparent,
@@ -510,27 +593,19 @@ class _DappState extends State<Dapp> {
                                       padding: const EdgeInsets.all(15),
                                       child: Row(
                                         children: [
-                                          const Icon(FontAwesomeIcons.ethereum),
+                                          const Icon(Icons.wallet),
                                           const SizedBox(
                                             width: 10,
                                           ),
-                                          FutureBuilder(future: () async {
-                                            final pref =
-                                                Hive.box(secureStorageKey);
-                                            final chainId =
-                                                pref.get(dappChainIdKey);
-                                            return getEthereumDetailsFromChainId(
-                                                chainId)['symbol'];
-                                          }(), builder: (context, snapshot) {
-                                            return Text(
-                                              '${AppLocalizations.of(context).network}: ${snapshot.hasData ? snapshot.data : ''}',
-                                            );
-                                          })
+                                          Text(
+                                            AppLocalizations.of(context).wallet,
+                                          )
                                         ],
                                       ),
                                     ),
                                   )),
                             ),
+                            const Divider(),
                           ],
                         ),
                       ),
