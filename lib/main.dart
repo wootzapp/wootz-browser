@@ -8,6 +8,7 @@ import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:get/get.dart';
 import 'firebase_options.dart';
@@ -25,6 +26,7 @@ import 'utils/wc_connector.dart';
 void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
+  await FlutterDownloader.initialize();
   await Hive.initFlutter();
   if (Platform.isIOS) {
     await Firebase.initializeApp(

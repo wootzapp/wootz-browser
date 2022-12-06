@@ -17,6 +17,10 @@
 				</array>
 			</dict>
 		</array>
+		<key>FDMaximumConcurrentTasks</key>
+		<integer>5</integer>
+		<key>FDAllFilesDownloadedMessage</key>
+		<string>All files have been downloaded</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'package:cryptowallet/google_drive/drive.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
@@ -19,6 +20,8 @@ import 'package:hive/hive.dart';
 import 'package:html/parser.dart' as html;
 import 'package:bs58check/bs58check.dart' as bs58check;
 import 'package:ntcdcrypto/ntcdcrypto.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
     hide Row;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -3497,4 +3500,24 @@ web3.Transaction wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
         ? int.tryParse(ethereumTransaction.nonce)
         : null,
   );
+}
+
+Future<String> downloadFile(String url, [String filename]) async {
+  var hasStoragePermission = await Permission.storage.isGranted;
+  if (!hasStoragePermission) {
+    final status = await Permission.storage.request();
+    hasStoragePermission = status.isGranted;
+  }
+  if (hasStoragePermission) {
+    final taskId = await FlutterDownloader.enqueue(
+      url: url,
+      headers: {},
+      savedDir: (await getTemporaryDirectory()).path,
+      saveInPublicStorage: true,
+      fileName: filename,
+    );
+
+    return taskId;
+  }
+  return null;
 }

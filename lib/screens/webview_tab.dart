@@ -1,7 +1,10 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:cryptowallet/utils/wc_connector.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import 'package:cryptowallet/utils/rpc_urls.dart';
@@ -133,19 +136,44 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Favicon _favicon;
   double _progress = 0;
   String initJs = '';
+  final ReceivePort _port = ReceivePort();
   @override
   void initState() {
     super.initState();
     initJs = widget.init;
     WidgetsBinding.instance.addObserver(this);
-
+    IsolateNameServer.registerPortWithName(
+        _port.sendPort, 'downloader_send_port');
+    _port.listen((dynamic data) {
+      String id = data[0];
+      DownloadTaskStatus status = data[1];
+      int progress = data[2];
+      if (kDebugMode) {
+        print("Download progress: $progress%");
+      }
+      if (status == DownloadTaskStatus.complete) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("Download $id completed!"),
+        ));
+      }
+    });
+    FlutterDownloader.registerCallback(downloadCallback);
     _url = widget.url ?? '';
+  }
+
+  @pragma('vm:entry-point')
+  static void downloadCallback(
+      String id, DownloadTaskStatus status, int progress) {
+    final SendPort send =
+        IsolateNameServer.lookupPortByName('downloader_send_port');
+    send?.send([id, status, progress]);
   }
 
   @override
   void dispose() {
     _controller = null;
     WidgetsBinding.instance.removeObserver(this);
+    IsolateNameServer.removePortNameMapping('downloader_send_port');
     super.dispose();
   }
 
@@ -211,6 +239,18 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   action: PermissionResponseAction.GRANT,
                 );
               },
+              onUpdateVisitedHistory: (controller, url, isReload) {
+                if (url != null) {
+                  _url = url.toString();
+
+                  _browserController.text = _url;
+                  widget.onStateUpdated.call();
+                }
+              },
+              onDownloadStartRequest: (controller, downloadStartRequest) async {
+                await downloadFile(downloadStartRequest.url.toString(),
+                    downloadStartRequest.suggestedFilename);
+              },
               shouldOverrideUrlLoading: (
                 InAppWebViewController controller,
                 NavigationAction shouldOverrideUrl,
@@ -226,6 +266,16 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   "javascript",
                   "about"
                 ];
+
+                if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+                  final shouldPerformDownload =
+                      shouldOverrideUrl.shouldPerformDownload ?? false;
+                  final url = shouldOverrideUrl.request.url;
+                  if (shouldPerformDownload && url != null) {
+                    await downloadFile(url.toString());
+                    return NavigationActionPolicy.DOWNLOAD;
+                  }
+                }
                 if (url_.contains('wc?uri=')) {
                   final wcUri = Uri.parse(
                     Uri.decodeFull(
@@ -671,12 +721,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   historyKey,
                   jsonEncode(history),
                 );
-              },
-              onUpdateVisitedHistory: (controller, url, isReload) {
-                if (url != null) {
-                  _url = url.toString();
-                  widget.onStateUpdated.call();
-                }
               },
               onTitleChanged: (controller, title) {
                 _title = title ?? '';
