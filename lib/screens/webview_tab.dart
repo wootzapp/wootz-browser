@@ -931,7 +931,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     );
     notification.snackBarController =
         ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    notification.snackBarController?.closed.then((value) async {
+    notification.snackBarController?.closed?.then((value) async {
       notification.snackBarController = null;
       await notification.close();
     });
