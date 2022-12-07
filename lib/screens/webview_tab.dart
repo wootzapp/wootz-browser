@@ -149,6 +149,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
       TextEditingController();
   final TextEditingController _httpAuthPasswordController =
       TextEditingController();
+  PullToRefreshController _pullToRefreshController;
   @override
   void initState() {
     super.initState();
@@ -182,6 +183,19 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         ));
       }
     });
+    _pullToRefreshController = kIsWeb
+        ? null
+        : PullToRefreshController(
+            settings: PullToRefreshSettings(color: Colors.blue),
+            onRefresh: () async {
+              if (defaultTargetPlatform == TargetPlatform.android) {
+                _controller.reload();
+              } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+                _controller.loadUrl(
+                    urlRequest: URLRequest(url: await _controller.getUrl()));
+              }
+            },
+          );
     FlutterDownloader.registerCallback(downloadCallback);
     _url = widget.url ?? '';
   }
@@ -295,6 +309,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             ),
             InAppWebView(
               windowId: widget.windowId,
+              pullToRefreshController: _pullToRefreshController,
               initialUrlRequest:
                   URLRequest(url: WebUri(widget.data ?? walletURL)),
               initialSettings: InAppWebViewSettings(
@@ -325,8 +340,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 }
               },
               onDownloadStartRequest: (controller, downloadStartRequest) async {
-                await downloadFile(downloadStartRequest.url.toString(),
-                    downloadStartRequest.suggestedFilename);
+                await downloadFile(
+                  downloadStartRequest.url.toString(),
+                  downloadStartRequest.suggestedFilename,
+                );
               },
               shouldOverrideUrlLoading: (
                 InAppWebViewController controller,
@@ -835,6 +852,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 setState(() {
                   _progress = progress / 100;
                 });
+                if (progress == 100) {
+                  _pullToRefreshController.endRefreshing();
+                }
               },
               onCreateWindow: (controller, createWindowAction) async {
                 WebUri url = createWindowAction.request.url;
@@ -876,7 +896,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               },
               onLoadStop: (controller, url) async {
                 updateScreenshot();
-
+                _pullToRefreshController.endRefreshing();
                 if (url != null) {
                   final sslCertificate = await controller.getCertificate();
                   _url = url.toString();
