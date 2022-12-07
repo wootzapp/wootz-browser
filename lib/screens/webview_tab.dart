@@ -149,7 +149,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     initJs = widget.init;
-     webNotification = [
+    webNotification = [
       UserScript(
           source: widget.webNotifier,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
@@ -207,7 +207,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     );
 
     await _controller.removeAllUserScripts();
-      await _controller.addUserScripts(userScripts: [
+    await _controller.addUserScripts(userScripts: [
       UserScript(
         source: widget.provider + initJs,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
@@ -254,6 +254,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 safeBrowsingEnabled: true,
                 mediaPlaybackRequiresUserGesture: false,
                 allowsInlineMediaPlayback: true,
+                useOnDownloadStart: true,
               ),
               onPermissionRequest: (controller, request) async {
                 return PermissionResponse(
@@ -734,7 +735,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   },
                 );
               },
-               initialUserScripts: UnmodifiableListView([
+              initialUserScripts: UnmodifiableListView([
                 UserScript(
                   source: widget.provider + initJs,
                   injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
