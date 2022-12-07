@@ -143,12 +143,25 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
-
+  List<UserScript> webNotification;
   final ReceivePort _port = ReceivePort();
   @override
   void initState() {
     super.initState();
     initJs = widget.init;
+     webNotification = [
+      UserScript(
+          source: widget.webNotifier,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+      UserScript(source: """
+    (function(window) {
+      var notificationPermissionDb = $jsonNotification;
+      if (notificationPermissionDb[window.location.host] === 'granted') {
+        Notification._permission = 'granted';
+      } 
+    })(window);
+    """, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START)
+    ];
     WidgetsBinding.instance.addObserver(this);
     IsolateNameServer.registerPortWithName(
         _port.sendPort, 'downloader_send_port');
@@ -194,12 +207,13 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     );
 
     await _controller.removeAllUserScripts();
-    await _controller.addUserScript(
-      userScript: UserScript(
+      await _controller.addUserScripts(userScripts: [
+      UserScript(
         source: widget.provider + initJs,
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
       ),
-    );
+      ...webNotification
+    ]);
     await _controller.reload();
   }
 
@@ -720,22 +734,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   },
                 );
               },
-              initialUserScripts: UnmodifiableListView([
+               initialUserScripts: UnmodifiableListView([
                 UserScript(
                   source: widget.provider + initJs,
                   injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
                 ),
-                UserScript(
-                    source: widget.webNotifier,
-                    injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
-                UserScript(source: """
-    (function(window) {
-      var notificationPermissionDb = $jsonNotification;
-      if (notificationPermissionDb[window.location.host] === 'granted') {
-        Notification._permission = 'granted';
-      } 
-    })(window);
-    """, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START)
+                ...webNotification
               ]),
               onLoadStart: (InAppWebViewController controller, Uri url) async {
                 _browserController.text = url.toString();
