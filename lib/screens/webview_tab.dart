@@ -862,7 +862,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   }
 
   resetNotificationPermission() async {
-    WebNotificationPermissionDb.clear();
+    await WebNotificationPermissionDb.clear();
     await webNotificationController?.resetPermission();
   }
 
