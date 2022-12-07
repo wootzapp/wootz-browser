@@ -145,6 +145,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   WebNotificationController webNotificationController;
   List<UserScript> webNotification;
   final ReceivePort _port = ReceivePort();
+  final TextEditingController _httpAuthUsernameController =
+      TextEditingController();
+  final TextEditingController _httpAuthPasswordController =
+      TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -195,6 +199,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     _controller = null;
     WidgetsBinding.instance.removeObserver(this);
     IsolateNameServer.removePortNameMapping('downloader_send_port');
+    _httpAuthUsernameController.dispose();
+    _httpAuthPasswordController.dispose();
     super.dispose();
   }
 
@@ -228,6 +234,54 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         _controller?.pauseTimers();
       }
     }
+  }
+
+  Future<HttpAuthResponseAction> createHttpAuthDialog(
+      URLAuthenticationChallenge challenge) async {
+    HttpAuthResponseAction action = HttpAuthResponseAction.CANCEL;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Login"),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(challenge.protectionSpace.host),
+              TextField(
+                decoration: const InputDecoration(labelText: "Username"),
+                controller: _httpAuthUsernameController,
+              ),
+              TextField(
+                decoration: const InputDecoration(labelText: "Password"),
+                controller: _httpAuthPasswordController,
+                obscureText: true,
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              child: const Text("Cancel"),
+              onPressed: () {
+                action = HttpAuthResponseAction.CANCEL;
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text("Ok"),
+              onPressed: () {
+                action = HttpAuthResponseAction.PROCEED;
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    return action;
   }
 
   @override
@@ -848,6 +902,14 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 if (kDebugMode) {
                   print(message.toString());
                 }
+              },
+              onReceivedHttpAuthRequest: (controller, challenge) async {
+                var action = await createHttpAuthDialog(challenge);
+                return HttpAuthResponse(
+                    username: _httpAuthUsernameController.text.trim(),
+                    password: _httpAuthPasswordController.text,
+                    action: action,
+                    permanentPersistence: true);
               },
             ),
             _progress < 1.0
