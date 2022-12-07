@@ -324,6 +324,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 mediaPlaybackRequiresUserGesture: false,
                 allowsInlineMediaPlayback: true,
                 useOnDownloadStart: true,
+                transparentBackground: true,
               ),
               onPermissionRequest: (controller, request) async {
                 return PermissionResponse(
