@@ -40,6 +40,7 @@ class NotificationApi {
     String title,
     String body,
     String payload,
+    Function onclose,
     Function(NotificationResponse response) onclick,
   }) async {
     await _init(onclick: onclick);

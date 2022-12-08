@@ -22,6 +22,7 @@ import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:web3dart/web3dart.dart';
 
+import '../api/notification_api.dart';
 import '../utils/app_config.dart';
 import '../utils/web_notifications.dart';
 
@@ -996,43 +997,17 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   void onShowNotification(WebNotification notification) async {
     webNotificationController?.notifications[notification.id] = notification;
-    final snackBar = SnackBar(
-      duration: const Duration(seconds: 5),
-      action: SnackBarAction(
-        label: 'Action',
-        onPressed: () async {
-          await notification.dispatchClick();
-        },
-      ),
-      content: Row(
-        children: <Widget>[
-          notification.icon != null && notification.icon.trim().isNotEmpty
-              ? Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Image.network(
-                    notification.icon,
-                    width: 50,
-                  ),
-                )
-              : Container(),
-          // add your preferred text content here
-          Expanded(
-              child: Text(
-                  notification.title +
-                      (notification.body != null
-                          ? '\n${notification.body}'
-                          : ''),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis)),
-        ],
-      ),
+    await NotificationApi.showNotification(
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      onclick: (payload) async {
+        await notification.dispatchClick();
+      },
+      onclose: () async {
+        await notification.close();
+      },
     );
-    notification.snackBarController =
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    notification.snackBarController?.closed?.then((value) async {
-      notification.snackBarController = null;
-      await notification.close();
-    });
 
     final vibrate = notification.vibrate;
     final hasVibrator = await Vibration.hasVibrator() ?? false;
@@ -1052,13 +1027,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     }
   }
 
-  void onCloseNotification(int id) {
+  void onCloseNotification(int id) async {
     final notification = webNotificationController?.notifications[id];
+    await NotificationApi.closeNotification(id: id);
     if (notification != null) {
-      final snackBarController = notification.snackBarController;
-      if (snackBarController != null) {
-        snackBarController.close();
-      }
+      await NotificationApi.closeNotification(id: id);
       webNotificationController?.notifications?.remove(id);
     }
   }
