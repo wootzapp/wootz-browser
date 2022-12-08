@@ -11,18 +11,28 @@ class NotificationApi {
         channelDescription: 'channel description',
         importance: Importance.max,
       ),
-      iOS: IOSNotificationDetails(),
+      iOS: DarwinNotificationDetails(),
     );
   }
 
-  static Future _init() async {
+  static Future _init({Function onclick}) async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iOS = IOSInitializationSettings();
+    const iOS = DarwinInitializationSettings();
     const settings = InitializationSettings(android: android, iOS: iOS);
     await _notification.initialize(
       settings,
-      onSelectNotification: (payload) async {},
+      onDidReceiveNotificationResponse: (payload) async {
+        if (onclick != null) {
+          onclick();
+        }
+      },
     );
+  }
+
+  static closeNotification({
+    int id = 0,
+  }) async {
+    await _notification.cancel(id);
   }
 
   static Future showNotification({
@@ -30,8 +40,9 @@ class NotificationApi {
     String title,
     String body,
     String payload,
+    Function onclick,
   }) async {
-    await _init();
+    await _init(onclick: onclick);
     _notification.show(
       id,
       title,

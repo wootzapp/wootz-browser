@@ -56,7 +56,7 @@ dependencies:
   hex: ^0.2.0
   ed25519_hd_key: ^2.2.0
   rename: 2.0.1
-  flutter_local_notifications: 9.0.0
+  flutter_local_notifications: ^12.0.4
   form_field_validator: ^1.0.1
   font_awesome_flutter: 8.8.1
   intl_phone_number_input: ^0.7.0+2
