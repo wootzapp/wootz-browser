@@ -36,7 +36,7 @@
 - Sandeep Srinivasa ([@sandys](https://twitter.com/sandeepssrin))
 - Davy King ([@Imdavyking](https://github.com/Imdavyking))
 
-We love contributors! Feel free to contribute to this project but please read the [Contributing Guidelines](CONTRIBUTING.md) first!
+We love contributors! Feel free to contribute to this project but please read the [CLA](https://github.com/wootzapp/.github/blob/main/CLA.md) first!
 
 <a href="https://github.com/wootzapp/wootz-browser/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=wootzapp/wootz-browser&max=300&columns=12&anon=0" />
