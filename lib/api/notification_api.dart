@@ -85,7 +85,7 @@ class NotificationApi {
   }) async {
     String picturePath = await _downloadAndSavePicture(imageUrl);
     await _init(onclick: onclick);
-    _notification.show(
+    await _notification.show(
       id,
       title,
       body,
