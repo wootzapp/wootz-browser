@@ -3,26 +3,23 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:cryptowallet/api/notification_api.dart';
 import 'package:cryptowallet/utils/wc_connector.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
-import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:cryptowallet/utils/slide_up_panel.dart';
 import 'package:eth_sig_util/eth_sig_util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:web3dart/web3dart.dart';
 
-import '../api/notification_api.dart';
 import '../utils/app_config.dart';
 import '../utils/web_notifications.dart';
 
@@ -145,6 +142,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
       jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
   List<UserScript> webNotification;
+
   final ReceivePort _port = ReceivePort();
   final TextEditingController _httpAuthUsernameController =
       TextEditingController();
@@ -197,9 +195,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               }
             },
           );
-    if (kDebugMode) {
-      print(_pullToRefreshController);
-    }
     FlutterDownloader.registerCallback(downloadCallback);
     _url = widget.url ?? '';
   }
@@ -948,11 +943,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     ]);
   }
 
-  resetNotificationPermission() async {
-    await WebNotificationPermissionDb.clear();
-    await webNotificationController?.resetPermission();
-  }
-
   Future<WebNotificationPermission> onNotificationRequestPermission() async {
     final url = await _controller.getUrl();
 
@@ -997,10 +987,18 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   void onShowNotification(WebNotification notification) async {
     webNotificationController?.notifications[notification.id] = notification;
+    Uri iconUrl =
+        notification.icon != null ? Uri.tryParse(notification.icon) : null;
+    if (iconUrl != null && !iconUrl.hasScheme) {
+      iconUrl = Uri.tryParse(
+          (await _controller?.getUrl()).toString() + iconUrl.toString());
+    }
+
     await NotificationApi.showNotification(
       id: notification.id,
       title: notification.title,
       body: notification.body,
+      imageUrl: iconUrl.toString(),
       onclick: (payload) async {
         await notification.dispatchClick();
       },
@@ -1025,6 +1023,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
       }
       await Vibration.vibrate(pattern: vibrate, intensities: intensities);
     }
+  }
+
+  resetNotificationPermission() async {
+    await WebNotificationPermissionDb.clear();
+    await webNotificationController?.resetPermission();
   }
 
   void onCloseNotification(int id) async {
