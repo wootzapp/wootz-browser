@@ -2074,7 +2074,7 @@ Uri blockChainToHttps(String value) {
   value = value.trim();
   if (value.startsWith('ipfs://')) return Uri.parse(ipfsTohttp(value));
 
-  if (isURL(value)) return Uri.parse(value).replace(scheme: 'https');
+  if (isURL(value)) return Uri.parse(value);
 
   Uri url = Uri.tryParse(value);
   if (url != null && isLocalizedContent(url)) {
