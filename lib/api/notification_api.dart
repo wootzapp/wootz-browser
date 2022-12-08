@@ -15,7 +15,7 @@ class NotificationApi {
     );
   }
 
-  static Future _init({Function onclick}) async {
+  static Future _init({Function(NotificationResponse response) onclick}) async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iOS = DarwinInitializationSettings();
     const settings = InitializationSettings(android: android, iOS: iOS);
@@ -23,7 +23,7 @@ class NotificationApi {
       settings,
       onDidReceiveNotificationResponse: (payload) async {
         if (onclick != null) {
-          onclick();
+          onclick(payload);
         }
       },
     );
@@ -40,7 +40,7 @@ class NotificationApi {
     String title,
     String body,
     String payload,
-    Function onclick,
+    Function(NotificationResponse response) onclick,
   }) async {
     await _init(onclick: onclick);
     _notification.show(
