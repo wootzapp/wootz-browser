@@ -1006,7 +1006,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
       ),
       content: Row(
         children: <Widget>[
-          notification.icon != null
+          notification.icon != null && notification.icon.trim().isNotEmpty
               ? Padding(
                   padding: const EdgeInsets.only(right: 10),
                   child: Image.network(
