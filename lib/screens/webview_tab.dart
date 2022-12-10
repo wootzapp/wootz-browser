@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:vibration/vibration.dart';
 import 'package:wallet_connect/wallet_connect.dart';
@@ -327,9 +328,37 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 useHybridComposition: true,
               ),
               onPermissionRequest: (controller, request) async {
+                final resources = <PermissionResourceType>[];
+                if (request.resources.contains(PermissionResourceType.CAMERA)) {
+                  final cameraStatus = await Permission.camera.request();
+                  if (!cameraStatus.isDenied) {
+                    resources.add(PermissionResourceType.CAMERA);
+                  }
+                }
+                if (request.resources
+                    .contains(PermissionResourceType.MICROPHONE)) {
+                  final microphoneStatus =
+                      await Permission.microphone.request();
+                  if (!microphoneStatus.isDenied) {
+                    resources.add(PermissionResourceType.MICROPHONE);
+                  }
+                }
+                // only for iOS and macOS
+                if (request.resources
+                    .contains(PermissionResourceType.CAMERA_AND_MICROPHONE)) {
+                  final cameraStatus = await Permission.camera.request();
+                  final microphoneStatus =
+                      await Permission.microphone.request();
+                  if (!cameraStatus.isDenied && !microphoneStatus.isDenied) {
+                    resources.add(PermissionResourceType.CAMERA_AND_MICROPHONE);
+                  }
+                }
+
                 return PermissionResponse(
-                  resources: request.resources,
-                  action: PermissionResponseAction.GRANT,
+                  resources: resources,
+                  action: resources.isEmpty
+                      ? PermissionResponseAction.DENY
+                      : PermissionResponseAction.GRANT,
                 );
               },
               onUpdateVisitedHistory: (controller, url, isReload) {
