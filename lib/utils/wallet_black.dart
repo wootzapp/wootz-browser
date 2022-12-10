@@ -363,6 +363,53 @@ class _WalletBlackState extends State<WalletBlack> {
                   ]),
                 ),
               ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: Column(
+                            children: const [
+                              Icon(Icons.qr_code),
+                              Text(
+                                'Scan',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 100,
+                          child: Column(
+                            children: const [
+                              Icon(Icons.search),
+                              Text(
+                                'Search Engine',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 100,
+                          child: Column(
+                            children: const [
+                              Icon(FontAwesomeIcons.wallet),
+                              Text(
+                                'Create new wallet',
+                                style: TextStyle(fontSize: 12),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]),
+                ),
+              ),
+              // const Spacer(),
               // SizedBox(
               //   height: 70,
               //   child: Stack(
