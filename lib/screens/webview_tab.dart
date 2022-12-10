@@ -302,9 +302,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (!webLoadin) {
-      return const WalletBlack();
-    }
+    // if (!webLoadin) {
+    //   return const WalletBlack();
+    // }
 
     return SafeArea(
       child: Column(children: <Widget>[

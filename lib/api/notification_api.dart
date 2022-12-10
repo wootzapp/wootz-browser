@@ -89,12 +89,14 @@ class NotificationApi {
       id,
       title,
       body,
-      _notificationDetails(
-        picturePath: picturePath,
-        title: title,
-        body: body,
-        showBigPicture: true,
-      ),
+      picturePath == null
+          ? null
+          : _notificationDetails(
+              picturePath: picturePath,
+              title: title,
+              body: body,
+              showBigPicture: true,
+            ),
       payload: payload,
     );
   }
