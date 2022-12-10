@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:cryptowallet/api/notification_api.dart';
+import 'package:cryptowallet/utils/wallet_black.dart';
 import 'package:cryptowallet/utils/wc_connector.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 

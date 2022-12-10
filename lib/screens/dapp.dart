@@ -19,6 +19,8 @@ import 'package:share/share.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import '../utils/wallet_black.dart';
+
 class Dapp extends StatefulWidget {
   final String provider;
   final String webNotifier;
@@ -813,14 +815,16 @@ class _DappState extends State<Dapp> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      child: Scaffold(
-          appBar: showWebViewTabsViewer
-              ? _buildWebViewTabViewerAppBar()
-              : _buildWebViewTabAppBar(),
-          body: IndexedStack(
-            index: showWebViewTabsViewer ? 1 : 0,
-            children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
-          )),
+      child: true
+          ? const WalletBlack()
+          : Scaffold(
+              appBar: showWebViewTabsViewer
+                  ? _buildWebViewTabViewerAppBar()
+                  : _buildWebViewTabAppBar(),
+              body: IndexedStack(
+                index: showWebViewTabsViewer ? 1 : 0,
+                children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+              )),
       onWillPop: () async {
         if (showWebViewTabsViewer) {
           setState(() {
