@@ -494,7 +494,7 @@ class _WalletBlackState extends State<WalletBlack> {
               //     ],
               //   ),
               // ),
-            ],
+             ],
           ),
         ),
       ),

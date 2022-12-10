@@ -103,19 +103,8 @@ class _DappState extends State<Dapp> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              IconButton(
-                onPressed: () async {
-                  if (webViewTabs[currentTabIndex].controller != null) {
-                    webViewTabs[currentTabIndex].controller.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri(walletURL),
-                          ),
-                        );
-                  }
-                },
-                icon: const Icon(
-                  Icons.home_filled,
-                ),
+              const SizedBox(
+                width: 10,
               ),
               Flexible(
                 child: TextFormField(
@@ -134,8 +123,6 @@ class _DappState extends State<Dapp> {
                     prefixIconConstraints:
                         const BoxConstraints(minWidth: 35, maxWidth: 35),
                     contentPadding: const EdgeInsets.all(0),
-                    suffixIconConstraints:
-                        const BoxConstraints(minWidth: 35, maxWidth: 35),
                     prefixIcon: webViewTabs[currentTabIndex].isSecure != null
                         ? Padding(
                             padding: const EdgeInsets.only(left: 8.0, right: 8),
@@ -155,13 +142,23 @@ class _DappState extends State<Dapp> {
                                 color: Colors.red, size: 18),
                           ),
                     isDense: true,
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.cancel,
-                      ),
-                      onPressed: () {
-                        webViewTabs[currentTabIndex].browserController.clear();
-                      },
+                    suffixIcon: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.qr_code_scanner,
+                          ),
+                          onPressed: () async {},
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.mic_outlined,
+                          ),
+                          onPressed: () async {},
+                        ),
+                      ],
                     ),
                     hintText: AppLocalizations.of(context).searchOrEnterUrl,
 
@@ -814,19 +811,19 @@ class _DappState extends State<Dapp> {
 
   @override
   Widget build(BuildContext context) {
-    PreferredSize bar = showWebViewTabsViewer
-        ? _buildWebViewTabViewerAppBar()
-        : _buildWebViewTabAppBar();
     return WillPopScope(
       child: Scaffold(
-          bottomNavigationBar: SizedBox(
-            height: bar.preferredSize.height,
-            child: bar,
-          ),
-          body: IndexedStack(
-            index: showWebViewTabsViewer ? 1 : 0,
-            children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
-          )),
+        bottomNavigationBar: Padding(
+          padding: MediaQuery.of(context).viewInsets,
+          child: showWebViewTabsViewer
+              ? _buildWebViewTabViewerAppBar()
+              : _buildWebViewTabAppBar(),
+        ),
+        body: IndexedStack(
+          index: showWebViewTabsViewer ? 1 : 0,
+          children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+        ),
+      ),
       onWillPop: () async {
         if (showWebViewTabsViewer) {
           setState(() {
