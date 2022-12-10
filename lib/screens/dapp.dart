@@ -815,9 +815,13 @@ class _DappState extends State<Dapp> {
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      child: true
-          ? const WalletBlack()
-          : Scaffold(
+      child:
+
+          //  true
+          //     ? const WalletBlack()
+          //     :
+
+          Scaffold(
               appBar: showWebViewTabsViewer
                   ? _buildWebViewTabViewerAppBar()
                   : _buildWebViewTabAppBar(),

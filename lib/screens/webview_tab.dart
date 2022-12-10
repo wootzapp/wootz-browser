@@ -355,10 +355,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 }
 
                 return PermissionResponse(
-                  resources: resources,
-                  action: resources.isEmpty
-                      ? PermissionResponseAction.DENY
-                      : PermissionResponseAction.GRANT,
+                  resources: request.resources,
+                  action: PermissionResponseAction.GRANT,
                 );
               },
               onUpdateVisitedHistory: (controller, url, isReload) {
