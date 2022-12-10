@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
+import 'package:http/http.dart';
 
 import '../components/loader.dart';
 import '../screens/main_screen.dart';
@@ -29,6 +30,9 @@ class WalletBlack extends StatefulWidget {
 class _WalletBlackState extends State<WalletBlack> {
   final recipientAddrContr = TextEditingController();
   final amount = TextEditingController();
+  final btcUSD = TextEditingController();
+  double bitcoinPrice;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,6 +187,30 @@ class _WalletBlackState extends State<WalletBlack> {
                                 child: TextFormField(
                                   autocorrect: false,
                                   controller: amount,
+                                  onChanged: (value) async {
+                                    if (Decimal.tryParse(value) == null) return;
+                                    const dataUrl =
+                                        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true';
+
+                                    final response =
+                                        await get(Uri.parse(dataUrl))
+                                            .timeout(networkTimeOutDuration);
+                                    final responseBody = response.body;
+                                    // check for http status code of 4** or 5**
+                                    if (response.statusCode ~/ 100 == 4 ||
+                                        response.statusCode ~/ 100 == 5) {
+                                      throw Exception(responseBody);
+                                    }
+
+                                    final bitcoinResponse =
+                                        jsonDecode(responseBody);
+                                    bitcoinPrice =
+                                        bitcoinResponse['bitcoin']['usd'];
+                                    double conversion =
+                                        Decimal.parse(value).toDouble() *
+                                            bitcoinPrice;
+                                    btcUSD.text = conversion.toString();
+                                  },
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                     decimal: true,
@@ -217,6 +245,7 @@ class _WalletBlackState extends State<WalletBlack> {
                               ),
                               Flexible(
                                 child: TextFormField(
+                                  controller: btcUSD,
                                   autocorrect: false,
                                   keyboardType: TextInputType.visiblePassword,
                                   decoration: const InputDecoration(
@@ -291,7 +320,6 @@ class _WalletBlackState extends State<WalletBlack> {
                                 await Get.to(TransferToken(
                                   data: data,
                                 ));
-                                print(bitcoinDetails);
                               },
                               child: const Text('Send'),
                             ),
