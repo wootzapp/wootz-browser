@@ -494,45 +494,6 @@ class _WalletBlackState extends State<WalletBlack> {
               //     ],
               //   ),
               // ),
-              TextFormField(
-                decoration: InputDecoration(
-                  focusedBorder: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      borderSide: BorderSide.none),
-                  border: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      borderSide: BorderSide.none),
-                  enabledBorder: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      borderSide: BorderSide.none), // you
-                  filled: true,
-                  hintText: 'Enter your address to search',
-                  prefixIcon: IconButton(
-                    icon: const Icon(
-                      FontAwesomeIcons.globe,
-                    ),
-                    onPressed: () async {},
-                  ),
-                  suffixIcon: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.qr_code_scanner,
-                        ),
-                        onPressed: () async {},
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.mic_outlined,
-                        ),
-                        onPressed: () async {},
-                      ),
-                    ],
-                  ),
-                ),
-              )
             ],
           ),
         ),

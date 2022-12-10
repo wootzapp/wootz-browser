@@ -139,6 +139,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   String _title = '';
   Favicon _favicon;
   double _progress = 0;
+  bool webLoadin = false;
   String initJs = '';
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
@@ -301,6 +302,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (!webLoadin) {
+      return const WalletBlack();
+    }
+
     return Column(children: <Widget>[
       Expanded(
         child: Stack(

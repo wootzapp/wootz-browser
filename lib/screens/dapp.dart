@@ -814,21 +814,19 @@ class _DappState extends State<Dapp> {
 
   @override
   Widget build(BuildContext context) {
+    PreferredSize bar = showWebViewTabsViewer
+        ? _buildWebViewTabViewerAppBar()
+        : _buildWebViewTabAppBar();
     return WillPopScope(
-      child:
-
-          //  true
-          //     ? const WalletBlack()
-          //     :
-
-          Scaffold(
-              appBar: showWebViewTabsViewer
-                  ? _buildWebViewTabViewerAppBar()
-                  : _buildWebViewTabAppBar(),
-              body: IndexedStack(
-                index: showWebViewTabsViewer ? 1 : 0,
-                children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
-              )),
+      child: Scaffold(
+          bottomNavigationBar: SizedBox(
+            height: bar.preferredSize.height,
+            child: bar,
+          ),
+          body: IndexedStack(
+            index: showWebViewTabsViewer ? 1 : 0,
+            children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+          )),
       onWillPop: () async {
         if (showWebViewTabsViewer) {
           setState(() {
