@@ -318,6 +318,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 InAppWebView(
                   windowId: widget.windowId,
                   pullToRefreshController: _pullToRefreshController,
+                  initialUrlRequest:
+                      URLRequest(url: WebUri(widget.data ?? walletURL)),
                   initialSettings: InAppWebViewSettings(
                     useShouldOverrideUrlLoading: true,
                     forceDark: Theme.of(context).brightness == Brightness.dark

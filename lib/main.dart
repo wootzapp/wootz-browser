@@ -228,6 +228,7 @@ class _MyHomePageState extends State<MyHomePage> {
       nextWidget = const Dapp(
         provider: '',
         init: '',
+        webNotifier: '',
         data: walletURL,
       );
     }
