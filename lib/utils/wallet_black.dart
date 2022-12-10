@@ -127,9 +127,10 @@ class _WalletBlackState extends State<WalletBlack> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Icon(Icons.currency_bitcoin_sharp),
-                              SizedBox(
-                                width: 200,
-                                height: 40,
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              Flexible(
                                 child: TextFormField(
                                   keyboardType: TextInputType.visiblePassword,
                                   autocorrect: false,
@@ -152,6 +153,9 @@ class _WalletBlackState extends State<WalletBlack> {
                                   ),
                                 ),
                               ),
+                              const SizedBox(
+                                width: 10,
+                              ),
                               const Icon(
                                 FontAwesomeIcons.link,
                                 size: 20,
@@ -172,9 +176,10 @@ class _WalletBlackState extends State<WalletBlack> {
                                 FontAwesomeIcons.bitcoin,
                                 size: 30,
                               ),
-                              SizedBox(
-                                width: 100,
-                                height: 40,
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              Flexible(
                                 child: TextFormField(
                                   autocorrect: false,
                                   controller: amount,
@@ -200,20 +205,22 @@ class _WalletBlackState extends State<WalletBlack> {
                                   ),
                                 ),
                               ),
+                              const SizedBox(
+                                width: 10,
+                              ),
                               const Icon(
                                 FontAwesomeIcons.dollarSign,
                                 size: 30,
                               ),
-                              SizedBox(
-                                width: 100,
-                                height: 40,
+                              const SizedBox(
+                                width: 10,
+                              ),
+                              Flexible(
                                 child: TextFormField(
                                   autocorrect: false,
                                   keyboardType: TextInputType.visiblePassword,
-
-                                  // controller: ,
                                   decoration: const InputDecoration(
-                                    hintText: '',
+                                    hintText: 'USD',
                                     enabled: false,
                                     focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
@@ -273,6 +280,7 @@ class _WalletBlackState extends State<WalletBlack> {
 
                                 final data = {
                                   ...bitcoinDetails,
+                                  'name': 'Bitcoin',
                                   'amount':
                                       Decimal.parse(amount.text).toString(),
                                   'recipient': recipient
