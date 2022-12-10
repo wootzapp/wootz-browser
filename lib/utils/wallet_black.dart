@@ -159,7 +159,7 @@ class _WalletBlackState extends State<WalletBlack> {
                       ),
                     ),
                     SizedBox(
-                      height: MediaQuery.of(context).size.height * .5,
+                      height: MediaQuery.of(context).size.height * .7,
                     ),
                     Card(
                       child: Padding(
