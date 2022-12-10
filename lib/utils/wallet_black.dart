@@ -1,5 +1,16 @@
+import 'package:cryptowallet/utils/qr_scan_view.dart';
+import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
+import 'package:hive/hive.dart';
+
+import '../components/loader.dart';
+import '../screens/main_screen.dart';
+import '../screens/security.dart';
+import '../screens/send_token.dart';
+import '../screens/wallet_main_body.dart';
+import 'app_config.dart';
 
 class WalletBlack extends StatefulWidget {
   const WalletBlack({Key key}) : super(key: key);
@@ -29,131 +40,64 @@ class _WalletBlackState extends State<WalletBlack> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Wallets'),
-                              Row(
-                                children: const [
-                                  Text('See all'),
-                                  Icon(Icons.arrow_forward),
-                                ],
+                              GestureDetector(
+                                onTap: () async {
+                                  final pref = Hive.box(secureStorageKey);
+                                  bool hasWallet =
+                                      pref.get(currentMmenomicKey) != null;
+
+                                  bool hasPasscode =
+                                      pref.get(userUnlockPasscodeKey) != null;
+                                  Widget dappWidget;
+                                  Get.back();
+
+                                  if (hasWallet) {
+                                    dappWidget = const WalletMainBody();
+                                  } else if (hasPasscode) {
+                                    dappWidget = const MainScreen();
+                                  } else {
+                                    dappWidget = const Security();
+                                  }
+                                  await Get.to(dappWidget);
+                                },
+                                child: Row(
+                                  children: const [
+                                    Text('See all'),
+                                    Icon(Icons.arrow_forward),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                          // const SizedBox(
-                          //   height: 10,
-                          // ),
-                          // Row(
-                          //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          //   children: [
-                          //     const Icon(FontAwesomeIcons.bitcoin),
-                          //     Column(
-                          //       crossAxisAlignment: CrossAxisAlignment.start,
-                          //       children: const [
-                          //         Text('BTC'),
-                          //         Text('Bitcoin'),
-                          //       ],
-                          //     ),
-                          //     Container(
-                          //       padding: const EdgeInsets.all(5),
-                          //       decoration: BoxDecoration(
-                          //         borderRadius: BorderRadius.circular(20),
-                          //         color: Colors.grey[300],
-                          //       ),
-                          //       child: Row(
-                          //         children: [
-                          //           const Icon(
-                          //             FontAwesomeIcons.wallet,
-                          //             size: 15,
-                          //           ),
-                          //           const SizedBox(
-                          //             width: 10,
-                          //           ),
-                          //           Column(
-                          //             crossAxisAlignment:
-                          //                 CrossAxisAlignment.start,
-                          //             children: const [
-                          //               Text(
-                          //                 '1.1784 BTC',
-                          //                 style: TextStyle(
-                          //                   fontWeight: FontWeight.bold,
-                          //                 ),
-                          //               ),
-                          //               Text(
-                          //                 '6,300 USD',
-                          //                 style: TextStyle(
-                          //                   fontSize: 10,
-                          //                   color: Colors.grey,
-                          //                 ),
-                          //               ),
-                          //             ],
-                          //           )
-                          //         ],
-                          //       ),
-                          //     ),
-                          //     Column(
-                          //       children: [
-                          //         Row(
-                          //           children: const [
-                          //             Icon(
-                          //               FontAwesomeIcons.link,
-                          //               size: 15,
-                          //             ),
-                          //             SizedBox(
-                          //               width: 5,
-                          //             ),
-                          //             Text(
-                          //               '2.056 BTC',
-                          //               style: TextStyle(
-                          //                 fontSize: 10,
-                          //                 color: Colors.grey,
-                          //               ),
-                          //             ),
-                          //           ],
-                          //         ),
-                          //         const SizedBox(
-                          //           height: 2,
-                          //         ),
-                          //         Row(
-                          //           children: const [
-                          //             Icon(
-                          //               FontAwesomeIcons.bolt,
-                          //               size: 13,
-                          //             ),
-                          //             SizedBox(
-                          //               width: 5,
-                          //             ),
-                          //             Text(
-                          //               '0.34 BTC',
-                          //               style: TextStyle(
-                          //                 fontSize: 10,
-                          //                 color: Colors.grey,
-                          //               ),
-                          //             ),
-                          //           ],
-                          //         )
-                          //       ],
-                          //     ),
-                          //     const Icon(
-                          //       FontAwesomeIcons.qrcode,
-                          //       size: 20,
-                          //     ),
-                          //     const Icon(
-                          //       Icons.remove_red_eye_outlined,
-                          //       size: 20,
-                          //     ),
-                          //   ],
-                          // ),
-
                           const Divider(
                             color: Colors.grey,
                           ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
-                              Icon(FontAwesomeIcons.wallet),
-                              SizedBox(
-                                width: 5,
-                              ),
-                              Text('Create new wallet'),
-                            ],
+                          GestureDetector(
+                            onTap: () async {
+                              final pref = Hive.box(secureStorageKey);
+
+                              bool hasPasscode =
+                                  pref.get(userUnlockPasscodeKey) != null;
+                              Widget dappWidget;
+                              Get.back();
+
+                              if (hasPasscode) {
+                                dappWidget = const MainScreen();
+                              } else {
+                                dappWidget = const Security();
+                              }
+                              await Get.to(dappWidget);
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(FontAwesomeIcons.wallet),
+                                SizedBox(
+                                  width: 5,
+                                ),
+                                Text('Create new wallet'),
+                              ],
+                            ),
                           )
                         ]),
                       ),
@@ -369,16 +313,73 @@ class _WalletBlackState extends State<WalletBlack> {
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        SizedBox(
-                          width: 100,
-                          child: Column(
-                            children: const [
-                              Icon(Icons.qr_code),
-                              Text(
-                                'Scan',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ],
+                        GestureDetector(
+                          onTap: () async {
+                            String data = await Get.to(
+                              const QRScanView(),
+                            );
+                            if (data == null) {
+                              Get.snackbar(
+                                '',
+                                eIP681ProcessingErrorMsg,
+                                colorText: Colors.white,
+                                backgroundColor: Colors.red,
+                              );
+
+                              return;
+                            }
+                            showDialog(
+                                barrierDismissible: false,
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                      backgroundColor: Colors.white,
+                                      content: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          SizedBox(
+                                            width: 35,
+                                            height: 35,
+                                            child: Loader(),
+                                          ),
+                                        ],
+                                      ));
+                                });
+
+                            Map scannedData = await processEIP681(data);
+
+                            if (Navigator.canPop(context)) {
+                              Get.back();
+                            }
+
+                            if (scannedData['success']) {
+                              await Get.to(
+                                SendToken(
+                                  data: scannedData['msg'],
+                                ),
+                              );
+                              return;
+                            }
+                            Get.snackbar(
+                              '',
+                              scannedData['msg'],
+                              colorText: Colors.white,
+                              backgroundColor: Colors.red,
+                            );
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(Icons.qr_code),
+                                Text(
+                                  'Scan',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         SizedBox(
@@ -393,107 +394,39 @@ class _WalletBlackState extends State<WalletBlack> {
                             ],
                           ),
                         ),
-                        SizedBox(
-                          width: 100,
-                          child: Column(
-                            children: const [
-                              Icon(FontAwesomeIcons.wallet),
-                              Text(
-                                'Create new wallet',
-                                style: TextStyle(fontSize: 12),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                        GestureDetector(
+                          onTap: () async {
+                            final pref = Hive.box(secureStorageKey);
+
+                            bool hasPasscode =
+                                pref.get(userUnlockPasscodeKey) != null;
+                            Widget dappWidget;
+                            Get.back();
+
+                            if (hasPasscode) {
+                              dappWidget = const MainScreen();
+                            } else {
+                              dappWidget = const Security();
+                            }
+                            await Get.to(dappWidget);
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(FontAwesomeIcons.wallet),
+                                Text(
+                                  'Create new wallet',
+                                  style: TextStyle(fontSize: 12),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ]),
                 ),
               ),
-              // const Spacer(),
-              // SizedBox(
-              //   height: 70,
-              //   child: Stack(
-              //     children: [
-              //       Card(
-              //         child: Padding(
-              //           padding: const EdgeInsets.all(10),
-              //           child: Column(children: [
-              //             Row(
-              //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              //               children: [
-              //                 const Text('Transactions history'),
-              //                 Row(
-              //                   children: const [
-              //                     Text('See all'),
-              //                     Icon(Icons.arrow_forward),
-              //                   ],
-              //                 )
-              //               ],
-              //             )
-              //           ]),
-              //         ),
-              //       ),
-              //       // Positioned(
-              //       //   bottom: 5,
-              //       //   child: Row(
-              //       //     children: [
-              //       //       Card(
-              //       //         child: Padding(
-              //       //           padding: const EdgeInsets.all(8.0),
-              //       //           child: Column(
-              //       //               mainAxisSize: MainAxisSize.min,
-              //       //               crossAxisAlignment: CrossAxisAlignment.start,
-              //       //               children: const [
-              //       //                 Text('+0.01 ETH'),
-              //       //                 Text('\$0.86 USD'),
-              //       //               ]),
-              //       //         ),
-              //       //       ),
-              //       //       Card(
-              //       //         child: Padding(
-              //       //           padding: const EdgeInsets.all(8.0),
-              //       //           child: Row(
-              //       //             children: [
-              //       //               const Icon(FontAwesomeIcons.arrowDown),
-              //       //               const SizedBox(
-              //       //                 width: 5,
-              //       //               ),
-              //       //               Column(
-              //       //                 mainAxisSize: MainAxisSize.min,
-              //       //                 crossAxisAlignment:
-              //       //                     CrossAxisAlignment.start,
-              //       //                 children: const [
-              //       //                   Text('Receive Ether'),
-              //       //                   Text(
-              //       //                     'November 18 2022 - 15:48',
-              //       //                     style: TextStyle(
-              //       //                       fontSize: 13,
-              //       //                       color: Colors.grey,
-              //       //                     ),
-              //       //                   ),
-              //       //                 ],
-              //       //               ),
-              //       //               Container(
-              //       //                 padding: const EdgeInsets.all(5),
-              //       //                 decoration: BoxDecoration(
-              //       //                   borderRadius: BorderRadius.circular(20),
-              //       //                   color: Colors.grey[300],
-              //       //                 ),
-              //       //                 child: const Text(
-              //       //                   'Confirmed',
-              //       //                   style: TextStyle(fontSize: 8),
-              //       //                 ),
-              //       //               )
-              //       //             ],
-              //       //           ),
-              //       //         ),
-              //       //       ),
-              //       //     ],
-              //       //   ),
-              //       // ),
-              //     ],
-              //   ),
-              // ),
             ],
           ),
         ),

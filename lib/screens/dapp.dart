@@ -108,6 +108,9 @@ class _DappState extends State<Dapp> {
               ),
               Flexible(
                 child: TextFormField(
+                  onChanged: (value) async {
+                    // webViewTabs[currentTabIndex];
+                  },
                   onFieldSubmitted: (value) async {
                     FocusManager.instance.primaryFocus?.unfocus();
                     if (webViewTabs[currentTabIndex].controller != null) {
