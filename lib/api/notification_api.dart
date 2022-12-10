@@ -20,12 +20,14 @@ class NotificationApi {
         'channel id',
         'channel name',
         channelDescription: 'channel description',
-        styleInformation: _buildBigPictureStyleInformation(
-          title,
-          body,
-          picturePath,
-          showBigPicture,
-        ),
+        styleInformation: picturePath != null
+            ? _buildBigPictureStyleInformation(
+                title,
+                body,
+                picturePath,
+                showBigPicture,
+              )
+            : null,
         importance: Importance.max,
       ),
       iOS: DarwinNotificationDetails(
@@ -84,19 +86,18 @@ class NotificationApi {
     Function(NotificationResponse response) onclick,
   }) async {
     String picturePath = await _downloadAndSavePicture(imageUrl);
+
     await _init(onclick: onclick);
     await _notification.show(
       id,
       title,
       body,
-      picturePath == null
-          ? null
-          : _notificationDetails(
-              picturePath: picturePath,
-              title: title,
-              body: body,
-              showBigPicture: true,
-            ),
+      _notificationDetails(
+        picturePath: picturePath,
+        title: title,
+        body: body,
+        showBigPicture: true,
+      ),
       payload: payload,
     );
   }

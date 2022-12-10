@@ -1032,8 +1032,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   void onShowNotification(WebNotification notification) async {
     webNotificationController?.notifications[notification.id] = notification;
+
     Uri iconUrl =
-        notification.icon != null ? Uri.tryParse(notification.icon) : null;
+        notification.icon != null && notification.icon.trim().isNotEmpty
+            ? Uri.tryParse(notification.icon)
+            : null;
     if (iconUrl != null && !iconUrl.hasScheme) {
       iconUrl = Uri.tryParse(
           (await _controller?.getUrl()).toString() + iconUrl.toString());
@@ -1043,7 +1046,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
       id: notification.id,
       title: notification.title,
       body: notification.body,
-      imageUrl: iconUrl.toString(),
+      imageUrl: iconUrl?.toString(),
       onclick: (payload) async {
         await notification.dispatchClick();
       },
