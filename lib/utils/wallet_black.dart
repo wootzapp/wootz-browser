@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:bitcoin_flutter/bitcoin_flutter.dart';
 import 'package:cryptowallet/utils/qr_scan_view.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -11,9 +13,11 @@ import '../components/loader.dart';
 import '../screens/main_screen.dart';
 import '../screens/security.dart';
 import '../screens/send_token.dart';
+import '../screens/transfer_token.dart';
 import '../screens/view_wallets.dart';
 import '../screens/wallet_main_body.dart';
 import 'app_config.dart';
+import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class WalletBlack extends StatefulWidget {
   const WalletBlack({Key key}) : super(key: key);
@@ -23,6 +27,8 @@ class WalletBlack extends StatefulWidget {
 }
 
 class _WalletBlackState extends State<WalletBlack> {
+  final recipientAddrContr = TextEditingController();
+  final amount = TextEditingController();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,13 +131,11 @@ class _WalletBlackState extends State<WalletBlack> {
                                 width: 200,
                                 height: 40,
                                 child: TextFormField(
-                                  autocorrect: false,
                                   keyboardType: TextInputType.visiblePassword,
-
-                                  // controller: ,
+                                  autocorrect: false,
+                                  controller: recipientAddrContr,
                                   decoration: const InputDecoration(
-                                    hintText: '',
-
+                                    hintText: 'Bitcoin Address',
                                     focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
                                             Radius.circular(10.0)),
@@ -173,10 +177,13 @@ class _WalletBlackState extends State<WalletBlack> {
                                 height: 40,
                                 child: TextFormField(
                                   autocorrect: false,
-                                  keyboardType: TextInputType.visiblePassword,
+                                  controller: amount,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
                                   decoration: const InputDecoration(
-                                    hintText: '',
-
+                                    hintText: 'Amount',
                                     focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
                                             Radius.circular(10.0)),
@@ -207,7 +214,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                   // controller: ,
                                   decoration: const InputDecoration(
                                     hintText: '',
-
+                                    enabled: false,
                                     focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
                                             Radius.circular(10.0)),
@@ -246,7 +253,38 @@ class _WalletBlackState extends State<WalletBlack> {
                                       const TextStyle(color: Colors.white),
                                 ),
                               ),
-                              onPressed: () {},
+                              onPressed: () async {
+                                String recipient = recipientAddrContr.text;
+                                Map bitcoinDetails =
+                                    getBitCoinPOSBlockchains()['Bitcoin'];
+                                if (!Address.validateAddress(
+                                  recipientAddrContr.text,
+                                  bitcoinDetails['POSNetwork'],
+                                )) {
+                                  Get.snackbar(
+                                    '',
+                                    AppLocalizations.of(context).invalidAddress,
+                                    colorText: Colors.white,
+                                    backgroundColor: Colors.red,
+                                  );
+
+                                  return;
+                                }
+
+                                final data = {
+                                  ...bitcoinDetails,
+                                  'amount':
+                                      Decimal.parse(amount.text).toString(),
+                                  'recipient': recipient
+                                };
+
+                                Get.closeAllSnackbars();
+
+                                await Get.to(TransferToken(
+                                  data: data,
+                                ));
+                                print(bitcoinDetails);
+                              },
                               child: const Text('Send'),
                             ),
                           )

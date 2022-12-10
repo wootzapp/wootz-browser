@@ -302,9 +302,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    Box pref = Hive.box(secureStorageKey);
     return SafeArea(
         child: IndexedStack(
-      index: webLoadin ? 1 : 0,
+      index: webLoadin || pref.get(currentMmenomicKey) == null ? 1 : 0,
       children: [
         const WalletBlack(),
         Column(children: <Widget>[
