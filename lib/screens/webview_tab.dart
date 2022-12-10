@@ -304,6 +304,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return SafeArea(
         child: IndexedStack(
+      index: webLoadin ? 1 : 0,
       children: [
         const WalletBlack(),
         Column(children: <Widget>[
@@ -316,8 +317,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                 InAppWebView(
                   windowId: widget.windowId,
                   pullToRefreshController: _pullToRefreshController,
-                  initialUrlRequest:
-                      URLRequest(url: WebUri(widget.data ?? walletURL)),
                   initialSettings: InAppWebViewSettings(
                     useShouldOverrideUrlLoading: true,
                     forceDark: Theme.of(context).brightness == Brightness.dark
@@ -866,7 +865,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   ]),
                   onLoadStart:
                       (InAppWebViewController controller, Uri url) async {
-                    webLoadin = true;
+                    setState(() {
+                      webLoadin = true;
+                    });
                     _browserController.text = url.toString();
 
                     final pref = Hive.box(secureStorageKey);
