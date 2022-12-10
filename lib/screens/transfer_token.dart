@@ -279,9 +279,7 @@ class _TransferTokenState extends State<TransferToken> {
           'userBalance': userBalance,
         };
       }
-    } catch (_) {
-      print(_);
-    }
+    } catch (_) {}
   }
 
   @override
