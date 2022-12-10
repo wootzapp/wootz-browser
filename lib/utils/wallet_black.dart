@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cryptowallet/utils/qr_scan_view.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import '../components/loader.dart';
 import '../screens/main_screen.dart';
 import '../screens/security.dart';
 import '../screens/send_token.dart';
+import '../screens/view_wallets.dart';
 import '../screens/wallet_main_body.dart';
 import 'app_config.dart';
 
@@ -43,22 +46,17 @@ class _WalletBlackState extends State<WalletBlack> {
                               GestureDetector(
                                 onTap: () async {
                                   final pref = Hive.box(secureStorageKey);
-                                  bool hasWallet =
-                                      pref.get(currentMmenomicKey) != null;
+                                  final mnemonics = pref.get(mnemonicListKey);
 
-                                  bool hasPasscode =
-                                      pref.get(userUnlockPasscodeKey) != null;
-                                  Widget dappWidget;
-                                  Get.back();
+                                  final currentPhrase =
+                                      pref.get(currentMmenomicKey);
 
-                                  if (hasWallet) {
-                                    dappWidget = const WalletMainBody();
-                                  } else if (hasPasscode) {
-                                    dappWidget = const MainScreen();
-                                  } else {
-                                    dappWidget = const Security();
-                                  }
-                                  await Get.to(dappWidget);
+                                  await Get.to(
+                                    ViewWallets(
+                                      data: (jsonDecode(mnemonics) as List),
+                                      currentPhrase: currentPhrase,
+                                    ),
+                                  );
                                 },
                                 child: Row(
                                   children: const [
