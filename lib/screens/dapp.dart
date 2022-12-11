@@ -814,15 +814,18 @@ class _DappState extends State<Dapp> {
   Widget build(BuildContext context) {
     return WillPopScope(
       child: Scaffold(
-        bottomNavigationBar: Padding(
-          padding: MediaQuery.of(context).viewInsets,
-          child: showWebViewTabsViewer
-              ? _buildWebViewTabViewerAppBar()
-              : _buildWebViewTabAppBar(),
-        ),
-        body: IndexedStack(
-          index: showWebViewTabsViewer ? 1 : 0,
-          children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+        body: Column(
+          children: [
+            Expanded(
+              child: IndexedStack(
+                index: showWebViewTabsViewer ? 1 : 0,
+                children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+              ),
+            ),
+            showWebViewTabsViewer
+                ? _buildWebViewTabViewerAppBar()
+                : _buildWebViewTabAppBar()
+          ],
         ),
       ),
       onWillPop: () async {
