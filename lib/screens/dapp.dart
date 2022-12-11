@@ -12,6 +12,7 @@ import 'package:cryptowallet/utils/slide_up_panel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_js/extensions/fetch.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
@@ -95,6 +96,8 @@ class _DappState extends State<Dapp> {
     final historyTitle = localize.history;
     final historyEmpty = localize.noHistory;
     final pref = Hive.box(secureStorageKey);
+    print('dapp focus');
+    print(webViewTabs[currentTabIndex].focus);
     return PreferredSize(
       child: SafeArea(
         child: SizedBox(

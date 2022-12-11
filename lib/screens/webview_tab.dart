@@ -165,6 +165,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     super.initState();
     _focus = FocusNode();
     _focus.addListener(_onFocusChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onStateUpdated.call();
+    });
+
     initJs = widget.init;
     webNotification = [
       UserScript(
