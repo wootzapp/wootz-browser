@@ -1021,7 +1021,17 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         ]),
         TextFormField(
           textInputAction: TextInputAction.search,
-          // controller: _browserController,
+          controller: _browserController,
+          onFieldSubmitted: (value) async {
+            FocusManager.instance.primaryFocus?.unfocus();
+            if (_controller != null) {
+              Uri uri = blockChainToHttps(value.trim());
+              await _controller.loadUrl(
+                urlRequest: URLRequest(url: WebUri.uri(uri)),
+              );
+            }
+          },
+          focusNode: _focus,
           decoration: InputDecoration(
             prefixIconConstraints:
                 const BoxConstraints(minWidth: 35, maxWidth: 35),
