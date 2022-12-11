@@ -148,7 +148,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   bool webLoadin = false;
   String initJs = '';
   bool isFocused = false;
-  FocusNode _focus = FocusNode();
+  final FocusNode _focus = FocusNode();
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
