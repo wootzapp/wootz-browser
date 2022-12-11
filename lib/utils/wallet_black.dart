@@ -188,7 +188,13 @@ class _WalletBlackState extends State<WalletBlack> {
                                   autocorrect: false,
                                   controller: amount,
                                   onChanged: (value) async {
-                                    if (Decimal.tryParse(value) == null) return;
+                                    Decimal amount = Decimal.tryParse(value);
+                                    if (amount == null) return;
+                                    if (bitcoinPrice != null) {
+                                      double conversion =
+                                          amount.toDouble() * bitcoinPrice;
+                                      btcUSD.text = conversion.toString();
+                                    }
                                     const dataUrl =
                                         'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true';
 
@@ -196,7 +202,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                         await get(Uri.parse(dataUrl))
                                             .timeout(networkTimeOutDuration);
                                     final responseBody = response.body;
-                                    // check for http status code of 4** or 5**
+
                                     if (response.statusCode ~/ 100 == 4 ||
                                         response.statusCode ~/ 100 == 5) {
                                       throw Exception(responseBody);
@@ -207,8 +213,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                     bitcoinPrice =
                                         bitcoinResponse['bitcoin']['usd'];
                                     double conversion =
-                                        Decimal.parse(value).toDouble() *
-                                            bitcoinPrice;
+                                        amount.toDouble() * bitcoinPrice;
                                     btcUSD.text = conversion.toString();
                                   },
                                   keyboardType:
