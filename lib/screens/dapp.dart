@@ -110,7 +110,13 @@ class _DappState extends State<Dapp> {
                 child: TextFormField(
                   onFieldSubmitted: (value) async {
                     FocusManager.instance.primaryFocus?.unfocus();
+
                     if (webViewTabs[currentTabIndex].controller != null) {
+                      if (await webViewTabs[currentTabIndex]
+                          .controller
+                          .isLoading()) {
+                        return;
+                      }
                       Uri uri = blockChainToHttps(value.trim());
                       await webViewTabs[currentTabIndex].controller.loadUrl(
                             urlRequest: URLRequest(url: WebUri.uri(uri)),

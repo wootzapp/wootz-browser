@@ -148,7 +148,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   bool webLoadin = false;
   String initJs = '';
   bool isFocused = false;
-  final FocusNode _focus = FocusNode();
+  FocusNode _focus;
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
@@ -163,6 +163,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _focus = FocusNode();
     _focus.addListener(_onFocusChange);
     initJs = widget.init;
     webNotification = [
@@ -1025,6 +1026,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
           onFieldSubmitted: (value) async {
             FocusManager.instance.primaryFocus?.unfocus();
             if (_controller != null) {
+              if (await _controller.isLoading()) {
+                return;
+              }
               Uri uri = blockChainToHttps(value.trim());
               await _controller.loadUrl(
                 urlRequest: URLRequest(url: WebUri.uri(uri)),
