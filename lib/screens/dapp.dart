@@ -108,9 +108,6 @@ class _DappState extends State<Dapp> {
               ),
               Flexible(
                 child: TextFormField(
-                  onChanged: (value) async {
-                    // webViewTabs[currentTabIndex];
-                  },
                   onFieldSubmitted: (value) async {
                     FocusManager.instance.primaryFocus?.unfocus();
                     if (webViewTabs[currentTabIndex].controller != null) {
@@ -120,6 +117,7 @@ class _DappState extends State<Dapp> {
                           );
                     }
                   },
+                  focusNode: webViewTabs[currentTabIndex].focus,
                   textInputAction: TextInputAction.search,
                   controller: webViewTabs[currentTabIndex].browserController,
                   decoration: InputDecoration(

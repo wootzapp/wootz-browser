@@ -52,6 +52,11 @@ class WebViewTab extends StatefulWidget {
     return state?._controller;
   }
 
+  FocusNode get focus {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    return state?._focus;
+  }
+
   TextEditingController get browserController {
     final state = (key as GlobalKey).currentState as _WebViewTabState;
     return state?._browserController;
@@ -141,6 +146,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   double _progress = 0;
   bool webLoadin = false;
   String initJs = '';
+  FocusNode _focus = FocusNode();
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
   WebNotificationController webNotificationController;
@@ -155,6 +161,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_onFocusChange);
     initJs = widget.init;
     webNotification = [
       UserScript(
@@ -217,7 +224,13 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     IsolateNameServer.removePortNameMapping('downloader_send_port');
     _httpAuthUsernameController.dispose();
     _httpAuthPasswordController.dispose();
+    _focus.removeListener(_onFocusChange);
+    _focus.dispose();
     super.dispose();
+  }
+
+  void _onFocusChange() {
+    debugPrint("Focus: ${_focus.hasFocus.toString()}");
   }
 
   changeBrowserChainId_(int chainId, String rpc) async {
