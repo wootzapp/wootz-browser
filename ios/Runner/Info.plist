@@ -46,6 +46,8 @@
 		</array>
 		<key>CFBundleVersion</key>
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
+		<key>NSMicrophoneUsageDescription</key>
+  		<string>WebRTC requires access to microphone.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>To scan qr codes or upload image, grant camera access.</string>
 		<key>NSFaceIDUsageDescription</key>

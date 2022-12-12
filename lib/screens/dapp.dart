@@ -12,12 +12,15 @@ import 'package:cryptowallet/utils/slide_up_panel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_js/extensions/fetch.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:share/share.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+
+import '../utils/wallet_black.dart';
 
 class Dapp extends StatefulWidget {
   final String provider;
@@ -93,6 +96,8 @@ class _DappState extends State<Dapp> {
     final historyTitle = localize.history;
     final historyEmpty = localize.noHistory;
     final pref = Hive.box(secureStorageKey);
+    print('dapp focus');
+    print(webViewTabs[currentTabIndex].focus);
     return PreferredSize(
       child: SafeArea(
         child: SizedBox(
@@ -101,39 +106,33 @@ class _DappState extends State<Dapp> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              IconButton(
-                onPressed: () async {
-                  if (webViewTabs[currentTabIndex].controller != null) {
-                    webViewTabs[currentTabIndex].controller.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri(walletURL),
-                          ),
-                        );
-                  }
-                },
-                icon: const Icon(
-                  Icons.home_filled,
-                ),
+              const SizedBox(
+                width: 10,
               ),
               Flexible(
                 child: TextFormField(
                   onFieldSubmitted: (value) async {
                     FocusManager.instance.primaryFocus?.unfocus();
+
                     if (webViewTabs[currentTabIndex].controller != null) {
+                      if (await webViewTabs[currentTabIndex]
+                          .controller
+                          .isLoading()) {
+                        return;
+                      }
                       Uri uri = blockChainToHttps(value.trim());
                       await webViewTabs[currentTabIndex].controller.loadUrl(
                             urlRequest: URLRequest(url: WebUri.uri(uri)),
                           );
                     }
                   },
+                  focusNode: webViewTabs[currentTabIndex].focus,
                   textInputAction: TextInputAction.search,
                   controller: webViewTabs[currentTabIndex].browserController,
                   decoration: InputDecoration(
                     prefixIconConstraints:
                         const BoxConstraints(minWidth: 35, maxWidth: 35),
                     contentPadding: const EdgeInsets.all(0),
-                    suffixIconConstraints:
-                        const BoxConstraints(minWidth: 35, maxWidth: 35),
                     prefixIcon: webViewTabs[currentTabIndex].isSecure != null
                         ? Padding(
                             padding: const EdgeInsets.only(left: 8.0, right: 8),
@@ -153,13 +152,23 @@ class _DappState extends State<Dapp> {
                                 color: Colors.red, size: 18),
                           ),
                     isDense: true,
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.cancel,
-                      ),
-                      onPressed: () {
-                        webViewTabs[currentTabIndex].browserController.clear();
-                      },
+                    suffixIcon: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.qr_code_scanner,
+                          ),
+                          onPressed: () async {},
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.mic_outlined,
+                          ),
+                          onPressed: () async {},
+                        ),
+                      ],
                     ),
                     hintText: AppLocalizations.of(context).searchOrEnterUrl,
 
@@ -814,13 +823,20 @@ class _DappState extends State<Dapp> {
   Widget build(BuildContext context) {
     return WillPopScope(
       child: Scaffold(
-          appBar: showWebViewTabsViewer
-              ? _buildWebViewTabViewerAppBar()
-              : _buildWebViewTabAppBar(),
-          body: IndexedStack(
-            index: showWebViewTabsViewer ? 1 : 0,
-            children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
-          )),
+        body: Column(
+          children: [
+            Expanded(
+              child: IndexedStack(
+                index: showWebViewTabsViewer ? 1 : 0,
+                children: [_buildWebViewTabs(), _buildWebViewTabsViewer()],
+              ),
+            ),
+            showWebViewTabsViewer
+                ? _buildWebViewTabViewerAppBar()
+                : _buildWebViewTabAppBar()
+          ],
+        ),
+      ),
       onWillPop: () async {
         if (showWebViewTabsViewer) {
           setState(() {

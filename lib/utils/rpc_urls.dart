@@ -2074,8 +2074,12 @@ Uri blockChainToHttps(String value) {
   value = value.trim();
   if (value.startsWith('ipfs://')) return Uri.parse(ipfsTohttp(value));
 
-  if (isURL(value)) return Uri.parse(value).replace(scheme: 'https');
+  if (isURL(value)) return Uri.parse(value);
 
+  Uri url = Uri.tryParse(value);
+  if (url != null && isLocalizedContent(url)) {
+    return url;
+  }
   return Uri.parse('https://www.google.com/search?q=$value');
 }
 
@@ -3503,6 +3507,18 @@ web3.Transaction wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
         ? int.tryParse(ethereumTransaction.nonce)
         : null,
   );
+}
+
+bool isLocalizedContent(Uri url) {
+  return (url.scheme == "file" ||
+      url.scheme == "chrome" ||
+      url.scheme == "data" ||
+      url.scheme == "javascript" ||
+      url.scheme == "about");
+}
+
+bool urlIsSecure(Uri url) {
+  return (url.scheme == "https") || isLocalizedContent(url);
 }
 
 Future<String> downloadFile(String url, [String filename]) async {
