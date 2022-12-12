@@ -22,7 +22,7 @@ import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
 import 'package:web3dart/web3dart.dart' as web3;
 import 'package:bs58check/bs58check.dart' as bs58check;
 
-import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
+// import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
 import 'package:solana/solana.dart' as solana;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
@@ -462,7 +462,8 @@ class _SendTokenState extends State<SendToken> {
                           } else if (widget.data['default'] == 'SOL') {
                             solana.Ed25519HDPublicKey.fromBase58(recipient);
                           } else if (widget.data['default'] == 'ADA') {
-                            cardano.ShelleyAddress.fromBech32(recipient);
+                              //FIXME:
+                            // cardano.ShelleyAddress.fromBech32(recipient);
                           } else if (widget.data['default'] == 'XLM') {
                             stellar.KeyPair.fromAccountId(recipient);
                           } else if (widget.data['default'] == 'FIL') {

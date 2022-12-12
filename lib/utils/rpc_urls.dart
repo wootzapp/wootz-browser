@@ -8,7 +8,7 @@ import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
 import 'package:awesome_dialog/awesome_dialog.dart';
-import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
+// import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
 import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/screens/security.dart';
 import 'package:cryptowallet/utils/bitcoin_util.dart';
@@ -921,29 +921,31 @@ Map getFilecoinBlockChains() {
 }
 
 Map getCardanoBlockChains() {
-  Map blockChains = {
-    'Cardano': {
-      'symbol': 'ADA',
-      'default': 'ADA',
-      'blockExplorer':
-          'https://cardanoscan.io/transaction/$transactionhashTemplateKey',
-      'image': 'assets/cardano.png',
-      'cardano_network': cardano.NetworkId.mainnet,
-      'blockFrostKey': 'mainnetpgkQqXqQ4HjK6gzUKaHW6VU9jcmcKEbd'
-    }
-  };
-  if (enableTestNet) {
-    blockChains['Cardano(Prepod)'] = {
-      'symbol': 'ADA',
-      'default': 'ADA',
-      'blockExplorer':
-          'https://preprod.cardanoscan.io/transaction/$transactionhashTemplateKey',
-      'image': 'assets/cardano.png',
-      'cardano_network': cardano.NetworkId.testnet,
-      'blockFrostKey': 'preprodmpCaCFGCxLihVPPxXxqEvEnp7dyFmG6J'
-    };
-  }
-  return blockChains;
+  return {};
+  // FIXME:
+  // Map blockChains = {
+  //   'Cardano': {
+  //     'symbol': 'ADA',
+  //     'default': 'ADA',
+  //     'blockExplorer':
+  //         'https://cardanoscan.io/transaction/$transactionhashTemplateKey',
+  //     'image': 'assets/cardano.png',
+  //     'cardano_network': cardano.NetworkId.mainnet,
+  //     'blockFrostKey': 'mainnetpgkQqXqQ4HjK6gzUKaHW6VU9jcmcKEbd'
+  //   }
+  // };
+  // if (enableTestNet) {
+  //   blockChains['Cardano(Prepod)'] = {
+  //     'symbol': 'ADA',
+  //     'default': 'ADA',
+  //     'blockExplorer':
+  //         'https://preprod.cardanoscan.io/transaction/$transactionhashTemplateKey',
+  //     'image': 'assets/cardano.png',
+  //     'cardano_network': cardano.NetworkId.testnet,
+  //     'blockFrostKey': 'preprodmpCaCFGCxLihVPPxXxqEvEnp7dyFmG6J'
+  //   };
+  // }
+  // return blockChains;
 }
 
 const coinGeckCryptoSymbolToID = {
@@ -1145,70 +1147,72 @@ Future<void> initializeAllPrivateKeys(String mnemonic) async {
 }
 
 Future<Map> sendCardano(Map config) async {
-  final walletBuilder = cardano.WalletBuilder()
-    ..networkId = config['cardanoNetwork']
-    ..mnemonic = config['mnemonic'].split(' ');
+  return {};
+  //FIXME:
+  // final walletBuilder = cardano.WalletBuilder()
+  //   ..networkId = config['cardanoNetwork']
+  //   ..mnemonic = config['mnemonic'].split(' ');
 
-  if (config['cardanoNetwork'] == cardano.NetworkId.mainnet) {
-    walletBuilder.mainnetAdapterKey = config['blockfrostForCardanoApiKey'];
-  } else if (config['cardanoNetwork'] == cardano.NetworkId.testnet) {
-    walletBuilder.testnetAdapterKey = config['blockfrostForCardanoApiKey'];
-  }
-  final result = await walletBuilder.buildAndSync();
-  if (result.isErr()) {
-    if (kDebugMode) {
-      print(result.err());
-    }
-    return {};
-  }
+  // if (config['cardanoNetwork'] == cardano.NetworkId.mainnet) {
+  //   walletBuilder.mainnetAdapterKey = config['blockfrostForCardanoApiKey'];
+  // } else if (config['cardanoNetwork'] == cardano.NetworkId.testnet) {
+  //   walletBuilder.testnetAdapterKey = config['blockfrostForCardanoApiKey'];
+  // }
+  // final result = await walletBuilder.buildAndSync();
+  // if (result.isErr()) {
+  //   if (kDebugMode) {
+  //     print(result.err());
+  //   }
+  //   return {};
+  // }
 
-  cardano.Wallet userWallet = result.unwrap();
+  // cardano.Wallet userWallet = result.unwrap();
 
-  final coinSelection = await cardano.largestFirst(
-    unspentInputsAvailable: userWallet.unspentTransactions,
-    outputsRequested: [
-      cardano.MultiAssetRequest.lovelace(
-        config['lovelaceToSend'] + maxFeeGuessForCardano,
-      )
-    ],
-    ownedAddresses: userWallet.addresses.toSet(),
-  );
+  // final coinSelection = await cardano.largestFirst(
+  //   unspentInputsAvailable: userWallet.unspentTransactions,
+  //   outputsRequested: [
+  //     cardano.MultiAssetRequest.lovelace(
+  //       config['lovelaceToSend'] + maxFeeGuessForCardano,
+  //     )
+  //   ],
+  //   ownedAddresses: userWallet.addresses.toSet(),
+  // );
 
-  final builder = cardano.TransactionBuilder()
-    ..wallet(userWallet)
-    ..blockchainAdapter(userWallet.blockchainAdapter)
-    ..toAddress(config['recipientAddress'])
-    ..inputs(coinSelection.unwrap().inputs)
-    ..value(
-      cardano.ShelleyValue(
-        coin: config['lovelaceToSend'],
-        multiAssets: [],
-      ),
-    )
-    ..changeAddress(config['senderAddress']);
+  // final builder = cardano.TransactionBuilder()
+  //   ..wallet(userWallet)
+  //   ..blockchainAdapter(userWallet.blockchainAdapter)
+  //   ..toAddress(config['recipientAddress'])
+  //   ..inputs(coinSelection.unwrap().inputs)
+  //   ..value(
+  //     cardano.ShelleyValue(
+  //       coin: config['lovelaceToSend'],
+  //       multiAssets: [],
+  //     ),
+  //   )
+  //   ..changeAddress(config['senderAddress']);
 
-  final txResult = await builder.buildAndSign();
+  // final txResult = await builder.buildAndSign();
 
-  if (txResult.isErr()) {
-    if (kDebugMode) {
-      print(txResult.err());
-    }
-    return {};
-  }
+  // if (txResult.isErr()) {
+  //   if (kDebugMode) {
+  //     print(txResult.err());
+  //   }
+  //   return {};
+  // }
 
-  final submitTrx = await userWallet.blockchainAdapter.submitTransaction(
-    txResult.unwrap().serialize,
-  );
+  // final submitTrx = await userWallet.blockchainAdapter.submitTransaction(
+  //   txResult.unwrap().serialize,
+  // );
 
-  if (submitTrx.isErr()) {
-    if (kDebugMode) {
-      print(submitTrx.err());
-    }
-    return {};
-  }
+  // if (submitTrx.isErr()) {
+  //   if (kDebugMode) {
+  //     print(submitTrx.err());
+  //   }
+  //   return {};
+  // }
 
-  final txHash = submitTrx.unwrap();
-  return {'txid': txHash.replaceAll('"', '')};
+  // final txHash = submitTrx.unwrap();
+  // return {'txid': txHash.replaceAll('"', '')};
 }
 
 Future<Map> sendSolana(
@@ -1249,9 +1253,12 @@ Future<Map> getSolanaFromMemnomic(String mnemonic) async {
   return keys;
 }
 
+//FIXME:
 Future<Map> getCardanoFromMemnomic(
   String mnemonic,
-  cardano.NetworkId cardanoNetwork,
+  // cardano.NetworkId
+
+  cardanoNetwork,
 ) async {
   final pref = Hive.box(secureStorageKey);
 
@@ -1432,22 +1439,24 @@ Future calculateSolanaKey(Map config) async {
 }
 
 Map calculateCardanoKey(Map config) {
-  final wallet = cardano.HdWallet.fromMnemonic(config[mnemonicKey]);
-  const cardanoAccountHardOffsetKey = 0x80000000;
+  return {};
+  //FIXME:
+  // final wallet = cardano.HdWallet.fromMnemonic(config[mnemonicKey]);
+  // const cardanoAccountHardOffsetKey = 0x80000000;
 
-  String userWalletAddress = wallet
-      .deriveUnusedBaseAddressKit(
-          networkId: config['network'],
-          index: 0,
-          account: cardanoAccountHardOffsetKey,
-          role: 0,
-          unusedCallback: (cardano.ShelleyAddress address) => true)
-      .address
-      .toString();
+  // String userWalletAddress = wallet
+  //     .deriveUnusedBaseAddressKit(
+  //         networkId: config['network'],
+  //         index: 0,
+  //         account: cardanoAccountHardOffsetKey,
+  //         role: 0,
+  //         unusedCallback: (cardano.ShelleyAddress address) => true)
+  //     .address
+  //     .toString();
 
-  return {
-    'address': userWalletAddress,
-  };
+  // return {
+  //   'address': userWalletAddress,
+  // };
 }
 
 Future<Map> calculateStellarKey(Map config) async {
@@ -1461,7 +1470,8 @@ Future<Map> calculateStellarKey(Map config) async {
 
 Future<double> getCardanoAddressBalance(
   String address,
-  cardano.NetworkId cardanoNetwork,
+  // cardano.NetworkId
+  cardanoNetwork,
   String blockfrostForCardanoApiKey, {
   bool skipNetworkRequest = false,
 }) async {
@@ -1479,27 +1489,28 @@ Future<double> getCardanoAddressBalance(
   if (skipNetworkRequest) return savedBalance;
 
   try {
-    final cardanoBlockfrostBaseUrl =
-        'https://cardano-${cardanoNetwork == cardano.NetworkId.mainnet ? 'mainnet' : 'preprod'}.blockfrost.io/api/v0/addresses/';
-    final request = await get(
-      Uri.parse('$cardanoBlockfrostBaseUrl$address'),
-      headers: {'project_id': blockfrostForCardanoApiKey},
-    );
+    //FIXME:
+    // final cardanoBlockfrostBaseUrl =
+    //     'https://cardano-${cardanoNetwork == cardano.NetworkId.mainnet ? 'mainnet' : 'preprod'}.blockfrost.io/api/v0/addresses/';
+    // final request = await get(
+    //   Uri.parse('$cardanoBlockfrostBaseUrl$address'),
+    //   headers: {'project_id': blockfrostForCardanoApiKey},
+    // );
 
-    if (request.statusCode ~/ 100 == 4 || request.statusCode ~/ 100 == 5) {
-      throw Exception('Request failed');
-    }
-    Map decodedData = jsonDecode(request.body);
-    final balance = (decodedData['amount'] as List)
-        .where((element) => element['unit'] == 'lovelace')
-        .toList()[0]['quantity'];
+    // if (request.statusCode ~/ 100 == 4 || request.statusCode ~/ 100 == 5) {
+    //   throw Exception('Request failed');
+    // }
+    // Map decodedData = jsonDecode(request.body);
+    // final balance = (decodedData['amount'] as List)
+    //     .where((element) => element['unit'] == 'lovelace')
+    //     .toList()[0]['quantity'];
 
-    final balanceFromAdaToLoveLace =
-        (BigInt.parse(balance) / BigInt.from(pow(10, cardanoDecimals)))
-            .toDouble();
-    await pref.put(key, balanceFromAdaToLoveLace);
+    // final balanceFromAdaToLoveLace =
+    //     (BigInt.parse(balance) / BigInt.from(pow(10, cardanoDecimals)))
+    //         .toDouble();
+    // await pref.put(key, balanceFromAdaToLoveLace);
 
-    return balanceFromAdaToLoveLace;
+    // return balanceFromAdaToLoveLace;
   } catch (e) {
     return savedBalance;
   }

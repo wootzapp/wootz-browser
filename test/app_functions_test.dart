@@ -14,7 +14,7 @@ import 'package:cryptowallet/utils/ethereum_blockies.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
+// import 'package:cardano_wallet_sdk/cardano_wallet_sdk.dart' as cardano;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() async {
@@ -263,14 +263,14 @@ void main() async {
         'coinType': getEVMBlockchains()['Ethereum Classic']['coinType'],
       },
     );
-    final cardanoLiveKey = await compute(
-      calculateCardanoKey,
-      {mnemonicKey: mnemonic, 'network': cardano.NetworkId.mainnet},
-    );
-    final cardanoTestNetKey = await compute(
-      calculateCardanoKey,
-      {mnemonicKey: mnemonic, 'network': cardano.NetworkId.testnet},
-    );
+    // final cardanoLiveKey = await compute(
+    //   calculateCardanoKey,
+    //   {mnemonicKey: mnemonic, 'network': cardano.NetworkId.mainnet},
+    // );
+    // final cardanoTestNetKey = await compute(
+    //   calculateCardanoKey,
+    //   {mnemonicKey: mnemonic, 'network': cardano.NetworkId.testnet},
+    // );
     final stellarKey = await compute(
       calculateStellarKey,
       {mnemonicKey: mnemonic},
@@ -315,14 +315,14 @@ void main() async {
       solanaKey['address'],
       '5rxJLW9p2NQPMRjKM1P3B7CQ7v2RASpz45T7QP39bX5W',
     );
-    expect(
-      cardanoLiveKey['address'],
-      'addr1q9r4l5l6xzsvum2g5s7u99wt630p8qd9xpepf73reyyrmxpqde5sugs7jg27gp04fcq7a9z90gz3ac8mq7p7k5vwedsq34lpxc',
-    );
-    expect(
-      cardanoTestNetKey['address'],
-      'addr_test1qpr4l5l6xzsvum2g5s7u99wt630p8qd9xpepf73reyyrmxpqde5sugs7jg27gp04fcq7a9z90gz3ac8mq7p7k5vwedsqjrzp28',
-    );
+    // expect(
+    //   cardanoLiveKey['address'],
+    //   'addr1q9r4l5l6xzsvum2g5s7u99wt630p8qd9xpepf73reyyrmxpqde5sugs7jg27gp04fcq7a9z90gz3ac8mq7p7k5vwedsq34lpxc',
+    // );
+    // expect(
+    //   cardanoTestNetKey['address'],
+    //   'addr_test1qpr4l5l6xzsvum2g5s7u99wt630p8qd9xpepf73reyyrmxpqde5sugs7jg27gp04fcq7a9z90gz3ac8mq7p7k5vwedsqjrzp28',
+    // );
   });
 
   test('user pin length and pin trials is secured and correct.', () async {

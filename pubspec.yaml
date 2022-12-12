@@ -88,7 +88,7 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.0.0
   package_info_plus: 1.0.6
-  cardano_wallet_sdk: ^0.1.0-alpha.12
+  # cardano_wallet_sdk: ^0.1.0-alpha.11
   bs58check: ^1.0.2
   bech32: ^0.1.2
   sha3: ^0.2.0
