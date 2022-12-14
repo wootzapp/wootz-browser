@@ -96,8 +96,6 @@ class _DappState extends State<Dapp> {
     final historyTitle = localize.history;
     final historyEmpty = localize.noHistory;
     final pref = Hive.box(secureStorageKey);
-    print('dapp focus');
-    print(webViewTabs[currentTabIndex].focus);
     return PreferredSize(
       child: SafeArea(
         child: SizedBox(
