@@ -854,7 +854,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                   signedData = credentials
                                       .signPersonalMessageToUint8List(
                                     txDataToUintList(data),
-                                    chainId: chainId,
                                   );
                                   signedDataHex =
                                       bytesToHex(signedData, include0x: true);
