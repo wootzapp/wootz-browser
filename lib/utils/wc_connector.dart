@@ -468,10 +468,11 @@ class WcConnector {
             version: TypedDataVersion.V4,
           );
         } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
-          Uint8List signedData = await credentials.signPersonalMessage(
+          Uint8List signedData = credentials.signPersonalMessageToUint8List(
             txDataToUintList(
               ethereumSignMessage.data,
             ),
+            chainId: _chainId,
           );
           signedDataHex = bytesToHex(signedData, include0x: true);
         } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {
