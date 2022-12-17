@@ -566,15 +566,22 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         }
 
                         if (switchChainIdData == null) {
-                          List blockchainExplorers =
-                              dataValue['blockExplorerUrls'];
+                          List blockExplorers = dataValue['blockExplorerUrls'];
+                          String blockExplorer = '';
+                          if (blockExplorers.isNotEmpty) {
+                            blockExplorer = blockExplorers[0];
+                            if (blockExplorer.endsWith('/')) {
+                              blockExplorer.substring(
+                                  0, blockExplorer.length - 1);
+                            }
+                          }
                           List rpcUrl = dataValue['rpcUrls'];
                           Map details = {
                             dataValue['chainName']: {
                               "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
                               'chainId': switchChainId,
-                              'blockExplorer': blockchainExplorers.isNotEmpty
-                                  ? blockchainExplorers[0]
+                              'blockExplorer': blockExplorers.isNotEmpty
+                                  ? '$blockExplorer/tx/$transactionhashTemplateKey'
                                   : null,
                               'symbol': dataValue['nativeCurrency']['symbol'],
                               'default': dataValue['nativeCurrency']['symbol'],
