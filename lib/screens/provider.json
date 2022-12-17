@@ -1,0 +1,8 @@
+{
+  "chainId": "0x38",
+  "chainName": "BSC Mainnet",
+  "nativeCurrency": { "name": "BNB", "symbol": "BNB", "decimals": 18 },
+  "rpcUrls": ["https://bsc-dataseed.binance.org"],
+  "blockExplorerUrls": ["https://bscscan.com/"],
+  "chainType": "ETH"
+}

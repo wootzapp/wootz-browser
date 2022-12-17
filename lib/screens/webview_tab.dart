@@ -541,13 +541,16 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                     _controller.addJavaScriptHandler(
                       handlerName: 'walletAddEthereumChain',
                       callback: (args) async {
+                        if (kDebugMode) {
+                          print(args);
+                        }
                         final pref = Hive.box(secureStorageKey);
                         int chainId = pref.get(dappChainIdKey);
                         final id = args[0];
+                        final dataValue = json.decode(args[1]);
 
                         final switchChainId =
-                            BigInt.parse(json.decode(args[1])['chainId'])
-                                .toInt();
+                            BigInt.parse(dataValue['chainId']).toInt();
 
                         final currentChainIdData =
                             getEthereumDetailsFromChainId(chainId);
@@ -563,6 +566,27 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         }
 
                         if (switchChainIdData == null) {
+                          List blockchainExplorers =
+                              dataValue['blockExplorerUrls'];
+                          List rpcUrl = dataValue['rpcUrls'];
+                          Map details = {
+                            dataValue['chainName']: {
+                              "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
+                              'chainId': switchChainId,
+                              'blockExplorer': blockchainExplorers.isNotEmpty
+                                  ? blockchainExplorers[0]
+                                  : null,
+                              'symbol': dataValue['nativeCurrency']['symbol'],
+                              'default': dataValue['nativeCurrency']['symbol'],
+                              'image': 'assets/ethereum_logo.png',
+                              'coinType': 60
+                            }
+                          };
+
+                          if (kDebugMode) {
+                            print(details);
+                          }
+
                           await _controller.evaluateJavascript(
                               source:
                                   'AlphaWallet.executeCallback($id, "we can not add this block", null);');
