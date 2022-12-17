@@ -89,6 +89,7 @@ const bookMarkKey = 'bookMarks';
 const historyKey = 'broswer_kehsi_history';
 const coinMarketCapApiKey = 'a4e88d80-acc3-4bb5-a8a6-151a2ddb5f32';
 const appUnlockTime = 'applockksksietimeal382';
+const newEVMChainKey = 'skskalskslskssaieii3ladkaldkadieiaa;ss';
 const wcSessionKey = 'ianeallekdkkslswtcondkdkaleiealdidke22a';
 
 // template tags

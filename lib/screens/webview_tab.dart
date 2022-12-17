@@ -576,6 +576,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             }
                           }
                           List rpcUrl = dataValue['rpcUrls'];
+
+                          Map addBlockChain = {};
+                          if (pref.get(newEVMChainKey) != null) {
+                            addBlockChain =
+                                Map.from(jsonDecode(pref.get(newEVMChainKey)));
+                          }
                           Map details = {
                             dataValue['chainName']: {
                               "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
@@ -589,9 +595,14 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                               'coinType': 60
                             }
                           };
+                          addBlockChain.addAll(details);
+                          await pref.put(
+                            newEVMChainKey,
+                            jsonEncode(addBlockChain),
+                          );
 
                           if (kDebugMode) {
-                            print(details);
+                            print(addBlockChain);
                           }
 
                           await _controller.evaluateJavascript(
