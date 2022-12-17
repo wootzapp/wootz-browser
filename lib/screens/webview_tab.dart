@@ -555,7 +555,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         final currentChainIdData =
                             getEthereumDetailsFromChainId(chainId);
 
-                        final switchChainIdData =
+                        Map switchChainIdData =
                             getEthereumDetailsFromChainId(switchChainId);
 
                         if (chainId == switchChainId) {
@@ -582,18 +582,20 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             addBlockChain =
                                 Map.from(jsonDecode(pref.get(newEVMChainKey)));
                           }
+
+                          switchChainIdData = {
+                            "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
+                            'chainId': switchChainId,
+                            'blockExplorer': blockExplorers.isNotEmpty
+                                ? '$blockExplorer/tx/$transactionhashTemplateKey'
+                                : null,
+                            'symbol': dataValue['nativeCurrency']['symbol'],
+                            'default': dataValue['nativeCurrency']['symbol'],
+                            'image': 'assets/ethereum_logo.png',
+                            'coinType': 60
+                          };
                           Map details = {
-                            dataValue['chainName']: {
-                              "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
-                              'chainId': switchChainId,
-                              'blockExplorer': blockExplorers.isNotEmpty
-                                  ? '$blockExplorer/tx/$transactionhashTemplateKey'
-                                  : null,
-                              'symbol': dataValue['nativeCurrency']['symbol'],
-                              'default': dataValue['nativeCurrency']['symbol'],
-                              'image': 'assets/ethereum_logo.png',
-                              'coinType': 60
-                            }
+                            dataValue['chainName']: switchChainIdData,
                           };
                           addBlockChain.addAll(details);
                           await pref.put(
@@ -604,35 +606,30 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           if (kDebugMode) {
                             print(addBlockChain);
                           }
-
-                          await _controller.evaluateJavascript(
-                              source:
-                                  'AlphaWallet.executeCallback($id, "we can not add this block", null);');
-                        } else {
-                          switchEthereumChain(
-                            context: context,
-                            currentChainIdData: currentChainIdData,
-                            switchChainIdData: switchChainIdData,
-                            onConfirm: () async {
-                              await changeBrowserChainId_(
-                                switchChainIdData['chainId'],
-                                switchChainIdData['rpc'],
-                              );
-
-                              await _controller.evaluateJavascript(
-                                source:
-                                    'AlphaWallet.executeCallback($id, null, null);',
-                              );
-                              Navigator.pop(context);
-                            },
-                            onReject: () async {
-                              await _controller.evaluateJavascript(
-                                  source:
-                                      'AlphaWallet.executeCallback($id, "user rejected switch", null);');
-                              Navigator.pop(context);
-                            },
-                          );
                         }
+                        switchEthereumChain(
+                          context: context,
+                          currentChainIdData: currentChainIdData,
+                          switchChainIdData: switchChainIdData,
+                          onConfirm: () async {
+                            await changeBrowserChainId_(
+                              switchChainIdData['chainId'],
+                              switchChainIdData['rpc'],
+                            );
+
+                            await _controller.evaluateJavascript(
+                              source:
+                                  'AlphaWallet.executeCallback($id, null, null);',
+                            );
+                            Navigator.pop(context);
+                          },
+                          onReject: () async {
+                            await _controller.evaluateJavascript(
+                                source:
+                                    'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                            Navigator.pop(context);
+                          },
+                        );
                       },
                     );
                     _controller.addJavaScriptHandler(
