@@ -608,15 +608,15 @@ Map getEVMBlockchains() {
       'image': 'assets/ethereum_logo.png',
       'coinType': 60
     },
-    'Smart Chain': {
-      "rpc": 'https://bsc-dataseed.binance.org/',
-      'chainId': 56,
-      'blockExplorer': 'https://bscscan.com/tx/$transactionhashTemplateKey',
-      'symbol': 'BNB',
-      'default': 'BNB',
-      'image': 'assets/smartchain.png',
-      'coinType': 60
-    },
+    // 'Smart Chain': {
+    //   "rpc": 'https://bsc-dataseed.binance.org/',
+    //   'chainId': 56,
+    //   'blockExplorer': 'https://bscscan.com/tx/$transactionhashTemplateKey',
+    //   'symbol': 'BNB',
+    //   'default': 'BNB',
+    //   'image': 'assets/smartchain.png',
+    //   'coinType': 60
+    // },
     'Polygon Matic': {
       "rpc": 'https://polygon-rpc.com',
       'chainId': 137,
@@ -2388,6 +2388,74 @@ Future<Widget> dappWidget(
     webNotifier: webNotifer,
     init: init,
     data: data,
+  );
+}
+
+Future addEthereumChain({
+  context,
+  String jsonObj,
+  onConfirm,
+  onReject,
+}) async {
+  await slideUpPanel(
+    context,
+    Padding(
+      padding: const EdgeInsets.all(25),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Add network',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          JsonViewer(json.decode(jsonObj)),
+          const SizedBox(
+            height: 20,
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xff007bff),
+                  ),
+                  onPressed: onConfirm,
+                  child: Text(
+                    AppLocalizations.of(context).confirm,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18.0,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16.0),
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xff007bff),
+                  ),
+                  onPressed: onReject,
+                  child: Text(
+                    AppLocalizations.of(context).reject,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18.0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+    canDismiss: false,
   );
 }
 

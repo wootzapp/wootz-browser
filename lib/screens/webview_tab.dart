@@ -565,7 +565,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           return;
                         }
 
+                        bool switchNetwork = true;
+                        bool haveNotExecuted = true;
+
                         if (switchChainIdData == null) {
+                          switchNetwork = false;
+                          haveNotExecuted = false;
                           List blockExplorers = dataValue['blockExplorerUrls'];
                           String blockExplorer = '';
                           if (blockExplorers.isNotEmpty) {
@@ -594,42 +599,69 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             'image': 'assets/ethereum-2.png',
                             'coinType': 60
                           };
+
                           Map details = {
                             dataValue['chainName']: switchChainIdData,
                           };
                           addBlockChain.addAll(details);
-                          await pref.put(
-                            newEVMChainKey,
-                            jsonEncode(addBlockChain),
-                          );
 
-                          if (kDebugMode) {
-                            print(addBlockChain);
-                          }
-                        }
-                        switchEthereumChain(
-                          context: context,
-                          currentChainIdData: currentChainIdData,
-                          switchChainIdData: switchChainIdData,
-                          onConfirm: () async {
-                            await changeBrowserChainId_(
-                              switchChainIdData['chainId'],
-                              switchChainIdData['rpc'],
-                            );
+                          await addEthereumChain(
+                            context: context,
+                            jsonObj: json.encode(switchChainIdData),
+                            onConfirm: () async {
+                              await pref.put(
+                                newEVMChainKey,
+                                jsonEncode(addBlockChain),
+                              );
 
-                            await _controller.evaluateJavascript(
-                              source:
-                                  'AlphaWallet.executeCallback($id, null, null);',
-                            );
-                            Navigator.pop(context);
-                          },
-                          onReject: () async {
-                            await _controller.evaluateJavascript(
+                              await _controller.evaluateJavascript(
                                 source:
-                                    'AlphaWallet.executeCallback($id, "user rejected switch", null);');
-                            Navigator.pop(context);
-                          },
-                        );
+                                    'AlphaWallet.executeCallback($id, null, null);',
+                              );
+
+                              switchNetwork = true;
+                              Navigator.pop(context);
+                            },
+                            onReject: () async {
+                              await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, "user rejected add", null);');
+
+                              Navigator.pop(context);
+                            },
+                          );
+                        }
+                        if (switchNetwork) {
+                          switchEthereumChain(
+                            context: context,
+                            currentChainIdData: currentChainIdData,
+                            switchChainIdData: switchChainIdData,
+                            onConfirm: () async {
+                              await changeBrowserChainId_(
+                                switchChainIdData['chainId'],
+                                switchChainIdData['rpc'],
+                              );
+
+                              if (haveNotExecuted) {
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, null, null);',
+                                );
+                              }
+
+                              Navigator.pop(context);
+                            },
+                            onReject: () async {
+                              if (haveNotExecuted) {
+                                await _controller.evaluateJavascript(
+                                    source:
+                                        'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                              }
+
+                              Navigator.pop(context);
+                            },
+                          );
+                        }
                       },
                     );
                     _controller.addJavaScriptHandler(
