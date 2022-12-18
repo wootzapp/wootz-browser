@@ -607,7 +607,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
                           await addEthereumChain(
                             context: context,
-                            jsonObj: json.encode(switchChainIdData),
+                            jsonObj: json.encode(
+                              Map.from({
+                                'name': dataValue['chainName'],
+                              })
+                                ..addAll(switchChainIdData),
+                            ),
                             onConfirm: () async {
                               await pref.put(
                                 newEVMChainKey,
@@ -654,8 +659,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             onReject: () async {
                               if (haveNotExecuted) {
                                 await _controller.evaluateJavascript(
-                                    source:
-                                        'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                                  source:
+                                      'AlphaWallet.executeCallback($id, "user rejected switch", null);',
+                                );
                               }
 
                               Navigator.pop(context);
