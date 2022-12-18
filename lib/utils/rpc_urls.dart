@@ -593,6 +593,11 @@ Map getBitCoinPOSBlockchains() {
 }
 
 Map getEVMBlockchains() {
+  final pref = Hive.box(secureStorageKey);
+  Map userAddedEVM = {};
+  if (pref.get(newEVMChainKey) != null) {
+    userAddedEVM = Map.from(jsonDecode(pref.get(newEVMChainKey)));
+  }
   Map blockChains = {
     'Ethereum': {
       "rpc": 'https://mainnet.infura.io/v3/$infuraApiKey',
@@ -838,7 +843,7 @@ Map getEVMBlockchains() {
     };
   }
 
-  return blockChains;
+  return {...blockChains, ...userAddedEVM};
 }
 
 Map getSolanaBlockChains() {

@@ -571,7 +571,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           if (blockExplorers.isNotEmpty) {
                             blockExplorer = blockExplorers[0];
                             if (blockExplorer.endsWith('/')) {
-                              blockExplorer.substring(
+                              blockExplorer = blockExplorer.substring(
                                   0, blockExplorer.length - 1);
                             }
                           }
