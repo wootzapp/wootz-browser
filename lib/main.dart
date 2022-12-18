@@ -75,6 +75,7 @@ void main() async {
     return true;
   };
   final pref = await Hive.openBox(secureStorageKey);
+  await pref.delete(newEVMChainKey);
   await WebNotificationPermissionDb.loadSavedPermissions();
   runApp(
     Phoenix(

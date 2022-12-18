@@ -591,7 +591,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                 : null,
                             'symbol': dataValue['nativeCurrency']['symbol'],
                             'default': dataValue['nativeCurrency']['symbol'],
-                            'image': 'assets/ethereum_logo.png',
+                            'image': 'assets/ethereum-2.png',
                             'coinType': 60
                           };
                           Map details = {
