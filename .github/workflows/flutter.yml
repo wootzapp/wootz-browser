@@ -44,4 +44,4 @@ jobs:
           channel: 'stable'
       - run: flutter pub get
       - name: Build Android app bundle
-        run: flutter build appbundle --release
+        run: flutter build appbundle
