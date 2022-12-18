@@ -608,15 +608,15 @@ Map getEVMBlockchains() {
       'image': 'assets/ethereum_logo.png',
       'coinType': 60
     },
-    // 'Smart Chain': {
-    //   "rpc": 'https://bsc-dataseed.binance.org/',
-    //   'chainId': 56,
-    //   'blockExplorer': 'https://bscscan.com/tx/$transactionhashTemplateKey',
-    //   'symbol': 'BNB',
-    //   'default': 'BNB',
-    //   'image': 'assets/smartchain.png',
-    //   'coinType': 60
-    // },
+    'Smart Chain': {
+      "rpc": 'https://bsc-dataseed.binance.org/',
+      'chainId': 56,
+      'blockExplorer': 'https://bscscan.com/tx/$transactionhashTemplateKey',
+      'symbol': 'BNB',
+      'default': 'BNB',
+      'image': 'assets/smartchain.png',
+      'coinType': 60
+    },
     'Polygon Matic': {
       "rpc": 'https://polygon-rpc.com',
       'chainId': 137,
