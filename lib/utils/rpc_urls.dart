@@ -2397,6 +2397,7 @@ Future addEthereumChain({
   onConfirm,
   onReject,
 }) async {
+  ValueNotifier isLoading = ValueNotifier(false);
   await slideUpPanel(
     context,
     Padding(
@@ -2415,43 +2416,64 @@ Future addEthereumChain({
           const SizedBox(
             height: 20,
           ),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xff007bff),
-                  ),
-                  onPressed: onConfirm,
-                  child: Text(
-                    AppLocalizations.of(context).confirm,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18.0,
+          ValueListenableBuilder(
+              valueListenable: isLoading,
+              builder: (_, isLoading_, __) {
+                if (isLoading_) {
+                  return Row(
+                    children: const [
+                      Loader(),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xff007bff),
+                        ),
+                        onPressed: () async {
+                          if (await authenticate(context)) {
+                            isLoading.value = true;
+                            try {
+                              await onConfirm();
+                            } catch (_) {}
+                            isLoading.value = false;
+                          } else {
+                            onReject();
+                          }
+                        },
+                        child: Text(
+                          AppLocalizations.of(context).confirm,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16.0),
-              Expanded(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xff007bff),
-                  ),
-                  onPressed: onReject,
-                  child: Text(
-                    AppLocalizations.of(context).reject,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18.0,
+                    const SizedBox(width: 16.0),
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xff007bff),
+                        ),
+                        onPressed: onReject,
+                        child: Text(
+                          AppLocalizations.of(context).reject,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+                  ],
+                );
+              }),
         ],
       ),
     ),

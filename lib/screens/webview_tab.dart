@@ -614,18 +614,63 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                 ..addAll(switchChainIdData),
                             ),
                             onConfirm: () async {
-                              await pref.put(
-                                newEVMChainKey,
-                                jsonEncode(addBlockChain),
-                              );
+                              try {
+                                const id = 83;
+                                final response = await post(
+                                  Uri.parse(switchChainIdData['rpc']),
+                                  body: json.encode(
+                                    {
+                                      "jsonrpc": "2.0",
+                                      "method": "eth_chainId",
+                                      "params": [],
+                                      "id": id
+                                    },
+                                  ),
+                                );
+                                String responseBody = response.body;
+                                if (response.statusCode ~/ 100 == 4 ||
+                                    response.statusCode ~/ 100 == 5) {
+                                  if (kDebugMode) {
+                                    print(responseBody);
+                                  }
+                                  throw Exception(responseBody);
+                                }
 
-                              await _controller.evaluateJavascript(
-                                source:
-                                    'AlphaWallet.executeCallback($id, null, null);',
-                              );
+                                final jsonResponse = json.decode(responseBody);
 
-                              switchNetwork = true;
-                              Navigator.pop(context);
+                                final chainIdResponse =
+                                    BigInt.parse(jsonResponse['result'])
+                                        .toInt();
+
+                                if (jsonResponse['id'] != id) {
+                                  throw Exception('invalid eth_chainId');
+                                } else if (chainIdResponse != switchChainId) {
+                                  throw Exception(
+                                      'chain Id different with eth_chainId');
+                                }
+
+                                await pref.put(
+                                  newEVMChainKey,
+                                  jsonEncode(addBlockChain),
+                                );
+
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, null, null);',
+                                );
+
+                                switchNetwork = true;
+                                Navigator.pop(context);
+                              } catch (e) {
+                                final error =
+                                    e.toString().replaceAll('"', '\'');
+
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, "$error",null);',
+                                );
+                                Navigator.pop(context);
+                              }
                             },
                             onReject: () async {
                               await _controller.evaluateJavascript(
