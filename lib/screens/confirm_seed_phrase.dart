@@ -31,7 +31,8 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   RxBool secondStep = false.obs;
   RxBool thirdStep = false.obs;
   RxBool fourthStep = false.obs;
-  final List numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  List numbers;
+
   int currentCorrectItem = 0;
   RxBool firstTime = true.obs;
   List<String> mmenomicArray = [];
@@ -42,6 +43,10 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   @override
   void initState() {
     super.initState();
+    numbers = List<int>.generate(
+      widget.mmenomic.length,
+      (int index) => index + 1,
+    );
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
