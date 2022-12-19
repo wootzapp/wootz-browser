@@ -302,6 +302,14 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
 
                                       for (Map phrases in decodedmnemonic) {
                                         if (phrases['phrase'] == mnemonics) {
+                                          Get.snackbar(
+                                            '',
+                                            AppLocalizations.of(context)
+                                                .mnemonicAlreadyImported,
+                                            backgroundColor: Colors.red,
+                                            colorText: Colors.white,
+                                          );
+                                          isLoading.value = false;
                                           return;
                                         }
                                       }

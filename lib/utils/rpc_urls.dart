@@ -61,8 +61,8 @@ import 'pos_networks.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 // seed phrases
-Uint8List seed;
-bip32.BIP32 root;
+Uint8List _seed;
+bip32.BIP32 _root;
 // crypto decimals
 const etherDecimals = 18;
 const bitCoinDecimals = 8;
@@ -1126,14 +1126,14 @@ Future<bool> saveToDrive(String fileName, String mnemonic) async {
 }
 
 Map calculateSeed(String seedPhrase) {
-  seed = bip39.mnemonicToSeed(seedPhrase);
-  return {'root': bip32.BIP32.fromSeed(seed), 'seed': seed};
+  _seed = bip39.mnemonicToSeed(seedPhrase);
+  return {'root': bip32.BIP32.fromSeed(_seed), 'seed': _seed};
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
   Map seedDetails = await compute(calculateSeed, mnemonic);
-  root = seedDetails['root'];
-  seed = seedDetails['seed'];
+  _root = seedDetails['root'];
+  _seed = seedDetails['seed'];
 
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
@@ -1270,7 +1270,7 @@ Future<Map> getSolanaFromMemnomic(String mnemonic) async {
     calculateSolanaKey,
     {
       mnemonicKey: mnemonic,
-      'seed': seed,
+      'seed': _seed,
     },
   );
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
@@ -1345,10 +1345,13 @@ Future<Map> getBitcoinFromMemnomic(
       }
     }
   }
-  final keys = calculateBitCoinKey(
-    Map.from(posDetails)..addAll({mnemonicKey: mnemonic}),
+  final keys = await compute(
+    calculateBitCoinKey,
+    Map.from(posDetails)
+      ..addAll(
+        {mnemonicKey: mnemonic, 'root': _root},
+      ),
   );
-  print(keys);
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
   await pref.put(keyName, jsonEncode(mmenomicMapping));
   return keys;
@@ -1376,7 +1379,10 @@ Future<Map> getFileCoinFromMemnomic(
       }
     }
   }
-  final keys = calculateFileCoinKey(mnemonic);
+  final keys = await compute(
+    calculateFileCoinKey,
+    {'root': _root},
+  );
 
   // String address = await fileCoinAddressFromCk(
   //   keys['ck'],
@@ -1390,7 +1396,7 @@ Future<Map> getFileCoinFromMemnomic(
 }
 
 Map calculateBitCoinKey(Map config) {
-  final node = root.derivePath(config['derivationPath']);
+  final node = config['root'].derivePath(config['derivationPath']);
 
   String address;
   if (config['P2WPKH']) {
@@ -1427,8 +1433,8 @@ Map calculateBitCoinKey(Map config) {
   };
 }
 
-Map calculateFileCoinKey(String mnemonic) {
-  final node = root.derivePath("m/44'/461'/0'/0");
+Map calculateFileCoinKey(Map config) {
+  final node = config['root'].derivePath("m/44'/461'/0'/0");
   final rs0 = node.derive(0);
   final ck = base64Encode(rs0.privateKey);
 
@@ -1436,7 +1442,7 @@ Map calculateFileCoinKey(String mnemonic) {
 }
 
 String calculateEthereumKey(Map config) {
-  return "0x${HEX.encode(root.derivePath("m/44'/${config['coinType']}'/0'/0/0").privateKey)}";
+  return "0x${HEX.encode(config['root'].derivePath("m/44'/${config['coinType']}'/0'/0/0").privateKey)}";
 }
 
 Future calculateSolanaKey(Map config) async {
@@ -1504,7 +1510,7 @@ Future<double> getCardanoAddressBalance(
   }
 
   if (skipNetworkRequest) return savedBalance;
-
+  return 0;
   try {
     //FIXME:
     // final cardanoBlockfrostBaseUrl =
@@ -1906,8 +1912,13 @@ Future<Map> getEthereumFromMemnomic(
       }
     }
   }
-  final privatekeyStr = calculateEthereumKey(
-    {mnemonicKey: mnemonic, 'coinType': coinType},
+  final privatekeyStr = await compute(
+    calculateEthereumKey,
+    {
+      mnemonicKey: mnemonic,
+      'coinType': coinType,
+      'root': _root,
+    },
   );
 
   final address = await etherPrivateKeyToAddress(privatekeyStr);
