@@ -242,7 +242,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   ),
                                 ),
                                 onPressed: () {
-                                  Get.off(
+                                  Get.to(
                                     Confirmmnemonic(
                                       mmenomic: widget.data.split(' '),
                                     ),
