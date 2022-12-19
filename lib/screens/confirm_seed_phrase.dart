@@ -67,6 +67,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
           fourthStep.value = true;
         } else if (thirdStep.value == false && fourthStep.value == true) {
           finished.value = true;
+          finishConfirm();
         }
         currentCorrectItem = 0;
       } else {
@@ -74,6 +75,72 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       }
     } else {
       invalidSeedOrder();
+    }
+  }
+
+  Future finishConfirm() async {
+    Get.closeAllSnackbars();
+    if (isLoading.value) return;
+
+    isLoading.value = true;
+
+    final pref = Hive.box(secureStorageKey);
+    String mnemonics = widget.mmenomic.join(' ');
+    try {
+      final mnemonicsList = pref.get(mnemonicListKey);
+      List decodedmnemonic = [];
+
+      if (mnemonicsList != null) {
+        decodedmnemonic = jsonDecode(mnemonicsList) as List;
+
+        for (Map phrases in decodedmnemonic) {
+          if (phrases['phrase'] == mnemonics) {
+            Get.snackbar(
+              '',
+              AppLocalizations.of(context).mnemonicAlreadyImported,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+            isLoading.value = false;
+            return;
+          }
+        }
+      }
+
+      await initializeAllPrivateKeys(mnemonics);
+
+      decodedmnemonic.add({
+        'phrase': mnemonics,
+      });
+      await pref.put(
+        mnemonicListKey,
+        jsonEncode(decodedmnemonic),
+      );
+
+      await pref.put(currentMmenomicKey, mnemonics);
+
+      await pref.put(
+        currentUserWalletNameKey,
+        null,
+      );
+      isLoading.value = false;
+      Get.snackbar(
+        '',
+        AppLocalizations.of(context).walletCreated,
+      );
+      RestartWidget.restartApp(context);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      Get.snackbar(
+        '',
+        AppLocalizations.of(context).errorTryAgain,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+
+      isLoading.value = false;
     }
   }
 
@@ -284,80 +351,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                 ),
                               ),
                             ),
-                            onPressed: finished.value
-                                ? () async {
-                                    Get.closeAllSnackbars();
-                                    if (isLoading.value) return;
-
-                                    isLoading.value = true;
-
-                                    final pref = Hive.box(secureStorageKey);
-                                    String mnemonics =
-                                        widget.mmenomic.join(' ');
-                                    try {
-                                      final mnemonicsList =
-                                          pref.get(mnemonicListKey);
-                                      List decodedmnemonic = [];
-
-                                      if (mnemonicsList != null) {
-                                        decodedmnemonic =
-                                            jsonDecode(mnemonicsList) as List;
-
-                                        for (Map phrases in decodedmnemonic) {
-                                          if (phrases['phrase'] == mnemonics) {
-                                            Get.snackbar(
-                                              '',
-                                              AppLocalizations.of(context)
-                                                  .mnemonicAlreadyImported,
-                                              backgroundColor: Colors.red,
-                                              colorText: Colors.white,
-                                            );
-                                            isLoading.value = false;
-                                            return;
-                                          }
-                                        }
-                                      }
-
-                                      await initializeAllPrivateKeys(mnemonics);
-
-                                      decodedmnemonic.add({
-                                        'phrase': mnemonics,
-                                      });
-                                      await pref.put(
-                                        mnemonicListKey,
-                                        jsonEncode(decodedmnemonic),
-                                      );
-
-                                      await pref.put(
-                                          currentMmenomicKey, mnemonics);
-
-                                      await pref.put(
-                                        currentUserWalletNameKey,
-                                        null,
-                                      );
-                                      isLoading.value = false;
-                                      Get.snackbar(
-                                        '',
-                                        AppLocalizations.of(context)
-                                            .walletCreated,
-                                      );
-                                      RestartWidget.restartApp(context);
-                                    } catch (e) {
-                                      if (kDebugMode) {
-                                        print(e);
-                                      }
-                                      Get.snackbar(
-                                        '',
-                                        AppLocalizations.of(context)
-                                            .errorTryAgain,
-                                        backgroundColor: Colors.red,
-                                        colorText: Colors.white,
-                                      );
-
-                                      isLoading.value = false;
-                                    }
-                                  }
-                                : null,
+                            onPressed: null,
                             child: Padding(
                               padding: const EdgeInsets.all(15),
                               child: isLoading.value
