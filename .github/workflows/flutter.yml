@@ -38,7 +38,7 @@ jobs:
       - name: Flutter Doctor
         run: flutter doctor -v
       - name: Flutter Analyze
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 #       - name: Dart code metrics
 #         uses: dart-code-checker/dart-code-metrics-action@v2
 #         with:
