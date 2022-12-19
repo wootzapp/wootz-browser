@@ -535,60 +535,60 @@ Map getBitCoinPOSBlockchains() {
       'P2WPKH': true,
       'derivationPath': "m/84'/0'/0'/0/0"
     },
-    'Litecoin': {
-      'symbol': 'LTC',
-      'default': 'LTC',
-      'blockExplorer':
-          'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
-      'image': 'assets/litecoin.png',
-      'POSNetwork': litecoin,
-      'P2WPKH': true,
-      'derivationPath': "m/84'/2'/0'/0/0"
-    },
-    'Dash': {
-      'symbol': 'DASH',
-      'default': 'DASH',
-      'blockExplorer':
-          'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
-      'image': 'assets/dash.png',
-      'POSNetwork': dash,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/5'/0'/0/0"
-    },
-    'ZCash': {
-      'symbol': 'ZEC',
-      'default': 'ZEC',
-      'blockExplorer':
-          'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
-      'image': 'assets/zcash.png',
-      'POSNetwork': zcash,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/133'/0'/0/0"
-    },
-    'Dogecoin': {
-      'symbol': 'DOGE',
-      'default': 'DOGE',
-      'blockExplorer':
-          'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
-      'image': 'assets/dogecoin.png',
-      'POSNetwork': dogecoin,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/3'/0'/0/0"
-    }
+    // 'Litecoin': {
+    //   'symbol': 'LTC',
+    //   'default': 'LTC',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/litecoin.png',
+    //   'POSNetwork': litecoin,
+    //   'P2WPKH': true,
+    //   'derivationPath': "m/84'/2'/0'/0/0"
+    // },
+    // 'Dash': {
+    //   'symbol': 'DASH',
+    //   'default': 'DASH',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/dash.png',
+    //   'POSNetwork': dash,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/5'/0'/0/0"
+    // },
+    // 'ZCash': {
+    //   'symbol': 'ZEC',
+    //   'default': 'ZEC',
+    //   'blockExplorer':
+    //       'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
+    //   'image': 'assets/zcash.png',
+    //   'POSNetwork': zcash,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/133'/0'/0/0"
+    // },
+    // 'Dogecoin': {
+    //   'symbol': 'DOGE',
+    //   'default': 'DOGE',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/dogecoin.png',
+    //   'POSNetwork': dogecoin,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/3'/0'/0/0"
+    // }
   };
 
-  if (enableTestNet) {
-    blockChains['Bitcoin(Test)'] = {
-      'symbol': 'BTC',
-      'default': 'BTC',
-      'blockExplorer':
-          'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
-      'image': 'assets/bitcoin.jpg',
-      'POSNetwork': testnet,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/0'/0'/0/0"
-    };
-  }
+  // if (enableTestNet) {
+  //   blockChains['Bitcoin(Test)'] = {
+  //     'symbol': 'BTC',
+  //     'default': 'BTC',
+  //     'blockExplorer':
+  //         'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
+  //     'image': 'assets/bitcoin.jpg',
+  //     'POSNetwork': testnet,
+  //     'P2WPKH': false,
+  //     'derivationPath': "m/44'/0'/0'/0/0"
+  //   };
+  // }
 
   return blockChains;
 }
@@ -848,6 +848,7 @@ Map getEVMBlockchains() {
 }
 
 Map getSolanaBlockChains() {
+  return {};
   Map blockChains = {
     'Solana': {
       'symbol': 'SOL',
@@ -872,6 +873,7 @@ Map getSolanaBlockChains() {
 }
 
 Map getStellarBlockChains() {
+  return {};
   Map blockChains = {
     'Stellar': {
       'symbol': 'XLM',
