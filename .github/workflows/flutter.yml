@@ -10,43 +10,66 @@ on:
   pull_request:
     branches:
       - master
+env:
+  FLUTTER_CHANNEL: "stable"
+  FLUTTER_VERSION: "3.3.1"
+  FLUTTER_PATH: /opt/hostedtoolcache/flutter #ubuntu-latest
+
 jobs:
 
-  test:
-    name: Test
+  analyze:
+    name: Analyze
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout code
+      - name: Checkout Repo
         uses: actions/checkout@v2
-      - name: Run Flutter tasks
-        uses: subosito/flutter-action@v2
+      - name: Cache Flutter
+        id: cache-flutter
+        uses: actions/cache@v2
         with:
-          flutter-version: '3.3.1'
-          channel: 'stable'
-      - run: flutter pub get
-      - name: Analyze files
-        run: flutter analyze .
-
+          path: ${{ env.FLUTTER_PATH }}
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@master
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - name: Flutter Doctor
+        run: flutter doctor -v
+      - name: Flutter Analyze
+        run: flutter analyze
+#       - name: Dart code metrics
+#         uses: dart-code-checker/dart-code-metrics-action@v2
+#         with:
+#           github_token: ${{ secrets.GITHUB_TOKEN }}
+#           check_unused_files: false
+#       - name: Check Formatting
+#         run: flutter format --set-exit-if-changed lib
 
   build_android:
-    name: Build Android App
+    name: Build Android APK
+    needs: [analyze]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Repo
         uses: actions/checkout@v2
-      - name: Setup Java
-        uses: actions/setup-java@v1
+      - name: Cache Flutter
+        id: cache-flutter
+        uses: actions/cache@v2
         with:
-          java-version: '11.0'
-      - name: Cache Flutter dependencies
-        uses: actions/cache@v1
+          path: ${{ env.FLUTTER_PATH }}
+          key: ${{ runner.os }}-flutter-${{ env.FLUTTER_VERSION }}
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@master
         with:
-          path: /opt/hostedtoolcache/flutter
-          key: ${{ runner.OS }}-flutter-install-cache-${{ env.flutter_version }}
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.3.1'
-          channel: 'stable'
-      - run: flutter pub get
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - name: Flutter clean
+        run: flutter clean
+      - name: Flutter pub get
+        run: flutter pub get
+      - name: Flutter build apk
+        run: flutter build apk --dart-define=TV_MODE=OFF
       - name: Build Android app bundle
         run: flutter build appbundle
