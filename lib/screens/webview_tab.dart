@@ -628,8 +628,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                       "id": id
                                     },
                                   ),
+                                  headers: {"Content-Type": "application/json"},
                                 );
                                 String responseBody = response.body;
+
                                 if (response.statusCode ~/ 100 == 4 ||
                                     response.statusCode ~/ 100 == 5) {
                                   if (kDebugMode) {
