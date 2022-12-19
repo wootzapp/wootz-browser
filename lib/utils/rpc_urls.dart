@@ -48,6 +48,7 @@ import 'package:solana/solana.dart' as solana;
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:hex/hex.dart';
+import 'package:whois/whois.dart';
 
 import '../components/loader.dart';
 import '../eip/eip681.dart';
@@ -534,65 +535,70 @@ Map getBitCoinPOSBlockchains() {
       'P2WPKH': true,
       'derivationPath': "m/84'/0'/0'/0/0"
     },
-    'Litecoin': {
-      'symbol': 'LTC',
-      'default': 'LTC',
-      'blockExplorer':
-          'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
-      'image': 'assets/litecoin.png',
-      'POSNetwork': litecoin,
-      'P2WPKH': true,
-      'derivationPath': "m/84'/2'/0'/0/0"
-    },
-    'Dash': {
-      'symbol': 'DASH',
-      'default': 'DASH',
-      'blockExplorer':
-          'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
-      'image': 'assets/dash.png',
-      'POSNetwork': dash,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/5'/0'/0/0"
-    },
-    'ZCash': {
-      'symbol': 'ZEC',
-      'default': 'ZEC',
-      'blockExplorer':
-          'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
-      'image': 'assets/zcash.png',
-      'POSNetwork': zcash,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/133'/0'/0/0"
-    },
-    'Dogecoin': {
-      'symbol': 'DOGE',
-      'default': 'DOGE',
-      'blockExplorer':
-          'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
-      'image': 'assets/dogecoin.png',
-      'POSNetwork': dogecoin,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/3'/0'/0/0"
-    }
+    // 'Litecoin': {
+    //   'symbol': 'LTC',
+    //   'default': 'LTC',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/litecoin.png',
+    //   'POSNetwork': litecoin,
+    //   'P2WPKH': true,
+    //   'derivationPath': "m/84'/2'/0'/0/0"
+    // },
+    // 'Dash': {
+    //   'symbol': 'DASH',
+    //   'default': 'DASH',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/dash.png',
+    //   'POSNetwork': dash,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/5'/0'/0/0"
+    // },
+    // 'ZCash': {
+    //   'symbol': 'ZEC',
+    //   'default': 'ZEC',
+    //   'blockExplorer':
+    //       'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
+    //   'image': 'assets/zcash.png',
+    //   'POSNetwork': zcash,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/133'/0'/0/0"
+    // },
+    // 'Dogecoin': {
+    //   'symbol': 'DOGE',
+    //   'default': 'DOGE',
+    //   'blockExplorer':
+    //       'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
+    //   'image': 'assets/dogecoin.png',
+    //   'POSNetwork': dogecoin,
+    //   'P2WPKH': false,
+    //   'derivationPath': "m/44'/3'/0'/0/0"
+    // }
   };
 
-  if (enableTestNet) {
-    blockChains['Bitcoin(Test)'] = {
-      'symbol': 'BTC',
-      'default': 'BTC',
-      'blockExplorer':
-          'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
-      'image': 'assets/bitcoin.jpg',
-      'POSNetwork': testnet,
-      'P2WPKH': false,
-      'derivationPath': "m/44'/0'/0'/0/0"
-    };
-  }
+  // if (enableTestNet) {
+  //   blockChains['Bitcoin(Test)'] = {
+  //     'symbol': 'BTC',
+  //     'default': 'BTC',
+  //     'blockExplorer':
+  //         'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
+  //     'image': 'assets/bitcoin.jpg',
+  //     'POSNetwork': testnet,
+  //     'P2WPKH': false,
+  //     'derivationPath': "m/44'/0'/0'/0/0"
+  //   };
+  // }
 
   return blockChains;
 }
 
 Map getEVMBlockchains() {
+  final pref = Hive.box(secureStorageKey);
+  Map userAddedEVM = {};
+  if (pref.get(newEVMChainKey) != null) {
+    userAddedEVM = Map.from(jsonDecode(pref.get(newEVMChainKey)));
+  }
   Map blockChains = {
     'Ethereum': {
       "rpc": 'https://mainnet.infura.io/v3/$infuraApiKey',
@@ -838,10 +844,11 @@ Map getEVMBlockchains() {
     };
   }
 
-  return blockChains;
+  return {...blockChains, ...userAddedEVM};
 }
 
 Map getSolanaBlockChains() {
+  return {};
   Map blockChains = {
     'Solana': {
       'symbol': 'SOL',
@@ -866,6 +873,7 @@ Map getSolanaBlockChains() {
 }
 
 Map getStellarBlockChains() {
+  return {};
   Map blockChains = {
     'Stellar': {
       'symbol': 'XLM',
@@ -2352,14 +2360,29 @@ changeBlockChainAndReturnInit(
       );
 }
 
+Future<Map> whoIsLookUp(String webUrl) async {
+  final whoisResponse = await Whois.lookup(webUrl);
+  final parsedResponse = Whois.formatLookup(whoisResponse);
+  return parsedResponse;
+  // final date = DateTime.parse(parsedResponse['Creation Date']);
+}
+
 Future<Widget> dappWidget(
   BuildContext context,
   String data,
 ) async {
+  final pref = Hive.box(secureStorageKey);
+  if (pref.get(currentMmenomicKey) == null) {
+    return Dapp(
+      provider: '',
+      webNotifier: '',
+      init: '',
+      data: data,
+    );
+  }
   final provider =
       await rootBundle.loadString('dappBrowser/alphawallet.min.js');
 
-  final pref = Hive.box(secureStorageKey);
   if (pref.get(dappChainIdKey) == null) {
     await pref.put(
       dappChainIdKey,
@@ -2383,6 +2406,96 @@ Future<Widget> dappWidget(
     webNotifier: webNotifer,
     init: init,
     data: data,
+  );
+}
+
+Future addEthereumChain({
+  context,
+  String jsonObj,
+  onConfirm,
+  onReject,
+}) async {
+  ValueNotifier isLoading = ValueNotifier(false);
+  await slideUpPanel(
+    context,
+    Padding(
+      padding: const EdgeInsets.all(25),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Add network',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+          JsonViewer(json.decode(jsonObj)),
+          const SizedBox(
+            height: 20,
+          ),
+          ValueListenableBuilder(
+              valueListenable: isLoading,
+              builder: (_, isLoading_, __) {
+                if (isLoading_) {
+                  return Row(
+                    children: const [
+                      Loader(),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xff007bff),
+                        ),
+                        onPressed: () async {
+                          if (await authenticate(context)) {
+                            isLoading.value = true;
+                            try {
+                              await onConfirm();
+                            } catch (_) {}
+                            isLoading.value = false;
+                          } else {
+                            onReject();
+                          }
+                        },
+                        child: Text(
+                          AppLocalizations.of(context).confirm,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16.0),
+                    Expanded(
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xff007bff),
+                        ),
+                        onPressed: onReject,
+                        child: Text(
+                          AppLocalizations.of(context).reject,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+        ],
+      ),
+    ),
+    canDismiss: false,
   );
 }
 

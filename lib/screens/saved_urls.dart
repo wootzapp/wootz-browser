@@ -125,23 +125,10 @@ class _SavedUrlsState extends State<SavedUrls> {
                           children: [
                             InkWell(
                               onTap: () async {
-                                final pref = Hive.box(secureStorageKey);
-                                bool hasWallet =
-                                    pref.get(currentMmenomicKey) != null;
-
-                                Widget nextWidget;
-                                if (hasWallet) {
-                                  nextWidget = await dappWidget(
-                                    context,
-                                    urlDetails['url'],
-                                  );
-                                } else {
-                                  nextWidget = Dapp(
-                                    provider: '',
-                                    init: '',
-                                    data: urlDetails['url'],
-                                  );
-                                }
+                                Widget nextWidget = await dappWidget(
+                                  context,
+                                  urlDetails['url'],
+                                );
 
                                 if (widget.savedKey == historyKey) {
                                   Get.back(result: urlDetails['url']);

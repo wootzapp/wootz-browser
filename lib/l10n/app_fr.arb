@@ -201,5 +201,6 @@
   "enterShemirSecretWithSpace": "Entrez votre secret partagé Shamir séparé par un espace, cela serait utilisé pour récupérer votre phrase mmenomic",
   "convertToShemirSecret": "Convertir en actions secrètes Shamir",
   "savedToDownloadFolder": "Enregistré dans le dossier Téléchargements",
-  "alreadySaved": "Déjà enregistré dans le dossier de téléchargement"
+  "alreadySaved": "Déjà enregistré dans le dossier de téléchargement",
+  "walletCreated": "Portefeuille créé"
 }

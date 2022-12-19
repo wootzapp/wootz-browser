@@ -474,13 +474,17 @@ class _WalletBlackState extends State<WalletBlack> {
                         GestureDetector(
                           onTap: () async {
                             final pref = Hive.box(secureStorageKey);
+                            bool hasWallet =
+                                pref.get(currentMmenomicKey) != null;
 
                             bool hasPasscode =
                                 pref.get(userUnlockPasscodeKey) != null;
                             Widget dappWidget;
                             Get.back();
 
-                            if (hasPasscode) {
+                            if (hasWallet) {
+                              dappWidget = const WalletMainBody();
+                            } else if (hasPasscode) {
                               dappWidget = const MainScreen();
                             } else {
                               dappWidget = const Security();
@@ -493,7 +497,7 @@ class _WalletBlackState extends State<WalletBlack> {
                               children: const [
                                 Icon(FontAwesomeIcons.wallet),
                                 Text(
-                                  'Create new wallet',
+                                  'My wallet',
                                   style: TextStyle(fontSize: 12),
                                   textAlign: TextAlign.center,
                                 ),
