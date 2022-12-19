@@ -69,7 +69,7 @@ jobs:
         run: flutter clean
       - name: Flutter pub get
         run: flutter pub get
-      - name: Flutter build apk
+      - name: Flutter build apk --debug
         run: flutter build apk --dart-define=TV_MODE=OFF
       - name: Build Android app bundle
         run: flutter build appbundle
