@@ -1125,13 +1125,15 @@ Future<bool> saveToDrive(String fileName, String mnemonic) async {
   }
 }
 
-bip32.BIP32 calculateSeed(String seedPhrase) {
+Map calculateSeed(String seedPhrase) {
   seed = bip39.mnemonicToSeed(seedPhrase);
-  return bip32.BIP32.fromSeed(seed);
+  return {'root': bip32.BIP32.fromSeed(seed), 'seed': seed};
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
-  root = await compute(calculateSeed, mnemonic);
+  Map seedDetails = await compute(calculateSeed, mnemonic);
+  root = seedDetails['root'];
+  seed = seedDetails['seed'];
 
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
@@ -1159,6 +1161,7 @@ Future<void> initializeAllPrivateKeys(String mnemonic) async {
   }
 
   await getSolanaFromMemnomic(mnemonic);
+
   await getStellarFromMemnomic(mnemonic);
 }
 
@@ -1263,7 +1266,13 @@ Future<Map> getSolanaFromMemnomic(String mnemonic) async {
     }
   }
 
-  final keys = await compute(calculateSolanaKey, {mnemonicKey: mnemonic});
+  final keys = await compute(
+    calculateSolanaKey,
+    {
+      mnemonicKey: mnemonic,
+      'seed': seed,
+    },
+  );
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
   await pref.put(keyName, jsonEncode(mmenomicMapping));
   return keys;
@@ -1336,10 +1345,10 @@ Future<Map> getBitcoinFromMemnomic(
       }
     }
   }
-  final keys = await compute(
-    calculateBitCoinKey,
+  final keys = calculateBitCoinKey(
     Map.from(posDetails)..addAll({mnemonicKey: mnemonic}),
   );
+  print(keys);
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
   await pref.put(keyName, jsonEncode(mmenomicMapping));
   return keys;
@@ -1367,7 +1376,7 @@ Future<Map> getFileCoinFromMemnomic(
       }
     }
   }
-  final keys = await compute(calculateFileCoinKey, mnemonic);
+  final keys = calculateFileCoinKey(mnemonic);
 
   // String address = await fileCoinAddressFromCk(
   //   keys['ck'],
@@ -1433,7 +1442,7 @@ String calculateEthereumKey(Map config) {
 Future calculateSolanaKey(Map config) async {
   final solana.Ed25519HDKeyPair keyPair =
       await solana.Ed25519HDKeyPair.fromSeedWithHdPath(
-    seed: seed,
+    seed: config['seed'],
     hdPath: "m/44'/501'/0'",
   );
 
@@ -1897,8 +1906,7 @@ Future<Map> getEthereumFromMemnomic(
       }
     }
   }
-  final privatekeyStr = await compute(
-    calculateEthereumKey,
+  final privatekeyStr = calculateEthereumKey(
     {mnemonicKey: mnemonic, 'coinType': coinType},
   );
 
