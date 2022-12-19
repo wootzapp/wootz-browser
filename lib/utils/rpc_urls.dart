@@ -1427,8 +1427,6 @@ Map calculateFileCoinKey(String mnemonic) {
 }
 
 String calculateEthereumKey(Map config) {
-  print("this is sroot");
-  print(root);
   return "0x${HEX.encode(root.derivePath("m/44'/${config['coinType']}'/0'/0/0").privateKey)}";
 }
 
@@ -1899,8 +1897,6 @@ Future<Map> getEthereumFromMemnomic(
       }
     }
   }
-  print(root.toBase58());
-  print("osksksk");
   final privatekeyStr = await compute(
     calculateEthereumKey,
     {mnemonicKey: mnemonic, 'coinType': coinType},
