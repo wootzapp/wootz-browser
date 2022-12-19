@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:ui';
 import 'package:cryptowallet/api/notification_api.dart';
 import 'package:cryptowallet/utils/wallet_black.dart';
@@ -1165,6 +1166,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
         SingleChildScrollView(
           child: Column(
             children: [
+              const SizedBox(
+                height: 5,
+              ),
               TextFormField(
                 textInputAction: TextInputAction.search,
                 controller: _browserController,
@@ -1239,6 +1243,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               for (int i = 0; i < historyData.length && i < 5; i++)
                 GestureDetector(
                   onTap: () async {
+                    FocusManager.instance.primaryFocus?.unfocus();
                     _controller.loadUrl(
                       urlRequest: URLRequest(
                         url: WebUri(
@@ -1253,6 +1258,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Row(
                               children: [
@@ -1281,7 +1287,23 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
-                                )
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: Transform.rotate(
+                                    angle: 225 * pi / 180,
+                                    child:
+                                        const Icon(Icons.arrow_forward_sharp),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.star),
+                                ),
                               ],
                             )
                           ],
