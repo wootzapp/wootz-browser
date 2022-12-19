@@ -192,6 +192,40 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                               height: 15,
                             )
                           ],
+                          GestureDetector(
+                            onTap: () async {
+                              // copy to clipboard
+                              await Clipboard.setData(ClipboardData(
+                                text: widget.data,
+                              ));
+                              Get.snackbar(
+                                '',
+                                AppLocalizations.of(context).copiedToClipboard,
+                              );
+                            },
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              color: colorForAddress,
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      AppLocalizations.of(context).copy,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    const Icon(Icons.copy)
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(
                             height: 15,
                           ),
