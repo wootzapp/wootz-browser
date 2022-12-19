@@ -14,6 +14,7 @@ import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:get/get.dart';
 import 'firebase_options.dart';
+import 'package:bip32/bip32.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
