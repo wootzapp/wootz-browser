@@ -2361,10 +2361,18 @@ Future<Widget> dappWidget(
   BuildContext context,
   String data,
 ) async {
+  final pref = Hive.box(secureStorageKey);
+  if (pref.get(currentMmenomicKey) == null) {
+    return Dapp(
+      provider: '',
+      webNotifier: '',
+      init: '',
+      data: data,
+    );
+  }
   final provider =
       await rootBundle.loadString('dappBrowser/alphawallet.min.js');
 
-  final pref = Hive.box(secureStorageKey);
   if (pref.get(dappChainIdKey) == null) {
     await pref.put(
       dappChainIdKey,

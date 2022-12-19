@@ -338,6 +338,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     Box pref = Hive.box(secureStorageKey);
     int index = webLoadin || pref.get(currentMmenomicKey) == null ? 1 : 0;
     if (isFocused) index = 2;
+    List historyData = json.decode(pref.get(historyKey));
 
     return SafeArea(
         child: IndexedStack(
@@ -1161,219 +1162,279 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             ),
           ),
         ]),
-        Column(
-          children: [
-            TextFormField(
-              textInputAction: TextInputAction.search,
-              controller: _browserController,
-              onFieldSubmitted: (value) async {
-                FocusManager.instance.primaryFocus?.unfocus();
-                if (_controller != null) {
-                  if (await _controller.isLoading()) {
-                    return;
+        SingleChildScrollView(
+          child: Column(
+            children: [
+              TextFormField(
+                textInputAction: TextInputAction.search,
+                controller: _browserController,
+                onFieldSubmitted: (value) async {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  if (_controller != null) {
+                    if (await _controller.isLoading()) {
+                      return;
+                    }
+                    Uri uri = blockChainToHttps(value.trim());
+                    await _controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri.uri(uri)),
+                    );
                   }
-                  Uri uri = blockChainToHttps(value.trim());
-                  await _controller.loadUrl(
-                    urlRequest: URLRequest(url: WebUri.uri(uri)),
-                  );
-                }
-              },
-              focusNode: _focus,
-              decoration: InputDecoration(
-                prefixIconConstraints:
-                    const BoxConstraints(minWidth: 35, maxWidth: 35),
-                contentPadding: const EdgeInsets.all(0),
-                prefixIcon: _isSecure != null
-                    ? Padding(
-                        padding: const EdgeInsets.only(left: 8.0, right: 8),
-                        child: Icon(
-                            _isSecure == true ? Icons.lock : Icons.lock_open,
-                            color:
-                                _isSecure == true ? Colors.green : Colors.red,
-                            size: 18),
-                      )
-                    : const Padding(
-                        padding: EdgeInsets.only(left: 8.0, right: 8),
-                        child:
-                            Icon(Icons.lock_open, color: Colors.red, size: 18),
-                      ),
-                isDense: true,
-                suffixIcon: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.qr_code_scanner,
-                      ),
-                      onPressed: () async {},
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.mic_outlined,
-                      ),
-                      onPressed: () async {},
-                    ),
-                  ],
-                ),
-                hintText: AppLocalizations.of(context).searchOrEnterUrl,
-
-                filled: true,
-                focusedBorder: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    borderSide: BorderSide.none),
-                border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    borderSide: BorderSide.none),
-                enabledBorder: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                  borderSide: BorderSide.none,
-                ), // you
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(children: [
-                  Row(
+                },
+                focusNode: _focus,
+                decoration: InputDecoration(
+                  prefixIconConstraints:
+                      const BoxConstraints(minWidth: 35, maxWidth: 35),
+                  contentPadding: const EdgeInsets.all(0),
+                  prefixIcon: _isSecure != null
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 8.0, right: 8),
+                          child: Icon(
+                              _isSecure == true ? Icons.lock : Icons.lock_open,
+                              color:
+                                  _isSecure == true ? Colors.green : Colors.red,
+                              size: 18),
+                        )
+                      : const Padding(
+                          padding: EdgeInsets.only(left: 8.0, right: 8),
+                          child: Icon(Icons.lock_open,
+                              color: Colors.red, size: 18),
+                        ),
+                  isDense: true,
+                  suffixIcon: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Transactions history'),
-                      Row(
-                        children: const [
-                          Text('See all'),
-                          Icon(Icons.arrow_forward),
-                        ],
-                      )
+                      IconButton(
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                        ),
+                        onPressed: () async {},
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.mic_outlined,
+                        ),
+                        onPressed: () async {},
+                      ),
                     ],
-                  )
-                ]),
+                  ),
+                  hintText: AppLocalizations.of(context).searchOrEnterUrl,
+
+                  filled: true,
+                  focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                      borderSide: BorderSide.none),
+                  border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                      borderSide: BorderSide.none),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                    borderSide: BorderSide.none,
+                  ), // you
+                ),
               ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () async {
-                          String data = await Get.to(
-                            const QRScanView(),
-                          );
-                          if (data == null) {
-                            Get.snackbar(
-                              '',
-                              eIP681ProcessingErrorMsg,
-                              colorText: Colors.white,
-                              backgroundColor: Colors.red,
-                            );
-
-                            return;
-                          }
-                          showDialog(
-                              barrierDismissible: false,
-                              context: context,
-                              builder: (context) {
-                                return AlertDialog(
-                                    backgroundColor: Colors.white,
-                                    content: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: const [
-                                        SizedBox(
-                                          width: 35,
-                                          height: 35,
-                                          child: Loader(),
-                                        ),
-                                      ],
-                                    ));
-                              });
-
-                          Map scannedData = await processEIP681(data);
-
-                          if (Navigator.canPop(context)) {
-                            Get.back();
-                          }
-
-                          if (scannedData['success']) {
-                            await Get.to(
-                              SendToken(
-                                data: scannedData['msg'],
-                              ),
-                            );
-                            return;
-                          }
-                          Get.snackbar(
-                            '',
-                            scannedData['msg'],
-                            colorText: Colors.white,
-                            backgroundColor: Colors.red,
-                          );
-                        },
-                        child: SizedBox(
-                          width: 100,
-                          child: Column(
-                            children: const [
-                              Icon(Icons.qr_code),
-                              Text(
-                                'Scan',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
+              const SizedBox(
+                height: 20,
+              ),
+              for (int i = 0; i < historyData.length && i < 5; i++)
+                GestureDetector(
+                  onTap: () async {
+                    _controller.loadUrl(
+                      urlRequest: URLRequest(
+                        url: WebUri(
+                          historyData[i]['url'],
                         ),
                       ),
-                      SizedBox(
-                        width: 100,
-                        child: Column(
-                          children: const [
-                            Icon(Icons.search),
-                            Text(
-                              'Search Engine',
-                              style: TextStyle(fontSize: 12),
-                            ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 2.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  FontAwesomeIcons.globe,
+                                  size: 30,
+                                ),
+                                const SizedBox(
+                                  width: 10,
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ellipsify(
+                                        str: historyData[i]['title'],
+                                        maxLength: 25,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      ellipsify(
+                                        str: historyData[i]['url'],
+                                        maxLength: 25,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                )
+                              ],
+                            )
                           ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () async {
-                          final pref = Hive.box(secureStorageKey);
-                          bool hasWallet = pref.get(currentMmenomicKey) != null;
+                    ),
+                  ),
+                ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Transactions history'),
+                        Row(
+                          children: const [
+                            Text('See all'),
+                            Icon(Icons.arrow_forward),
+                          ],
+                        )
+                      ],
+                    )
+                  ]),
+                ),
+              ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () async {
+                            String data = await Get.to(
+                              const QRScanView(),
+                            );
+                            if (data == null) {
+                              Get.snackbar(
+                                '',
+                                eIP681ProcessingErrorMsg,
+                                colorText: Colors.white,
+                                backgroundColor: Colors.red,
+                              );
 
-                          bool hasPasscode =
-                              pref.get(userUnlockPasscodeKey) != null;
-                          Widget dappWidget;
-                          Get.back();
+                              return;
+                            }
+                            showDialog(
+                                barrierDismissible: false,
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                      backgroundColor: Colors.white,
+                                      content: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          SizedBox(
+                                            width: 35,
+                                            height: 35,
+                                            child: Loader(),
+                                          ),
+                                        ],
+                                      ));
+                                });
 
-                          if (hasWallet) {
-                            dappWidget = const WalletMainBody();
-                          } else if (hasPasscode) {
-                            dappWidget = const MainScreen();
-                          } else {
-                            dappWidget = const Security();
-                          }
-                          await Get.to(dappWidget);
-                        },
-                        child: SizedBox(
+                            Map scannedData = await processEIP681(data);
+
+                            if (Navigator.canPop(context)) {
+                              Get.back();
+                            }
+
+                            if (scannedData['success']) {
+                              await Get.to(
+                                SendToken(
+                                  data: scannedData['msg'],
+                                ),
+                              );
+                              return;
+                            }
+                            Get.snackbar(
+                              '',
+                              scannedData['msg'],
+                              colorText: Colors.white,
+                              backgroundColor: Colors.red,
+                            );
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(Icons.qr_code),
+                                Text(
+                                  'Scan',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
                           width: 100,
                           child: Column(
                             children: const [
-                              Icon(FontAwesomeIcons.wallet),
+                              Icon(Icons.search),
                               Text(
-                                'My wallet',
+                                'Search Engine',
                                 style: TextStyle(fontSize: 12),
-                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ]),
+                        GestureDetector(
+                          onTap: () async {
+                            final pref = Hive.box(secureStorageKey);
+                            bool hasWallet =
+                                pref.get(currentMmenomicKey) != null;
+
+                            bool hasPasscode =
+                                pref.get(userUnlockPasscodeKey) != null;
+                            Widget dappWidget;
+                            Get.back();
+
+                            if (hasWallet) {
+                              dappWidget = const WalletMainBody();
+                            } else if (hasPasscode) {
+                              dappWidget = const MainScreen();
+                            } else {
+                              dappWidget = const Security();
+                            }
+                            await Get.to(dappWidget);
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(FontAwesomeIcons.wallet),
+                                Text(
+                                  'My wallet',
+                                  style: TextStyle(fontSize: 12),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ]),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         )
       ],
     ));

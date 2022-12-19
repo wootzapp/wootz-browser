@@ -219,17 +219,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (hasWallet && !defaultSecurity) {
       nextWidget = const OpenAppPinFailed();
-    } else if (hasWallet) {
+    } else {
       nextWidget = await dappWidget(
         context,
         walletURL,
-      );
-    } else {
-      nextWidget = const Dapp(
-        provider: '',
-        init: '',
-        webNotifier: '',
-        data: walletURL,
       );
     }
     await Future.delayed(const Duration(milliseconds: 2500));
