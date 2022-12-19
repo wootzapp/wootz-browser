@@ -1125,11 +1125,6 @@ Future<bool> saveToDrive(String fileName, String mnemonic) async {
   }
 }
 
-Map calculateSeed(String seedPhrase) {
-  _seed = bip39.mnemonicToSeed(seedPhrase);
-  return {'root': bip32.BIP32.fromSeed(_seed), 'seed': _seed};
-}
-
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
   Map seedDetails = await compute(calculateSeed, mnemonic);
   _root = seedDetails['root'];
@@ -1234,15 +1229,26 @@ Future<Map> sendCardano(Map config) async {
   // return {'txid': txHash.replaceAll('"', '')};
 }
 
+Map calculateSeed(String seedPhrase) {
+  _seed = bip39.mnemonicToSeed(seedPhrase);
+  return {'root': bip32.BIP32.fromSeed(_seed), 'seed': _seed};
+}
+
 Future<Map> sendSolana(
   String destinationAddress,
   int lamportToSend,
   SolanaClusters solanaClustersType,
 ) async {
-  final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
+  String mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
+  Map seedDetails = await compute(calculateSeed, mnemonic);
+  _root = seedDetails['root'];
+  _seed = seedDetails['seed'];
 
-  final keyPair = await compute(
-      calculateSolanaKey, {mnemonicKey: mnemonic, 'getSolanaKeys': true});
+  final keyPair = await compute(calculateSolanaKey, {
+    mnemonicKey: mnemonic,
+    'getSolanaKeys': true,
+    'seed': _seed,
+  });
 
   final signature = await getSolanaClient(solanaClustersType).transferLamports(
     source: keyPair,
