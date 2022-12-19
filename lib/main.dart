@@ -26,8 +26,6 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import 'utils/wc_connector.dart';
 
-Uint8List seed;
-BIP32 root;
 void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
