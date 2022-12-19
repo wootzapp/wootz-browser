@@ -611,7 +611,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                               Map.from({
                                 'name': dataValue['chainName'],
                               })
-                                ..addAll(switchChainIdData),
+                                ..addAll(switchChainIdData)
+                                ..remove('image')
+                                ..remove('coinType'),
                             ),
                             onConfirm: () async {
                               try {
