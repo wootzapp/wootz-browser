@@ -1,7 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:isolate';
-import 'dart:typed_data';
+import 'dart:math';
 import 'dart:ui';
 import 'package:cryptowallet/api/notification_api.dart';
 import 'package:cryptowallet/utils/wallet_black.dart';
@@ -22,9 +22,21 @@ import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:web3dart/web3dart.dart';
 
+import 'package:cryptowallet/utils/qr_scan_view.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:get/get.dart';
+import 'package:hive/hive.dart';
+
+import '../components/loader.dart';
+import '../screens/main_screen.dart';
+import '../screens/security.dart';
+import '../screens/send_token.dart';
+import '../screens/transfer_token.dart';
+import '../screens/view_wallets.dart';
+import '../screens/wallet_main_body.dart';
+import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import '../utils/app_config.dart';
 import '../utils/web_notifications.dart';
-import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class WebViewTab extends StatefulWidget {
   final String url;
@@ -327,6 +339,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     Box pref = Hive.box(secureStorageKey);
     int index = webLoadin || pref.get(currentMmenomicKey) == null ? 1 : 0;
     if (isFocused) index = 2;
+    List historyData = json.decode(pref.get(historyKey));
 
     return SafeArea(
         child: IndexedStack(
@@ -541,18 +554,21 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                     _controller.addJavaScriptHandler(
                       handlerName: 'walletAddEthereumChain',
                       callback: (args) async {
+                        if (kDebugMode) {
+                          print(args);
+                        }
                         final pref = Hive.box(secureStorageKey);
                         int chainId = pref.get(dappChainIdKey);
                         final id = args[0];
+                        final dataValue = json.decode(args[1]);
 
                         final switchChainId =
-                            BigInt.parse(json.decode(args[1])['chainId'])
-                                .toInt();
+                            BigInt.parse(dataValue['chainId']).toInt();
 
                         final currentChainIdData =
                             getEthereumDetailsFromChainId(chainId);
 
-                        final switchChainIdData =
+                        Map switchChainIdData =
                             getEthereumDetailsFromChainId(switchChainId);
 
                         if (chainId == switchChainId) {
@@ -562,11 +578,127 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                           return;
                         }
 
+                        bool switchNetwork = true;
+                        bool haveNotExecuted = true;
+
                         if (switchChainIdData == null) {
-                          await _controller.evaluateJavascript(
-                              source:
-                                  'AlphaWallet.executeCallback($id, "we can not add this block", null);');
-                        } else {
+                          switchNetwork = false;
+                          haveNotExecuted = false;
+                          List blockExplorers = dataValue['blockExplorerUrls'];
+                          String blockExplorer = '';
+                          if (blockExplorers.isNotEmpty) {
+                            blockExplorer = blockExplorers[0];
+                            if (blockExplorer.endsWith('/')) {
+                              blockExplorer = blockExplorer.substring(
+                                  0, blockExplorer.length - 1);
+                            }
+                          }
+                          List rpcUrl = dataValue['rpcUrls'];
+
+                          Map addBlockChain = {};
+                          if (pref.get(newEVMChainKey) != null) {
+                            addBlockChain =
+                                Map.from(jsonDecode(pref.get(newEVMChainKey)));
+                          }
+
+                          switchChainIdData = {
+                            "rpc": rpcUrl.isNotEmpty ? rpcUrl[0] : null,
+                            'chainId': switchChainId,
+                            'blockExplorer': blockExplorers.isNotEmpty
+                                ? '$blockExplorer/tx/$transactionhashTemplateKey'
+                                : null,
+                            'symbol': dataValue['nativeCurrency']['symbol'],
+                            'default': dataValue['nativeCurrency']['symbol'],
+                            'image': 'assets/ethereum-2.png',
+                            'coinType': 60
+                          };
+
+                          Map details = {
+                            dataValue['chainName']: switchChainIdData,
+                          };
+                          addBlockChain.addAll(details);
+
+                          await addEthereumChain(
+                            context: context,
+                            jsonObj: json.encode(
+                              Map.from({
+                                'name': dataValue['chainName'],
+                              })
+                                ..addAll(switchChainIdData)
+                                ..remove('image')
+                                ..remove('coinType'),
+                            ),
+                            onConfirm: () async {
+                              try {
+                                const id = 83;
+                                final response = await post(
+                                  Uri.parse(switchChainIdData['rpc']),
+                                  body: json.encode(
+                                    {
+                                      "jsonrpc": "2.0",
+                                      "method": "eth_chainId",
+                                      "params": [],
+                                      "id": id
+                                    },
+                                  ),
+                                  headers: {"Content-Type": "application/json"},
+                                );
+                                String responseBody = response.body;
+
+                                if (response.statusCode ~/ 100 == 4 ||
+                                    response.statusCode ~/ 100 == 5) {
+                                  if (kDebugMode) {
+                                    print(responseBody);
+                                  }
+                                  throw Exception(responseBody);
+                                }
+
+                                final jsonResponse = json.decode(responseBody);
+
+                                final chainIdResponse =
+                                    BigInt.parse(jsonResponse['result'])
+                                        .toInt();
+
+                                if (jsonResponse['id'] != id) {
+                                  throw Exception('invalid eth_chainId');
+                                } else if (chainIdResponse != switchChainId) {
+                                  throw Exception(
+                                      'chain Id different with eth_chainId');
+                                }
+
+                                await pref.put(
+                                  newEVMChainKey,
+                                  jsonEncode(addBlockChain),
+                                );
+
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, null, null);',
+                                );
+
+                                switchNetwork = true;
+                                Navigator.pop(context);
+                              } catch (e) {
+                                final error =
+                                    e.toString().replaceAll('"', '\'');
+
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, "$error",null);',
+                                );
+                                Navigator.pop(context);
+                              }
+                            },
+                            onReject: () async {
+                              await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, "user rejected add", null);');
+
+                              Navigator.pop(context);
+                            },
+                          );
+                        }
+                        if (switchNetwork) {
                           switchEthereumChain(
                             context: context,
                             currentChainIdData: currentChainIdData,
@@ -577,16 +709,23 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                 switchChainIdData['rpc'],
                               );
 
-                              await _controller.evaluateJavascript(
-                                source:
-                                    'AlphaWallet.executeCallback($id, null, null);',
-                              );
+                              if (haveNotExecuted) {
+                                await _controller.evaluateJavascript(
+                                  source:
+                                      'AlphaWallet.executeCallback($id, null, null);',
+                                );
+                              }
+
                               Navigator.pop(context);
                             },
                             onReject: () async {
-                              await _controller.evaluateJavascript(
+                              if (haveNotExecuted) {
+                                await _controller.evaluateJavascript(
                                   source:
-                                      'AlphaWallet.executeCallback($id, "user rejected switch", null);');
+                                      'AlphaWallet.executeCallback($id, "user rejected switch", null);',
+                                );
+                              }
+
                               Navigator.pop(context);
                             },
                           );
@@ -1024,70 +1163,299 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             ),
           ),
         ]),
-        TextFormField(
-          textInputAction: TextInputAction.search,
-          controller: _browserController,
-          onFieldSubmitted: (value) async {
-            FocusManager.instance.primaryFocus?.unfocus();
-            if (_controller != null) {
-              if (await _controller.isLoading()) {
-                return;
-              }
-              Uri uri = blockChainToHttps(value.trim());
-              await _controller.loadUrl(
-                urlRequest: URLRequest(url: WebUri.uri(uri)),
-              );
-            }
-          },
-          focusNode: _focus,
-          decoration: InputDecoration(
-            prefixIconConstraints:
-                const BoxConstraints(minWidth: 35, maxWidth: 35),
-            contentPadding: const EdgeInsets.all(0),
-            prefixIcon: _isSecure != null
-                ? Padding(
-                    padding: const EdgeInsets.only(left: 8.0, right: 8),
-                    child: Icon(
-                        _isSecure == true ? Icons.lock : Icons.lock_open,
-                        color: _isSecure == true ? Colors.green : Colors.red,
-                        size: 18),
-                  )
-                : const Padding(
-                    padding: EdgeInsets.only(left: 8.0, right: 8),
-                    child: Icon(Icons.lock_open, color: Colors.red, size: 18),
+        SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(
+                height: 5,
+              ),
+              TextFormField(
+                textInputAction: TextInputAction.search,
+                controller: _browserController,
+                onFieldSubmitted: (value) async {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  if (_controller != null) {
+                    if (await _controller.isLoading()) {
+                      return;
+                    }
+                    Uri uri = blockChainToHttps(value.trim());
+                    await _controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri.uri(uri)),
+                    );
+                  }
+                },
+                focusNode: _focus,
+                decoration: InputDecoration(
+                  prefixIconConstraints:
+                      const BoxConstraints(minWidth: 35, maxWidth: 35),
+                  contentPadding: const EdgeInsets.all(0),
+                  prefixIcon: _isSecure != null
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 8.0, right: 8),
+                          child: Icon(
+                              _isSecure == true ? Icons.lock : Icons.lock_open,
+                              color:
+                                  _isSecure == true ? Colors.green : Colors.red,
+                              size: 18),
+                        )
+                      : const Padding(
+                          padding: EdgeInsets.only(left: 8.0, right: 8),
+                          child: Icon(Icons.lock_open,
+                              color: Colors.red, size: 18),
+                        ),
+                  isDense: true,
+                  suffixIcon: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.qr_code_scanner,
+                        ),
+                        onPressed: () async {},
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.mic_outlined,
+                        ),
+                        onPressed: () async {},
+                      ),
+                    ],
                   ),
-            isDense: true,
-            suffixIcon: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.qr_code_scanner,
-                  ),
-                  onPressed: () async {},
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.mic_outlined,
-                  ),
-                  onPressed: () async {},
-                ),
-              ],
-            ),
-            hintText: AppLocalizations.of(context).searchOrEnterUrl,
+                  hintText: AppLocalizations.of(context).searchOrEnterUrl,
 
-            filled: true,
-            focusedBorder: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                borderSide: BorderSide.none),
-            border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                borderSide: BorderSide.none),
-            enabledBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10.0)),
-              borderSide: BorderSide.none,
-            ), // you
+                  filled: true,
+                  focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                      borderSide: BorderSide.none),
+                  border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                      borderSide: BorderSide.none),
+                  enabledBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                    borderSide: BorderSide.none,
+                  ), // you
+                ),
+              ),
+              const SizedBox(
+                height: 20,
+              ),
+              for (int i = 0; i < historyData.length && i < 5; i++)
+                GestureDetector(
+                  onTap: () async {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    _controller.loadUrl(
+                      urlRequest: URLRequest(
+                        url: WebUri(
+                          historyData[i]['url'],
+                        ),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 2.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  FontAwesomeIcons.globe,
+                                  size: 30,
+                                ),
+                                const SizedBox(
+                                  width: 10,
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ellipsify(
+                                        str: historyData[i]['title'],
+                                        maxLength: 25,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      ellipsify(
+                                        str: historyData[i]['url'],
+                                        maxLength: 25,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: Transform.rotate(
+                                    angle: 225 * pi / 180,
+                                    child:
+                                        const Icon(Icons.arrow_forward_sharp),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.star),
+                                ),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Transactions history'),
+                        Row(
+                          children: const [
+                            Text('See all'),
+                            Icon(Icons.arrow_forward),
+                          ],
+                        )
+                      ],
+                    )
+                  ]),
+                ),
+              ),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () async {
+                            String data = await Get.to(
+                              const QRScanView(),
+                            );
+                            if (data == null) {
+                              Get.snackbar(
+                                '',
+                                eIP681ProcessingErrorMsg,
+                                colorText: Colors.white,
+                                backgroundColor: Colors.red,
+                              );
+
+                              return;
+                            }
+                            showDialog(
+                                barrierDismissible: false,
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                      backgroundColor: Colors.white,
+                                      content: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          SizedBox(
+                                            width: 35,
+                                            height: 35,
+                                            child: Loader(),
+                                          ),
+                                        ],
+                                      ));
+                                });
+
+                            Map scannedData = await processEIP681(data);
+
+                            if (Navigator.canPop(context)) {
+                              Get.back();
+                            }
+
+                            if (scannedData['success']) {
+                              await Get.to(
+                                SendToken(
+                                  data: scannedData['msg'],
+                                ),
+                              );
+                              return;
+                            }
+                            Get.snackbar(
+                              '',
+                              scannedData['msg'],
+                              colorText: Colors.white,
+                              backgroundColor: Colors.red,
+                            );
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(Icons.qr_code),
+                                Text(
+                                  'Scan',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 100,
+                          child: Column(
+                            children: const [
+                              Icon(Icons.search),
+                              Text(
+                                'Search Engine',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () async {
+                            final pref = Hive.box(secureStorageKey);
+                            bool hasWallet =
+                                pref.get(currentMmenomicKey) != null;
+
+                            bool hasPasscode =
+                                pref.get(userUnlockPasscodeKey) != null;
+                            Widget dappWidget;
+                            Get.back();
+
+                            if (hasWallet) {
+                              dappWidget = const WalletMainBody();
+                            } else if (hasPasscode) {
+                              dappWidget = const MainScreen();
+                            } else {
+                              dappWidget = const Security();
+                            }
+                            await Get.to(dappWidget);
+                          },
+                          child: SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: const [
+                                Icon(FontAwesomeIcons.wallet),
+                                Text(
+                                  'My wallet',
+                                  style: TextStyle(fontSize: 12),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ]),
+                ),
+              ),
+            ],
           ),
         )
       ],

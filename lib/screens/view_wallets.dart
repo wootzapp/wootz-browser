@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import '../utils/navigator_service.dart';
 import '../utils/rpc_urls.dart';
 
 class ViewWallets extends StatefulWidget {
@@ -68,7 +69,6 @@ class _ViewWalletsState extends State<ViewWallets> {
                         currentUserWalletNameKey,
                         seedList[index]['name'],
                       );
-
                       RestartWidget.restartApp(context);
                     },
                     child: Container(

@@ -324,7 +324,12 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                       currentUserWalletNameKey,
                                       null,
                                     );
-
+                                    isLoading.value = false;
+                                    Get.snackbar(
+                                      '',
+                                      AppLocalizations.of(context)
+                                          .walletCreated,
+                                    );
                                     RestartWidget.restartApp(context);
                                   } catch (e) {
                                     if (kDebugMode) {

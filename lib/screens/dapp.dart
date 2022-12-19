@@ -565,47 +565,6 @@ class _DappState extends State<Dapp> {
                               ),
                             ),
                             const Divider(),
-                            SizedBox(
-                              width: double.infinity,
-                              child: InkWell(
-                                  onTap: () async {
-                                    final pref = Hive.box(secureStorageKey);
-                                    bool hasWallet =
-                                        pref.get(currentMmenomicKey) != null;
-
-                                    bool hasPasscode =
-                                        pref.get(userUnlockPasscodeKey) != null;
-                                    Widget dappWidget;
-                                    Get.back();
-
-                                    if (hasWallet) {
-                                      dappWidget = const WalletMainBody();
-                                    } else if (hasPasscode) {
-                                      dappWidget = const MainScreen();
-                                    } else {
-                                      dappWidget = const Security();
-                                    }
-                                    await Get.to(dappWidget);
-                                  },
-                                  child: Container(
-                                    color: Colors.transparent,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(15),
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.wallet),
-                                          const SizedBox(
-                                            width: 10,
-                                          ),
-                                          Text(
-                                            AppLocalizations.of(context).wallet,
-                                          )
-                                        ],
-                                      ),
-                                    ),
-                                  )),
-                            ),
-                            const Divider(),
                           ],
                         ),
                       ),

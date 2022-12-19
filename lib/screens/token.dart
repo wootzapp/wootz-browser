@@ -568,32 +568,16 @@ class _TokenState extends State<Token> {
                               listTransactions.addAll([
                                 GestureDetector(
                                   onTap: () async {
-                                    final pref = Hive.box(secureStorageKey);
-                                    bool hasWallet =
-                                        pref.get(currentMmenomicKey) != null;
                                     Widget nextWidget;
-                                    if (hasWallet) {
-                                      nextWidget = await dappWidget(
-                                        context,
-                                        widget.data['blockExplorer']
-                                            .toString()
-                                            .replaceFirst(
-                                              transactionhashTemplateKey,
-                                              datum['transactionHash'],
-                                            ),
-                                      );
-                                    } else {
-                                      nextWidget = Dapp(
-                                        provider: '',
-                                        init: '',
-                                        data: widget.data['blockExplorer']
-                                            .toString()
-                                            .replaceFirst(
-                                              transactionhashTemplateKey,
-                                              datum['transactionHash'],
-                                            ),
-                                      );
-                                    }
+                                    nextWidget = await dappWidget(
+                                      context,
+                                      widget.data['blockExplorer']
+                                          .toString()
+                                          .replaceFirst(
+                                            transactionhashTemplateKey,
+                                            datum['transactionHash'],
+                                          ),
+                                    );
                                     await Get.to(
                                       nextWidget,
                                       transition: Transition.leftToRight,
