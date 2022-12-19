@@ -48,6 +48,7 @@ import 'package:solana/solana.dart' as solana;
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:hex/hex.dart';
+import 'package:whois/whois.dart';
 
 import '../components/loader.dart';
 import '../eip/eip681.dart';
@@ -2355,6 +2356,13 @@ changeBlockChainAndReturnInit(
         "%3\$s",
         chainId.toString(),
       );
+}
+
+Future<Map> whoIsLookUp(String webUrl) async {
+  final whoisResponse = await Whois.lookup(webUrl);
+  final parsedResponse = Whois.formatLookup(whoisResponse);
+  return parsedResponse;
+  // final date = DateTime.parse(parsedResponse['Creation Date']);
 }
 
 Future<Widget> dappWidget(
