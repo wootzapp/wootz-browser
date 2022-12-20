@@ -1,15 +1,18 @@
 name: Build Test
 
-on:
-  push:
-    branches:
-      - dev-tabs
-    tags-ignore:
-      - v*
-      -
-  pull_request:
-    branches:
-      - master
+on: workflow_dispatch
+
+# on:
+#   push:
+#     branches:
+#       - dev-tabs
+#     tags-ignore:
+#       - v*
+#       -
+#   pull_request:
+#     branches:
+#       - master
+
 env:
   FLUTTER_CHANNEL: "stable"
   FLUTTER_VERSION: "3.3.10"
