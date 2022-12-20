@@ -48,7 +48,7 @@ git checkout newbranch    # Go to the new branch that still has the desired comm
 ## 💌 Acknowledgements
 
 - First Hat tip to  [Metamask](https://github.com/MetaMask).
-- We continue the spirit of [Netscape](http://ftp.mozilla.org/pub/mozilla/source/).
+- We continue the spirit of [Netscape](https://www.cnet.com/tech/tech-industry/netscape-sets-source-code-free/).
 - The Extension Ethereum Provider is a fork of [Alphawallet Provider](https://github.com/AlphaWallet/AlphaWallet-web3-provider).
 - Original version was inspired by [flutter_inappwebview browser](https://github.com/pichillilorenzo/flutter_browser_app)
 - All the other [contributors](https://github.com/wootzapp/wootz-browser/graphs/contributors).
