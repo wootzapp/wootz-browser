@@ -11,7 +11,7 @@
 
 
 [Wootz steel](https://en.wikipedia.org/wiki/Wootz_steel) originated in South India - in present day Kodumanal, Tamil Nadu. The word “*wootz*” appears to have originated as a mistranscription of *wook* - from the Tamil language root word *urukku*.  
-Trade between South India and Sri Lanka through the Arabian Sea introduced wootz steel to Arabia. The term muhannad مهند or hendeyy هندي in pre-Islamic and early Islamic Arabic refers to sword blades made from Indian steel, which were highly prized, and are attested in Arabic poetry. It spread the technology to the city of Damascus, where an industry developed for making weapons of this steel..and began to be known as Damascus steel (much like mathematics!)
+Trade between South India and Sri Lanka through the Arabian Sea introduced wootz steel to Arabia. It spread the technology to the city of Damascus, where an industry developed for making weapons of this steel..and began to be known as Damascus steel (much like mathematics!)
 
 After [India's First War of Independence of 1857](https://en.wikipedia.org/wiki/Indian_Rebellion_of_1857), the colonial British government banned weapon-making by Indians. This led to the stoppage of the production of Wootz. And the secret was lost forever.
 
