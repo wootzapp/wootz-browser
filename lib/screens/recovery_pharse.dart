@@ -39,10 +39,10 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   String chooseLength = "12";
   Map bip39Strength = {
     "128": "12",
-    "160": "15",
-    "192": "18",
-    "224": "21",
-    "256": "24"
+    // "160": "15",
+    // "192": "18",
+    // "224": "21",
+    // "256": "24"
   };
 
   @override
