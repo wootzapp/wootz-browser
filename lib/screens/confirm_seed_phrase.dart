@@ -129,6 +129,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         null,
       );
       isLoading.value = false;
+      Get.close(2);
       Get.snackbar(
         '',
         AppLocalizations.of(context).walletCreated,
