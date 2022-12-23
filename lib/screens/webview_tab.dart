@@ -1172,77 +1172,6 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               const SizedBox(
                 height: 5,
               ),
-              TextFormField(
-                textInputAction: TextInputAction.search,
-                controller: _browserController,
-                onFieldSubmitted: (value) async {
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  if (_controller != null) {
-                    if (await _controller.isLoading()) {
-                      return;
-                    }
-                    Uri uri = blockChainToHttps(value.trim());
-                    await _controller.loadUrl(
-                      urlRequest: URLRequest(url: WebUri.uri(uri)),
-                    );
-                  }
-                },
-                focusNode: _focus,
-                decoration: InputDecoration(
-                  prefixIconConstraints:
-                      const BoxConstraints(minWidth: 35, maxWidth: 35),
-                  contentPadding: const EdgeInsets.all(0),
-                  prefixIcon: _isSecure != null
-                      ? Padding(
-                          padding: const EdgeInsets.only(left: 8.0, right: 8),
-                          child: Icon(
-                              _isSecure == true ? Icons.lock : Icons.lock_open,
-                              color:
-                                  _isSecure == true ? Colors.green : Colors.red,
-                              size: 18),
-                        )
-                      : const Padding(
-                          padding: EdgeInsets.only(left: 8.0, right: 8),
-                          child: Icon(Icons.lock_open,
-                              color: Colors.red, size: 18),
-                        ),
-                  isDense: true,
-                  suffixIcon: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.qr_code_scanner,
-                        ),
-                        onPressed: () async {},
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.mic_outlined,
-                        ),
-                        onPressed: () async {},
-                      ),
-                    ],
-                  ),
-                  hintText: AppLocalizations.of(context).searchOrEnterUrl,
-
-                  filled: true,
-                  focusedBorder: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      borderSide: BorderSide.none),
-                  border: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                      borderSide: BorderSide.none),
-                  enabledBorder: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    borderSide: BorderSide.none,
-                  ), // you
-                ),
-              ),
-              const SizedBox(
-                height: 20,
-              ),
               for (int i = 0; i < historyData.length || i < 5; i++)
                 if (historyData[i] != null)
                   GestureDetector(
@@ -1280,15 +1209,17 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                                       Text(
                                         ellipsify(
                                           str: historyData[i]['title'],
-                                          maxLength: 25,
+                                          maxLength: 20,
                                         ),
+                                        style: const TextStyle(fontSize: 14),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
                                         ellipsify(
                                           str: historyData[i]['url'],
-                                          maxLength: 25,
+                                          maxLength: 20,
                                         ),
+                                        style: const TextStyle(fontSize: 13),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
