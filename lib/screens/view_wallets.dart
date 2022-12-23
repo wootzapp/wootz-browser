@@ -69,7 +69,8 @@ class _ViewWalletsState extends State<ViewWallets> {
                         currentUserWalletNameKey,
                         seedList[index]['name'],
                       );
-                      RestartWidget.restartApp(context);
+                      Navigator.pop(context);
+                      // RestartWidget.restartApp(context);
                     },
                     child: Container(
                       color: Colors.transparent,

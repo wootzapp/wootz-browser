@@ -3456,9 +3456,13 @@ Future<void> enableScreenShot() async {
 Future<void> disEnableScreenShot() async {
   if (kDebugMode) return;
   if (Platform.isAndroid) {
-    await FlutterWindowManager.addFlags(
+    await FlutterWindowManager.clearFlags(
       FlutterWindowManager.FLAG_SECURE,
     );
+    //FIXME:
+    // await FlutterWindowManager.addFlags(
+    //   FlutterWindowManager.FLAG_SECURE,
+    // );
   }
 }
 

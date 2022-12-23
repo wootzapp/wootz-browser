@@ -31,7 +31,8 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   RxBool secondStep = false.obs;
   RxBool thirdStep = false.obs;
   RxBool fourthStep = false.obs;
-  final List numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  List numbers;
+
   int currentCorrectItem = 0;
   RxBool firstTime = true.obs;
   List<String> mmenomicArray = [];
@@ -42,6 +43,10 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   @override
   void initState() {
     super.initState();
+    numbers = List<int>.generate(
+      widget.mmenomic.length,
+      (int index) => index + 1,
+    );
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
@@ -67,6 +72,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
           fourthStep.value = true;
         } else if (thirdStep.value == false && fourthStep.value == true) {
           finished.value = true;
+          finishConfirm();
         }
         currentCorrectItem = 0;
       } else {
@@ -74,6 +80,73 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       }
     } else {
       invalidSeedOrder();
+    }
+  }
+
+  Future finishConfirm() async {
+    Get.closeAllSnackbars();
+    if (isLoading.value) return;
+
+    isLoading.value = true;
+
+    final pref = Hive.box(secureStorageKey);
+    String mnemonics = widget.mmenomic.join(' ');
+    try {
+      final mnemonicsList = pref.get(mnemonicListKey);
+      List decodedmnemonic = [];
+
+      if (mnemonicsList != null) {
+        decodedmnemonic = jsonDecode(mnemonicsList) as List;
+
+        for (Map phrases in decodedmnemonic) {
+          if (phrases['phrase'] == mnemonics) {
+            Get.snackbar(
+              '',
+              AppLocalizations.of(context).mnemonicAlreadyImported,
+              backgroundColor: Colors.red,
+              colorText: Colors.white,
+            );
+            isLoading.value = false;
+            return;
+          }
+        }
+      }
+
+      await initializeAllPrivateKeys(mnemonics);
+
+      decodedmnemonic.add({
+        'phrase': mnemonics,
+      });
+      await pref.put(
+        mnemonicListKey,
+        jsonEncode(decodedmnemonic),
+      );
+
+      await pref.put(currentMmenomicKey, mnemonics);
+
+      await pref.put(
+        currentUserWalletNameKey,
+        null,
+      );
+      isLoading.value = false;
+      Get.close(2);
+      Get.snackbar(
+        '',
+        AppLocalizations.of(context).walletCreated,
+      );
+      RestartWidget.restartApp(context);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      Get.snackbar(
+        '',
+        AppLocalizations.of(context).errorTryAgain,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+
+      isLoading.value = false;
     }
   }
 
@@ -284,80 +357,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                 ),
                               ),
                             ),
-                            onPressed: finished.value
-                                ? () async {
-                                    Get.closeAllSnackbars();
-                                    if (isLoading.value) return;
-
-                                    isLoading.value = true;
-
-                                    final pref = Hive.box(secureStorageKey);
-                                    String mnemonics =
-                                        widget.mmenomic.join(' ');
-                                    try {
-                                      final mnemonicsList =
-                                          pref.get(mnemonicListKey);
-                                      List decodedmnemonic = [];
-
-                                      if (mnemonicsList != null) {
-                                        decodedmnemonic =
-                                            jsonDecode(mnemonicsList) as List;
-
-                                        for (Map phrases in decodedmnemonic) {
-                                          if (phrases['phrase'] == mnemonics) {
-                                            Get.snackbar(
-                                              '',
-                                              AppLocalizations.of(context)
-                                                  .mnemonicAlreadyImported,
-                                              backgroundColor: Colors.red,
-                                              colorText: Colors.white,
-                                            );
-                                            isLoading.value = false;
-                                            return;
-                                          }
-                                        }
-                                      }
-
-                                      await initializeAllPrivateKeys(mnemonics);
-
-                                      decodedmnemonic.add({
-                                        'phrase': mnemonics,
-                                      });
-                                      await pref.put(
-                                        mnemonicListKey,
-                                        jsonEncode(decodedmnemonic),
-                                      );
-
-                                      await pref.put(
-                                          currentMmenomicKey, mnemonics);
-
-                                      await pref.put(
-                                        currentUserWalletNameKey,
-                                        null,
-                                      );
-                                      isLoading.value = false;
-                                      Get.snackbar(
-                                        '',
-                                        AppLocalizations.of(context)
-                                            .walletCreated,
-                                      );
-                                      RestartWidget.restartApp(context);
-                                    } catch (e) {
-                                      if (kDebugMode) {
-                                        print(e);
-                                      }
-                                      Get.snackbar(
-                                        '',
-                                        AppLocalizations.of(context)
-                                            .errorTryAgain,
-                                        backgroundColor: Colors.red,
-                                        colorText: Colors.white,
-                                      );
-
-                                      isLoading.value = false;
-                                    }
-                                  }
-                                : null,
+                            onPressed: null,
                             child: Padding(
                               padding: const EdgeInsets.all(15),
                               child: isLoading.value
