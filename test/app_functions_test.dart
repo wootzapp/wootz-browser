@@ -276,7 +276,9 @@ void main() async {
       {mnemonicKey: mnemonic},
     );
 
-    final filecoinKey = await compute(calculateFileCoinKey, mnemonic);
+    final filecoinKey = await compute(calculateFileCoinKey, {
+      'mnemonic': mnemonic,
+    });
     final solanaKey = await compute(
       calculateSolanaKey,
       {

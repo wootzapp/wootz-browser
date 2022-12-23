@@ -2448,9 +2448,9 @@ Future addEthereumChain({
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Add network',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).addNetwork,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
             ),
