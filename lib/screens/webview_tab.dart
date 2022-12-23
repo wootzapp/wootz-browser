@@ -337,13 +337,14 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     Box pref = Hive.box(secureStorageKey);
-    int index = webLoadin || pref.get(currentMmenomicKey) == null ? 1 : 0;
+    int index = webLoadin ? 1 : 0;
     if (isFocused) index = 2;
     List historyData = [];
     String history = pref.get(historyKey);
     if (history != null) {
       historyData = json.decode(history);
     }
+
     return SafeArea(
         child: IndexedStack(
       index: index,
