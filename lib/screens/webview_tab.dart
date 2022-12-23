@@ -339,8 +339,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
     Box pref = Hive.box(secureStorageKey);
     int index = webLoadin || pref.get(currentMmenomicKey) == null ? 1 : 0;
     if (isFocused) index = 2;
-    List historyData = json.decode(pref.get(historyKey));
-
+    List historyData = [];
+    String history = pref.get(historyKey);
+    if (history != null) {
+      historyData = json.decode(history);
+    }
     return SafeArea(
         child: IndexedStack(
       index: index,
@@ -1240,78 +1243,80 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               const SizedBox(
                 height: 20,
               ),
-              for (int i = 0; i < historyData.length && i < 5; i++)
-                GestureDetector(
-                  onTap: () async {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    _controller.loadUrl(
-                      urlRequest: URLRequest(
-                        url: WebUri(
-                          historyData[i]['url'],
+              for (int i = 0; i < historyData.length || i < 5; i++)
+                if (historyData[i] != null)
+                  GestureDetector(
+                    onTap: () async {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      _controller.loadUrl(
+                        urlRequest: URLRequest(
+                          url: WebUri(
+                            historyData[i]['url'],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 2.0),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  FontAwesomeIcons.globe,
-                                  size: 30,
-                                ),
-                                const SizedBox(
-                                  width: 10,
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      ellipsify(
-                                        str: historyData[i]['title'],
-                                        maxLength: 25,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      ellipsify(
-                                        str: historyData[i]['url'],
-                                        maxLength: 25,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                IconButton(
-                                  onPressed: () {},
-                                  icon: Transform.rotate(
-                                    angle: 225 * pi / 180,
-                                    child:
-                                        const Icon(Icons.arrow_forward_sharp),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 2.0),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    FontAwesomeIcons.globe,
+                                    size: 30,
                                   ),
-                                ),
-                                IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.star),
-                                ),
-                              ],
-                            )
-                          ],
+                                  const SizedBox(
+                                    width: 10,
+                                  ),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        ellipsify(
+                                          str: historyData[i]['title'],
+                                          maxLength: 25,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        ellipsify(
+                                          str: historyData[i]['url'],
+                                          maxLength: 25,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () {},
+                                    icon: Transform.rotate(
+                                      angle: 225 * pi / 180,
+                                      child:
+                                          const Icon(Icons.arrow_forward_sharp),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {},
+                                    icon: const Icon(Icons.star),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(10),
