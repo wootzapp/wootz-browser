@@ -4,8 +4,10 @@ import 'package:cryptowallet/google_drive/file.dart';
 import 'package:cryptowallet/screens/confirm_seed_phrase.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
+import 'package:cryptowallet/utils/slide_up_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:get/get.dart';
 import 'package:hex/hex.dart';
@@ -32,7 +34,16 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   RxBool invisiblemnemonic = false.obs;
   RxBool securitydialogOpen = false.obs;
+  String data_;
   final scaffoldKey = GlobalKey<ScaffoldState>();
+  String chooseLength = "12";
+  Map bip39Strength = {
+    "128": "12",
+    // "160": "15",
+    // "192": "18",
+    // "224": "21",
+    // "256": "24"
+  };
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
@@ -65,6 +76,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   @override
   void initState() {
     super.initState();
+    data_ = widget.data;
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
@@ -85,12 +97,13 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text(AppLocalizations.of(context).yourSecretPhrase),
-        ),
-        key: scaffoldKey,
-        body: Obx(() {
-          List mmemonic = widget.data.split(' ');
+      appBar: AppBar(
+        title: Text(AppLocalizations.of(context).yourSecretPhrase),
+      ),
+      key: scaffoldKey,
+      body: Obx(
+        () {
+          List mmemonic = data_.split(' ');
           int currentIndex = 0;
           return securitydialogOpen.value
               ? Container()
@@ -192,6 +205,40 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                               height: 15,
                             )
                           ],
+                          GestureDetector(
+                            onTap: () async {
+                              // copy to clipboard
+                              await Clipboard.setData(ClipboardData(
+                                text: data_,
+                              ));
+                              Get.snackbar(
+                                '',
+                                AppLocalizations.of(context).copiedToClipboard,
+                              );
+                            },
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              color: colorForAddress,
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      AppLocalizations.of(context).copy,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                    const Icon(Icons.copy)
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(
                             height: 15,
                           ),
@@ -242,9 +289,9 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   ),
                                 ),
                                 onPressed: () {
-                                  Get.off(
+                                  Get.to(
                                     Confirmmnemonic(
-                                      mmenomic: widget.data.split(' '),
+                                      mmenomic: data_.split(' '),
                                     ),
                                   );
                                 },
@@ -293,10 +340,10 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   List secretShares = sss.create(
                                     minShemirShare,
                                     minShemirShare,
-                                    widget.data,
+                                    data_,
                                     isShemirBase64,
                                   );
-                                  String filehash = sha3(widget.data);
+                                  String filehash = sha3(data_);
                                   try {
                                     for (int i = 0;
                                         i < secretShares.length;
@@ -323,7 +370,6 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     );
                                     successSaving = true;
                                   } catch (e) {
-                                    print(e);
                                     Get.snackbar(
                                       '',
                                       AppLocalizations.of(context)
@@ -353,6 +399,8 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                     ),
                   ),
                 );
-        }));
+        },
+      ),
+    );
   }
 }

@@ -92,6 +92,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       onPressed: () {
                         String mmemnomic = bip39.generateMnemonic();
+
                         Get.to(
                           RecoveryPhrase(data: mmemnomic, add: true),
                         );

@@ -224,5 +224,6 @@
   "convertToShemirSecret": "Convert to Shamir secret shares",
   "savedToDownloadFolder": "Saved to Downloads folder",
   "alreadySaved": "Already saved to Download folder",
-  "walletCreated": "Wallet created"
+  "walletCreated": "Wallet created",
+  "addNetwork": "Add network"
 }

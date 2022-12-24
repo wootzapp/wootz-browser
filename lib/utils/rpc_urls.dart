@@ -60,6 +60,9 @@ import 'app_config.dart';
 import 'pos_networks.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+// seed phrases
+Uint8List _seed;
+bip32.BIP32 _root;
 // crypto decimals
 const etherDecimals = 18;
 const bitCoinDecimals = 8;
@@ -535,60 +538,60 @@ Map getBitCoinPOSBlockchains() {
       'P2WPKH': true,
       'derivationPath': "m/84'/0'/0'/0/0"
     },
-    // 'Litecoin': {
-    //   'symbol': 'LTC',
-    //   'default': 'LTC',
-    //   'blockExplorer':
-    //       'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
-    //   'image': 'assets/litecoin.png',
-    //   'POSNetwork': litecoin,
-    //   'P2WPKH': true,
-    //   'derivationPath': "m/84'/2'/0'/0/0"
-    // },
-    // 'Dash': {
-    //   'symbol': 'DASH',
-    //   'default': 'DASH',
-    //   'blockExplorer':
-    //       'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
-    //   'image': 'assets/dash.png',
-    //   'POSNetwork': dash,
-    //   'P2WPKH': false,
-    //   'derivationPath': "m/44'/5'/0'/0/0"
-    // },
-    // 'ZCash': {
-    //   'symbol': 'ZEC',
-    //   'default': 'ZEC',
-    //   'blockExplorer':
-    //       'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
-    //   'image': 'assets/zcash.png',
-    //   'POSNetwork': zcash,
-    //   'P2WPKH': false,
-    //   'derivationPath': "m/44'/133'/0'/0/0"
-    // },
-    // 'Dogecoin': {
-    //   'symbol': 'DOGE',
-    //   'default': 'DOGE',
-    //   'blockExplorer':
-    //       'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
-    //   'image': 'assets/dogecoin.png',
-    //   'POSNetwork': dogecoin,
-    //   'P2WPKH': false,
-    //   'derivationPath': "m/44'/3'/0'/0/0"
-    // }
+    'Litecoin': {
+      'symbol': 'LTC',
+      'default': 'LTC',
+      'blockExplorer':
+          'https://live.blockcypher.com/ltc/tx/$transactionhashTemplateKey',
+      'image': 'assets/litecoin.png',
+      'POSNetwork': litecoin,
+      'P2WPKH': true,
+      'derivationPath': "m/84'/2'/0'/0/0"
+    },
+    'Dash': {
+      'symbol': 'DASH',
+      'default': 'DASH',
+      'blockExplorer':
+          'https://live.blockcypher.com/dash/tx/$transactionhashTemplateKey',
+      'image': 'assets/dash.png',
+      'POSNetwork': dash,
+      'P2WPKH': false,
+      'derivationPath': "m/44'/5'/0'/0/0"
+    },
+    'ZCash': {
+      'symbol': 'ZEC',
+      'default': 'ZEC',
+      'blockExplorer':
+          'https://zcashblockexplorer.com/transactions/$transactionhashTemplateKey',
+      'image': 'assets/zcash.png',
+      'POSNetwork': zcash,
+      'P2WPKH': false,
+      'derivationPath': "m/44'/133'/0'/0/0"
+    },
+    'Dogecoin': {
+      'symbol': 'DOGE',
+      'default': 'DOGE',
+      'blockExplorer':
+          'https://live.blockcypher.com/doge/tx/$transactionhashTemplateKey',
+      'image': 'assets/dogecoin.png',
+      'POSNetwork': dogecoin,
+      'P2WPKH': false,
+      'derivationPath': "m/44'/3'/0'/0/0"
+    }
   };
 
-  // if (enableTestNet) {
-  //   blockChains['Bitcoin(Test)'] = {
-  //     'symbol': 'BTC',
-  //     'default': 'BTC',
-  //     'blockExplorer':
-  //         'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
-  //     'image': 'assets/bitcoin.jpg',
-  //     'POSNetwork': testnet,
-  //     'P2WPKH': false,
-  //     'derivationPath': "m/44'/0'/0'/0/0"
-  //   };
-  // }
+  if (enableTestNet) {
+    blockChains['Bitcoin(Test)'] = {
+      'symbol': 'BTC',
+      'default': 'BTC',
+      'blockExplorer':
+          'https://www.blockchain.com/btc-testnet/tx/$transactionhashTemplateKey',
+      'image': 'assets/bitcoin.jpg',
+      'POSNetwork': testnet,
+      'P2WPKH': false,
+      'derivationPath': "m/44'/0'/0'/0/0"
+    };
+  }
 
   return blockChains;
 }
@@ -848,7 +851,6 @@ Map getEVMBlockchains() {
 }
 
 Map getSolanaBlockChains() {
-  return {};
   Map blockChains = {
     'Solana': {
       'symbol': 'SOL',
@@ -873,7 +875,6 @@ Map getSolanaBlockChains() {
 }
 
 Map getStellarBlockChains() {
-  return {};
   Map blockChains = {
     'Stellar': {
       'symbol': 'XLM',
@@ -1125,6 +1126,10 @@ Future<bool> saveToDrive(String fileName, String mnemonic) async {
 }
 
 Future<void> initializeAllPrivateKeys(String mnemonic) async {
+  Map seedDetails = await compute(calculateSeed, mnemonic);
+  _root = seedDetails['root'];
+  _seed = seedDetails['seed'];
+
   for (String i in getEVMBlockchains().keys) {
     await getEthereumFromMemnomic(
       mnemonic,
@@ -1151,6 +1156,7 @@ Future<void> initializeAllPrivateKeys(String mnemonic) async {
   }
 
   await getSolanaFromMemnomic(mnemonic);
+
   await getStellarFromMemnomic(mnemonic);
 }
 
@@ -1223,15 +1229,26 @@ Future<Map> sendCardano(Map config) async {
   // return {'txid': txHash.replaceAll('"', '')};
 }
 
+Map calculateSeed(String seedPhrase) {
+  _seed = bip39.mnemonicToSeed(seedPhrase);
+  return {'root': bip32.BIP32.fromSeed(_seed), 'seed': _seed};
+}
+
 Future<Map> sendSolana(
   String destinationAddress,
   int lamportToSend,
   SolanaClusters solanaClustersType,
 ) async {
-  final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
+  String mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
+  Map seedDetails = await compute(calculateSeed, mnemonic);
+  _root = seedDetails['root'];
+  _seed = seedDetails['seed'];
 
-  final keyPair = await compute(
-      calculateSolanaKey, {mnemonicKey: mnemonic, 'getSolanaKeys': true});
+  final keyPair = await compute(calculateSolanaKey, {
+    mnemonicKey: mnemonic,
+    'getSolanaKeys': true,
+    'seed': _seed,
+  });
 
   final signature = await getSolanaClient(solanaClustersType).transferLamports(
     source: keyPair,
@@ -1255,7 +1272,13 @@ Future<Map> getSolanaFromMemnomic(String mnemonic) async {
     }
   }
 
-  final keys = await compute(calculateSolanaKey, {mnemonicKey: mnemonic});
+  final keys = await compute(
+    calculateSolanaKey,
+    {
+      mnemonicKey: mnemonic,
+      'seed': _seed,
+    },
+  );
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
   await pref.put(keyName, jsonEncode(mmenomicMapping));
   return keys;
@@ -1330,7 +1353,10 @@ Future<Map> getBitcoinFromMemnomic(
   }
   final keys = await compute(
     calculateBitCoinKey,
-    Map.from(posDetails)..addAll({mnemonicKey: mnemonic}),
+    Map.from(posDetails)
+      ..addAll(
+        {mnemonicKey: mnemonic, 'root': _root},
+      ),
   );
   mmenomicMapping.add({'key': keys, 'mmenomic': mnemonic});
   await pref.put(keyName, jsonEncode(mmenomicMapping));
@@ -1359,7 +1385,10 @@ Future<Map> getFileCoinFromMemnomic(
       }
     }
   }
-  final keys = await compute(calculateFileCoinKey, mnemonic);
+  final keys = await compute(
+    calculateFileCoinKey,
+    {'root': _root},
+  );
 
   // String address = await fileCoinAddressFromCk(
   //   keys['ck'],
@@ -1373,9 +1402,7 @@ Future<Map> getFileCoinFromMemnomic(
 }
 
 Map calculateBitCoinKey(Map config) {
-  final seed = bip39.mnemonicToSeed(config[mnemonicKey]);
-  final root = bip32.BIP32.fromSeed(seed);
-  final node = root.derivePath(config['derivationPath']);
+  final node = config['root'].derivePath(config['derivationPath']);
 
   String address;
   if (config['P2WPKH']) {
@@ -1412,10 +1439,8 @@ Map calculateBitCoinKey(Map config) {
   };
 }
 
-Map calculateFileCoinKey(String mnemonic) {
-  final seed = bip39.mnemonicToSeed(mnemonic);
-  final root = bip32.BIP32.fromSeed(seed);
-  final node = root.derivePath("m/44'/461'/0'/0");
+Map calculateFileCoinKey(Map config) {
+  final node = config['root'].derivePath("m/44'/461'/0'/0");
   final rs0 = node.derive(0);
   final ck = base64Encode(rs0.privateKey);
 
@@ -1423,17 +1448,13 @@ Map calculateFileCoinKey(String mnemonic) {
 }
 
 String calculateEthereumKey(Map config) {
-  final seed = bip39.mnemonicToSeed(config[mnemonicKey]);
-  final root = bip32.BIP32.fromSeed(seed);
-  return "0x${HEX.encode(root.derivePath("m/44'/${config['coinType']}'/0'/0/0").privateKey)}";
+  return "0x${HEX.encode(config['root'].derivePath("m/44'/${config['coinType']}'/0'/0/0").privateKey)}";
 }
 
 Future calculateSolanaKey(Map config) async {
-  final List<int> seed = bip39.mnemonicToSeed(config[mnemonicKey]);
-
   final solana.Ed25519HDKeyPair keyPair =
       await solana.Ed25519HDKeyPair.fromSeedWithHdPath(
-    seed: seed,
+    seed: config['seed'],
     hdPath: "m/44'/501'/0'",
   );
 
@@ -1495,7 +1516,7 @@ Future<double> getCardanoAddressBalance(
   }
 
   if (skipNetworkRequest) return savedBalance;
-
+  return 0;
   try {
     //FIXME:
     // final cardanoBlockfrostBaseUrl =
@@ -1899,7 +1920,11 @@ Future<Map> getEthereumFromMemnomic(
   }
   final privatekeyStr = await compute(
     calculateEthereumKey,
-    {mnemonicKey: mnemonic, 'coinType': coinType},
+    {
+      mnemonicKey: mnemonic,
+      'coinType': coinType,
+      'root': _root,
+    },
   );
 
   final address = await etherPrivateKeyToAddress(privatekeyStr);
@@ -2423,9 +2448,9 @@ Future addEthereumChain({
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Add network',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context).addNetwork,
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
             ),
@@ -3429,9 +3454,13 @@ Future<void> enableScreenShot() async {
 Future<void> disEnableScreenShot() async {
   if (kDebugMode) return;
   if (Platform.isAndroid) {
-    await FlutterWindowManager.addFlags(
+    await FlutterWindowManager.clearFlags(
       FlutterWindowManager.FLAG_SECURE,
     );
+    //FIXME:
+    // await FlutterWindowManager.addFlags(
+    //   FlutterWindowManager.FLAG_SECURE,
+    // );
   }
 }
 

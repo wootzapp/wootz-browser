@@ -110,8 +110,8 @@ class _WalletBlackState extends State<WalletBlack> {
                         ]),
                       ),
                     ),
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * .7,
+                    const SizedBox(
+                      height: 100,
                     ),
                     Card(
                       child: Padding(

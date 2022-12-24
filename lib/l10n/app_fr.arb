@@ -202,5 +202,6 @@
   "convertToShemirSecret": "Convertir en actions secrètes Shamir",
   "savedToDownloadFolder": "Enregistré dans le dossier Téléchargements",
   "alreadySaved": "Déjà enregistré dans le dossier de téléchargement",
-  "walletCreated": "Portefeuille créé"
+  "walletCreated": "Portefeuille créé",
+  "addNetwork": "Ajouter un réseau"
 }
