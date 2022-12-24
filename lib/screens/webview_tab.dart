@@ -1170,7 +1170,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
               const SizedBox(
                 height: 5,
               ),
-              for (int i = 0; i < historyData.length || i < 5; i++)
+              for (int i = 0; i < historyData.length && i < 5; i++)
                 if (historyData[i] != null)
                   GestureDetector(
                     onTap: () async {
