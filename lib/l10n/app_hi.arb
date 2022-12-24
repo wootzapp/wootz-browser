@@ -202,5 +202,6 @@
   "convertToShemirSecret": "शमीर गुप्त शेयरों में कनवर्ट करें",
   "savedToDownloadFolder": "डाउनलोड फ़ोल्डर में सहेजा गया",
   "alreadySaved": "डाउनलोड फ़ोल्डर में पहले ही सहेजा जा चुका है",
-  "walletCreated": "बटुआ बनाया"
+  "walletCreated": "बटुआ बनाया",
+  "addNetwork": "नेटवर्क जोड़ें"
 }
