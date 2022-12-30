@@ -1,0 +1,14 @@
+on: [push]
+jobs:
+  discord_test_message:
+    runs-on: ubuntu-latest
+    name: discord commits
+    steps:
+      - name: Send message to discord
+        uses: Sniddl/discord-commits@v1.5
+        with:
+          webhook: ${{ secrets.WOOTZAPP_DISCORD_WEBHOOK }}
+          template: 'avatar-with-link'
+          include-extras: true
+          message: "**New Version** {{ github.context.payload.repository.url}}"
+          embed: '{ "title": "{{ commit.title }}", "description": "{{ commit.description }}", "url": "{{ commit.url }}" }'
