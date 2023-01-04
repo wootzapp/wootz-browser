@@ -20,6 +20,7 @@ After [India's First War of Independence of 1857](https://en.wikipedia.org/wiki/
 ## 🎊 Community
 
 - Install our [Android app](https://play.google.com/store/apps/details?id=com.wootzapp.browser)
+- Join our [Discord](https://discord.gg/GjUfSqzmzx). Developers and non-developers both are welcome. Designers are VERY welcome.
 - Follow our [Twitter](https://twitter.com/wootzapp)
 - Join  [support Telegram](https://t.me/wootzapp) to get help, or to chat with us!!!
 - Open a [discussion](https://github.com/wootzapp/wootz-browser/discussions/new) with your question, or
