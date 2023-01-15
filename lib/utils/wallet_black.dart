@@ -1,12 +1,13 @@
 import 'dart:convert';
 
 import 'package:bitcoin_flutter/bitcoin_flutter.dart';
+import 'package:cryptowallet/config/colors.dart';
 import 'package:cryptowallet/utils/qr_scan_view.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 
@@ -61,12 +62,13 @@ class _WalletBlackState extends State<WalletBlack> {
                                   final currentPhrase =
                                       pref.get(currentMmenomicKey);
 
-                                  await Get.to(
-                                    ViewWallets(
+                                  await Navigator.of(context)
+                                      .push(MaterialPageRoute(
+                                    builder: (_) => ViewWallets(
                                       data: (jsonDecode(mnemonics) as List),
                                       currentPhrase: currentPhrase,
                                     ),
-                                  );
+                                  ));
                                 },
                                 child: Row(
                                   children: const [
@@ -87,14 +89,17 @@ class _WalletBlackState extends State<WalletBlack> {
                               bool hasPasscode =
                                   pref.get(userUnlockPasscodeKey) != null;
                               Widget dappWidget;
-                              Get.back();
+                              // Get.back();
+                              Navigator.of(context).pop();
 
                               if (hasPasscode) {
                                 dappWidget = const MainScreen();
                               } else {
                                 dappWidget = const Security();
                               }
-                              await Get.to(dappWidget);
+                              // await Get.to(dappWidget);
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => dappWidget));
                             },
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -302,11 +307,23 @@ class _WalletBlackState extends State<WalletBlack> {
                                   recipientAddrContr.text,
                                   bitcoinDetails['POSNetwork'],
                                 )) {
-                                  Get.snackbar(
-                                    '',
-                                    AppLocalizations.of(context).invalidAddress,
-                                    colorText: Colors.white,
-                                    backgroundColor: Colors.red,
+                                  // Get.snackbar(
+                                  //   '',
+                                  //   AppLocalizations.of(context).invalidAddress,
+                                  //   colorText: Colors.white,
+                                  //   backgroundColor: Colors.red,
+                                  // );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            AppLocalizations.of(context)
+                                                .invalidAddress),
+                                        backgroundColor: Colors.red,
+                                        action: SnackBarAction(
+                                          textColor: Colors.white,
+                                          label: 'OK',
+                                          onPressed: () {},
+                                        )),
                                   );
 
                                   return;
@@ -320,11 +337,23 @@ class _WalletBlackState extends State<WalletBlack> {
                                   'recipient': recipient
                                 };
 
-                                Get.closeAllSnackbars();
+                                // Get.closeAllSnackbars();
+//                                 for (var i = 0; i < context.visitor.widgetCount; i++) {
+//     Scaffold.of(context.visitor[i].context).hideCurrentSnackBar();
+// }
+                                ScaffoldMessenger.of(context)
+                                    .removeCurrentSnackBar();
 
-                                await Get.to(TransferToken(
-                                  data: data,
-                                ));
+                                // await Get.to(TransferToken(
+                                //   data: data,
+                                // ));
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => TransferToken(
+                                      data: data,
+                                    ),
+                                  ),
+                                );
                               },
                               child: const Text('Send'),
                             ),
@@ -392,15 +421,27 @@ class _WalletBlackState extends State<WalletBlack> {
                       children: [
                         GestureDetector(
                           onTap: () async {
-                            String data = await Get.to(
-                              const QRScanView(),
-                            );
+                            String data = await Navigator.of(context)
+                                .push(MaterialPageRoute(
+                              builder: (_) => const QRScanView(),
+                            ));
                             if (data == null) {
-                              Get.snackbar(
-                                '',
-                                eIP681ProcessingErrorMsg,
-                                colorText: Colors.white,
-                                backgroundColor: Colors.red,
+                              // Get.snackbar(
+                              //   '',
+                              //   eIP681ProcessingErrorMsg,
+                              //   colorText: Colors.white,
+                              //   backgroundColor: Colors.red,
+                              // );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(eIP681ProcessingErrorMsg),
+                                  backgroundColor: Colors.red,
+                                  action: SnackBarAction(
+                                    textColor: Colors.white,
+                                    label: 'OK',
+                                    onPressed: (() {}),
+                                  ),
+                                ),
                               );
 
                               return;
@@ -428,22 +469,34 @@ class _WalletBlackState extends State<WalletBlack> {
                             Map scannedData = await processEIP681(data);
 
                             if (Navigator.canPop(context)) {
-                              Get.back();
+                              Navigator.of(context).pop();
                             }
 
                             if (scannedData['success']) {
-                              await Get.to(
-                                SendToken(
+                              await Navigator.of(context)
+                                  .push(MaterialPageRoute(
+                                builder: (_) => SendToken(
                                   data: scannedData['msg'],
                                 ),
-                              );
+                              ));
                               return;
                             }
-                            Get.snackbar(
-                              '',
-                              scannedData['msg'],
-                              colorText: Colors.white,
-                              backgroundColor: Colors.red,
+                            // Get.snackbar(
+                            //   '',
+                            //   scannedData['msg'],
+                            //   colorText: Colors.white,
+                            //   backgroundColor: Colors.red,
+                            // );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(scannedData['msg']),
+                                backgroundColor: Colors.red,
+                                action: SnackBarAction(
+                                  label: 'OK',
+                                  textColor: Colors.white,
+                                  onPressed: () {},
+                                ),
+                              ),
                             );
                           },
                           child: SizedBox(
@@ -480,7 +533,8 @@ class _WalletBlackState extends State<WalletBlack> {
                             bool hasPasscode =
                                 pref.get(userUnlockPasscodeKey) != null;
                             Widget dappWidget;
-                            Get.back();
+                            // Get.back();
+                            Navigator.of(context).pop();
 
                             if (hasWallet) {
                               dappWidget = const WalletMainBody();
@@ -489,7 +543,9 @@ class _WalletBlackState extends State<WalletBlack> {
                             } else {
                               dappWidget = const Security();
                             }
-                            await Get.to(dappWidget);
+                            await Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => dappWidget));
+                            // await Get.to(dappWidget);
                           },
                           child: SizedBox(
                             width: 100,

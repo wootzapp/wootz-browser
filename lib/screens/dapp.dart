@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_js/extensions/fetch.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:share/share.dart';
 import '../utils/rpc_urls.dart';
@@ -541,9 +541,11 @@ class _DappState extends State<Dapp> {
                               width: double.infinity,
                               child: InkWell(
                                 onTap: () async {
-                                  Get.back();
+                                  Navigator.of(context).pop();
 
-                                  await Get.to(const Settings());
+                                  await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                          builder: (_) => const Settings()));
                                 },
                                 child: Container(
                                   color: Colors.transparent,

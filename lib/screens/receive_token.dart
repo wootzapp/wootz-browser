@@ -6,10 +6,11 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
+import 'package:path/path.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share/share.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -27,9 +28,13 @@ class ReceiveToken extends StatefulWidget {
 
 class _ReceiveTokenState extends State<ReceiveToken> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
-  RxString userAddress = "".obs;
-  RxBool isRequestingPayment = false.obs;
-  RxString amountRequested = "".obs;
+  // RxString userAddress = "".obs;
+  final userAddress = ValueNotifier<String>("");
+
+  // RxBool isRequestingPayment = false.obs;
+  final isRequestingPayment = ValueNotifier<bool>(false);
+  // RxString amountRequested = "".obs;
+  final amountRequested = ValueNotifier<String>("");
   TextEditingController amountField = TextEditingController();
 
   @override
@@ -114,13 +119,15 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                             child: Padding(
                               padding:
                                   const EdgeInsets.only(top: 10, bottom: 10),
-                              child: Obx(
-                                () => QrImage(
-                                  data: userAddress.value,
-                                  version: QrVersions.auto,
-                                  size: 250,
-                                ),
-                              ),
+                              child: ValueListenableBuilder(
+                                  valueListenable: userAddress,
+                                  builder: (context, value, child) {
+                                    return QrImage(
+                                      data: userAddress.value,
+                                      version: QrVersions.auto,
+                                      size: 250,
+                                    );
+                                  }),
                             ),
                           ),
                         ),
@@ -134,9 +141,22 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           await Clipboard.setData(ClipboardData(
                             text: (snapshot.data as Map)['address'],
                           ));
-                          Get.snackbar(
-                            '',
-                            AppLocalizations.of(context).copiedToClipboard,
+                          // Get.snackbar(
+                          //   '',
+                          //   AppLocalizations.of(context).copiedToClipboard,
+                          // );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                AppLocalizations.of(context).copiedToClipboard,
+                              ),
+                              backgroundColor: Colors.red,
+                              action: SnackBarAction(
+                                label: 'OK',
+                                textColor: Colors.white,
+                                onPressed: () {},
+                              ),
+                            ),
                           );
                         },
                         child: Card(
@@ -162,11 +182,13 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           ),
                         ),
                       ),
-                      Obx(() {
-                        return amountRequested != null
-                            ? Text(amountRequested.value)
-                            : Container();
-                      }),
+                      ValueListenableBuilder(
+                          valueListenable: amountRequested,
+                          builder: (context, value, child) {
+                            return amountRequested != null
+                                ? Text(amountRequested.value)
+                                : Container();
+                          }),
                       const SizedBox(
                         height: 40,
                       ),
@@ -194,10 +216,24 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                       text: (snapshot.data as Map)['address'],
                                     ));
 
-                                    Get.snackbar(
-                                      '',
-                                      AppLocalizations.of(context)
-                                          .copiedToClipboard,
+                                    // Get.snackbar(
+                                    //   '',
+                                    //   AppLocalizations.of(context)
+                                    //       .copiedToClipboard,
+                                    // );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          AppLocalizations.of(context)
+                                              .copiedToClipboard,
+                                        ),
+                                        backgroundColor: Colors.red,
+                                        action: SnackBarAction(
+                                          label: 'OK',
+                                          textColor: Colors.white,
+                                          onPressed: () {},
+                                        ),
+                                      ),
                                     );
                                   },
                                   child: Container(
@@ -294,7 +330,8 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                 pressEvent: () {
                                                   if (Navigator.canPop(
                                                       context)) {
-                                                    Get.back();
+                                                    // Get.back();
+                                                    Navigator.of(context).pop();
                                                   }
 
                                                   FocusManager

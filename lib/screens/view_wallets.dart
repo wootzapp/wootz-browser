@@ -4,12 +4,13 @@ import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:cryptowallet/main.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import '../utils/navigator_service.dart';
 import '../utils/rpc_urls.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 
 class ViewWallets extends StatefulWidget {
   final List data;
@@ -22,8 +23,11 @@ class ViewWallets extends StatefulWidget {
 class _ViewWalletsState extends State<ViewWallets> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   TextEditingController walletName = TextEditingController();
-  RxList seedList = [].obs;
-  RxBool toggler = false.obs;
+  // RxList seedList = [].obs;
+  final seedList = ValueNotifier<List>([]);
+
+  // RxBool toggler = false.obs;
+  final toggler = ValueNotifier<bool>(false);
 
   @override
   void dispose() {
@@ -39,127 +43,131 @@ class _ViewWalletsState extends State<ViewWallets> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(15),
-          child: Obx(() {
-            if (seedList == null || seedList.isEmpty) {
-              seedList.value = widget.data;
-            }
+          child: MultiValueListenableBuilder(
+              valueListenables: [seedList, toggler],
+              builder: (context, value, child) {
+                if (seedList.value == null || seedList.value.isEmpty) {
+                  seedList.value = widget.data;
+                }
 
-            List<Widget> userWallets = <Widget>[];
-            if (seedList != null) {
-              for (int index = 0; index < seedList.length; index++) {
-                userWallets.add(Dismissible(
-                  onDismissed: (DismissDirection direction) {
-                    toggler.value = !toggler.value;
-                  },
-                  key: UniqueKey(),
-                  confirmDismiss: (DismissDirection direction) async {
-                    if (direction.name == 'endToStart') {
-                      return await _deleteWallet(index);
-                    }
-                    return await _editWalletName(index);
-                  },
-                  child: GestureDetector(
-                    onTap: () async {
-                      final pref = Hive.box(secureStorageKey);
-                      await pref.put(
-                        currentMmenomicKey,
-                        seedList[index]['phrase'],
-                      );
-                      await pref.put(
-                        currentUserWalletNameKey,
-                        seedList[index]['name'],
-                      );
-                      Navigator.pop(context);
-                      // RestartWidget.restartApp(context);
-                    },
-                    child: Container(
-                      color: Colors.transparent,
-                      width: double.infinity,
-                      height: 70,
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 15, vertical: 5),
-                        child: Center(
-                            child: Padding(
-                          padding: const EdgeInsets.all(10.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  seedList[index]['name'] ??
-                                      '${AppLocalizations.of(context).mainWallet} ${seedList.indexOf(seedList[index]) + 1}',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: widget.currentPhrase ==
-                                            seedList[index]['phrase']
-                                        ? Colors.blue
-                                        : null),
+                List<Widget> userWallets = <Widget>[];
+                if (seedList.value != null) {
+                  for (int index = 0; index < seedList.value.length; index++) {
+                    userWallets.add(Dismissible(
+                      onDismissed: (DismissDirection direction) {
+                        toggler.value = !toggler.value;
+                      },
+                      key: UniqueKey(),
+                      confirmDismiss: (DismissDirection direction) async {
+                        if (direction.name == 'endToStart') {
+                          return await _deleteWallet(index);
+                        }
+                        return await _editWalletName(index);
+                      },
+                      child: GestureDetector(
+                        onTap: () async {
+                          final pref = Hive.box(secureStorageKey);
+                          await pref.put(
+                            currentMmenomicKey,
+                            seedList.value[index]['phrase'],
+                          );
+                          await pref.put(
+                            currentUserWalletNameKey,
+                            seedList.value[index]['name'],
+                          );
+                          Navigator.pop(context);
+                          // RestartWidget.restartApp(context);
+                        },
+                        child: Container(
+                          color: Colors.transparent,
+                          width: double.infinity,
+                          height: 70,
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 15, vertical: 5),
+                            child: Center(
                                 child: Padding(
-                                  padding: const EdgeInsets.all(2),
-                                  child: widget.currentPhrase ==
-                                          seedList[index]['phrase']
-                                      ? const Icon(
-                                          Icons.check,
-                                          size: 20,
-                                          color: Colors.white,
-                                        )
-                                      : Container(),
-                                ),
+                              padding: const EdgeInsets.all(10.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      seedList.value[index]['name'] ??
+                                          '${AppLocalizations.of(context).mainWallet} ${seedList.value.indexOf(seedList.value[index]) + 1}',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: widget.currentPhrase ==
+                                                seedList.value[index]['phrase']
+                                            ? Colors.blue
+                                            : null),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2),
+                                      child: widget.currentPhrase ==
+                                              seedList.value[index]['phrase']
+                                          ? const Icon(
+                                              Icons.check,
+                                              size: 20,
+                                              color: Colors.white,
+                                            )
+                                          : Container(),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            )),
                           ),
-                        )),
+                        ),
                       ),
-                    ),
-                  ),
-                  secondaryBackground: Container(
-                    color: Colors.red,
-                    margin: const EdgeInsets.symmetric(horizontal: 15),
-                    alignment: Alignment.centerRight,
-                    child: const Padding(
-                      padding: EdgeInsets.only(right: 10),
-                      child: Icon(
-                        Icons.delete,
-                        color: Colors.white,
+                      secondaryBackground: Container(
+                        color: Colors.red,
+                        margin: const EdgeInsets.symmetric(horizontal: 15),
+                        alignment: Alignment.centerRight,
+                        child: const Padding(
+                          padding: EdgeInsets.only(right: 10),
+                          child: Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  background: Container(
-                    color: Colors.blue,
-                    margin: const EdgeInsets.symmetric(horizontal: 15),
-                    alignment: Alignment.centerLeft,
-                    child: const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: Icon(
-                        Icons.edit,
-                        color: Colors.white,
+                      background: Container(
+                        color: Colors.blue,
+                        margin: const EdgeInsets.symmetric(horizontal: 15),
+                        alignment: Alignment.centerLeft,
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ));
-              }
-            }
-            return Column(
-              children: userWallets,
-            );
-          }),
+                    ));
+                  }
+                }
+                return Column(
+                  children: userWallets,
+                );
+              }),
         ),
       ),
     );
   }
 
   Future<bool> _editWalletName(int index) async {
-    Get.closeAllSnackbars();
+    // Get.closeAllSnackbars();
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
 
     final pref = Hive.box(secureStorageKey);
     List mnemonicsList = json.decode(pref.get(mnemonicListKey));
@@ -211,7 +219,8 @@ class _ViewWalletsState extends State<ViewWallets> {
                 FocusManager.instance.primaryFocus?.unfocus();
 
                 if (walletName.text.trim().isEmpty) {
-                  Get.back(result: false);
+                  // Get.back(result: false);
+                  Navigator.of(context).pop(false);
                   return;
                 }
 
@@ -228,7 +237,8 @@ class _ViewWalletsState extends State<ViewWallets> {
                 );
                 seedList.value = json.decode(pref.get(mnemonicListKey));
 
-                Get.back(result: true);
+                // Get.back(result: true);
+                Navigator.of(context).pop(true);
               },
             )
           ],
@@ -239,19 +249,29 @@ class _ViewWalletsState extends State<ViewWallets> {
   }
 
   Future<bool> _deleteWallet(int index) async {
-    Get.closeAllSnackbars();
-
+    // Get.closeAllSnackbars();
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
     final pref = Hive.box(secureStorageKey);
     List mnemonicsList = json.decode(pref.get(mnemonicListKey));
 
     if (pref.get(currentMmenomicKey).toString().toLowerCase() ==
         mnemonicsList[index]['phrase'].toString().toLowerCase()) {
-      Get.snackbar(
-        '',
-        'Can not delete currently used wallet',
-        colorText: Colors.white,
+      // Get.snackbar(
+      //   '',
+      //   'Can not delete currently used wallet',
+      //   colorText: Colors.white,
+      //   backgroundColor: Colors.red,
+      // );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Can not delete currently used wallet'),
         backgroundColor: Colors.red,
-      );
+        action: SnackBarAction(
+          label: 'OK',
+          onPressed: () {},
+          textColor: Colors.white,
+        ),
+      ));
+
       return false;
     }
     bool deleted = await AwesomeDialog(
@@ -270,7 +290,8 @@ class _ViewWalletsState extends State<ViewWallets> {
       btnCancelColor: appBackgroundblue,
       desc: AppLocalizations.of(context).confirmWalletDeleteDescription,
       btnCancelOnPress: () {
-        Get.back(result: false);
+        // Get.back(result: false);
+        Navigator.of(context).pop(false);
       },
       btnOkOnPress: () async {
         if (await authenticate(context)) {
@@ -282,9 +303,11 @@ class _ViewWalletsState extends State<ViewWallets> {
           );
 
           seedList.value = mnemonicsList;
-          Get.back(result: true);
+          // Get.back(result: true);
+          Navigator.of(context).pop(true);
         } else {
-          Get.back(result: false);
+          // Get.back(result: false);
+          Navigator.of(context).pop(false);
         }
       },
     ).show();

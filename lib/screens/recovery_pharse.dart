@@ -9,8 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hex/hex.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 import 'package:ntcdcrypto/ntcdcrypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
@@ -32,8 +33,10 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
     with WidgetsBindingObserver {
   // disallow screenshots
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
-  RxBool invisiblemnemonic = false.obs;
-  RxBool securitydialogOpen = false.obs;
+  // RxBool invisiblemnemonic = false.obs;
+  final invisiblemnemonic = ValueNotifier<bool>(false);
+  // RxBool securitydialogOpen = false.obs;
+  final securitydialogOpen = ValueNotifier<bool>(false);
   String data_;
   final scaffoldKey = GlobalKey<ScaffoldState>();
   String chooseLength = "12";
@@ -101,8 +104,9 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
         title: Text(AppLocalizations.of(context).yourSecretPhrase),
       ),
       key: scaffoldKey,
-      body: Obx(
-        () {
+      body: MultiValueListenableBuilder(
+        valueListenables: [invisiblemnemonic, securitydialogOpen],
+        builder: (context, value, child) {
           List mmemonic = data_.split(' ');
           int currentIndex = 0;
           return securitydialogOpen.value
@@ -211,10 +215,15 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                               await Clipboard.setData(ClipboardData(
                                 text: data_,
                               ));
-                              Get.snackbar(
-                                '',
+                              // Get.snackbar(
+                              //   '',
+                              //   AppLocalizations.of(context).copiedToClipboard,
+                              // );
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                      content: Text(
                                 AppLocalizations.of(context).copiedToClipboard,
-                              );
+                              )));
                             },
                             child: Card(
                               shape: RoundedRectangleBorder(
@@ -289,11 +298,16 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   ),
                                 ),
                                 onPressed: () {
-                                  Get.to(
-                                    Confirmmnemonic(
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => Confirmmnemonic(
                                       mmenomic: data_.split(' '),
                                     ),
-                                  );
+                                  ));
+                                  // Get.to(
+                                  //   Confirmmnemonic(
+                                  //     mmenomic: data_.split(' '),
+                                  //   ),
+                                  // );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),
@@ -328,12 +342,25 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                 ),
                                 onPressed: () async {
                                   if (successSaving) {
-                                    Get.snackbar(
-                                      '',
-                                      AppLocalizations.of(context).alreadySaved,
-                                      backgroundColor: Colors.green,
-                                      colorText: Colors.white,
-                                    );
+                                    // Get.snackbar(
+                                    //   '',
+                                    //   AppLocalizations.of(context).alreadySaved,
+                                    //   backgroundColor: Colors.green,
+                                    //   colorText: Colors.white,
+                                    // );
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                      content: Text(
+                                        AppLocalizations.of(context)
+                                            .alreadySaved,
+                                      ),
+                                      backgroundColor: Colors.red,
+                                      action: SnackBarAction(
+                                        label: 'OK',
+                                        onPressed: () {},
+                                        textColor: Colors.white,
+                                      ),
+                                    ));
                                     return;
                                   }
                                   SSS sss = SSS();
@@ -361,22 +388,48 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                       );
                                     }
 
-                                    Get.snackbar(
-                                      '',
-                                      AppLocalizations.of(context)
-                                          .savedToDownloadFolder,
+                                    // Get.snackbar(
+                                    //   '',
+                                    //   AppLocalizations.of(context)
+                                    //       .savedToDownloadFolder,
+                                    //   backgroundColor: Colors.green,
+                                    //   colorText: Colors.white,
+                                    // );
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                      content: Text(
+                                        AppLocalizations.of(context)
+                                            .savedToDownloadFolder,
+                                      ),
                                       backgroundColor: Colors.green,
-                                      colorText: Colors.white,
-                                    );
+                                      action: SnackBarAction(
+                                        label: 'OK',
+                                        onPressed: () {},
+                                        textColor: Colors.white,
+                                      ),
+                                    ));
                                     successSaving = true;
                                   } catch (e) {
-                                    Get.snackbar(
-                                      '',
-                                      AppLocalizations.of(context)
-                                          .errorTryAgain,
+                                    // Get.snackbar(
+                                    //   '',
+                                    //   AppLocalizations.of(context)
+                                    //       .errorTryAgain,
+                                    //   backgroundColor: Colors.red,
+                                    //   colorText: Colors.white,
+                                    // );
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                      content: Text(
+                                        AppLocalizations.of(context)
+                                            .errorTryAgain,
+                                      ),
                                       backgroundColor: Colors.red,
-                                      colorText: Colors.white,
-                                    );
+                                      action: SnackBarAction(
+                                        label: 'OK',
+                                        onPressed: () {},
+                                        textColor: Colors.white,
+                                      ),
+                                    ));
                                   }
                                 },
                                 child: Padding(

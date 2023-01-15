@@ -6,7 +6,7 @@ import 'package:cryptowallet/utils/format_money.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/state_manager.dart';
+// import 'package:get/state_manager.dart';
 import 'package:hive/hive.dart';
 
 class GetBlockChainWidget extends StatefulWidget {
@@ -42,7 +42,8 @@ class GetBlockChainWidget extends StatefulWidget {
 
 class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
   Timer timer;
-  RxMap blockchainPrice = {}.obs;
+  // RxMap blockchainPrice = {}.obs;
+  final blockchainPrice = ValueNotifier<Map<dynamic, dynamic>>({});
   bool skipNetworkRequest = true;
 
   @override
@@ -150,50 +151,57 @@ class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
                               child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Obx(() {
-                                if (blockchainPrice != null &&
-                                    blockchainPrice.isNotEmpty) {
-                                  return Row(
-                                    children: [
-                                      Text(
-                                        blockchainPrice['price'],
-                                        style: TextStyle(
-                                            fontSize: 15,
-                                            color: widget.hasPrice
-                                                ? null
-                                                : const Color(0x00ffffff)),
-                                      ),
-                                      const SizedBox(
-                                        width: 5,
-                                      ),
-                                      widget.hasPrice
-                                          ? Text(
-                                              (blockchainPrice['change'] > 0
-                                                      ? '+'
-                                                      : '') +
-                                                  formatMoney(blockchainPrice[
-                                                      'change']) +
-                                                  '%',
-                                              style: widget.hasPrice
-                                                  ? TextStyle(
-                                                      fontSize: 12,
-                                                      color: (blockchainPrice[
-                                                                  'change'] <
-                                                              0)
-                                                          ? red
-                                                          : green,
-                                                    )
-                                                  : const TextStyle(
-                                                      fontSize: 12,
-                                                      color: Color(0x00ffffff)),
-                                            )
-                                          : Container()
-                                    ],
-                                  );
-                                } else {
-                                  return Container();
-                                }
-                              })
+                              ValueListenableBuilder(
+                                  valueListenable: blockchainPrice,
+                                  builder: (context, value, child) {
+                                    if (blockchainPrice.value != null &&
+                                        blockchainPrice.value.isNotEmpty) {
+                                      return Row(
+                                        children: [
+                                          Text(
+                                            blockchainPrice.value['price'],
+                                            style: TextStyle(
+                                                fontSize: 15,
+                                                color: widget.hasPrice
+                                                    ? null
+                                                    : const Color(0x00ffffff)),
+                                          ),
+                                          const SizedBox(
+                                            width: 5,
+                                          ),
+                                          widget.hasPrice
+                                              ? Text(
+                                                  (blockchainPrice.value[
+                                                                  'change'] >
+                                                              0
+                                                          ? '+'
+                                                          : '') +
+                                                      formatMoney(
+                                                          blockchainPrice.value[
+                                                              'change']) +
+                                                      '%',
+                                                  style: widget.hasPrice
+                                                      ? TextStyle(
+                                                          fontSize: 12,
+                                                          color: (blockchainPrice
+                                                                          .value[
+                                                                      'change'] <
+                                                                  0)
+                                                              ? red
+                                                              : green,
+                                                        )
+                                                      : const TextStyle(
+                                                          fontSize: 12,
+                                                          color: Color(
+                                                              0x00ffffff)),
+                                                )
+                                              : Container()
+                                        ],
+                                      );
+                                    } else {
+                                      return Container();
+                                    }
+                                  })
                             ],
                           )),
                         ],

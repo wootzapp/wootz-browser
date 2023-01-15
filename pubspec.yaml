@@ -105,11 +105,14 @@ dependencies:
   googleapis: ^0.54.0
   googleapis_auth: ^0.2.11
   flutter_dotenv: ^5.0.2
-  get: ^4.6.5
+  # get: ^4.6.5
   flutter_phoenix: ^1.1.0
   flutter_downloader: ^1.9.1
   permission_handler: ^10.2.0
   vibration: ^1.7.6
+  provider: ^6.0.5
+  multi_value_listenable_builder: ^0.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

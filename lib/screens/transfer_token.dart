@@ -12,10 +12,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:intl/intl.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 import 'package:web3dart/web3dart.dart' as web3;
 import 'package:web3dart/web3dart.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -33,12 +34,15 @@ class TransferToken extends StatefulWidget {
 
 class _TransferTokenState extends State<TransferToken> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  RxBool isSending = false.obs;
-  RxBool allowSend = true.obs;
+  // RxBool isSending = false.obs;
+  final isSending = ValueNotifier<bool>(false);
+  // RxBool allowSend = true.obs;
+  final allowSend = ValueNotifier<bool>(true);
 
   bool get kDebugMode => null;
   Timer timer;
-  RxMap transactionFeeMap = {}.obs;
+  // RxMap transactionFeeMap = {}.obs;
+  final transactionFeeMap = ValueNotifier<Map<dynamic, dynamic>>({});
   bool isContract;
   bool isBitcoinType;
   bool isSolana;
@@ -46,7 +50,8 @@ class _TransferTokenState extends State<TransferToken> {
   bool isFilecoin;
   bool isStellar;
   bool isNFTTransfer;
-  RxString userAddress = ''.obs;
+  // RxString userAddress = ''.obs;
+  final userAddress = ValueNotifier<String>('');
 
   @override
   void initState() {
@@ -296,8 +301,14 @@ class _TransferTokenState extends State<TransferToken> {
             physics: const AlwaysScrollableScrollPhysics(),
             child: Padding(
                 padding: const EdgeInsets.all(25),
-                child: Obx(
-                  () => Column(
+                child: MultiValueListenableBuilder(
+                  valueListenables: [
+                    isSending,
+                    allowSend,
+                    transactionFeeMap,
+                    userAddress
+                  ],
+                  builder: (context, value, child) => Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -332,11 +343,9 @@ class _TransferTokenState extends State<TransferToken> {
                       const SizedBox(
                         height: 10,
                       ),
-                      Obx(
-                        () => Text(
-                          userAddress.value ?? '',
-                          style: const TextStyle(fontSize: 16),
-                        ),
+                      Text(
+                        userAddress.value ?? '',
+                        style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(
                         height: 20,
@@ -358,7 +367,7 @@ class _TransferTokenState extends State<TransferToken> {
                       const SizedBox(
                         height: 20,
                       ),
-                      if (transactionFeeMap.isNotEmpty) ...[
+                      if (transactionFeeMap.value.isNotEmpty) ...[
                         Text(
                           AppLocalizations.of(context).transactionFee,
                           style: const TextStyle(
@@ -369,13 +378,13 @@ class _TransferTokenState extends State<TransferToken> {
                         ),
                         widget.data['default'] != null
                             ? Text(
-                                '${transactionFeeMap != null ? transactionFeeMap['transactionFee'] : '0'}  ${widget.data['default']}',
+                                '${transactionFeeMap != null ? transactionFeeMap.value['transactionFee'] : '0'}  ${widget.data['default']}',
                                 style: const TextStyle(fontSize: 16),
                               )
                             : Container(),
                         widget.data['network'] != null
                             ? Text(
-                                '${transactionFeeMap != null ? transactionFeeMap['transactionFee'] : '0'}  ${getEVMBlockchains()[widget.data['network']]['symbol']}',
+                                '${transactionFeeMap != null ? transactionFeeMap.value['transactionFee'] : '0'}  ${getEVMBlockchains()[widget.data['network']]['symbol']}',
                                 style: const TextStyle(fontSize: 16),
                               )
                             : Container(),
@@ -446,22 +455,39 @@ class _TransferTokenState extends State<TransferToken> {
                                       ),
                                     ),
                                   ),
-                                  onPressed: transactionFeeMap['userBalance'] ==
+                                  onPressed: transactionFeeMap
+                                                  .value['userBalance'] ==
                                               null ||
-                                          transactionFeeMap['userBalance'] <= 0
+                                          transactionFeeMap
+                                                  .value['userBalance'] <=
+                                              0
                                       ? () {
-                                          Get.snackbar(
-                                            '',
-                                            AppLocalizations.of(context)
-                                                .insufficientBalance,
-                                            colorText: Colors.white,
+                                          // Get.snackbar(
+                                          //   '',
+                                          //   AppLocalizations.of(context)
+                                          //       .insufficientBalance,
+                                          //   colorText: Colors.white,
+                                          //   backgroundColor: Colors.red,
+                                          // );
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                            content: Text(
+                                                AppLocalizations.of(context)
+                                                    .insufficientBalance),
                                             backgroundColor: Colors.red,
-                                          );
+                                            action: SnackBarAction(
+                                              label: 'OK',
+                                              onPressed: () {},
+                                              textColor: Colors.white,
+                                            ),
+                                          ));
                                         }
                                       : () async {
                                           if (isSending.value) return;
                                           if (await authenticate(context)) {
-                                            Get.closeAllSnackbars();
+                                            // Get.closeAllSnackbars();
+                                            ScaffoldMessenger.of(context)
+                                                .removeCurrentSnackBar();
 
                                             isSending.value = true;
 
@@ -659,7 +685,7 @@ class _TransferTokenState extends State<TransferToken> {
                                                         pow(10,
                                                             cardanoDecimals))
                                                     .toInt();
-                                                    //FIXME: cardano
+                                                //FIXME: cardano
                                                 // final transaction =
                                                 //     await compute(
                                                 //   sendCardano,
@@ -810,11 +836,24 @@ class _TransferTokenState extends State<TransferToken> {
                                                 throw Exception(
                                                     'Sending failed');
                                               }
-                                              Get.snackbar(
-                                                '',
-                                                AppLocalizations.of(context)
-                                                    .trxSent,
-                                              );
+                                              // Get.snackbar(
+                                              //   '',
+                                              //   AppLocalizations.of(context)
+                                              //       .trxSent,
+                                              // );
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(SnackBar(
+                                                content: Text(
+                                                  AppLocalizations.of(context)
+                                                      .trxSent,
+                                                ),
+                                                backgroundColor: Colors.red,
+                                                action: SnackBarAction(
+                                                  label: 'OK',
+                                                  onPressed: () {},
+                                                  textColor: Colors.white,
+                                                ),
+                                              ));
 
                                               String tokenSent = isNFTTransfer
                                                   ? widget.data['tokenId']
@@ -873,26 +912,60 @@ class _TransferTokenState extends State<TransferToken> {
                                               isSending.value = false;
                                               if (Navigator.canPop(context)) {
                                                 int count = 0;
-                                                Get.until(
+                                                // Get.until(
+                                                //     (route) => count++ == 3);
+                                                Navigator.of(context).popUntil(
                                                     (route) => count++ == 3);
+                                                //   Future.delayed(Duration(seconds: 3), () {
+                                                //   Navigator.pushAndRemoveUntil(
+                                                //     context,
+                                                //     MaterialPageRoute(builder: (context) => NextScreen()),
+                                                //     (route) => count++ == 3,
+                                                //   );
+                                                // });
+
                                               }
                                             } catch (e) {
                                               isSending.value = false;
-                                              Get.snackbar(
-                                                '',
-                                                e.toString(),
-                                                colorText: Colors.white,
+                                              // Get.snackbar(
+                                              //   '',
+                                              //   e.toString(),
+                                              //   colorText: Colors.white,
+                                              //   backgroundColor: Colors.red,
+                                              // );
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(SnackBar(
+                                                content: Text(
+                                                  e.toString(),
+                                                ),
                                                 backgroundColor: Colors.red,
-                                              );
+                                                action: SnackBarAction(
+                                                  label: 'OK',
+                                                  onPressed: () {},
+                                                  textColor: Colors.white,
+                                                ),
+                                              ));
                                             }
                                           } else {
-                                            Get.snackbar(
-                                              '',
-                                              AppLocalizations.of(context)
-                                                  .authFailed,
-                                              colorText: Colors.white,
+                                            // Get.snackbar(
+                                            //   '',
+                                            //   AppLocalizations.of(context)
+                                            //       .authFailed,
+                                            //   colorText: Colors.white,
+                                            //   backgroundColor: Colors.red,
+                                            // );
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  AppLocalizations.of(context)
+                                                      .authFailed),
                                               backgroundColor: Colors.red,
-                                            );
+                                              action: SnackBarAction(
+                                                label: 'OK',
+                                                onPressed: () {},
+                                                textColor: Colors.white,
+                                              ),
+                                            ));
                                           }
                                         },
                                   child: Padding(

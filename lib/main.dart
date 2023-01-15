@@ -12,7 +12,9 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
-import 'package:get/get.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
+// import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'package:bip32/bip32.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -24,6 +26,7 @@ import 'package:page_transition/page_transition.dart';
 
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import 'model/provider.dart';
 import 'utils/wc_connector.dart';
 
 void main() async {
@@ -107,9 +110,9 @@ class _RestartWidgetState extends State<RestartWidget> {
   Key key = UniqueKey();
 
   void restartApp() async {
-    await Get.deleteAll(force: true);
+    // await Get.deleteAll(force: true); This will remove all the Initialized controllers instances from your memory.
     Phoenix.rebirth(context);
-    Get.reset();
+    // Get.reset();
   }
 
   @override
@@ -128,6 +131,7 @@ class MyApp extends StatefulWidget {
   static DateTime lastcoinGeckoData = DateTime.now();
 
   final bool userDarkMode;
+  // final ValueNotifier<Locale> locale;
   final Locale locale;
 
   const MyApp({Key key, this.userDarkMode, this.locale}) : super(key: key);
@@ -139,28 +143,29 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Rx<Locale> _locale;
+  final _locale = ValueNotifier<Locale>(const Locale("en", "US"));
+  // Locale _locale;
 
   @override
   initState() {
     super.initState();
-    _locale = widget.locale.obs;
+    _locale.value = widget.locale;
   }
 
-  void setLocale(Locale value) {
-    _locale.value = value;
+  void setLocale(Locale locale) {
+    _locale.value = locale;
   }
 
   @override
   Widget build(BuildContext context) {
     MyApp.themeNotifier.value =
         widget.userDarkMode ? ThemeMode.dark : ThemeMode.light;
-
-    return ValueListenableBuilder(
-        valueListenable: MyApp.themeNotifier,
-        builder: (_, ThemeMode currentMode, __) {
-          return Obx(
-            () => GetMaterialApp(
+    return ChangeNotifierProvider.value(
+      value: _locale,
+      child: MultiValueListenableBuilder(
+          valueListenables: [MyApp.themeNotifier, _locale],
+          builder: (context, value, child) {
+            return MaterialApp(
               navigatorKey: NavigationService.navigatorKey, // set property
               locale: _locale.value,
               debugShowCheckedModeBanner: false,
@@ -168,11 +173,11 @@ class _MyAppState extends State<MyApp> {
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               darkTheme: darkTheme,
-              themeMode: currentMode,
+              themeMode: MyApp.themeNotifier.value,
               home: const MyHomePage(),
-            ),
-          );
-        });
+            );
+          }),
+    );
   }
 }
 
@@ -203,9 +208,8 @@ class _MyHomePageState extends State<MyHomePage> {
     if (hasUnlockTime > 1) {
       nextWidget = OpenAppPinFailed(remainSec: hasUnlockTime);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Get.off(
-          nextWidget,
-          transition: Transition.leftToRight,
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => nextWidget),
         );
       });
       return;
@@ -228,9 +232,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     await Future.delayed(const Duration(milliseconds: 2500));
 
-    Get.off(
-      nextWidget,
-      transition: Transition.leftToRight,
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => nextWidget),
     );
   }
 

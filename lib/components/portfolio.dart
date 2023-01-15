@@ -6,9 +6,11 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:provider/provider.dart';
+import '../model/provider.dart';
 import '../utils/app_config.dart';
 
 class Portfolio extends StatefulWidget {
@@ -19,7 +21,7 @@ class Portfolio extends StatefulWidget {
 }
 
 class _PortfolioState extends State<Portfolio> {
-  RxMap userBalance = {}.obs;
+  var userBalance = ValueNotifier<Map<dynamic, dynamic>>({});
   Timer timer;
   final bool skipNetworkRequest = true;
 
@@ -69,6 +71,9 @@ class _PortfolioState extends State<Portfolio> {
         'balance': balance,
         'symbol': symbol,
       };
+      final userBalanceModel =
+          Provider.of<UserBalanceNotifier>(context, listen: false);
+      userBalanceModel.updateUserBalance(userBalance.value);
     } catch (_) {}
   }
 
@@ -111,22 +116,23 @@ class _PortfolioState extends State<Portfolio> {
                     const SizedBox(
                       height: 20,
                     ),
-                    Obx(() {
-                      if (userBalance != null && userBalance.isNotEmpty) {
+                    Consumer<UserBalanceNotifier>(
+                        builder: (context, notifier, child) {
+                      if (notifier.userBalance != null &&
+                          notifier.userBalance.isNotEmpty) {
                         return GestureDetector(
                           onTap: () async {
                             final pref = Hive.box(secureStorageKey);
                             final userPreviousHidingBalance =
                                 pref.get(hideBalanceKey, defaultValue: false);
-
                             await pref.put(
                                 hideBalanceKey, !userPreviousHidingBalance);
                           },
                           child: SizedBox(
                             height: 35,
                             child: UserBalance(
-                              symbol: userBalance['symbol'],
-                              balance: userBalance['balance'],
+                              symbol: notifier.userBalance['symbol'],
+                              balance: notifier.userBalance['balance'],
                               reversed: true,
                               iconSize: 29,
                               iconDivider: const SizedBox(

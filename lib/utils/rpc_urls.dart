@@ -2,9 +2,10 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
 import 'package:cryptowallet/google_drive/drive.dart';
+import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
-import 'package:get/get.dart' hide Response;
+// import 'package:get/get.dart' hide Response;
 import 'dart:io';
 import 'dart:math';
 import 'package:awesome_dialog/awesome_dialog.dart';
@@ -287,7 +288,7 @@ buildSwapUi({
                 InkWell(
                   onTap: () {
                     onSelect(element);
-                    Get.back();
+                    Navigator.of(context).pop();
                   },
                   child: Row(children: [
                     Flexible(
@@ -381,7 +382,7 @@ buildSwapUi({
                           GestureDetector(
                             onTap: () {
                               if (Navigator.canPop(context)) {
-                                Get.back();
+                                Navigator.of(context).pop();
                               }
                             },
                             child: const Icon(
@@ -473,12 +474,12 @@ Future<bool> authenticate(BuildContext context,
     didAuthenticate = await localAuthentication();
   }
   if (!didAuthenticate) {
-    didAuthenticate = await Get.to(
-      Security(
+    didAuthenticate = await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Security(
         isEnterPin: true,
         useLocalAuth: useLocalAuth,
       ),
-    );
+    ));
   }
 
   await enableScreenShot();
@@ -2426,6 +2427,15 @@ Future<Widget> dappWidget(
     rpc,
   );
 
+  // final redirectUrl = pref.get('redirectUrl');
+  // if (redirectUrl != null) {
+  //   WebViewTab(
+  //       provider: provider,
+  //       webNotifier: webNotifer,
+  //       init: init,
+  //       data: data,
+  //       url: redirectUrl);
+  // }
   return Dapp(
     provider: provider,
     webNotifier: webNotifer,

@@ -4,7 +4,7 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:pinput/pinput.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
@@ -26,7 +26,7 @@ class _SecurityState extends State<Security> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final enterPinController = TextEditingController();
 
-  RxBool isConfirming = RxBool(false);
+  final isConfirming = ValueNotifier<bool>(false);
   List allNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     ..shuffle();
   int currentTrial = 0;
@@ -81,7 +81,8 @@ class _SecurityState extends State<Security> {
                               bool localAuthConfirmed =
                                   await localAuthentication();
                               if (localAuthConfirmed) {
-                                Get.back(result: localAuthConfirmed);
+                                // Get.back(result: localAuthConfirmed);
+                                Navigator.of(context).pop(localAuthConfirmed);
                               }
                             }
                           : null,
@@ -106,17 +107,20 @@ class _SecurityState extends State<Security> {
                             fontWeight: FontWeight.bold,
                           ),
                         )
-                      : Obx(() {
-                          return Text(
-                            isConfirming.value
-                                ? AppLocalizations.of(context).confirmYourPin
-                                : AppLocalizations.of(context).createYourPin,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }),
+                      : ValueListenableBuilder<bool>(
+                          valueListenable: isConfirming,
+                          builder: (context, value, _) {
+                            return Text(
+                              isConfirming.value
+                                  ? AppLocalizations.of(context).confirmYourPin
+                                  : AppLocalizations.of(context).createYourPin,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
+                        ),
                   const SizedBox(
                     height: 20,
                   ),
@@ -140,11 +144,13 @@ class _SecurityState extends State<Security> {
                                 pinController.text.trim();
                         bool userHasTrials = currentTrial < userPinTrials;
                         if (passcodeCorrect) {
-                          Get.back(result: true);
+                          // Get.back(result: true);
+                          Navigator.of(context).pop(true);
                         } else if (userHasTrials) {
                           pinController.clear();
                         } else {
-                          Get.back(result: false);
+                          // Get.back(result: false);
+                          Navigator.of(context).pop(false);
                         }
 
                         return;
@@ -160,17 +166,27 @@ class _SecurityState extends State<Security> {
                           if (widget.isChangingPin != null &&
                               widget.isChangingPin == true) {
                             if (Navigator.canPop(context)) {
-                              Get.back();
+                              Navigator.of(context).pop();
                             }
                             return;
                           }
 
-                          await Get.off(const MainScreen());
+                          await Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                                builder: (_) => const MainScreen()),
+                          );
                         } else {
-                          Get.snackbar(
-                            '',
-                            AppLocalizations.of(context).passcodeMismatch,
-                            colorText: Colors.white,
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(AppLocalizations.of(context)
+                                  .passcodeMismatch),
+                              backgroundColor: Colors.red,
+                              action: SnackBarAction(
+                                label: 'OK',
+                                textColor: Colors.white,
+                                onPressed: () {},
+                              ),
+                            ),
                           );
 
                           pinController.clear();

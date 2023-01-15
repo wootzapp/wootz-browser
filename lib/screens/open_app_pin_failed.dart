@@ -5,7 +5,7 @@ import 'package:flutter_countdown_timer/countdown_timer_controller.dart';
 import 'package:flutter_countdown_timer/flutter_countdown_timer.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 class OpenAppPinFailed extends StatefulWidget {
@@ -35,11 +35,14 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
     });
   }
 
-  RxBool hideHeader = false.obs;
+  // RxBool hideHeader = false.obs;
+  final hideHeader = ValueNotifier<bool>(false);
   void onEnd() async {
     hideHeader.value = true;
 
-    await Get.off(const MyHomePage());
+    await Navigator.of(context)
+        .pushReplacement(MaterialPageRoute(builder: (_) => const MyHomePage()));
+    // Get.off(const MyHomePage());
   }
 
   @override
@@ -57,15 +60,17 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
               const SizedBox(
                 height: 30,
               ),
-              Obx(() {
-                if (!hideHeader.value) {
-                  return Text(
-                    AppLocalizations.of(context).lockedAppMessage,
-                    style: const TextStyle(fontSize: 18),
-                  );
-                }
-                return Container();
-              }),
+              ValueListenableBuilder(
+                  valueListenable: hideHeader,
+                  builder: (context, value, child) {
+                    if (!hideHeader.value) {
+                      return Text(
+                        AppLocalizations.of(context).lockedAppMessage,
+                        style: const TextStyle(fontSize: 18),
+                      );
+                    }
+                    return Container();
+                  }),
               const SizedBox(
                 height: 10,
               ),
