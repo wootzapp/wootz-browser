@@ -5,7 +5,7 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:bip39/bip39.dart' as bip39;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
@@ -20,6 +20,11 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // leading: IconButton(
+        //     icon: const Icon(Icons.arrow_back),
+        //     onPressed: () {
+        //       Navigator.of(context).pop();
+        //     }),
         title: Text(AppLocalizations.of(context).welcome),
       ),
       body: SizedBox(
@@ -93,9 +98,13 @@ class _MainScreenState extends State<MainScreen> {
                       onPressed: () {
                         String mmemnomic = bip39.generateMnemonic();
 
-                        Get.to(
-                          RecoveryPhrase(data: mmemnomic, add: true),
-                        );
+                        // Get.to(
+                        //   RecoveryPhrase(data: mmemnomic, add: true),
+                        // );
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              RecoveryPhrase(data: mmemnomic, add: true),
+                        ));
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),
@@ -127,7 +136,10 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       onPressed: () {
-                        Get.to(const EnterPhrase(add: true));
+                        // Get.to(const EnterPhrase(add: true));
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const EnterPhrase(add: true),
+                        ));
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),
@@ -160,7 +172,10 @@ class _MainScreenState extends State<MainScreen> {
                         ),
                       ),
                       onPressed: () {
-                        Get.to(const ImportWithSecretShare());
+                        // Get.to(const ImportWithSecretShare());
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const ImportWithSecretShare(),
+                        ));
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(15),

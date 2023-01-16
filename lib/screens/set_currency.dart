@@ -4,7 +4,7 @@ import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -71,22 +71,47 @@ class _SetCurrencyState extends State<SetCurrency> {
                                     'defaultCurrency',
                                     currency,
                                   );
-                                  Get.back();
+                                  // Get.back();
+                                  Navigator.of(context).pop();
                                 } else {
-                                  Get.snackbar(
-                                    '',
-                                    '$currency is not supported yet',
-                                    colorText: Colors.white,
+                                  // Get.snackbar(
+                                  //   '',
+                                  //   '$currency is not supported yet',
+                                  //   colorText: Colors.white,
+                                  //   backgroundColor: Colors.red,
+                                  // );
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(
+                                      '$currency is not supported yet',
+                                    ),
                                     backgroundColor: Colors.red,
-                                  );
+                                    action: SnackBarAction(
+                                      label: 'OK',
+                                      onPressed: () {},
+                                      textColor: Colors.white,
+                                    ),
+                                  ));
                                 }
                               } catch (e) {
-                                Get.snackbar(
-                                  '',
-                                  'Could not change currency, please try again later.',
-                                  colorText: Colors.white,
+                                // Get.snackbar(
+                                //   '',
+                                //   'Could not change currency, please try again later.',
+                                //   colorText: Colors.white,
+                                //   backgroundColor: Colors.red,
+                                // );
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                  content: const Text(
+                                    'Could not change currency, please try again later.',
+                                  ),
                                   backgroundColor: Colors.red,
-                                );
+                                  action: SnackBarAction(
+                                    label: 'OK',
+                                    onPressed: () {},
+                                    textColor: Colors.white,
+                                  ),
+                                ));
                               }
                             },
                             child: Row(

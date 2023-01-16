@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import '../utils/app_config.dart';
 import '../utils/qr_scan_view.dart';
 
@@ -19,7 +19,8 @@ class AddCustomToken extends StatefulWidget {
 class _AddCustomTokenState extends State<AddCustomToken> {
   List networks = getEVMBlockchains().keys.toList();
   String network;
-  RxString networkImage = RxString('');
+  // RxString networkImage = RxString('');
+  final networkImage = ValueNotifier<String>('');
   @override
   void initState() {
     super.initState();
@@ -97,7 +98,8 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         showBlockChainDialog(
                           context: context,
                           onTap: (blockChainData) async {
-                            Get.back();
+                            // Get.back();
+                            Navigator.of(context).pop();
                             network = blockChainData['name'];
                             networkImage.value = blockChainData['image'];
                           },
@@ -106,14 +108,16 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         );
                         emptyInput();
                       },
-                      child: Obx(() {
-                        return CircleAvatar(
-                          radius: 20,
-                          backgroundImage: AssetImage(
-                            networkImage.value ?? '',
-                          ),
-                        );
-                      }),
+                      child: ValueListenableBuilder(
+                          valueListenable: networkImage,
+                          builder: (context, value, child) {
+                            return CircleAvatar(
+                              radius: 20,
+                              backgroundImage: AssetImage(
+                                networkImage.value ?? '',
+                              ),
+                            );
+                          }),
                     ),
                   ],
                 ),
@@ -132,8 +136,10 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String contractAddr =
-                                await Get.to(const QRScanView());
+                            String contractAddr = await Navigator.of(context)
+                                .push(MaterialPageRoute(
+                                    builder: (_) => const QRScanView()));
+                            // await Get.to(const QRScanView());
                             if (contractAddr == null) return;
                             contractAddressController.text = contractAddr;
                           },
@@ -296,7 +302,8 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                     onPressed: () async {
                       FocusManager.instance.primaryFocus?.unfocus();
                       final pref = Hive.box(secureStorageKey);
-                      Get.closeCurrentSnackbar();
+                      // Get.closeCurrentSnackbar();
+                      ScaffoldMessenger.of(context).removeCurrentSnackBar();
                       final contractAddr =
                           contractAddressController.text.trim();
                       final contractName = nameAddressController.text.trim();
@@ -313,23 +320,46 @@ class _AddCustomTokenState extends State<AddCustomToken> {
 
                       if (contractAddr.toLowerCase() ==
                           tokenContractAddress.toLowerCase()) {
-                        Get.snackbar(
-                          '',
-                          AppLocalizations.of(context).tokenImportedAlready,
+                        // Get.snackbar(
+                        //   '',
+                        //   AppLocalizations.of(context).tokenImportedAlready,
+                        //   backgroundColor: Colors.red,
+                        //   colorText: Colors.white,
+                        // );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(
+                            AppLocalizations.of(context).tokenImportedAlready,
+                          ),
                           backgroundColor: Colors.red,
-                          colorText: Colors.white,
-                        );
+                          action: SnackBarAction(
+                            label: 'OK',
+                            textColor: Colors.white,
+                            onPressed: () {},
+                          ),
+                        ));
                         return;
                       }
 
                       if (double.tryParse(contractDecimals) == null) {
-                        Get.snackbar(
-                          '',
-                          AppLocalizations.of(context)
-                              .invalidContractAddressOrNetworkTimeout,
+                        // Get.snackbar(
+                        //   '',
+                        //   AppLocalizations.of(context)
+                        //       .invalidContractAddressOrNetworkTimeout,
+                        //   backgroundColor: Colors.red,
+                        //   colorText: Colors.white,
+                        // );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(
+                            AppLocalizations.of(context)
+                                .invalidContractAddressOrNetworkTimeout,
+                          ),
                           backgroundColor: Colors.red,
-                          colorText: Colors.white,
-                        );
+                          action: SnackBarAction(
+                            label: 'OK',
+                            textColor: Colors.white,
+                            onPressed: () {},
+                          ),
+                        ));
                         return;
                       }
 
@@ -337,12 +367,23 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           contractName.isEmpty ||
                           contractSymbol.isEmpty ||
                           contractDecimals.isEmpty) {
-                        Get.snackbar(
-                          '',
-                          AppLocalizations.of(context).enterContractAddress,
+                        // Get.snackbar(
+                        //   '',
+                        //   AppLocalizations.of(context).enterContractAddress,
+                        //   backgroundColor: Colors.red,
+                        //   colorText: Colors.white,
+                        // );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(
+                            AppLocalizations.of(context).enterContractAddress,
+                          ),
                           backgroundColor: Colors.red,
-                          colorText: Colors.white,
-                        );
+                          action: SnackBarAction(
+                            label: 'OK',
+                            textColor: Colors.white,
+                            onPressed: () {},
+                          ),
+                        ));
                         return;
                       }
 
@@ -377,12 +418,24 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           bool sameNetwork = contractNetwork == network;
 
                           if (sameNetwork && sameContractAddress) {
-                            Get.snackbar(
-                              '',
-                              'Token Imported Already',
+                            // Get.snackbar(
+                            //   '',
+                            //   'Token Imported Already',
+                            //   backgroundColor: Colors.red,
+                            //   colorText: Colors.white,
+                            // );
+
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: const Text(
+                                'Token Imported Already',
+                              ),
                               backgroundColor: Colors.red,
-                              colorText: Colors.white,
-                            );
+                              action: SnackBarAction(
+                                label: 'OK',
+                                textColor: Colors.white,
+                                onPressed: () {},
+                              ),
+                            ));
 
                             return;
                           }
@@ -395,7 +448,10 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         userTokenListKey,
                         jsonEncode(userTokenList),
                       );
-                      if (Navigator.canPop(context)) Get.back();
+                      if (Navigator.canPop(context)) {
+                        Navigator.of(context).pop();
+                        // Get.back();
+                      }
                     },
                   ),
                 ),

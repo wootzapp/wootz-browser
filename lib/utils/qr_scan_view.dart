@@ -7,7 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:scan/scan.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 
 class QRScanView extends StatefulWidget {
   const QRScanView({Key key}) : super(key: key);
@@ -18,7 +18,8 @@ class QRScanView extends StatefulWidget {
 
 class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
   final ScanController controller = ScanController();
-  RxBool cameraOn = false.obs;
+  // RxBool cameraOn = false.obs;
+  final cameraOn = ValueNotifier<bool>(false);
   File image;
 
   @override
@@ -61,7 +62,8 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                 scanAreaScale: 1,
                 scanLineColor: appBackgroundblue,
                 onCapture: (data) {
-                  Get.back(result: data);
+                  // Get.back(result: data);
+                  Navigator.of(context).pop(data);
                 },
               ),
               Positioned(
@@ -72,13 +74,15 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
 
                     cameraOn.value = !cameraOn.value;
                   },
-                  icon: Obx(
-                    () => Icon(
-                      FontAwesomeIcons.bolt,
-                      color: cameraOn.value ? Colors.grey : Colors.white,
-                      size: 35,
-                    ),
-                  ),
+                  icon: ValueListenableBuilder(
+                      valueListenable: cameraOn,
+                      builder: (context, value, child) {
+                        return Icon(
+                          FontAwesomeIcons.bolt,
+                          color: cameraOn.value ? Colors.grey : Colors.white,
+                          size: 35,
+                        );
+                      }),
                 ),
               ),
               Positioned(
@@ -91,7 +95,8 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                         onSelect: (XFile file) async {
                           final data = await Scan.parse(file.path);
                           if (data != null) {
-                            Get.back(result: data);
+                            // Get.back(result: data);
+                            Navigator.of(context).pop(data);
                           } else {
                             showDialogWithMessage(
                               context: context,

@@ -2,12 +2,14 @@
 
 import 'dart:convert';
 
+import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 import '../components/loader.dart';
 import '../config/colors.dart';
@@ -26,19 +28,34 @@ class Confirmmnemonic extends StatefulWidget {
 }
 
 class _ConfirmmnemonicState extends State<Confirmmnemonic> {
-  RxBool finished = false.obs;
-  RxBool firstStep = true.obs;
-  RxBool secondStep = false.obs;
-  RxBool thirdStep = false.obs;
-  RxBool fourthStep = false.obs;
+  // RxBool finished = false.obs;
+  final finished = ValueNotifier<bool>(false);
+  // RxBool firstStep = true.obs;
+  final firstStep = ValueNotifier<bool>(true);
+
+  // RxBool secondStep = false.obs;
+  final secondStep = ValueNotifier<bool>(false);
+
+  // RxBool thirdStep = false.obs;
+  final thirdStep = ValueNotifier<bool>(false);
+
+  // RxBool fourthStep = false.obs;
+  final fourthStep = ValueNotifier<bool>(false);
+
   List numbers;
 
   int currentCorrectItem = 0;
-  RxBool firstTime = true.obs;
+  // RxBool firstTime = true.obs;
+  final firstTime = ValueNotifier<bool>(true);
+
   List<String> mmenomicArray = [];
-  RxList<dynamic> mmenomicShuffled = [].obs;
-  RxBool isLoading = false.obs;
-  RxList<dynamic> boxIndexGotten = [].obs;
+  // RxList<dynamic> mmenomicShuffled = [].obs;
+  final mmenomicShuffled = ValueNotifier<List<dynamic>>([]);
+  // RxBool isLoading = false.obs;
+  final isLoading = ValueNotifier<bool>(false);
+
+  // RxList<dynamic> boxIndexGotten = [].obs;
+  final boxIndexGotten = ValueNotifier<List<dynamic>>([]);
   ScreenshotCallback screenshotCallback = ScreenshotCallback();
   @override
   void initState() {
@@ -57,9 +74,11 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   }
 
   void verifySelection(int selectionIndex, List firstThree) {
-    if (mmenomicShuffled[selectionIndex] ==
+    if (mmenomicShuffled.value[selectionIndex] ==
         mmenomicArray[firstThree[currentCorrectItem] - 1]) {
-      boxIndexGotten.add(selectionIndex);
+      final currentList = boxIndexGotten.value;
+      currentList.add(selectionIndex);
+      boxIndexGotten.value = currentList;
       if (currentCorrectItem == 2) {
         if (firstStep.value == true) {
           firstStep.value = false;
@@ -74,9 +93,13 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
           finished.value = true;
           finishConfirm();
         }
-        currentCorrectItem = 0;
+        setState(() {
+          currentCorrectItem = 0;
+        });
       } else {
-        currentCorrectItem++;
+        setState(() {
+          currentCorrectItem++;
+        });
       }
     } else {
       invalidSeedOrder();
@@ -84,7 +107,8 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   }
 
   Future finishConfirm() async {
-    Get.closeAllSnackbars();
+    // Get.closeAllSnackbars();
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
     if (isLoading.value) return;
 
     isLoading.value = true;
@@ -100,11 +124,24 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
 
         for (Map phrases in decodedmnemonic) {
           if (phrases['phrase'] == mnemonics) {
-            Get.snackbar(
-              '',
-              AppLocalizations.of(context).mnemonicAlreadyImported,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
+            // Get.snackbar(
+            //   '',
+            //   AppLocalizations.of(context).mnemonicAlreadyImported,
+            //   backgroundColor: Colors.red,
+            //   colorText: Colors.white,
+            // );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).mnemonicAlreadyImported,
+                ),
+                backgroundColor: Colors.red,
+                action: SnackBarAction(
+                  label: 'OK',
+                  onPressed: () {},
+                  textColor: Colors.white,
+                ),
+              ),
             );
             isLoading.value = false;
             return;
@@ -129,21 +166,59 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         null,
       );
       isLoading.value = false;
-      Get.close(2);
-      Get.snackbar(
-        '',
-        AppLocalizations.of(context).walletCreated,
-      );
+
       RestartWidget.restartApp(context);
+      final redirectUrl = pref.get('redirectUrl');
+
+      if (redirectUrl != null) {
+        // Navigator.of(context).pushReplacement(
+        //     MaterialPageRoute(builder: (_) => WebViewTab(url: redirectUrl)));
+        // Widget nextWidget = await dappWidget(context, redirectUrl);
+        Widget nextWidget = await dappWidget(context, redirectUrl);
+
+        Navigator.of(context)
+            .pushReplacement(MaterialPageRoute(builder: (_) => nextWidget));
+      } else {
+        for (int i = 0; i < 2; i++) {
+          Navigator.pop(context);
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).walletCreated,
+          ),
+        ),
+      );
+
+      // Get.snackbar(
+      //   '',
+      //   AppLocalizations.of(context).walletCreated,
+      // );
+
     } catch (e) {
       if (kDebugMode) {
         print(e);
       }
-      Get.snackbar(
-        '',
-        AppLocalizations.of(context).errorTryAgain,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+      // Get.snackbar(
+      //   '',
+      //   AppLocalizations.of(context).errorTryAgain,
+      //   backgroundColor: Colors.red,
+      //   colorText: Colors.white,
+      // );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).errorTryAgain,
+          ),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'OK',
+            onPressed: () {},
+            textColor: Colors.white,
+          ),
+        ),
       );
 
       isLoading.value = false;
@@ -151,12 +226,26 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   }
 
   void invalidSeedOrder() {
-    Get.closeAllSnackbars();
-    Get.snackbar(
-      '',
-      AppLocalizations.of(context).invalidmnemonic,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
+    // Get.closeAllSnackbars();
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    // Get.snackbar(
+    //   '',
+    //   AppLocalizations.of(context).invalidmnemonic,
+    //   backgroundColor: Colors.red,
+    //   colorText: Colors.white,
+    // );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppLocalizations.of(context).invalidmnemonic,
+        ),
+        backgroundColor: Colors.red,
+        action: SnackBarAction(
+          label: 'OK',
+          onPressed: () {},
+          textColor: Colors.white,
+        ),
+      ),
     );
 
     finished.value = false;
@@ -186,8 +275,19 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         child: SingleChildScrollView(
           child: Padding(
             padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
-            child: Obx(
-              () {
+            child: MultiValueListenableBuilder(
+              valueListenables: [
+                finished,
+                firstStep,
+                secondStep,
+                thirdStep,
+                fourthStep,
+                firstTime,
+                mmenomicShuffled,
+                boxIndexGotten,
+                isLoading,
+              ],
+              builder: (context, value, child) {
                 if (firstTime.value) {
                   mmenomicArray = widget.mmenomic;
                   mmenomicShuffled.value = [...mmenomicArray]..shuffle();
@@ -205,7 +305,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                 }
 
                 List<Widget> seedPhraseWidget = [];
-                final row = mmenomicShuffled.length ~/ 3;
+                final row = mmenomicShuffled.value.length ~/ 3;
                 const column = 3;
                 for (int index = 0; index < row; index++) {
                   seedPhraseWidget.addAll(
@@ -218,7 +318,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                           for (int inner = 0; inner < column; inner++)
                             Expanded(
                               child: GestureDetector(
-                                onTap: boxIndexGotten
+                                onTap: boxIndexGotten.value
                                         .contains(index * column + inner)
                                     ? null
                                     : () {
@@ -228,7 +328,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                         );
                                       },
                                 child: Card(
-                                  color: boxIndexGotten.contains(
+                                  color: boxIndexGotten.value.contains(
                                     index * column + inner,
                                   )
                                       ? grey1
@@ -236,9 +336,10 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(10),
                                     child: Text(
-                                      mmenomicShuffled[index * column + inner],
+                                      mmenomicShuffled
+                                          .value[index * column + inner],
                                       style: TextStyle(
-                                        color: boxIndexGotten.contains(
+                                        color: boxIndexGotten.value.contains(
                                           index * column + inner,
                                         )
                                             ? grey3
@@ -342,37 +443,40 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                       height: 40,
                     ),
                     if (finished.value)
-                      Obx(
-                        () => SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            style: ButtonStyle(
-                              backgroundColor:
-                                  MaterialStateProperty.resolveWith(
-                                (states) => appBackgroundblue,
-                              ),
-                              shape: MaterialStateProperty.resolveWith(
-                                (states) => RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                      ValueListenableBuilder(
+                          valueListenable: isLoading,
+                          builder: (context, value, child) {
+                            return SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                style: ButtonStyle(
+                                  backgroundColor:
+                                      MaterialStateProperty.resolveWith(
+                                    (states) => appBackgroundblue,
+                                  ),
+                                  shape: MaterialStateProperty.resolveWith(
+                                    (states) => RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                onPressed: null,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(15),
+                                  child: isLoading.value
+                                      ? Loader(color: white)
+                                      : Text(
+                                          AppLocalizations.of(context)
+                                              .continue_,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                 ),
                               ),
-                            ),
-                            onPressed: null,
-                            child: Padding(
-                              padding: const EdgeInsets.all(15),
-                              child: isLoading.value
-                                  ? Loader(color: white)
-                                  : Text(
-                                      AppLocalizations.of(context).continue_,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
+                            );
+                          }),
                   ],
                 );
               },

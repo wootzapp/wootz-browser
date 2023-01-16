@@ -14,7 +14,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:web3dart/crypto.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart' as stellar
@@ -39,7 +39,8 @@ class _SendTokenState extends State<SendToken> {
   final recipientAddressController = TextEditingController();
   final amount = TextEditingController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  RxBool isLoading = false.obs;
+  // RxBool isLoading = false.obs;
+  final isLoading = ValueNotifier<bool>(false);
 
   @override
   void dispose() {
@@ -85,9 +86,13 @@ class _SendTokenState extends State<SendToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String recipientAddr = await Get.to(
-                              const QRScanView(),
-                            );
+                            String recipientAddr = await Navigator.of(context)
+                                .push(MaterialPageRoute(
+                              builder: (_) => const QRScanView(),
+                            ));
+                            // Get.to(
+                            //   const QRScanView(),
+                            // );
                             if (recipientAddr == null) return;
                             recipientAddressController.text = recipientAddr;
                           },
@@ -341,178 +346,217 @@ class _SendTokenState extends State<SendToken> {
                 const SizedBox(
                   height: 30,
                 ),
-                Obx(
-                  () => SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ButtonStyle(
-                        backgroundColor: MaterialStateProperty.resolveWith(
-                            (states) => appBackgroundblue),
-                        shape: MaterialStateProperty.resolveWith(
-                          (states) => RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        textStyle: MaterialStateProperty.resolveWith(
-                          (states) => const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      child: isLoading.value
-                          ? const Loader()
-                          : Text(
-                              AppLocalizations.of(context).continue_,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                ValueListenableBuilder(
+                    valueListenable: isLoading,
+                    builder: (context, value, child) {
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ButtonStyle(
+                            backgroundColor: MaterialStateProperty.resolveWith(
+                                (states) => appBackgroundblue),
+                            shape: MaterialStateProperty.resolveWith(
+                              (states) => RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                      onPressed: () async {
-                        if (isLoading.value) return;
-                        // hide snackbar if it is showing
-                        Get.closeAllSnackbars();
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        // check if recipinet is valid eth address
+                            textStyle: MaterialStateProperty.resolveWith(
+                              (states) => const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          child: isLoading.value
+                              ? const Loader()
+                              : Text(
+                                  AppLocalizations.of(context).continue_,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                          onPressed: () async {
+                            if (isLoading.value) return;
+                            // hide snackbar if it is showing
+                            // Get.closeAllSnackbars();
+                            ScaffoldMessenger.of(context)
+                                .removeCurrentSnackBar();
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            // check if recipinet is valid eth address
 
-                        if (double.tryParse(amount.text.trim()) == null) {
-                          Get.snackbar(
-                            '',
-                            AppLocalizations.of(context).pleaseEnterAmount,
-                            colorText: Colors.white,
-                            backgroundColor: Colors.red,
-                          );
-                          return;
-                        }
-
-                        String recipient =
-                            recipientAddressController.text.trim();
-                        String cryptoDomain;
-                        bool iscryptoDomain = recipient.contains('.');
-
-                        try {
-                          isLoading.value = true;
-
-                          if (widget.data['default'] == 'XLM' &&
-                              iscryptoDomain) {
-                            try {
-                              stellar.FederationResponse response =
-                                  await stellar.Federation
-                                      .resolveStellarAddress(recipient);
-                              cryptoDomain = recipient;
-                              recipient = response.accountId;
-                            } catch (_) {}
-                          } else if (iscryptoDomain) {
-                            Map ensAddress = await ensToAddress(
-                              cryptoDomainName: recipient,
-                            );
-
-                            if (ensAddress['success']) {
-                              cryptoDomain = recipient;
-                              recipient = ensAddress['msg'];
-                            } else {
-                              Map unstoppableDomainAddr =
-                                  await unstoppableDomainENS(
-                                cryptoDomainName: recipient,
-                                currency: widget.data['rpc'] == null
-                                    ? widget.data['default']
-                                    : null,
-                              );
-                              cryptoDomain = unstoppableDomainAddr['success']
-                                  ? recipient
-                                  : null;
-                              recipient = unstoppableDomainAddr['success']
-                                  ? unstoppableDomainAddr['msg']
-                                  : recipient;
+                            if (double.tryParse(amount.text.trim()) == null) {
+                              // Get.snackbar(
+                              //   '',
+                              //   AppLocalizations.of(context).pleaseEnterAmount,
+                              //   colorText: Colors.white,
+                              //   backgroundColor: Colors.red,
+                              // );
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text(
+                                  AppLocalizations.of(context)
+                                      .pleaseEnterAmount,
+                                ),
+                                backgroundColor: Colors.red,
+                                action: SnackBarAction(
+                                  label: 'OK',
+                                  onPressed: () {},
+                                  textColor: Colors.white,
+                                ),
+                              ));
+                              return;
                             }
-                          }
 
-                          isLoading.value = false;
-
-                          if (widget.data['POSNetwork'] != null &&
-                              !Address.validateAddress(
-                                recipient,
-                                widget.data['POSNetwork'],
-                              )) {
-                            final NetworkType nw = widget.data['POSNetwork'];
-
-                            bool canReceivePayment = false;
+                            String recipient =
+                                recipientAddressController.text.trim();
+                            String cryptoDomain;
+                            bool iscryptoDomain = recipient.contains('.');
 
                             try {
-                              final base58DecodeRecipient =
-                                  bs58check.decode(recipient);
+                              isLoading.value = true;
 
-                              final pubHashString = base58DecodeRecipient[0]
-                                      .toRadixString(16) +
-                                  base58DecodeRecipient[1].toRadixString(16);
+                              if (widget.data['default'] == 'XLM' &&
+                                  iscryptoDomain) {
+                                try {
+                                  stellar.FederationResponse response =
+                                      await stellar.Federation
+                                          .resolveStellarAddress(recipient);
+                                  cryptoDomain = recipient;
+                                  recipient = response.accountId;
+                                } catch (_) {}
+                              } else if (iscryptoDomain) {
+                                Map ensAddress = await ensToAddress(
+                                  cryptoDomainName: recipient,
+                                );
 
-                              canReceivePayment =
-                                  hexToInt(pubHashString).toInt() ==
-                                      nw.pubKeyHash;
-                            } catch (_) {}
+                                if (ensAddress['success']) {
+                                  cryptoDomain = recipient;
+                                  recipient = ensAddress['msg'];
+                                } else {
+                                  Map unstoppableDomainAddr =
+                                      await unstoppableDomainENS(
+                                    cryptoDomainName: recipient,
+                                    currency: widget.data['rpc'] == null
+                                        ? widget.data['default']
+                                        : null,
+                                  );
+                                  cryptoDomain =
+                                      unstoppableDomainAddr['success']
+                                          ? recipient
+                                          : null;
+                                  recipient = unstoppableDomainAddr['success']
+                                      ? unstoppableDomainAddr['msg']
+                                      : recipient;
+                                }
+                              }
 
-                            if (!canReceivePayment) {
-                              Bech32 sel = bech32.decode(recipient);
-                              canReceivePayment = nw.bech32 == sel.hrp;
+                              isLoading.value = false;
+
+                              if (widget.data['POSNetwork'] != null &&
+                                  !Address.validateAddress(
+                                    recipient,
+                                    widget.data['POSNetwork'],
+                                  )) {
+                                final NetworkType nw =
+                                    widget.data['POSNetwork'];
+
+                                bool canReceivePayment = false;
+
+                                try {
+                                  final base58DecodeRecipient =
+                                      bs58check.decode(recipient);
+
+                                  final pubHashString = base58DecodeRecipient[0]
+                                          .toRadixString(16) +
+                                      base58DecodeRecipient[1]
+                                          .toRadixString(16);
+
+                                  canReceivePayment =
+                                      hexToInt(pubHashString).toInt() ==
+                                          nw.pubKeyHash;
+                                } catch (_) {}
+
+                                if (!canReceivePayment) {
+                                  Bech32 sel = bech32.decode(recipient);
+                                  canReceivePayment = nw.bech32 == sel.hrp;
+                                }
+
+                                if (!canReceivePayment) {
+                                  throw Exception(
+                                      'Invalid ${widget.data['symbol']} address');
+                                }
+                              } else if (widget.data['default'] == 'SOL') {
+                                solana.Ed25519HDPublicKey.fromBase58(recipient);
+                              } else if (widget.data['default'] == 'ADA') {
+                                //FIXME:
+                                // cardano.ShelleyAddress.fromBech32(recipient);
+                              } else if (widget.data['default'] == 'XLM') {
+                                stellar.KeyPair.fromAccountId(recipient);
+                              } else if (widget.data['default'] == 'FIL') {
+                                //FIXME:
+                                // if (!await Flotus.validateAddress(recipient)) {
+                                //   throw Exception('not a valid filecoin address');
+                                // }
+                              } else if (widget.data['default'] == 'ATOM') {
+                                Bech32 sel = bech32.decode(recipient);
+                                if (sel.hrp != widget.data['bech32Hrp']) {
+                                  throw Exception('not a valid cosmos address');
+                                }
+                              } else if (widget.data['rpc'] != null) {
+                                web3.EthereumAddress.fromHex(recipient);
+                              }
+                            } catch (e) {
+                              isLoading.value = false;
+
+                              if (kDebugMode) {
+                                print(e);
+                              }
+                              // Get.snackbar(
+                              //   '',
+                              //   AppLocalizations.of(context).invalidAddress,
+                              //   colorText: Colors.white,
+                              //   backgroundColor: Colors.red,
+                              // );
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text(
+                                  AppLocalizations.of(context).invalidAddress,
+                                ),
+                                backgroundColor: Colors.red,
+                                action: SnackBarAction(
+                                  label: 'OK',
+                                  onPressed: () {},
+                                  textColor: Colors.white,
+                                ),
+                              ));
+
+                              return;
                             }
-
-                            if (!canReceivePayment) {
-                              throw Exception(
-                                  'Invalid ${widget.data['symbol']} address');
+                            if (amount.text.trim() == "" || recipient == "") {
+                              return;
                             }
-                          } else if (widget.data['default'] == 'SOL') {
-                            solana.Ed25519HDPublicKey.fromBase58(recipient);
-                          } else if (widget.data['default'] == 'ADA') {
-                              //FIXME:
-                            // cardano.ShelleyAddress.fromBech32(recipient);
-                          } else if (widget.data['default'] == 'XLM') {
-                            stellar.KeyPair.fromAccountId(recipient);
-                          } else if (widget.data['default'] == 'FIL') {
-                            //FIXME:
-                            // if (!await Flotus.validateAddress(recipient)) {
-                            //   throw Exception('not a valid filecoin address');
-                            // }
-                          } else if (widget.data['default'] == 'ATOM') {
-                            Bech32 sel = bech32.decode(recipient);
-                            if (sel.hrp != widget.data['bech32Hrp']) {
-                              throw Exception('not a valid cosmos address');
-                            }
-                          } else if (widget.data['rpc'] != null) {
-                            web3.EthereumAddress.fromHex(recipient);
-                          }
-                        } catch (e) {
-                          isLoading.value = false;
+                            final data = {
+                              ...widget.data,
+                              'amount': Decimal.parse(amount.text).toString(),
+                              'recipient': recipient
+                            };
 
-                          if (kDebugMode) {
-                            print(e);
-                          }
-                          Get.snackbar(
-                            '',
-                            AppLocalizations.of(context).invalidAddress,
-                            colorText: Colors.white,
-                            backgroundColor: Colors.red,
-                          );
+                            // Get.closeAllSnackbars();
+                            ScaffoldMessenger.of(context)
+                                .removeCurrentSnackBar();
 
-                          return;
-                        }
-                        if (amount.text.trim() == "" || recipient == "") {
-                          return;
-                        }
-                        final data = {
-                          ...widget.data,
-                          'amount': Decimal.parse(amount.text).toString(),
-                          'recipient': recipient
-                        };
-
-                        Get.closeAllSnackbars();
-
-                        await Get.to(TransferToken(
-                          data: data,
-                          cryptoDomain: cryptoDomain,
-                        ));
-                      },
-                    ),
-                  ),
-                )
+                            await Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => TransferToken(
+                                      data: data,
+                                      cryptoDomain: cryptoDomain,
+                                    )));
+                            // Get.to(TransferToken(
+                            //   data: data,
+                            //   cryptoDomain: cryptoDomain,
+                            // ));
+                          },
+                        ),
+                      );
+                    })
               ],
             ),
           ),

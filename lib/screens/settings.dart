@@ -7,7 +7,7 @@ import 'package:cryptowallet/screens/dark_mode_toggler.dart';
 import 'package:cryptowallet/screens/language.dart';
 import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
@@ -122,9 +122,11 @@ class _SettingsState extends State<Settings> {
                         children: [
                           InkWell(
                             onTap: () async {
-                              Get.to(
-                                const SetCurrency(),
-                              );
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => const SetCurrency()));
+                              // Get.to(
+                              //   const SetCurrency(),
+                              // );
                             },
                             child: SizedBox(
                               height: 35,
@@ -156,7 +158,10 @@ class _SettingsState extends State<Settings> {
                           const Divider(),
                           InkWell(
                             onTap: () async {
-                              await Get.to(const Language());
+                              await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) => const Language()));
+                              // Get.to(const Language());
                             },
                             child: SizedBox(
                               height: 35,
@@ -235,20 +240,39 @@ class _SettingsState extends State<Settings> {
                                 String mnemonic = (Hive.box(secureStorageKey))
                                     .get(currentMmenomicKey);
                                 if (await authenticate(context)) {
-                                  Get.closeAllSnackbars();
-                                  Get.to(
-                                    RecoveryPhrase(
+                                  // Get.closeAllSnackbars();
+                                  ScaffoldMessenger.of(context)
+                                      .removeCurrentSnackBar();
+                                  // Get.to(
+                                  //   RecoveryPhrase(
+                                  //     data: mnemonic,
+                                  //     verify: false,
+                                  //   ),
+                                  // );
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => RecoveryPhrase(
                                       data: mnemonic,
                                       verify: false,
                                     ),
-                                  );
+                                  ));
                                 } else {
-                                  Get.snackbar(
-                                    '',
-                                    AppLocalizations.of(context).authFailed,
-                                    colorText: Colors.white,
+                                  // Get.snackbar(
+                                  //   '',
+                                  //   AppLocalizations.of(context).authFailed,
+                                  //   colorText: Colors.white,
+                                  //   backgroundColor: Colors.red,
+                                  // );
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(AppLocalizations.of(context)
+                                        .authFailed),
                                     backgroundColor: Colors.red,
-                                  );
+                                    action: SnackBarAction(
+                                      label: 'OK',
+                                      onPressed: () {},
+                                      textColor: Colors.white,
+                                    ),
+                                  ));
                                 }
                               },
                               child: SizedBox(
@@ -286,19 +310,37 @@ class _SettingsState extends State<Settings> {
                                   context,
                                   useLocalAuth: false,
                                 )) {
-                                  Get.closeAllSnackbars();
-                                  Get.to(
-                                    const Security(
+                                  // Get.closeAllSnackbars();
+                                  ScaffoldMessenger.of(context)
+                                      .removeCurrentSnackBar();
+                                  // Get.to(
+                                  //   const Security(
+                                  //     isChangingPin: true,
+                                  //   ),
+                                  // );
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => const Security(
                                       isChangingPin: true,
                                     ),
-                                  );
+                                  ));
                                 } else {
-                                  Get.snackbar(
-                                    '',
-                                    AppLocalizations.of(context).authFailed,
-                                    colorText: Colors.white,
+                                  // Get.snackbar(
+                                  //   '',
+                                  //   AppLocalizations.of(context).authFailed,
+                                  //   colorText: Colors.white,
+                                  //   backgroundColor: Colors.red,
+                                  // );
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(AppLocalizations.of(context)
+                                        .authFailed),
                                     backgroundColor: Colors.red,
-                                  );
+                                    action: SnackBarAction(
+                                      label: 'OK',
+                                      onPressed: () {},
+                                      textColor: Colors.white,
+                                    ),
+                                  ));
                                 }
                               },
                               child: Container(
@@ -369,14 +411,23 @@ class _SettingsState extends State<Settings> {
 
                               final bookmarkTitle = localize.bookMark;
                               final bookmarkEmpty = localize.noBookMark;
-                              await Get.to(
-                                SavedUrls(
+                              await Navigator.of(context)
+                                  .push(MaterialPageRoute(
+                                builder: (_) => SavedUrls(
                                   bookmarkTitle,
                                   bookmarkEmpty,
                                   bookMarkKey,
                                   data: data,
                                 ),
-                              );
+                              ));
+                              // Get.to(
+                              //   SavedUrls(
+                              //     bookmarkTitle,
+                              //     bookmarkEmpty,
+                              //     bookMarkKey,
+                              //     data: data,
+                              //   ),
+                              // );
                             },
                             child: Container(
                               color: Colors.transparent,

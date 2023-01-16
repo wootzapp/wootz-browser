@@ -24,7 +24,7 @@ import 'package:web3dart/web3dart.dart';
 
 import 'package:cryptowallet/utils/qr_scan_view.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '../components/loader.dart';
@@ -160,6 +160,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   bool webLoadin = false;
   String initJs = '';
   bool isFocused = false;
+  bool checkWallet = false;
   FocusNode _focus;
   final jsonNotification =
       jsonEncode(WebNotificationPermissionDb.getPermissions());
@@ -226,6 +227,12 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
           );
     FlutterDownloader.registerCallback(downloadCallback);
     _url = widget.url ?? '';
+  }
+
+  void setRedirectUrl(
+      InAppWebViewController controller, dynamic redirectUrl) async {
+    Uri uri = blockChainToHttps(redirectUrl.trim());
+    await controller.loadUrl(urlRequest: URLRequest(url: WebUri.uri(uri)));
   }
 
   @pragma('vm:entry-point')
@@ -489,6 +496,16 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                     return NavigationActionPolicy.ALLOW;
                   },
                   onWebViewCreated: (controller) async {
+                    final redirectUrl = pref.get('redirectUrl');
+                    if (redirectUrl != null) {
+                      print('hi from onwebviewCreated calling redirect url');
+                      setRedirectUrl(controller, redirectUrl);
+                      await pref.put('redirectUrl', null);
+                      print('redirectUrl set null');
+                    } else {
+                      print('redirect url is empty -> onWebViewCreated');
+                      if (controller != null) print(controller);
+                    }
                     _controller = controller;
                     webNotificationController =
                         WebNotificationController(controller);
@@ -1095,7 +1112,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         final session = WCSession.from(wcUri.toString());
 
                         if (session != WCSession.empty()) {
-                          await WcConnector.qrScanHandler(wcUri.toString());
+                          if (!checkWallet) {
+                            await showModalCreateWallet();
+                          } else {
+                            await WcConnector.qrScanHandler(wcUri.toString());
+                          }
                         } else {
                           await WcConnector.wcReconnect();
                         }
@@ -1104,7 +1125,11 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         final session = WCSession.from(url_);
 
                         if (session != WCSession.empty()) {
-                          await WcConnector.qrScanHandler(url_);
+                          if (!checkWallet) {
+                            showModalCreateWallet();
+                          } else {
+                            await WcConnector.qrScanHandler(url_);
+                          }
                         } else {
                           await WcConnector.wcReconnect();
                         }
@@ -1118,6 +1143,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                     widget.onCloseTabRequested();
                   },
                   onLoadStop: (controller, url) async {
+                    final pref = Hive.box(secureStorageKey);
+                    checkWallet = pref.get(currentMmenomicKey) != null;
+
                     updateScreenshot();
                     _pullToRefreshController.endRefreshing();
                     if (url != null) {
@@ -1273,16 +1301,32 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       children: [
                         GestureDetector(
                           onTap: () async {
-                            String data = await Get.to(
-                              const QRScanView(),
-                            );
+                            String data = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const QRScanView(),
+                                ));
+                            // Get.to(
+                            //   const QRScanView(),
+                            // );
                             if (data == null) {
-                              Get.snackbar(
-                                '',
-                                eIP681ProcessingErrorMsg,
-                                colorText: Colors.white,
+                              // Get.snackbar(
+                              //   '',
+                              //   eIP681ProcessingErrorMsg,
+                              //   colorText: Colors.white,
+                              //   backgroundColor: Colors.red,
+                              // );
+
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: const Text(eIP681ProcessingErrorMsg),
                                 backgroundColor: Colors.red,
-                              );
+                                action: SnackBarAction(
+                                  textColor: Colors.white,
+                                  label: 'OK',
+                                  onPressed: () {},
+                                ),
+                              ));
 
                               return;
                             }
@@ -1309,23 +1353,36 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             Map scannedData = await processEIP681(data);
 
                             if (Navigator.canPop(context)) {
-                              Get.back();
+                              // Get.back();
+                              Navigator.of(context).pop();
                             }
 
                             if (scannedData['success']) {
-                              await Get.to(
-                                SendToken(
+                              await Navigator.of(context)
+                                  .push(MaterialPageRoute(
+                                builder: (_) => SendToken(
                                   data: scannedData['msg'],
                                 ),
-                              );
+                              ));
+                              // Get.to();
                               return;
                             }
-                            Get.snackbar(
-                              '',
-                              scannedData['msg'],
-                              colorText: Colors.white,
+                            // Get.snackbar(
+                            //   '',
+                            //   scannedData['msg'],
+                            //   colorText: Colors.white,
+                            //   backgroundColor: Colors.red,
+                            // );
+
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: scannedData['msg'],
                               backgroundColor: Colors.red,
-                            );
+                              action: SnackBarAction(
+                                textColor: Colors.white,
+                                label: 'OK',
+                                onPressed: () {},
+                              ),
+                            ));
                           },
                           child: SizedBox(
                             width: 100,
@@ -1361,7 +1418,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             bool hasPasscode =
                                 pref.get(userUnlockPasscodeKey) != null;
                             Widget dappWidget;
-                            Get.back();
+                            // Get.back();
+                            Navigator.of(context).pop();
 
                             if (hasWallet) {
                               dappWidget = const WalletMainBody();
@@ -1370,7 +1428,9 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                             } else {
                               dappWidget = const Security();
                             }
-                            await Get.to(dappWidget);
+                            await Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => dappWidget));
+                            // Get.to(dappWidget);
                           },
                           child: SizedBox(
                             width: 100,
@@ -1543,6 +1603,63 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   Future<void> goForward() async {
     if (await canGoForward()) {
       await _controller?.goForward();
+    }
+  }
+
+  Future<dynamic> showModalCreateWallet() async {
+    print('hi from showModalCreateWallet');
+
+    final pref = Hive.box(secureStorageKey);
+    bool hasWallet = pref.get(currentMmenomicKey) != null;
+
+    bool hasPasscode = pref.get(userUnlockPasscodeKey) != null;
+    Widget dappWidget;
+
+    if (hasWallet) {
+      dappWidget = const WalletMainBody();
+    } else if (hasPasscode) {
+      dappWidget = const MainScreen();
+    } else {
+      dappWidget = const Security();
+    }
+
+    if (!hasWallet) {
+      return showModalBottomSheet(
+        context: context,
+        builder: (BuildContext context) {
+          return Container(
+            height: 200,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20.0),
+                topRight: Radius.circular(20.0),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: <Widget>[
+                  const Text(
+                    'This site needs a web3 wallet. Would you like to create one now ?',
+                  ),
+                  const SizedBox(height: 20.0),
+                  TextButton(
+                    onPressed: () async {
+                      var currentUrl = await _controller?.getUrl();
+                      print(currentUrl);
+                      await pref.put('redirectUrl', currentUrl.toString());
+                      Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => dappWidget));
+                    },
+                    child: Text(AppLocalizations.of(context).createNewWallet),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
     }
   }
 }

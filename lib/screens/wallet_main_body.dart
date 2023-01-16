@@ -11,9 +11,11 @@ import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import '../model/provider.dart';
 import '../utils/app_config.dart';
 import '../utils/get_blockchain_widget.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -45,11 +47,15 @@ Future<void> handleAllIntent(String value, BuildContext context) async {
 
   SchedulerBinding.instance.addPostFrameCallback((_) {
     if (Navigator.canPop(context)) {
-      Get.off(navigateWidget);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => navigateWidget),
+      );
       return;
     }
 
-    Get.to(navigateWidget);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => navigateWidget),
+    );
   });
 }
 
@@ -62,7 +68,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
       <ValueNotifier<double>>[];
   ValueNotifier<double> walletNotifier = ValueNotifier(null);
 
-  RxList<Widget> blockChainsArray = <Widget>[].obs;
+  // RxList<Widget> blockChainsArray = <Widget>[].obs;
+  final blockChainsArray = ValueNotifier<List<Widget>>(<Widget>[]);
+
   List<Timer> cryptoBalancesTimer = <Timer>[];
   GlobalKey<UserAddedTokensState> globalKey = GlobalKey();
 
@@ -103,7 +111,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
   }
 
   void initializeBlockchains() {
-    blockChainsArray = <Widget>[].obs;
+    blockChainsArray.value = <Widget>[];
 
     final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
 
@@ -115,11 +123,15 @@ class _WalletMainBodyState extends State<WalletMainBody>
 
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.addAll([
+      final currentList = blockChainsArray.value;
+
+      currentList.addAll([
         InkWell(
             onTap: () {
-              Get.to(
-                Token(data: bitcoinBlockchain),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => Token(data: bitcoinBlockchain),
+                ),
               );
             },
             child: GetBlockChainWidget(
@@ -167,7 +179,10 @@ class _WalletMainBodyState extends State<WalletMainBody>
               ),
             )),
       ]);
-      blockChainsArray.add(const Divider());
+
+      currentList.add(const Divider());
+
+      blockChainsArray.value = currentList;
     }
 
     for (String i in getEVMBlockchains().keys) {
@@ -177,12 +192,16 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.add(
+      final currentList = blockChainsArray.value;
+
+      currentList.add(
         InkWell(
           onTap: () {
-            Get.to(
-              Token(
-                data: evmBlockchain,
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Token(
+                  data: evmBlockchain,
+                ),
               ),
             );
           },
@@ -235,7 +254,8 @@ class _WalletMainBodyState extends State<WalletMainBody>
           ),
         ),
       );
-      blockChainsArray.add(const Divider());
+      currentList.add(const Divider());
+      blockChainsArray.value = currentList;
     }
 
     for (String i in getSolanaBlockChains().keys) {
@@ -245,12 +265,16 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.addAll([
+      final currentList = blockChainsArray.value;
+
+      currentList.addAll([
         InkWell(
           onTap: () {
-            Get.to(
-              Token(
-                data: solanaBlockchain,
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Token(
+                  data: solanaBlockchain,
+                ),
               ),
             );
           },
@@ -298,7 +322,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
         ),
       ]);
 
-      blockChainsArray.add(const Divider());
+      currentList.add(const Divider());
+
+      blockChainsArray.value = currentList;
     }
     for (String i in getStellarBlockChains().keys) {
       final Map stellarBlockChain = Map.from(getStellarBlockChains()[i])
@@ -306,12 +332,16 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.addAll([
+      final currentList = blockChainsArray.value;
+
+      currentList.addAll([
         InkWell(
             onTap: () {
-              Get.to(
-                Token(
-                  data: stellarBlockChain,
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => Token(
+                    data: stellarBlockChain,
+                  ),
                 ),
               );
             },
@@ -362,7 +392,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
             )),
       ]);
 
-      blockChainsArray.add(const Divider());
+      currentList.add(const Divider());
+
+      blockChainsArray.value = currentList;
     }
 
     for (String i in getFilecoinBlockChains().keys) {
@@ -372,14 +404,18 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.addAll([
+      final currentList = blockChainsArray.value;
+
+      currentList.addAll([
         InkWell(
             onTap: () {
-              Get.to(
-                Token(
-                  data: filecoinBlockchain,
-                ),
-              );
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Token(
+                      data: filecoinBlockchain,
+                    ),
+                  ));
             },
             child: GetBlockChainWidget(
               name_: i,
@@ -428,7 +464,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
             )),
       ]);
 
-      blockChainsArray.add(const Divider());
+      currentList.add(const Divider());
+
+      blockChainsArray.value = currentList;
     }
 
     for (String i in getCardanoBlockChains().keys) {
@@ -438,14 +476,18 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
-      blockChainsArray.addAll([
+      final currentList = blockChainsArray.value;
+
+      currentList.addAll([
         InkWell(
             onTap: () {
-              Get.to(
-                Token(
-                  data: cardanoBlockchain,
-                ),
-              );
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Token(
+                      data: cardanoBlockchain,
+                    ),
+                  ));
             },
             child: GetBlockChainWidget(
               name_: i,
@@ -495,7 +537,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
               ),
             )),
       ]);
-      blockChainsArray.add(const Divider());
+      currentList.add(const Divider());
+
+      blockChainsArray.value = currentList;
     }
   }
 
@@ -503,123 +547,142 @@ class _WalletMainBodyState extends State<WalletMainBody>
   Widget build(BuildContext context) {
     super.build(context);
 
-    return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await Future.delayed(const Duration(seconds: 2));
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  color: Theme.of(context)
-                      .bottomNavigationBarTheme
-                      .backgroundColor,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return ValueListenableBuilder(
+        valueListenable: blockChainsArray,
+        builder: (context, value, child) {
+          return ChangeNotifierProvider(
+            create: (_) => UserBalanceNotifier(),
+            child: Scaffold(
+              body: SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    await Future.delayed(const Duration(seconds: 2));
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: const [
-                            UserDetailsPlaceHolder(
-                              size: .5,
-                              showHi: true,
+                        Container(
+                          color: Theme.of(context)
+                              .bottomNavigationBarTheme
+                              .backgroundColor,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: const [
+                                    UserDetailsPlaceHolder(
+                                      size: .5,
+                                      showHi: true,
+                                    ),
+                                    SizedBox(
+                                      width: 20,
+                                    ),
+                                  ],
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    if (Navigator.canPop(context)) {
+                                      Navigator.of(context).pop();
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.close,
+                                  ),
+                                )
+                              ],
                             ),
-                            SizedBox(
-                              width: 20,
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            if (Navigator.canPop(context)) {
-                              Get.back();
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.close,
                           ),
-                        )
+                        ),
+                        const SizedBox(
+                          height: 30,
+                        ),
+                        const Portfolio(),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                AppLocalizations.of(context).assets,
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              //
+                              GestureDetector(
+                                onTap: () async {
+                                  await Navigator.of(context).push(
+                                    PageRouteBuilder(
+                                      pageBuilder: (_, __, ___) =>
+                                          const AddCustomToken(),
+                                      transitionsBuilder:
+                                          (_, animation, __, child) =>
+                                              SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(1, 0),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                  );
+
+                                  globalKey?.currentState?.getUserAddedToken();
+                                },
+                                child: Container(
+                                  color: Colors.transparent,
+                                  child: Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            AppLocalizations.of(context)
+                                                .addToken,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.add,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...blockChainsArray.value,
+                              UserAddedTokens(
+                                key: globalKey,
+                              ),
+                              const SizedBox(
+                                height: 20,
+                              )
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(
-                  height: 30,
-                ),
-                const Portfolio(),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        AppLocalizations.of(context).assets,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      //
-                      GestureDetector(
-                        onTap: () async {
-                          await Get.to(
-                            const AddCustomToken(),
-                            transition: Transition.rightToLeft,
-                          );
-
-                          globalKey?.currentState?.getUserAddedToken();
-                        },
-                        child: Container(
-                          color: Colors.transparent,
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    AppLocalizations.of(context).addToken,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.add,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ...blockChainsArray,
-                      UserAddedTokens(
-                        key: globalKey,
-                      ),
-                      const SizedBox(
-                        height: 20,
-                      )
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
-    );
+          );
+        });
   }
 }
