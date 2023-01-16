@@ -32,7 +32,7 @@ class _WalletBlackState extends State<WalletBlack> {
   final recipientAddrContr = TextEditingController();
   final amount = TextEditingController();
   final btcUSD = TextEditingController();
-  double bitcoinPrice;
+  num bitcoinPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -62,13 +62,26 @@ class _WalletBlackState extends State<WalletBlack> {
                                   final currentPhrase =
                                       pref.get(currentMmenomicKey);
 
-                                  await Navigator.of(context)
-                                      .push(MaterialPageRoute(
-                                    builder: (_) => ViewWallets(
-                                      data: (jsonDecode(mnemonics) as List),
-                                      currentPhrase: currentPhrase,
-                                    ),
-                                  ));
+                                  if (currentPhrase != null) {
+                                    await Navigator.of(context)
+                                        .push(MaterialPageRoute(
+                                      builder: (_) => ViewWallets(
+                                        data: (jsonDecode(mnemonics) as List),
+                                        currentPhrase: currentPhrase,
+                                      ),
+                                    ));
+                                  } else {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(SnackBar(
+                                      content: const Text('No Wallets Created'),
+                                      backgroundColor: Colors.red,
+                                      action: SnackBarAction(
+                                        label: 'OK',
+                                        onPressed: () {},
+                                        textColor: Colors.white,
+                                      ),
+                                    ));
+                                  }
                                 },
                                 child: Row(
                                   children: const [
@@ -215,8 +228,9 @@ class _WalletBlackState extends State<WalletBlack> {
 
                                     final bitcoinResponse =
                                         jsonDecode(responseBody);
-                                    bitcoinPrice =
-                                        bitcoinResponse['bitcoin']['usd'];
+                                    bitcoinPrice = bitcoinResponse['bitcoin']
+                                            ['usd']
+                                        .toDouble();
                                     double conversion =
                                         amount.toDouble() * bitcoinPrice;
                                     btcUSD.text = conversion.toString();
