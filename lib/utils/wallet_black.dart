@@ -113,7 +113,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                     pref.get(userUnlockPasscodeKey) != null;
                                 Widget dappWidget;
                                 // Get.back();
-                                Navigator.of(context).pop();
+                                // Navigator.of(context).pop();
 
                                 if (hasPasscode) {
                                   dappWidget = const MainScreen();
