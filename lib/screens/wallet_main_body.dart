@@ -550,132 +550,134 @@ class _WalletMainBodyState extends State<WalletMainBody>
     return ValueListenableBuilder(
         valueListenable: blockChainsArray,
         builder: (context, value, child) {
-          return Scaffold(
-            body: SafeArea(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await Future.delayed(const Duration(seconds: 2));
-                },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        color: Theme.of(context)
-                            .bottomNavigationBarTheme
-                            .backgroundColor,
-                        child: Padding(
-
+          return ChangeNotifierProvider(
+            create: (_) => UserBalanceNotifier(),
+            child: Scaffold(
+              body: SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    await Future.delayed(const Duration(seconds: 2));
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          color: Theme.of(context)
+                              .bottomNavigationBarTheme
+                              .backgroundColor,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: const [
+                                    UserDetailsPlaceHolder(
+                                      size: .5,
+                                      showHi: true,
+                                    ),
+                                    SizedBox(
+                                      width: 20,
+                                    ),
+                                  ],
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    if (Navigator.canPop(context)) {
+                                      Navigator.of(context).pop();
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.close,
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 30,
+                        ),
+                        const Portfolio(),
+                        Padding(
                           padding: const EdgeInsets.all(20),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: const [
-                                  UserDetailsPlaceHolder(
-                                    size: .5,
-                                    showHi: true,
-                                  ),
-                                  SizedBox(
-                                    width: 20,
-                                  ),
-                                ],
+                              Text(
+                                AppLocalizations.of(context).assets,
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
                               ),
-                              IconButton(
-                                onPressed: () {
-                                  print('cancel wallet ');
-                                  if (Navigator.canPop(context)) {
-                                    Navigator.of(context).pop();
-                                  }
+                              //
+                              GestureDetector(
+                                onTap: () async {
+                                  await Navigator.of(context).push(
+                                    PageRouteBuilder(
+                                      pageBuilder: (_, __, ___) =>
+                                          const AddCustomToken(),
+                                      transitionsBuilder:
+                                          (_, animation, __, child) =>
+                                              SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(1, 0),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    ),
+                                  );
+
+                                  globalKey?.currentState?.getUserAddedToken();
                                 },
-                                icon: const Icon(
-                                  Icons.close,
+                                child: Container(
+                                  color: Colors.transparent,
+                                  child: Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            AppLocalizations.of(context)
+                                                .addToken,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.add,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ...blockChainsArray.value,
+                              UserAddedTokens(
+                                key: globalKey,
+                              ),
+                              const SizedBox(
+                                height: 20,
                               )
                             ],
                           ),
                         ),
-                      ),
-                      const SizedBox(
-                        height: 30,
-                      ),
-                      const Portfolio(),
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              AppLocalizations.of(context).assets,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            //
-                            GestureDetector(
-                              onTap: () async {
-                                await Navigator.of(context).push(
-                                  PageRouteBuilder(
-                                    pageBuilder: (_, __, ___) =>
-                                        const AddCustomToken(),
-                                    transitionsBuilder:
-                                        (_, animation, __, child) =>
-                                            SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(1, 0),
-                                        end: Offset.zero,
-                                      ).animate(animation),
-                                      child: child,
-                                    ),
-                                  ),
-                                );
-
-                                globalKey?.currentState?.getUserAddedToken();
-                              },
-                              child: Container(
-                                color: Colors.transparent,
-                                child: Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          AppLocalizations.of(context).addToken,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        const Icon(
-                                          Icons.add,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ...blockChainsArray.value,
-                            UserAddedTokens(
-                              key: globalKey,
-                            ),
-                            const SizedBox(
-                              height: 20,
-                            )
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

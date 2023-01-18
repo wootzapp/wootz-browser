@@ -26,6 +26,9 @@ import 'package:bs58check/bs58check.dart' as bs58check;
 import 'package:solana/solana.dart' as solana;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import '../eip/eip681.dart';
+import '../utils/coin_pay.dart';
+
 class SendToken extends StatefulWidget {
   final Map data;
 
@@ -86,15 +89,34 @@ class _SendTokenState extends State<SendToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String recipientAddr = await Navigator.of(context)
-                                .push(MaterialPageRoute(
-                              builder: (_) => const QRScanView(),
-                            ));
-                            // Get.to(
-                            //   const QRScanView(),
-                            // );
+                            String recipientAddr = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (ctx) => const QRScanView(),
+                              ),
+                            );
+
                             if (recipientAddr == null) return;
-                            recipientAddressController.text = recipientAddr;
+
+                            if (!recipientAddr.contains(':')) {
+                              recipientAddressController.text = recipientAddr;
+                            }
+
+                            try {
+                              if (widget.data['contractAddress'] != null) {
+                                Map data = EIP681.parse(recipientAddr);
+
+                                recipientAddressController.text =
+                                    data['parameters']['address'];
+                                return;
+                              }
+                            } catch (_) {}
+
+                            try {
+                              CoinPay data = CoinPay.parseUri(recipientAddr);
+                              recipientAddressController.text = data.recipient;
+                              amount.text = data?.amount?.toString();
+                            } catch (_) {}
                           },
                         ),
                         InkWell(

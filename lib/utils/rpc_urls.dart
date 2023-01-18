@@ -1000,6 +1000,51 @@ const coinGeckCryptoSymbolToID = {
   'ZEC': 'zcash',
   'DASH': 'dash'
 };
+
+Map requestPaymentScheme = {
+  ...coinGeckCryptoSymbolToID,
+  "BTC": "bitcoin",
+  "ETH": "ethereum",
+  "BNB": "smartchain",
+  "AVAX": "avalanchec",
+  "FTM": "fantom",
+  "HT": "heco",
+  "MATIC": "polygon",
+  "KCS": "kcc",
+  "ELA": "elastos",
+  "TT": "thundertoken",
+  "GO": "gochain",
+  "XDAI": "xdai",
+  "UBQ": "ubiq",
+  "CELO": "celo",
+  "FUSE": "fuse-network-token",
+  "LTC": "litecoin",
+  "DOGE": "doge",
+  "CRO": "cronos",
+  "SOL": 'solana',
+  'ETC': "classic",
+  'FIL': 'filecoin',
+  'XRP': 'ripple',
+  'ADA': 'cardano',
+  'MilkADA': 'cardano',
+  'USDT': 'tether',
+  'DOT': 'polkadot',
+  'BCH': 'bitcoincash',
+  'UNI': 'uniswap',
+  'LINK': 'chainlink',
+  'USDC': 'usd-coin',
+  'XLM': 'stellar',
+  'AAVE': 'aave',
+  'DAI': 'dai',
+  'CEL': 'celsius-degree-token',
+  'NEXO': 'nexo',
+  'TUSD': 'true-usd',
+  'GUSD': 'gemini-dollar',
+  'ZEC': 'zcash',
+  'DASH': 'dash',
+  "ATOM": 'cosmos'
+};
+
 const moonPayApi =
     "https://buy.moonpay.com/?apiKey=pk_live_D4M9IUMtLoDQUpSA0qQnn8VmfusvoSSQ&baseCurrencyAmount=150&baseCurrencyCode=USD";
 const moonPayCurrencyCode = {
@@ -3700,6 +3745,31 @@ Future<String> downloadFile(String url, [String filename]) async {
     );
 
     return taskId;
+  }
+  return null;
+}
+
+Map getInfoScheme(String coinScheme) {
+  String symbol = '';
+  for (String key in requestPaymentScheme.keys) {
+    if (requestPaymentScheme[key] == coinScheme) {
+      symbol = key;
+      break;
+    }
+  }
+  Map allBlockchains = {
+    ...getEVMBlockchains(),
+    ...getBitCoinPOSBlockchains(),
+    ...getFilecoinBlockChains(),
+    ...getCardanoBlockChains(),
+    ...getStellarBlockChains(),
+    ...getSolanaBlockChains()
+  };
+  for (String i in allBlockchains.keys) {
+    Map value = allBlockchains[i];
+    if (value['symbol'] == symbol) {
+      return Map.from(value)..addAll({'name': i});
+    }
   }
   return null;
 }

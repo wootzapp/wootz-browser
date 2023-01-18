@@ -71,11 +71,9 @@ class _PortfolioState extends State<Portfolio> {
         'balance': balance,
         'symbol': symbol,
       };
-      print(userBalance.value);
-      // final userBalanceModel =
-      //     Provider.of<UserBalanceNotifier>(context, listen: false);
-      // userBalanceModel.updateUserBalance(userBalance.value);
-
+      final userBalanceModel =
+          Provider.of<UserBalanceNotifier>(context, listen: false);
+      userBalanceModel.updateUserBalance(userBalance.value);
     } catch (_) {}
   }
 
@@ -118,52 +116,45 @@ class _PortfolioState extends State<Portfolio> {
                     const SizedBox(
                       height: 20,
                     ),
-                    // Consumer<UserBalanceNotifier>(
-                    //     builder: (context, notifier, child) {
-                    //   final userBalanceModel = Provider.of<UserBalanceNotifier>(
-                    //       context,
-                    //       listen: false);
-                    ValueListenableBuilder(
-                        valueListenable: userBalance,
-                        builder: (context, value, child) {
-                          if (userBalance.value != null &&
-                              userBalance.value.isNotEmpty) {
-                            return GestureDetector(
-                              onTap: () async {
-                                final pref = Hive.box(secureStorageKey);
-                                final userPreviousHidingBalance = pref
-                                    .get(hideBalanceKey, defaultValue: false);
-                                await pref.put(
-                                    hideBalanceKey, !userPreviousHidingBalance);
-                              },
-                              child: SizedBox(
-                                height: 35,
-                                child: UserBalance(
-                                  symbol: userBalance.value['symbol'],
-                                  balance: userBalance.value['balance'],
-                                  reversed: true,
-                                  iconSize: 29,
-                                  iconDivider: const SizedBox(
-                                    width: 5,
-                                  ),
-                                  iconSuffix: const Icon(
-                                    FontAwesomeIcons.eyeSlash,
-                                    color: Colors.white,
-                                    size: 29,
-                                  ),
-                                  iconColor: Colors.white,
-                                  textStyle: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.bold),
-                                ),
-
+                    Consumer<UserBalanceNotifier>(
+                        builder: (context, notifier, child) {
+                      if (notifier.userBalance != null &&
+                          notifier.userBalance.isNotEmpty) {
+                        return GestureDetector(
+                          onTap: () async {
+                            final pref = Hive.box(secureStorageKey);
+                            final userPreviousHidingBalance =
+                                pref.get(hideBalanceKey, defaultValue: false);
+                            await pref.put(
+                                hideBalanceKey, !userPreviousHidingBalance);
+                          },
+                          child: SizedBox(
+                            height: 35,
+                            child: UserBalance(
+                              symbol: notifier.userBalance['symbol'],
+                              balance: notifier.userBalance['balance'],
+                              reversed: true,
+                              iconSize: 29,
+                              iconDivider: const SizedBox(
+                                width: 5,
                               ),
-                            );
-                          } else {
-                            return Container();
-                          }
-                        }),
+                              iconSuffix: const Icon(
+                                FontAwesomeIcons.eyeSlash,
+                                color: Colors.white,
+                                size: 29,
+                              ),
+                              iconColor: Colors.white,
+                              textStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        );
+                      } else {
+                        return Container();
+                      }
+                    }),
                     const SizedBox(
                       height: 40,
                     ),

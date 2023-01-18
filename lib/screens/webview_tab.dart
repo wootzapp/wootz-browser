@@ -469,11 +469,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       final session = WCSession.from(wcUri.toString());
 
                       if (session != WCSession.empty()) {
-                        if (!checkWallet) {
-                          showModalCreateWallet();
-                        } else {
-                          await WcConnector.qrScanHandler(url_);
-                        }
+                        await WcConnector.qrScanHandler(wcUri.toString());
                       } else {
                         await WcConnector.wcReconnect();
                       }
@@ -483,11 +479,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       final session = WCSession.from(url_);
 
                       if (session != WCSession.empty()) {
-                        if (!checkWallet) {
-                          showModalCreateWallet();
-                        } else {
-                          await WcConnector.qrScanHandler(url_);
-                        }
+                        await WcConnector.qrScanHandler(url_);
                       } else {
                         await WcConnector.wcReconnect();
                       }
