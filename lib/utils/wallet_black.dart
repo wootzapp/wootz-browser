@@ -98,6 +98,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                       Icon(Icons.arrow_forward),
                                     ],
                                   ),
+
                                 ),
                               ],
                             ),
@@ -146,6 +147,7 @@ class _WalletBlackState extends State<WalletBlack> {
                           child: Column(children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
                               children: const [
                                 Text('Send'),
                                 Icon(
@@ -349,6 +351,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                           )),
                                     );
 
+
                                     return;
                                   }
 
@@ -390,6 +393,7 @@ class _WalletBlackState extends State<WalletBlack> {
                       const Text('Explore sites'),
                       const SizedBox(
                         height: 15,
+
                       ),
                       Row(
                         children: const [
@@ -468,6 +472,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                   ),
                                 );
 
+
                                 return;
                               }
                               showDialog(
@@ -537,6 +542,7 @@ class _WalletBlackState extends State<WalletBlack> {
                             ),
                           ),
                           SizedBox(
+
                             width: 100,
                             child: Column(
                               children: const [
@@ -584,6 +590,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                   ),
                                 ],
                               ),
+
                             ),
                           ),
                         ]),

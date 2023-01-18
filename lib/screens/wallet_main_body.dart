@@ -567,6 +567,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                             .bottomNavigationBarTheme
                             .backgroundColor,
                         child: Padding(
+
                           padding: const EdgeInsets.all(20),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
