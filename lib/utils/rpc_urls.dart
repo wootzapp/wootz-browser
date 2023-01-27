@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
 import 'package:cryptowallet/google_drive/drive.dart';
+import 'package:cryptowallet/screens/sign.dart';
 import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
@@ -3238,13 +3239,21 @@ signTransaction({
 
 signMessage({
   BuildContext context,
+  List<String> raw,
+  String method,
   String data,
   String networkIcon,
   String name,
   Function onConfirm,
   Function onReject,
   String messageType,
+  dynamic uri,
+  int chainId,
+  String version,
+  String topic,
 }) async {
+  print(data);
+  print(raw[0]);
   String decoded = data;
 
   if (messageType == personalSignKey && data != null && isHexString(data)) {
@@ -3252,159 +3261,37 @@ signMessage({
       decoded = ascii.decode(txDataToUintList(data));
     } catch (_) {}
   }
+  // print(raw.length);
+  // print(raw[0]);
+  // print(raw[1]);
 
-  slideUpPanel(
-    context,
-    SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 25.0, right: 25, bottom: 25),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      onPressed: null,
-                      icon: Icon(
-                        Icons.close,
-                        color: Colors.transparent,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    AppLocalizations.of(context).signMessage,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20.0,
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      onPressed: () {
-                        if (Navigator.canPop(context)) {
-                          onReject();
-                        }
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (networkIcon != null)
-              Container(
-                height: 50.0,
-                width: 50.0,
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: CachedNetworkImage(
-                  imageUrl: ipfsTohttp(networkIcon),
-                  placeholder: (context, url) => Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Loader(
-                          color: appPrimaryColor,
-                        ),
-                      )
-                    ],
-                  ),
-                  errorWidget: (context, url, error) => const Icon(
-                    Icons.error,
-                    color: Colors.red,
-                  ),
-                ),
-              ),
-            if (name != null)
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.normal,
-                  fontSize: 16.0,
-                ),
-              ),
-            Theme(
-              data:
-                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: ExpansionTile(
-                  initiallyExpanded: true,
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(
-                    AppLocalizations.of(context).message,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18.0,
-                    ),
-                  ),
-                  children: [
-                    if (messageType == typedMessageSignKey)
-                      JsonViewer(
-                        json.decode(decoded),
-                        fontSize: 16,
-                      )
-                    else
-                      Text(
-                        decoded,
-                        style: const TextStyle(fontSize: 16.0),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: const Color(0xff007bff),
-                    ),
-                    onPressed: () async {
-                      if (await authenticate(context)) {
-                        onConfirm();
-                      } else {
-                        onReject();
-                      }
-                    },
-                    child: Text(
-                      AppLocalizations.of(context).sign,
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16.0),
-                Expanded(
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: const Color(0xff007bff),
-                    ),
-                    onPressed: onReject,
-                    child: Text(
-                      AppLocalizations.of(context).reject,
-                      style: const TextStyle(fontSize: 18),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ),
-    canDismiss: false,
-  );
+  // print('from rpc_utils');
+  // print(decoded);
+  // print(data);
+  DateTime now = DateTime.now();
+  // print(now);
+  // print('topic $topic');
+  // final pref = Hive.box(secureStorageKey);
+  // int chainId = pref.get(dappChainIdKey);
+
+  await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SignMessage(
+            method: method,
+            raw: raw,
+            data: data,
+            networkIcon: networkIcon,
+            name: name,
+            onConfirm: onConfirm,
+            onReject: onReject,
+            messageType: messageType,
+            decoded: decoded,
+            dateTime: now,
+            chainId: chainId,
+            uri: uri,
+            version: version,
+            topic: topic,
+          )));
+  // Navigator.pop(context);
 }
 
 Future<Map> decodeAbi(String txData) async {

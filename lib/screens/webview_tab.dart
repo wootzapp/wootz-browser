@@ -470,7 +470,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
                       if (session != WCSession.empty()) {
                         if (!checkWallet) {
-                          showModalCreateWallet();
+                          await showModalCreateWallet();
                         } else {
                           await WcConnector.qrScanHandler(url_);
                         }
@@ -484,7 +484,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
                       if (session != WCSession.empty()) {
                         if (!checkWallet) {
-                          showModalCreateWallet();
+                          await showModalCreateWallet();
                         } else {
                           await WcConnector.qrScanHandler(url_);
                         }
@@ -505,15 +505,19 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   },
                   onWebViewCreated: (controller) async {
                     final redirectUrl = pref.get('redirectUrl');
-                    if (redirectUrl != null) {
-                      print('hi from onwebviewCreated calling redirect url');
-                      setRedirectUrl(controller, redirectUrl);
-                      await pref.put('redirectUrl', null);
-                      print('redirectUrl set null');
-                    } else {
-                      print('redirect url is empty -> onWebViewCreated');
-                      if (controller != null) print(controller);
+                    bool hasWallet = pref.get(mnemonicKey) != null;
+                    if (!hasWallet) {
+                      if (redirectUrl != null) {
+                        print('hi from onwebviewCreated calling redirect url');
+                        setRedirectUrl(controller, redirectUrl);
+                        await pref.put('redirectUrl', null);
+                        print('redirectUrl set null');
+                      } else {
+                        print('redirect url is empty -> onWebViewCreated');
+                        if (controller != null) print(controller);
+                      }
                     }
+
                     _controller = controller;
                     webNotificationController =
                         WebNotificationController(controller);
@@ -981,6 +985,8 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
                         final id = args[0];
                         String data = args[1];
+                        print('from webview_tab.dart');
+                        print(data);
                         String messageType = args[2];
                         if (messageType == typedMessageSignKey) {
                           data = json.decode(data)['data'];
@@ -1134,7 +1140,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
                         if (session != WCSession.empty()) {
                           if (!checkWallet) {
-                            showModalCreateWallet();
+                            await showModalCreateWallet();
                           } else {
                             await WcConnector.qrScanHandler(url_);
                           }
