@@ -75,7 +75,6 @@ class _PortfolioState extends State<Portfolio> {
       // final userBalanceModel =
       //     Provider.of<UserBalanceNotifier>(context, listen: false);
       // userBalanceModel.updateUserBalance(userBalance.value);
-
     } catch (_) {}
   }
 
@@ -157,7 +156,6 @@ class _PortfolioState extends State<Portfolio> {
                                       fontSize: 30,
                                       fontWeight: FontWeight.bold),
                                 ),
-
                               ),
                             );
                           } else {

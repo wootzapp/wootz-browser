@@ -116,6 +116,7 @@ class WcConnector {
   _onConnect() {}
 
   _onSessionRequest(int id, WCPeerMeta peerMeta) {
+    print(peerMeta);
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -441,6 +442,9 @@ class WcConnector {
     int id,
     WCEthereumSignMessage ethereumSignMessage,
   ) async {
+    // print(ethereumSignMessage.raw);
+    // print(ethereumSignMessage.type);
+    // print(ethereumSignMessage.data);
     List icon = wcClient.remotePeerMeta.icons;
     String messageType = '';
     if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
@@ -450,13 +454,19 @@ class WcConnector {
     } else if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
       messageType = typedMessageSignKey;
     }
-
+    String method = 'onEthSign';
     await signMessage(
+      method: method,
+      raw: ethereumSignMessage.raw,
       messageType: messageType,
       context: context,
       data: ethereumSignMessage.data,
       networkIcon: icon.isNotEmpty ? icon[0] : null,
       name: wcClient.remotePeerMeta.name,
+      uri: wcClient.remotePeerMeta.url,
+      chainId: wcClient.chainId,
+      version: wcClient.session.version,
+      topic: wcClient.session.topic,
       onConfirm: () async {
         await setSigningDetails(wcClient.chainId);
         String signedDataHex;
