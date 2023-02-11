@@ -2515,15 +2515,6 @@ Future<Widget> dappWidget(
     rpc,
   );
 
-  // final redirectUrl = pref.get('redirectUrl');
-  // if (redirectUrl != null) {
-  //   WebViewTab(
-  //       provider: provider,
-  //       webNotifier: webNotifer,
-  //       init: init,
-  //       data: data,
-  //       url: redirectUrl);
-  // }
   return Dapp(
     provider: provider,
     webNotifier: webNotifer,
