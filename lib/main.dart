@@ -11,6 +11,7 @@ import 'package:cryptowallet/utils/web_notifications.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 // import 'package:get/get.dart';
@@ -32,6 +33,9 @@ import 'utils/wc_connector.dart';
 void main() async {
   Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    await InAppWebViewController.setWebContentsDebuggingEnabled(true);
+  }
   await FlutterDownloader.initialize();
   await Hive.initFlutter();
 
@@ -165,16 +169,19 @@ class _MyAppState extends State<MyApp> {
       child: MultiValueListenableBuilder(
           valueListenables: [MyApp.themeNotifier, _locale],
           builder: (context, value, child) {
-            return MaterialApp(
-              navigatorKey: NavigationService.navigatorKey, // set property
-              locale: _locale.value,
-              debugShowCheckedModeBanner: false,
-              theme: lightTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              darkTheme: darkTheme,
-              themeMode: MyApp.themeNotifier.value,
-              home: const MyHomePage(),
+            return ChangeNotifierProvider(
+              create: (context) => ProviderClass(),
+              child: MaterialApp(
+                navigatorKey: NavigationService.navigatorKey, // set property
+                locale: _locale.value,
+                debugShowCheckedModeBanner: false,
+                theme: lightTheme,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                darkTheme: darkTheme,
+                themeMode: MyApp.themeNotifier.value,
+                home: const MyHomePage(),
+              ),
             );
           }),
     );

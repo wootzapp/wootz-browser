@@ -16,6 +16,7 @@ import '../screens/main_screen.dart';
 import '../screens/security.dart';
 import '../screens/send_token.dart';
 import '../screens/transfer_token.dart';
+import '../screens/view_profiles.dart';
 import '../screens/view_wallets.dart';
 import '../screens/wallet_main_body.dart';
 import 'app_config.dart';
@@ -61,7 +62,7 @@ class _WalletBlackState extends State<WalletBlack> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Wallets'),
+                                const Text('Profiles'),
                                 GestureDetector(
                                   onTap: () async {
                                     final pref = Hive.box(secureStorageKey);
@@ -73,7 +74,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                     if (currentPhrase != null) {
                                       await Navigator.of(context)
                                           .push(MaterialPageRoute(
-                                        builder: (_) => ViewWallets(
+                                        builder: (_) => ViewProfiles(
                                           data: (jsonDecode(mnemonics) as List),
                                           currentPhrase: currentPhrase,
                                         ),
@@ -82,7 +83,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(SnackBar(
                                         content:
-                                            const Text('No Wallets Created'),
+                                            const Text('No Profiles Created'),
                                         backgroundColor: Colors.red,
                                         action: SnackBarAction(
                                           label: 'OK',
@@ -94,7 +95,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                   },
                                   child: Row(
                                     children: const [
-                                      Text('See all'),
+                                      Text('See all Profiles'),
                                       Icon(Icons.arrow_forward),
                                     ],
                                   ),

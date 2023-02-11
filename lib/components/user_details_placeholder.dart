@@ -129,10 +129,10 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
               const SizedBox(
                 width: 10,
               ),
-              Text(
-                '${(widget.showHi ?? false) ? AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
-                style: TextStyle(fontSize: widget.textSize),
-              )
+              // Text(
+              //   '${(widget.showHi ?? false) ? AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
+              //   style: TextStyle(fontSize: widget.textSize),
+              // )
             ],
           );
         });

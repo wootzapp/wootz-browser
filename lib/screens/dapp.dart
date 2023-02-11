@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui';
 import 'package:cryptowallet/screens/custom_image.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
@@ -16,17 +17,21 @@ import 'package:flutter_js/extensions/fetch.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
 import 'package:share/share.dart';
+import '../model/provider.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import '../utils/wallet_black.dart';
+import '../utils/wc_connector.dart';
 
 class Dapp extends StatefulWidget {
   final String provider;
   final String webNotifier;
   final String init;
   final String data;
+
   const Dapp({
     Key key,
     this.data,
@@ -67,6 +72,8 @@ class _DappState extends State<Dapp> {
     if (url == null && windowId == null) {
       url = walletURL;
     }
+
+    print('inside createWebViewTab $windowId');
 
     webViewTab = WebViewTab(
       key: GlobalKey(),
@@ -519,10 +526,18 @@ class _DappState extends State<Dapp> {
                                               width: 10,
                                             ),
                                             FutureBuilder(future: () async {
-                                              final pref =
-                                                  Hive.box(secureStorageKey);
-                                              final chainId =
-                                                  pref.get(dappChainIdKey);
+                                              // final pref =
+                                              //     Hive.box(secureStorageKey);
+                                              int viewId =
+                                                  webViewTabs[currentTabIndex]
+                                                      .controller
+                                                      .getViewId();
+                                              final tabUserData =
+                                                  Provider.of<ProviderClass>(
+                                                      context,
+                                                      listen: false);
+                                              final chainId = tabUserData
+                                                  .tabUserCred[viewId]['chain'];
                                               return getEthereumDetailsFromChainId(
                                                   chainId)['symbol'];
                                             }(), builder: (context, snapshot) {
@@ -658,6 +673,10 @@ class _DappState extends State<Dapp> {
       child: InkWell(
         onTap: () {
           _selectWebViewTab(webViewTab);
+          final tabUserData =
+              Provider.of<ProviderClass>(context, listen: false);
+          tabUserData.setCurrentWindowId(currentTabIndex);
+          WcConnector.windowId = currentTabIndex;
         },
         child: Column(
           children: [

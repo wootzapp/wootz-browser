@@ -14,7 +14,10 @@ Widget buildRow(
           children: [
             Row(
               children: <Widget>[
-                CircleAvatar(backgroundImage: AssetImage(imageAsset)),
+                if (imageAsset != '')
+                  CircleAvatar(backgroundImage: AssetImage(imageAsset))
+                else
+                  const Icon(Icons.account_box_rounded),
                 const SizedBox(width: 12),
                 Text(name),
               ],

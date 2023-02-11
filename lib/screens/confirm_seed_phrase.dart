@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 
+import 'package:cryptowallet/model/provider.dart';
 import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
+import 'package:provider/provider.dart';
 import 'package:screenshot_callback/screenshot_callback.dart';
 import '../components/loader.dart';
 import '../config/colors.dart';
@@ -161,6 +163,13 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
 
       await pref.put(currentMmenomicKey, mnemonics);
 
+      final setDefaultProfileFirstTime =
+          Provider.of<ProviderClass>(context, listen: false);
+
+      if (decodedmnemonic.length == 1) {
+        setDefaultProfileFirstTime.setDefaultProfile();
+      }
+
       await pref.put(
         currentUserWalletNameKey,
         null,
@@ -196,7 +205,6 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       //   '',
       //   AppLocalizations.of(context).walletCreated,
       // );
-
     } catch (e) {
       if (kDebugMode) {
         print(e);
