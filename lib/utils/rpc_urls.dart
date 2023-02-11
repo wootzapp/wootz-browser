@@ -2286,6 +2286,89 @@ showDialogWithMessage({
   ).show();
 }
 
+showProfileDialog({
+  Function onTap,
+  BuildContext context,
+  String selectedProfile,
+}) {
+  final pref = Hive.box(secureStorageKey);
+  final mnemonicList = json.decode(pref.get(mnemonicListKey)) as List;
+  bool isSelected = false;
+
+  final ethEnabledProfile = <Widget>[];
+  for (var i = 0; i < mnemonicList.length; i++) {
+    if (selectedProfile != null &&
+        mnemonicList[i]['phrase'] == selectedProfile) {
+      isSelected = true;
+    } else {
+      isSelected = false;
+    }
+    String phrase = mnemonicList[i]['phrase'];
+    String name = mnemonicList[i]['name'] ?? 'MainProfile ${i + 1}';
+    String image = '';
+    ethEnabledProfile.add(InkWell(
+      onTap: () {
+        onTap(phrase, name);
+      },
+      child: buildRow(
+        image,
+        name,
+        isSelected: isSelected,
+      ),
+    ));
+  }
+  slideUpPanel(
+    context,
+    Container(
+      color: Colors.transparent,
+      child: ListView(
+        shrinkWrap: true,
+        children: <Widget>[
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  onPressed: null,
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.transparent,
+                  ),
+                ),
+              ),
+              const Text(
+                // AppLocalizations.of(context).selectProfiles,
+                'Select Profile',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20.0,
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  onPressed: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...ethEnabledProfile,
+          const SizedBox(height: 20),
+        ],
+      ),
+    ),
+    canDismiss: false,
+  );
+}
+
 showBlockChainDialog({
   Function onTap,
   BuildContext context,
@@ -2399,7 +2482,9 @@ Future<Widget> dappWidget(
   String data,
 ) async {
   final pref = Hive.box(secureStorageKey);
-  if (pref.get(currentMmenomicKey) == null) {
+  final currentMmemonic = pref.get(currentMmenomicKey);
+
+  if (currentMmemonic == null) {
     return Dapp(
       provider: '',
       webNotifier: '',
@@ -2410,7 +2495,9 @@ Future<Widget> dappWidget(
   final provider =
       await rootBundle.loadString('dappBrowser/alphawallet.min.js');
 
-  if (pref.get(dappChainIdKey) == null) {
+  final currentDappChainIdKey = pref.get(dappChainIdKey);
+
+  if (currentDappChainIdKey == null) {
     await pref.put(
       dappChainIdKey,
       getEVMBlockchains()[tokenContractNetwork]['chainId'],
@@ -2428,15 +2515,6 @@ Future<Widget> dappWidget(
     rpc,
   );
 
-  // final redirectUrl = pref.get('redirectUrl');
-  // if (redirectUrl != null) {
-  //   WebViewTab(
-  //       provider: provider,
-  //       webNotifier: webNotifer,
-  //       init: init,
-  //       data: data,
-  //       url: redirectUrl);
-  // }
   return Dapp(
     provider: provider,
     webNotifier: webNotifer,

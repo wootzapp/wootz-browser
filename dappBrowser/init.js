@@ -1,4 +1,9 @@
-(function () {
+// import { initializeProvider } from '@metamask/providers';
+// import detectEthereumProvider from '@metamask/detect-provider';
+(
+
+  function () {
+  // setMetatag();
   const __addressHex = "%1$s";
   const __rpcURL = "%2$s";
   const __chainID = "%3$s";
@@ -61,11 +66,36 @@
   window.addEventListener("flutterInAppWebViewPlatformReady", function (event) {
     isFlutterInAppWebViewReady = true;
     console.log("done and ready");
+
+    // metamaskProvider();
+    // console.log('metamaskProvider called');
+
   });
+
+  function setMetatag(){
+    var meta=document.createElement('meta');
+    meta.httpEquiv = 'Content-Security-Policy';
+    meta.content = "script-src 'self'; font-src 'self' data: blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
+
+    document.getElementsByTagName('head')[0].appendChild(meta);
+  }
+  
+  // async function metamaskProvider() {
+  //   if(window.ethereum !== undefined)
+  //   {
+  //     // ethereum.isMetamask = true;
+      
+  //     // console.log("metmask set to true");
+  //     console.log('before requestAccounts');
+  //     await ethereum.request({method:'eth_requestAccounts'});
+  //     console.log('requestAccounts done');
+  //   }
+  // }
 
   window.AlphaWallet.init(
     __rpcURL,
     {
+
       getAccounts: function (cb) {
         cb(null, [__addressHex]);
       },
