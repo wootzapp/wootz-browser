@@ -2,6 +2,8 @@
 
 ## ⚔️ Kill The Wallet
 
+💫💫💫 **we would be very grateful if you could take 5 seconds to star our repository on Github. It helps get the word out to more crypto, web3 and Flutter developers & open source committers about WootzApp** 💫💫💫
+
 - 👐 **Open Source**. We have the exact same license as Metamask
 - 🎁 **No Extensions**. Just use the damn browser!
 - 🙈 **Privacy First**. Not even ads.
