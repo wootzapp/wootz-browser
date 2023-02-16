@@ -76,7 +76,8 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
         valueListenable: userDetails_,
         builder: (context, value, child) {
           if (userDetails_.value.isEmpty) {
-            return loader;
+            return Icon(Icons.account_box_sharp);
+            // return loader;
           }
 
           if (userDetails_.value['name'] == null) {

@@ -34,7 +34,7 @@ Widget buildRow(
                     color: Colors.white,
                   ),
                 ),
-              )
+              ),
           ],
         ),
         const Divider()

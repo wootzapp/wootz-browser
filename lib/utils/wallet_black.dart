@@ -131,7 +131,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                   SizedBox(
                                     width: 5,
                                   ),
-                                  Text('Create new wallet'),
+                                  Text('Create new Profile'),
                                 ],
                               ),
                             )
@@ -385,211 +385,211 @@ class _WalletBlackState extends State<WalletBlack> {
                           ]),
                         ),
                       ),
-                      const SizedBox(
-                        height: 15,
-                      ),
-                      const Text('Explore sites'),
-                      const SizedBox(
-                        height: 15,
-                      ),
-                      Row(
-                        children: const [
-                          Expanded(
-                            child: Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(20.0),
-                                child: Text('Currence'),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(20.0),
-                                child: Text('Exchange rate'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      // const SizedBox(
+                      //   height: 15,
+                      // ),
+                      // const Text('Explore sites'),
+                      // const SizedBox(
+                      //   height: 15,
+                      // ),
+                      // Row(
+                      //   children: const [
+                      //     Expanded(
+                      //       child: Card(
+                      //         child: Padding(
+                      //           padding: EdgeInsets.all(20.0),
+                      //           child: Text('Currence'),
+                      //         ),
+                      //       ),
+                      //     ),
+                      //     Expanded(
+                      //       child: Card(
+                      //         child: Padding(
+                      //           padding: EdgeInsets.all(20.0),
+                      //           child: Text('Exchange rate'),
+                      //         ),
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
                       const SizedBox(
                         height: 10,
                       ),
                     ],
                   ),
                 ),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Transactions history'),
-                          Row(
-                            children: const [
-                              Text('See all'),
-                              Icon(Icons.arrow_forward),
-                            ],
-                          )
-                        ],
-                      )
-                    ]),
-                  ),
-                ),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          GestureDetector(
-                            onTap: () async {
-                              String data = await Navigator.of(context)
-                                  .push(MaterialPageRoute(
-                                builder: (_) => const QRScanView(),
-                              ));
-                              if (data == null) {
-                                // Get.snackbar(
-                                //   '',
-                                //   eIP681ProcessingErrorMsg,
-                                //   colorText: Colors.white,
-                                //   backgroundColor: Colors.red,
-                                // );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content:
-                                        const Text(eIP681ProcessingErrorMsg),
-                                    backgroundColor: Colors.red,
-                                    action: SnackBarAction(
-                                      textColor: Colors.white,
-                                      label: 'OK',
-                                      onPressed: (() {}),
-                                    ),
-                                  ),
-                                );
+                // Card(
+                //   child: Padding(
+                //     padding: const EdgeInsets.all(10),
+                //     child: Column(children: [
+                //       Row(
+                //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //         children: [
+                //           const Text('Transactions history'),
+                //           Row(
+                //             children: const [
+                //               Text('See all'),
+                //               Icon(Icons.arrow_forward),
+                //             ],
+                //           )
+                //         ],
+                //       )
+                //     ]),
+                //   ),
+                // ),
+                //   Card(
+                //     child: Padding(
+                //       padding: const EdgeInsets.all(10),
+                //       child: Row(
+                //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //           children: [
+                //             GestureDetector(
+                //               onTap: () async {
+                //                 String data = await Navigator.of(context)
+                //                     .push(MaterialPageRoute(
+                //                   builder: (_) => const QRScanView(),
+                //                 ));
+                //                 if (data == null) {
+                //                   // Get.snackbar(
+                //                   //   '',
+                //                   //   eIP681ProcessingErrorMsg,
+                //                   //   colorText: Colors.white,
+                //                   //   backgroundColor: Colors.red,
+                //                   // );
+                //                   ScaffoldMessenger.of(context).showSnackBar(
+                //                     SnackBar(
+                //                       content:
+                //                           const Text(eIP681ProcessingErrorMsg),
+                //                       backgroundColor: Colors.red,
+                //                       action: SnackBarAction(
+                //                         textColor: Colors.white,
+                //                         label: 'OK',
+                //                         onPressed: (() {}),
+                //                       ),
+                //                     ),
+                //                   );
 
-                                return;
-                              }
-                              showDialog(
-                                  barrierDismissible: false,
-                                  context: context,
-                                  builder: (context) {
-                                    return AlertDialog(
-                                        backgroundColor: Colors.white,
-                                        content: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            SizedBox(
-                                              width: 35,
-                                              height: 35,
-                                              child: Loader(),
-                                            ),
-                                          ],
-                                        ));
-                                  });
+                //                   return;
+                //                 }
+                //                 showDialog(
+                //                     barrierDismissible: false,
+                //                     context: context,
+                //                     builder: (context) {
+                //                       return AlertDialog(
+                //                           backgroundColor: Colors.white,
+                //                           content: Column(
+                //                             mainAxisAlignment:
+                //                                 MainAxisAlignment.center,
+                //                             mainAxisSize: MainAxisSize.min,
+                //                             children: const [
+                //                               SizedBox(
+                //                                 width: 35,
+                //                                 height: 35,
+                //                                 child: Loader(),
+                //                               ),
+                //                             ],
+                //                           ));
+                //                     });
 
-                              Map scannedData = await processEIP681(data);
+                //                 Map scannedData = await processEIP681(data);
 
-                              if (Navigator.canPop(context)) {
-                                Navigator.of(context).pop();
-                              }
+                //                 if (Navigator.canPop(context)) {
+                //                   Navigator.of(context).pop();
+                //                 }
 
-                              if (scannedData['success']) {
-                                await Navigator.of(context)
-                                    .push(MaterialPageRoute(
-                                  builder: (_) => SendToken(
-                                    data: scannedData['msg'],
-                                  ),
-                                ));
-                                return;
-                              }
-                              // Get.snackbar(
-                              //   '',
-                              //   scannedData['msg'],
-                              //   colorText: Colors.white,
-                              //   backgroundColor: Colors.red,
-                              // );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(scannedData['msg']),
-                                  backgroundColor: Colors.red,
-                                  action: SnackBarAction(
-                                    label: 'OK',
-                                    textColor: Colors.white,
-                                    onPressed: () {},
-                                  ),
-                                ),
-                              );
-                            },
-                            child: SizedBox(
-                              width: 100,
-                              child: Column(
-                                children: const [
-                                  Icon(Icons.qr_code),
-                                  Text(
-                                    'Scan',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 100,
-                            child: Column(
-                              children: const [
-                                Icon(Icons.search),
-                                Text(
-                                  'Search Engine',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () async {
-                              final pref = Hive.box(secureStorageKey);
-                              bool hasWallet =
-                                  pref.get(currentMmenomicKey) != null;
+                //                 if (scannedData['success']) {
+                //                   await Navigator.of(context)
+                //                       .push(MaterialPageRoute(
+                //                     builder: (_) => SendToken(
+                //                       data: scannedData['msg'],
+                //                     ),
+                //                   ));
+                //                   return;
+                //                 }
+                //                 // Get.snackbar(
+                //                 //   '',
+                //                 //   scannedData['msg'],
+                //                 //   colorText: Colors.white,
+                //                 //   backgroundColor: Colors.red,
+                //                 // );
+                //                 ScaffoldMessenger.of(context).showSnackBar(
+                //                   SnackBar(
+                //                     content: Text(scannedData['msg']),
+                //                     backgroundColor: Colors.red,
+                //                     action: SnackBarAction(
+                //                       label: 'OK',
+                //                       textColor: Colors.white,
+                //                       onPressed: () {},
+                //                     ),
+                //                   ),
+                //                 );
+                //               },
+                //               child: SizedBox(
+                //                 width: 100,
+                //                 child: Column(
+                //                   children: const [
+                //                     Icon(Icons.qr_code),
+                //                     Text(
+                //                       'Scan',
+                //                       style: TextStyle(fontSize: 12),
+                //                     ),
+                //                   ],
+                //                 ),
+                //               ),
+                //             ),
+                //             SizedBox(
+                //               width: 100,
+                //               child: Column(
+                //                 children: const [
+                //                   Icon(Icons.search),
+                //                   Text(
+                //                     'Search Engine',
+                //                     style: TextStyle(fontSize: 12),
+                //                   ),
+                //                 ],
+                //               ),
+                //             ),
+                //             GestureDetector(
+                //               onTap: () async {
+                //                 final pref = Hive.box(secureStorageKey);
+                //                 bool hasWallet =
+                //                     pref.get(currentMmenomicKey) != null;
 
-                              bool hasPasscode =
-                                  pref.get(userUnlockPasscodeKey) != null;
-                              Widget dappWidget;
-                              // Get.back();
-                              // Navigator.of(context).pop();
+                //                 bool hasPasscode =
+                //                     pref.get(userUnlockPasscodeKey) != null;
+                //                 Widget dappWidget;
+                //                 // Get.back();
+                //                 // Navigator.of(context).pop();
 
-                              if (hasWallet) {
-                                dappWidget = const WalletMainBody();
-                              } else if (hasPasscode) {
-                                dappWidget = const MainScreen();
-                              } else {
-                                dappWidget = const Security();
-                              }
-                              await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                      builder: (_) => dappWidget));
-                              // await Get.to(dappWidget);
-                            },
-                            child: SizedBox(
-                              width: 100,
-                              child: Column(
-                                children: const [
-                                  Icon(FontAwesomeIcons.wallet),
-                                  Text(
-                                    'My wallet',
-                                    style: TextStyle(fontSize: 12),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ]),
-                  ),
-                ),
+                //                 if (hasWallet) {
+                //                   dappWidget = const WalletMainBody();
+                //                 } else if (hasPasscode) {
+                //                   dappWidget = const MainScreen();
+                //                 } else {
+                //                   dappWidget = const Security();
+                //                 }
+                //                 await Navigator.of(context).push(
+                //                     MaterialPageRoute(
+                //                         builder: (_) => dappWidget));
+                //                 // await Get.to(dappWidget);
+                //               },
+                //               child: SizedBox(
+                //                 width: 100,
+                //                 child: Column(
+                //                   children: const [
+                //                     Icon(FontAwesomeIcons.wallet),
+                //                     Text(
+                //                       'My wallet',
+                //                       style: TextStyle(fontSize: 12),
+                //                       textAlign: TextAlign.center,
+                //                     ),
+                //                   ],
+                //                 ),
+                //               ),
+                //             ),
+                //           ]),
+                //     ),
+                //   ),
               ],
             ),
           ),
