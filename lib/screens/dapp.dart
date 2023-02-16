@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:cryptowallet/screens/custom_image.dart';
 import 'package:cryptowallet/screens/main_screen.dart';
+import 'package:cryptowallet/screens/profiles_tabView.dart';
 import 'package:cryptowallet/screens/saved_urls.dart';
 import 'package:cryptowallet/screens/security.dart';
 import 'package:cryptowallet/screens/settings.dart';
@@ -19,6 +20,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:share/share.dart';
+import '../components/user_details_placeholder.dart';
 import '../model/provider.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -43,13 +45,14 @@ class Dapp extends StatefulWidget {
   State<Dapp> createState() => _DappState();
 }
 
-class _DappState extends State<Dapp> {
+class _DappState extends State<Dapp> with SingleTickerProviderStateMixin {
   ValueNotifier loadingPercent = ValueNotifier<double>(0);
   String urlLoaded = '';
   bool showWebViewTabsViewer = false;
   String initJs = '';
   List<WebViewTab> webViewTabs = [];
   int currentTabIndex = 0;
+
   @override
   initState() {
     super.initState();
@@ -74,6 +77,14 @@ class _DappState extends State<Dapp> {
     }
 
     print('inside createWebViewTab $windowId');
+
+    // final tabUserData = Provider.of<ProviderClass>(context, listen: false);
+    // if (windowId == null) {
+    //   tabUserData.setDefaultProfile();
+    //   tabUserData.addTabUserCred(0);
+    // } else {
+    //   tabUserData.addTabUserCred(windowId);
+    // }
 
     webViewTab = WebViewTab(
       key: GlobalKey(),
@@ -161,18 +172,38 @@ class _DappState extends State<Dapp> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.qr_code_scanner,
-                          ),
-                          onPressed: () async {},
+                        SizedBox(
+                          width: 10,
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.mic_outlined,
+                        GestureDetector(
+                          onTap: () {
+                            // _selectProfile();
+                            if (pref.get(mnemonicListKey) != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ProfilesTabView(),
+                                ),
+                              );
+                              setState(() {});
+                            }
+                          },
+                          child: UserDetailsPlaceHolder(
+                            size: .5,
+                            showHi: false,
                           ),
-                          onPressed: () async {},
                         ),
+                        //   IconButton(
+                        //     icon: const Icon(
+                        //       Icons.qr_code_scanner,
+                        //     ),
+                        //     onPressed: () async {},
+                        //   ),
+                        //   IconButton(
+                        //     icon: const Icon(
+                        //       Icons.mic_outlined,
+                        //     ),
+                        //     onPressed: () async {},
+                        //   ),
                       ],
                     ),
                     hintText: AppLocalizations.of(context).searchOrEnterUrl,
@@ -675,8 +706,9 @@ class _DappState extends State<Dapp> {
           _selectWebViewTab(webViewTab);
           final tabUserData =
               Provider.of<ProviderClass>(context, listen: false);
-          tabUserData.setCurrentWindowId(currentTabIndex);
-          WcConnector.windowId = currentTabIndex;
+          int viewId = webViewTabs[currentTabIndex].controller.getViewId();
+          tabUserData.setCurrentWindowId(viewId);
+          WcConnector.windowId = viewId;
         },
         child: Column(
           children: [
@@ -795,6 +827,23 @@ class _DappState extends State<Dapp> {
       return true;
     }
     return false;
+  }
+
+  void _selectProfile() async {
+    print('select Profile');
+    final tabUserData = Provider.of<ProviderClass>(context, listen: false);
+    String tabProfile = tabUserData.tabUserCred[currentTabIndex]['profile'];
+    await showProfileDialog(
+      onTap: (phrase, name) {
+        print('name inside showProfileDialog $name');
+        tabUserData.changeTabUserCred(currentTabIndex, phrase, null);
+        Navigator.of(context).pop();
+        // loadUserData(false);
+        // selectBlockChain();
+      },
+      context: context,
+      selectedProfile: tabProfile,
+    );
   }
 
   @override
