@@ -50,6 +50,11 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
     }
   }
 
+  String getAddressFromScannedData(String data) {
+    int index = data.indexOf(':');
+    return data.substring(index + 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +68,9 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                 scanLineColor: appBackgroundblue,
                 onCapture: (data) {
                   // Get.back(result: data);
-                  Navigator.of(context).pop(data);
+                  String sendAddress = getAddressFromScannedData(data);
+                  // print('print data from qr-scan $sendAddress');
+                  Navigator.of(context).pop(sendAddress);
                 },
               ),
               Positioned(
