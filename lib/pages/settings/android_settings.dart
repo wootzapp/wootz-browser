@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_browser/models/browser_model.dart';
-import 'package:flutter_browser/models/webview_model.dart';
+import 'package:cryptowallet/models/browser_model.dart';
+import 'package:cryptowallet/models/webview_model.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';

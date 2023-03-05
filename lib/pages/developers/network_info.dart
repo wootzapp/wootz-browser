@@ -1,8 +1,8 @@
 // import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_browser/custom_image.dart';
-import 'package:flutter_browser/models/webview_model.dart';
+import 'package:cryptowallet/custom_image.dart';
+import 'package:cryptowallet/models/webview_model.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mime/mime.dart';

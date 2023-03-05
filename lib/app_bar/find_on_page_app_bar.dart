@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_browser/models/browser_model.dart';
+import 'package:cryptowallet/models/browser_model.dart';
 import 'package:provider/provider.dart';
 
 class FindOnPageAppBar extends StatefulWidget {

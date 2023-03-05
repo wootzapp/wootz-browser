@@ -3,17 +3,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_browser/app_bar/url_info_popup.dart';
-import 'package:flutter_browser/custom_image.dart';
-import 'package:flutter_browser/main.dart';
-import 'package:flutter_browser/models/browser_model.dart';
-import 'package:flutter_browser/models/favorite_model.dart';
-import 'package:flutter_browser/models/web_archive_model.dart';
-import 'package:flutter_browser/models/webview_model.dart';
-import 'package:flutter_browser/pages/developers/main.dart';
-import 'package:flutter_browser/pages/settings/main.dart';
-import 'package:flutter_browser/tab_popup_menu_actions.dart';
-import 'package:flutter_browser/util.dart';
+import 'package:cryptowallet/app_bar/url_info_popup.dart';
+import 'package:cryptowallet/custom_image.dart';
+import 'package:cryptowallet/main.dart';
+import 'package:cryptowallet/models/browser_model.dart';
+import 'package:cryptowallet/models/favorite_model.dart';
+import 'package:cryptowallet/models/web_archive_model.dart';
+import 'package:cryptowallet/models/webview_model.dart';
+import 'package:cryptowallet/pages/developers/main.dart';
+import 'package:cryptowallet/pages/settings/main.dart';
+import 'package:cryptowallet/tab_popup_menu_actions.dart';
+import 'package:cryptowallet/util.dart';
 import 'package:flutter_font_icons/flutter_font_icons.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
@@ -724,9 +724,13 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
         showWebArchives();
         break;
       case PopupMenuActions.FIND_ON_PAGE:
-        var isFindInteractionEnabled = currentWebViewModel.settings?.isFindInteractionEnabled ?? false;
-        var findInteractionController = currentWebViewModel.findInteractionController;
-        if (Util.isIOS() && isFindInteractionEnabled && findInteractionController != null) {
+        var isFindInteractionEnabled =
+            currentWebViewModel.settings?.isFindInteractionEnabled ?? false;
+        var findInteractionController =
+            currentWebViewModel.findInteractionController;
+        if (Util.isIOS() &&
+            isFindInteractionEnabled &&
+            findInteractionController != null) {
           await findInteractionController.presentFindNavigator();
         } else if (widget.showFindOnPage != null) {
           widget.showFindOnPage!();
@@ -1007,9 +1011,10 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
 
       var currentSettings = await webViewController.getSettings();
       if (currentSettings != null) {
-        currentSettings.preferredContentMode = webViewModel?.isDesktopMode ?? false
-            ? UserPreferredContentMode.DESKTOP
-            : UserPreferredContentMode.RECOMMENDED;
+        currentSettings.preferredContentMode =
+            webViewModel?.isDesktopMode ?? false
+                ? UserPreferredContentMode.DESKTOP
+                : UserPreferredContentMode.RECOMMENDED;
         await webViewController.setSettings(settings: currentSettings);
       }
       await webViewController.reload();
