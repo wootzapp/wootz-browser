@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_browser/material_transparent_page_route.dart';
+import 'package:cryptowallet/material_transparent_page_route.dart';
 
 class CustomPopupDialogPageRoute<T> extends MaterialTransparentPageRoute<T> {
   final Color overlayColor;

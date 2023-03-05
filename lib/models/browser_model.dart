@@ -5,13 +5,13 @@ import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_browser/models/web_archive_model.dart';
+import 'package:cryptowallet/models/web_archive_model.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:flutter_browser/models/favorite_model.dart';
-import 'package:flutter_browser/models/webview_model.dart';
-import 'package:flutter_browser/webview_tab.dart';
+import 'package:cryptowallet/models/favorite_model.dart';
+import 'package:cryptowallet/models/webview_model.dart';
+import 'package:cryptowallet/webview_tab.dart';
 
 import 'search_engine_model.dart';
 import 'package:collection/collection.dart';

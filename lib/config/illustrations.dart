@@ -1,0 +1,27 @@
+import 'package:flutter/material.dart';
+
+final logo = Image.asset('assets/images/logo.png');
+final rocket = Image.asset('assets/images/Rocket.png');
+final check = Image.asset('assets/images/check.png');
+final like = Image.asset('assets/images/like.png');
+final gearsHor = Image.asset('assets/images/setting.png');
+final icon_1Wallet = Image.asset('assets/images/icon_1Wallet.png');
+final icon_2Transactions = Image.asset('assets/images/icon_2Transactions.png');
+final icon_3Scan = Image.asset('assets/images/icon_3Scan.png');
+final icon_4Settings = Image.asset('assets/images/icon_4Settings.png');
+final specular = Image.asset('assets/images/specular.png');
+final specularColored = Image.asset('assets/images/specularColored.png');
+final illus_22_2 = Image.asset('assets/images/specular.png');
+final illus_18_3 = Image.asset('assets/images/18_3.png');
+final failedIcon = Image.asset('assets/images/failedIcon.png');
+final historyIcon = Image.asset('assets/images/historyIcon.png');
+final reciveFailedIcon = Image.asset('assets/images/reciveFailedIcon.png');
+final reciveSuccessIcon = Image.asset('assets/images/reciveSuccessIcon.png');
+final sendFailedIcon = Image.asset('assets/images/sendFailedIcon.png');
+final sendSuccessIcon = Image.asset('assets/images/sendSuccessIcon.png');
+final submittedIcon = Image.asset('assets/images/submittedIcon.png');
+final successIcon = Image.asset('assets/images/successIcon.png');
+final transak = Image.asset('assets/images/transak.png');
+final vector = Image.asset('assets/images/Vector.png');
+final wyre = Image.asset('assets/images/wyre.png');
+final wyre2 = Image.asset('assets/images/wyre.png');
