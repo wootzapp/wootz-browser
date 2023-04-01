@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import 'animated_flutter_browser_logo.dart';
 
 class ProjectInfoPopup extends StatefulWidget {
-  const ProjectInfoPopup({super.key});
+  const ProjectInfoPopup({Key key}) : super(key: key);
 
   @override
   State<StatefulWidget> createState() => _ProjectInfoPopupState();

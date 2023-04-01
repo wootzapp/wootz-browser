@@ -1,13 +1,13 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class FavoriteModel {
-  WebUri? url;
-  String? title;
-  Favicon? favicon;
+  WebUri url;
+  String title;
+  Favicon favicon;
 
-  FavoriteModel({required this.url, required this.title, this.favicon});
+  FavoriteModel({this.url, this.title, this.favicon});
 
-  static FavoriteModel? fromMap(Map<String, dynamic>? map) {
+  static FavoriteModel fromMap(Map<String, dynamic> map) {
     return map != null
         ? FavoriteModel(
             url: map["url"] != null ? WebUri(map["url"]) : null,

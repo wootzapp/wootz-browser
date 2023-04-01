@@ -10,23 +10,23 @@ import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 
 class GetBlockChainWidget extends StatefulWidget {
-  final AssetImage? image;
+  final AssetImage image;
   final String name;
-  final String? priceWithCurrency;
-  final double? cryptoChange;
+  final String priceWithCurrency;
+  final double cryptoChange;
   final Widget cryptoAmount;
   final bool hasPrice;
   final String symbol;
 
   const GetBlockChainWidget({
-    Key? key,
-    AssetImage? image_,
-    required String name_,
-    String? priceWithCurrency_,
-    double? cryptoChange_,
-    required Widget cryptoAmount_,
-    required String symbol_,
-    required bool hasPrice_,
+    Key key,
+    AssetImage image_,
+     String name_,
+    String priceWithCurrency_,
+    double cryptoChange_,
+     Widget cryptoAmount_,
+     String symbol_,
+     bool hasPrice_,
   })  : hasPrice = hasPrice_,
         image = image_,
         symbol = symbol_,
@@ -41,7 +41,7 @@ class GetBlockChainWidget extends StatefulWidget {
 }
 
 class _GetBlockChainWidgetState extends State<GetBlockChainWidget> {
-  Timer? timer;
+  Timer timer;
   // RxMap blockchainPrice = {}.obs;
   final blockchainPrice = ValueNotifier<Map<dynamic, dynamic>>({});
   bool skipNetworkRequest = true;

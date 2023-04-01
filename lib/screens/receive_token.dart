@@ -20,8 +20,7 @@ import '../components/loader.dart';
 class ReceiveToken extends StatefulWidget {
   final Map data;
   final String mnemonic;
-  const ReceiveToken({Key? key, required this.data, required this.mnemonic})
-      : super(key: key);
+  const ReceiveToken({Key key, this.data, this.mnemonic}) : super(key: key);
 
   @override
   _ReceiveTokenState createState() => _ReceiveTokenState();
@@ -50,7 +49,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            '${AppLocalizations.of(context)!.receive} ${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['symbol']) : widget.data['symbol']}'),
+            '${AppLocalizations.of(context).receive} ${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['symbol']) : widget.data['symbol']}'),
       ),
       key: scaffoldKey,
       body: FutureBuilder(
@@ -100,7 +99,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
           }
           if (snapshot.hasData) {
             if (!isRequestingPayment.value) {
-              userAddress.value = snapshot.data!['address'];
+              userAddress.value = snapshot.data['address'];
             }
             return SafeArea(
               child: SingleChildScrollView(
@@ -144,12 +143,12 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                           ));
                           // Get.snackbar(
                           //   '',
-                          //   AppLocalizations.of(context)!.copiedToClipboard,
+                          //   AppLocalizations.of(context).copiedToClipboard,
                           // );
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                AppLocalizations.of(context)!.copiedToClipboard,
+                                AppLocalizations.of(context).copiedToClipboard,
                               ),
                               backgroundColor: Colors.red,
                               action: SnackBarAction(
@@ -196,7 +195,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                       Text.rich(
                           TextSpan(children: [
                             TextSpan(
-                              text: AppLocalizations.of(context)!.sendOnly(
+                              text: AppLocalizations.of(context).sendOnly(
                                 '${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['name']) : widget.data['name']} (${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['symbol']) : widget.data['symbol']})',
                               ),
                             ),
@@ -225,7 +224,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          AppLocalizations.of(context)!
+                                          AppLocalizations.of(context)
                                               .copiedToClipboard,
                                         ),
                                         backgroundColor: Colors.red,
@@ -249,7 +248,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                               const SizedBox(
                                 height: 5,
                               ),
-                              Text(AppLocalizations.of(context)!.copy),
+                              Text(AppLocalizations.of(context).copy),
                             ],
                           ),
                           Column(
@@ -257,7 +256,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                               GestureDetector(
                                   onTap: () async {
                                     await Share.share(
-                                        '${AppLocalizations.of(context)!.publicAddressToReceive} ${widget.data['symbol']} ${(snapshot.data as Map)['address']}');
+                                        '${AppLocalizations.of(context).publicAddressToReceive} ${widget.data['symbol']} ${(snapshot.data as Map)['address']}');
                                   },
                                   child: Container(
                                       width: 40,
@@ -271,10 +270,10 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                               const SizedBox(
                                 height: 5,
                               ),
-                              Text(AppLocalizations.of(context)!.share),
+                              Text(AppLocalizations.of(context).share),
                             ],
                           ),
-                          if (snapshot.data!['isEthReceivePayment'] != null)
+                          if (snapshot.data['isEthReceivePayment'] != null)
                             Column(
                               children: [
                                 GestureDetector(
@@ -293,7 +292,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                           child: Column(
                                             children: <Widget>[
                                               Text(
-                                                AppLocalizations.of(context)!
+                                                AppLocalizations.of(context)
                                                     .requestPayment,
                                               ),
                                               const SizedBox(
@@ -313,7 +312,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                     border: InputBorder.none,
                                                     labelText:
                                                         AppLocalizations.of(
-                                                                context)!
+                                                                context)
                                                             .amount,
                                                     prefixIcon: const Icon(
                                                         Icons.text_fields),
@@ -325,9 +324,9 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                               ),
                                               AnimatedButton(
                                                 isFixedHeight: false,
-                                                text: AppLocalizations.of(
-                                                        context)!
-                                                    .ok,
+                                                text:
+                                                    AppLocalizations.of(context)
+                                                        .ok,
                                                 pressEvent: () {
                                                   if (Navigator.canPop(
                                                       context)) {
@@ -338,7 +337,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                   FocusManager
                                                       .instance.primaryFocus
                                                       ?.unfocus();
-                                                  String? ethereumRequestURL =
+                                                  String ethereumRequestURL =
                                                       '';
 
                                                   if (amountField.text !=
@@ -438,7 +437,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                 const SizedBox(
                                   height: 5,
                                 ),
-                                Text(AppLocalizations.of(context)!.request),
+                                Text(AppLocalizations.of(context).request),
                               ],
                             ),
                         ],

@@ -1,29 +1,23 @@
-import 'dart:io';
 
 import 'package:cryptowallet/main.dart';
-import 'package:cryptowallet/models/provider.dart';
 import 'package:cryptowallet/utils/language_locale.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/src/foundation/key.dart';
-import 'package:flutter/src/widgets/container.dart';
-import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:provider/provider.dart';
 
 import '../utils/app_config.dart';
 
 class Language extends StatefulWidget {
-  const Language({Key? key}) : super(key: key);
+  const Language({Key key}) : super(key: key);
 
   @override
   State<Language> createState() => _LanguageState();
 }
 
 class _LanguageState extends State<Language> {
-  List<Locale>? languages;
-  String? languageCode;
+  List<Locale> languages;
+  String languageCode;
   @override
   initState() {
     super.initState();
@@ -40,7 +34,7 @@ class _LanguageState extends State<Language> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          AppLocalizations.of(context)!.language,
+          AppLocalizations.of(context).language,
         ),
       ),
       body: SafeArea(
@@ -57,11 +51,11 @@ class _LanguageState extends State<Language> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (languages != null)
-                    for (Locale locale in languages!) ...[
+                    for (Locale locale in languages) ...[
                       InkWell(
                         onTap: () async {
                           try {
-                            MyApp.of(context)!.setLocale(locale);
+                            MyApp.of(context).setLocale(locale);
                             final pref = Hive.box(secureStorageKey);
                             await pref.put(languageKey, locale.languageCode);
                             // notifier.updateLocale(locale);
@@ -70,7 +64,7 @@ class _LanguageState extends State<Language> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  AppLocalizations.of(context)!
+                                  AppLocalizations.of(context)
                                       .couldNotChangeLanguage,
                                 ),
                                 backgroundColor: Colors.red,

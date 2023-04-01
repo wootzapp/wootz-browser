@@ -16,6 +16,7 @@ import 'package:cryptowallet/tab_popup_menu_actions.dart';
 import 'package:cryptowallet/util.dart';
 import 'package:flutter_font_icons/flutter_font_icons.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_extend/share_extend.dart';
@@ -26,12 +27,17 @@ import '../custom_popup_dialog.dart';
 import '../custom_popup_menu_item.dart';
 import '../popup_menu_actions.dart';
 import '../project_info_popup.dart';
+import '../screens/main_screen.dart';
+import '../screens/security.dart';
+import '../screens/wallet_main_body.dart';
+import '../utils/app_config.dart';
+import '../utils/rpc_urls.dart';
 import '../webview_tab.dart';
 
 class WebViewTabAppBar extends StatefulWidget {
-  final void Function()? showFindOnPage;
+  final void Function() showFindOnPage;
 
-  const WebViewTabAppBar({Key? key, this.showFindOnPage}) : super(key: key);
+  const WebViewTabAppBar({Key key, this.showFindOnPage}) : super(key: key);
 
   @override
   State<WebViewTabAppBar> createState() => _WebViewTabAppBarState();
@@ -39,14 +45,14 @@ class WebViewTabAppBar extends StatefulWidget {
 
 class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     with SingleTickerProviderStateMixin {
-  TextEditingController? _searchController = TextEditingController();
-  FocusNode? _focusNode;
+  TextEditingController _searchController = TextEditingController();
+  FocusNode _focusNode;
 
   GlobalKey tabInkWellKey = GlobalKey();
 
   Duration customPopupDialogTransitionDuration =
       const Duration(milliseconds: 300);
-  CustomPopupDialogPageRoute? route;
+  CustomPopupDialogPageRoute route;
 
   OutlineInputBorder outlineBorder = const OutlineInputBorder(
     borderSide: BorderSide(color: Colors.transparent, width: 0.0),
@@ -61,13 +67,13 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     _focusNode = FocusNode();
     _focusNode?.addListener(() async {
       if (_focusNode != null &&
-          !_focusNode!.hasFocus &&
+          !_focusNode.hasFocus &&
           _searchController != null &&
-          _searchController!.text.isEmpty) {
+          _searchController.text.isEmpty) {
         var browserModel = Provider.of<BrowserModel>(context, listen: true);
         var webViewModel = browserModel.getCurrentTab()?.webViewModel;
         var webViewController = webViewModel?.webViewController;
-        _searchController!.text =
+        _searchController.text =
             (await webViewController?.getUrl())?.toString() ?? "";
       }
     });
@@ -84,17 +90,17 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
 
   @override
   Widget build(BuildContext context) {
-    return Selector<WebViewModel, WebUri?>(
+    return Selector<WebViewModel, WebUri>(
         selector: (context, webViewModel) => webViewModel.url,
         builder: (context, url, child) {
           if (url == null) {
             _searchController?.text = "";
           }
-          if (url != null && _focusNode != null && !_focusNode!.hasFocus) {
+          if (url != null && _focusNode != null && !_focusNode.hasFocus) {
             _searchController?.text = url.toString();
           }
 
-          Widget? leading = _buildAppBarHomePageWidget();
+          Widget leading = _buildAppBarHomePageWidget();
 
           return Selector<WebViewModel, bool>(
               selector: (context, webViewModel) => webViewModel.isIncognitoMode,
@@ -119,7 +125,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
         });
   }
 
-  Widget? _buildAppBarHomePageWidget() {
+  Widget _buildAppBarHomePageWidget() {
     var browserModel = Provider.of<BrowserModel>(context, listen: true);
     var settings = browserModel.getSettings();
 
@@ -159,11 +165,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
         children: <Widget>[
           TextField(
             onSubmitted: (value) {
-              var url = WebUri(value.trim());
-              if (!url.scheme.startsWith("http") &&
-                  !Util.isLocalizedContent(url)) {
-                url = WebUri(settings.searchEngine.searchUrl + value);
-              }
+              Uri url = WebUri.uri(blockChainToHttps(value));
 
               if (webViewController != null) {
                 webViewController.loadUrl(urlRequest: URLRequest(url: url));
@@ -199,7 +201,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                   icon = MaterialCommunityIcons.incognito;
                 } else if (isSecure) {
                   if (webViewModel.url != null &&
-                      webViewModel.url!.scheme == "file") {
+                      webViewModel.url.scheme == "file") {
                     icon = Icons.offline_pin;
                   } else {
                     icon = Icons.lock;
@@ -234,8 +236,8 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       InkWell(
         key: tabInkWellKey,
         onLongPress: () {
-          final RenderBox? box =
-              tabInkWellKey.currentContext!.findRenderObject() as RenderBox?;
+          final RenderBox box =
+              tabInkWellKey.currentContext.findRenderObject() as RenderBox;
           if (box == null) {
             return;
           }
@@ -247,7 +249,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                   position: RelativeRect.fromLTRB(position.dx,
                       position.dy + box.size.height, box.size.width, 0),
                   items: TabPopupMenuActions.choices.map((tabPopupMenuAction) {
-                    IconData? iconData;
+                    IconData iconData;
                     switch (tabPopupMenuAction) {
                       case TabPopupMenuActions.CLOSE_TABS:
                         iconData = Icons.cancel;
@@ -297,7 +299,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             if (widgetsBingind.window.viewInsets.bottom > 0.0) {
               SystemChannels.textInput.invokeMethod('TextInput.hide');
               if (FocusManager.instance.primaryFocus != null) {
-                FocusManager.instance.primaryFocus!.unfocus();
+                FocusManager.instance.primaryFocus.unfocus();
               }
               if (webViewController != null) {
                 await webViewController.evaluateJavascript(
@@ -354,10 +356,10 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                   var webViewController = webViewModel.webViewController;
 
                   var isFavorite = false;
-                  FavoriteModel? favorite;
+                  FavoriteModel favorite;
 
                   if (webViewModel.url != null &&
-                      webViewModel.url!.toString().isNotEmpty) {
+                      webViewModel.url.toString().isNotEmpty) {
                     favorite = FavoriteModel(
                         url: webViewModel.url,
                         title: webViewModel.title ?? "",
@@ -429,7 +431,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                             onPressed: () async {
                               Navigator.pop(popupMenuContext);
                               if (webViewModel.url != null &&
-                                  webViewModel.url!.scheme.startsWith("http")) {
+                                  webViewModel.url.scheme.startsWith("http")) {
                                 var url = webViewModel.url;
                                 if (url == null) {
                                   return;
@@ -438,7 +440,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                                 String webArchivePath =
                                     "$WEB_ARCHIVE_DIR${Platform.pathSeparator}${url.scheme}-${url.host}${url.path.replaceAll("/", "-")}${DateTime.now().microsecondsSinceEpoch}.${Util.isAndroid() ? WebArchiveFormat.MHT.toValue() : WebArchiveFormat.WEBARCHIVE.toValue()}";
 
-                                String? savedPath =
+                                String savedPath =
                                     (await webViewController?.saveWebArchive(
                                         filePath: webArchivePath,
                                         autoname: false));
@@ -550,6 +552,20 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                         Text(choice),
                         const Icon(
                           MaterialCommunityIcons.incognito,
+                          color: Colors.black,
+                        )
+                      ]),
+                );
+              case PopupMenuActions.WALLET:
+                return CustomPopupMenuItem<String>(
+                  enabled: true,
+                  value: choice,
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(choice),
+                        const Icon(
+                          MaterialCommunityIcons.wallet,
                           color: Colors.black,
                         )
                       ]),
@@ -711,6 +727,27 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       case PopupMenuActions.NEW_TAB:
         addNewTab();
         break;
+      case PopupMenuActions.WALLET:
+        Future.delayed(const Duration(milliseconds: 300), () async {
+          final pref = Hive.box(secureStorageKey);
+          bool hasWallet = pref.get(currentMmenomicKey) != null;
+
+          bool hasPasscode = pref.get(userUnlockPasscodeKey) != null;
+          Widget dappWidget;
+          // Get.back();
+          // Navigator.of(context).pop();
+
+          if (hasWallet) {
+            dappWidget = const WalletMainBody();
+          } else if (hasPasscode) {
+            dappWidget = const MainScreen();
+          } else {
+            dappWidget = const Security();
+          }
+          await Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => dappWidget));
+        });
+        break;
       case PopupMenuActions.NEW_INCOGNITO_TAB:
         addNewIncognitoTab();
         break;
@@ -733,7 +770,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             findInteractionController != null) {
           await findInteractionController.presentFindNavigator();
         } else if (widget.showFindOnPage != null) {
-          widget.showFindOnPage!();
+          widget.showFindOnPage();
         }
         break;
       case PopupMenuActions.SHARE:
@@ -760,7 +797,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     }
   }
 
-  void addNewTab({WebUri? url}) {
+  void addNewTab({WebUri url}) {
     var browserModel = Provider.of<BrowserModel>(context, listen: false);
     var settings = browserModel.getSettings();
 
@@ -774,7 +811,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     ));
   }
 
-  void addNewIncognitoTab({WebUri? url}) {
+  void addNewIncognitoTab({WebUri url}) {
     var browserModel = Provider.of<BrowserModel>(context, listen: false);
     var settings = browserModel.getSettings();
 
@@ -802,7 +839,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                     children: browserModel.favorites.map((favorite) {
                       var url = favorite.url;
                       var faviconUrl = favorite.favicon != null
-                          ? favorite.favicon!.url
+                          ? favorite.favicon.url
                           : WebUri("${url?.origin ?? ""}/favicon.ico");
 
                       return ListTile(
@@ -1033,7 +1070,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       transitionDuration: customPopupDialogTransitionDuration,
       builder: (context) {
         return UrlInfoPopup(
-          route: route!,
+          route: route,
           transitionDuration: customPopupDialogTransitionDuration,
           onWebViewTabSettingsClicked: () {
             goToSettingsPage();

@@ -20,9 +20,9 @@ import '../utils/rpc_urls.dart';
 
 class RecoveryPhrase extends StatefulWidget {
   final String data;
-  final bool? verify;
-  final bool? add;
-  const RecoveryPhrase({Key? key, required this.data, this.verify, this.add})
+  final bool verify;
+  final bool add;
+  const RecoveryPhrase({Key key, this.data, this.verify, this.add})
       : super(key: key);
 
   @override
@@ -37,7 +37,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   final invisiblemnemonic = ValueNotifier<bool>(false);
   // RxBool securitydialogOpen = false.obs;
   final securitydialogOpen = ValueNotifier<bool>(false);
-  late String data_;
+  String data_;
   final scaffoldKey = GlobalKey<ScaffoldState>();
   String chooseLength = "12";
   Map bip39Strength = {
@@ -83,7 +83,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
-        message: AppLocalizations.of(context)!.youCantScreenshot,
+        message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
     WidgetsBinding.instance.addObserver(this);
@@ -101,7 +101,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.yourSecretPhrase),
+        title: Text(AppLocalizations.of(context).yourSecretPhrase),
       ),
       key: scaffoldKey,
       body: MultiValueListenableBuilder(
@@ -118,7 +118,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                       child: Column(
                         children: [
                           Text(
-                            AppLocalizations.of(context)!.writeDownYourmnemonic,
+                            AppLocalizations.of(context).writeDownYourmnemonic,
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.grey),
                           ),
@@ -143,7 +143,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                               style: TextStyle(
                                                 color: Theme.of(context)
                                                     .textTheme
-                                                    .bodyLarge!
+                                                    .bodyLarge
                                                     .color,
                                               ),
                                             ),
@@ -168,7 +168,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                               style: TextStyle(
                                                 color: Theme.of(context)
                                                     .textTheme
-                                                    .bodyLarge!
+                                                    .bodyLarge
                                                     .color,
                                               ),
                                             ),
@@ -193,7 +193,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                               style: TextStyle(
                                                 color: Theme.of(context)
                                                     .textTheme
-                                                    .bodyLarge!
+                                                    .bodyLarge
                                                     .color,
                                               ),
                                             ),
@@ -217,12 +217,12 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                               ));
                               // Get.snackbar(
                               //   '',
-                              //   AppLocalizations.of(context)!.copiedToClipboard,
+                              //   AppLocalizations.of(context).copiedToClipboard,
                               // );
                               ScaffoldMessenger.of(context)
                                   .showSnackBar(SnackBar(
                                       content: Text(
-                                AppLocalizations.of(context)!.copiedToClipboard,
+                                AppLocalizations.of(context).copiedToClipboard,
                               )));
                             },
                             child: Card(
@@ -235,7 +235,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      AppLocalizations.of(context)!.copy,
+                                      AppLocalizations.of(context).copy,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontSize: 14,
@@ -263,14 +263,14 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    AppLocalizations.of(context)!
+                                    AppLocalizations.of(context)
                                         .doNotShareYourmnemonic,
                                     style: const TextStyle(
                                         color: Colors.red,
                                         fontWeight: FontWeight.bold),
                                   ),
                                   Text(
-                                      AppLocalizations.of(context)!
+                                      AppLocalizations.of(context)
                                           .ifSomeoneHasYourmnemonic,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
@@ -312,7 +312,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),
                                   child: Text(
-                                    AppLocalizations.of(context)!.continue_,
+                                    AppLocalizations.of(context).continue_,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -344,14 +344,14 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   if (successSaving) {
                                     // Get.snackbar(
                                     //   '',
-                                    //   AppLocalizations.of(context)!.alreadySaved,
+                                    //   AppLocalizations.of(context).alreadySaved,
                                     //   backgroundColor: Colors.green,
                                     //   colorText: Colors.white,
                                     // );
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(SnackBar(
                                       content: Text(
-                                        AppLocalizations.of(context)!
+                                        AppLocalizations.of(context)
                                             .alreadySaved,
                                       ),
                                       backgroundColor: Colors.red,
@@ -398,7 +398,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(SnackBar(
                                       content: Text(
-                                        AppLocalizations.of(context)!
+                                        AppLocalizations.of(context)
                                             .savedToDownloadFolder,
                                       ),
                                       backgroundColor: Colors.green,
@@ -420,7 +420,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(SnackBar(
                                       content: Text(
-                                        AppLocalizations.of(context)!
+                                        AppLocalizations.of(context)
                                             .errorTryAgain,
                                       ),
                                       backgroundColor: Colors.red,
@@ -435,7 +435,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),
                                   child: Text(
-                                    AppLocalizations.of(context)!
+                                    AppLocalizations.of(context)
                                         .convertToShemirSecret,
                                     style: const TextStyle(
                                       color: appBackgroundblue,

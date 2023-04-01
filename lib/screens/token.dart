@@ -13,6 +13,7 @@ import 'package:cryptowallet/utils/format_money.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // import 'package:get/get.dart';
@@ -21,9 +22,12 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:intl/intl.dart';
 import 'package:page_transition/page_transition.dart';
 
+import '../models/webview_model.dart';
+import '../webview_tab.dart';
+
 class Token extends StatefulWidget {
   final Map data;
-  const Token({required this.data, Key? key}) : super(key: key);
+  const Token({this.data, Key key}) : super(key: key);
 
   @override
   _TokenState createState() => _TokenState();
@@ -37,7 +41,7 @@ class _TokenState extends State<Token> {
   // RxMap blockchainPrice = {}.obs;
   final blockchainPrice = ValueNotifier<Map<dynamic, dynamic>>({});
   bool skipNetworkRequest = true;
-  late Timer timer;
+  Timer timer;
   // RxBool trxOpen = true.obs;
   final trxOpen = ValueNotifier<bool>(true);
   final List<String> months = [
@@ -320,8 +324,7 @@ class _TokenState extends State<Token> {
                                       Text(
                                         widget.data['contractAddress'] != null
                                             ? widget.data['network']
-                                            : AppLocalizations.of(context)!
-                                                .coin,
+                                            : AppLocalizations.of(context).coin,
                                         style: const TextStyle(
                                             fontSize: 16, color: Colors.grey),
                                       ),
@@ -481,7 +484,7 @@ class _TokenState extends State<Token> {
                                             const SizedBox(
                                               height: 5,
                                             ),
-                                            Text(AppLocalizations.of(context)!
+                                            Text(AppLocalizations.of(context)
                                                 .send),
                                           ],
                                         ),
@@ -525,7 +528,7 @@ class _TokenState extends State<Token> {
                                             const SizedBox(
                                               height: 5,
                                             ),
-                                            Text(AppLocalizations.of(context)!
+                                            Text(AppLocalizations.of(context)
                                                 .receive),
                                           ],
                                         ),
@@ -610,19 +613,21 @@ class _TokenState extends State<Token> {
                                   listTransactions.addAll([
                                     GestureDetector(
                                       onTap: () async {
-                                        Widget nextWidget;
-                                        nextWidget = await dappWidget(
-                                          context,
-                                          widget.data['blockExplorer']
-                                              .toString()
-                                              .replaceFirst(
-                                                transactionhashTemplateKey,
-                                                datum['transactionHash'],
+                                        await Navigator.of(context)
+                                            .push(MaterialPageRoute(
+                                          builder: (_) => WebViewTab(
+                                            webViewModel: WebViewModel(
+                                              url: WebUri(
+                                                widget.data['blockExplorer']
+                                                    .toString()
+                                                    .replaceFirst(
+                                                      transactionhashTemplateKey,
+                                                      datum['transactionHash'],
+                                                    ),
                                               ),
-                                        );
-                                        await Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                                builder: (_) => nextWidget));
+                                            ),
+                                          ),
+                                        ));
                                         // Get.to(
                                         //   nextWidget,
                                         //   transition: Transition.leftToRight,

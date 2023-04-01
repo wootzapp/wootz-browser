@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-const _scopes = [ga.DriveApi.driveFileScope];
+final _scopes = [''];
 
 class GoogleDrive {
   final box = Hive.box(secureStorageKey);
@@ -41,7 +41,7 @@ class GoogleDrive {
     if (credentials == null) {
       var authClient = await clientViaUserConsent(
         ClientId(
-          dotenv.env['CLIENT_ID']!,
+          dotenv.env['CLIENT_ID'],
           dotenv.env['CLIENT_SECRET'],
         ),
         _scopes,

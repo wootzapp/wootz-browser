@@ -16,7 +16,7 @@ class EIP681 {
       throw Exception('Not an Ethereum URI');
     }
 
-    String? prefix;
+    String prefix;
     String addressRegex = '(0x[\\w]{40})';
 
     if (uri.substring(9, 11).toLowerCase() == '0x') {
@@ -117,13 +117,13 @@ class EIP681 {
 // Builds a valid Ethereum URI based on the initial parameters
 
   static String build({
-    String? prefix,
-    String? targetAddress,
-    String? chainId,
-    String? functionName,
-    Map? parameters,
+    String prefix,
+    String targetAddress,
+    String chainId,
+    String functionName,
+    Map parameters,
   }) {
-    String? query;
+    String query;
     if (parameters != null && parameters.isNotEmpty) {
       String amountKey = 'amount';
       if (functionName == 'transfer') {
@@ -154,7 +154,7 @@ class EIP681 {
 
       // convert map to query string
       query = parameters.keys.map((key) {
-        return '$key=${parameters?[key]}';
+        return '$key=${parameters[key]}';
       }).join('&');
     }
 

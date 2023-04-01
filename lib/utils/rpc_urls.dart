@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:ffi';
 import 'package:cryptowallet/google_drive/drive.dart';
 import 'package:cryptowallet/screens/sign.dart';
-import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 // import 'package:get/get.dart' hide Response;
@@ -65,8 +64,8 @@ import 'pos_networks.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 // seed phrases
-late Uint8List _seed;
-late bip32.BIP32 _root;
+Uint8List _seed;
+bip32.BIP32 _root;
 // crypto decimals
 const etherDecimals = 18;
 const bitCoinDecimals = 8;
@@ -124,7 +123,7 @@ enum SolanaClusters {
   testNet,
 }
 
-solana.SolanaClient getSolanaClient(SolanaClusters? solanaClusterType) {
+solana.SolanaClient getSolanaClient(SolanaClusters solanaClusterType) {
   solanaClusterType ??= SolanaClusters.mainNet;
 
   String solanaRpcUrl = '';
@@ -195,33 +194,33 @@ Future<Map> viewUserTokens(
 
     document.querySelectorAll('.list-custom').forEach((element) {
       final previousElement = element.previousElementSibling;
-      final tokenName = element.querySelector('.list-name')!.text;
-      final tokenAmount = element.querySelector('.list-amount')!.text;
+      final tokenName = element.querySelector('.list-name').text;
+      final tokenAmount = element.querySelector('.list-amount').text;
       final tokenAddress = element
-          .querySelector('a')!
-          .attributes['href']!
+          .querySelector('a')
+          .attributes['href']
           .split('/token/')[1]
           .split('?')[0];
 
       // get previous element
-      if (previousElement!.className.contains('list-custom-divider')) {
-        currentTokenId = previousElement.querySelector('strong')!.text;
+      if (previousElement.className.contains('list-custom-divider')) {
+        currentTokenId = previousElement.querySelector('strong').text;
       }
 
       if (currentTokenId.contains("20")) {
-        tokenList['erc20']!.add({
+        tokenList['erc20'].add({
           'tokenName': tokenName,
           'tokenAmount': tokenAmount,
           'tokenAddress': tokenAddress,
         });
       } else if (currentTokenId.contains("1155")) {
-        tokenList['erc1155']!.add({
+        tokenList['erc1155'].add({
           'tokenName': tokenName,
           'tokenAmount': tokenAmount,
           'tokenAddress': tokenAddress,
         });
       } else if (currentTokenId.contains("721")) {
-        tokenList['erc721']!.add({
+        tokenList['erc721'].add({
           'tokenName': tokenName,
           'tokenAmount': tokenAmount,
           'tokenAddress': tokenAddress,
@@ -258,9 +257,9 @@ String localHostToIpAddress(String url) {
 }
 
 buildSwapUi({
-  required List tokenList,
-  required Function onSelect,
-  required BuildContext context,
+  List tokenList,
+  Function onSelect,
+  BuildContext context,
 }) async {
   final searchCoinController = TextEditingController();
 
@@ -397,7 +396,7 @@ buildSwapUi({
                             width: 20,
                           ),
                           Text(
-                            AppLocalizations.of(context)!.selectTokens,
+                            AppLocalizations.of(context).selectTokens,
                             style: const TextStyle(fontSize: 18),
                           ),
                         ],
@@ -430,8 +429,7 @@ buildSwapUi({
                                   Icons.search,
                                 ),
                               ),
-                              hintText:
-                                  AppLocalizations.of(context)!.searchCoin,
+                              hintText: AppLocalizations.of(context).searchCoin,
                               hintStyle: const TextStyle(),
                             ),
                           ),
@@ -471,7 +469,7 @@ Future<bool> localAuthentication() async {
 }
 
 Future<bool> authenticate(BuildContext context,
-    {bool? disableGoBack_, bool? useLocalAuth}) async {
+    {bool disableGoBack_, bool useLocalAuth}) async {
   bool didAuthenticate = false;
   await disEnableScreenShot();
   if (useLocalAuth ?? true) {
@@ -497,13 +495,13 @@ Future getAddTokenKey() async {
   return 'userTokenList$mnemonicHash'.toLowerCase();
 }
 
-Future<Map?> oneInchSwapUrlResponse({
-  required String fromTokenAddress,
-  required String toTokenAddress,
-  required double amountInWei,
-  required String fromAddress,
-  double? slippage,
-  required int chainId,
+Future<Map> oneInchSwapUrlResponse({
+  String fromTokenAddress,
+  String toTokenAddress,
+  double amountInWei,
+  String fromAddress,
+  double slippage,
+  int chainId,
 }) async {
   try {
     slippage = slippage ?? 0.1;
@@ -1040,7 +1038,7 @@ Future<web3.DeployedContract> getEnsResolverContract(
   );
 }
 
-Future ensToContentHashAndIPFS({required String cryptoDomainName}) async {
+Future ensToContentHashAndIPFS({String cryptoDomainName}) async {
   try {
     final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
     final client = web3.Web3Client(rpcUrl, Client());
@@ -1068,19 +1066,19 @@ Future ensToContentHashAndIPFS({required String cryptoDomainName}) async {
     final swarmMatch = swarmRegex.firstMatch(contentHash);
     if (match != null) {
       final length = int.parse(match.group(3) ?? "", radix: 16);
-      if (match.group(4)!.length == length * 2) {
+      if (match.group(4).length == length * 2) {
         final userFinalDecodedHash = match.group(1);
         return {
           'success': true,
           'msg': ipfsTohttp(
-            "ipfs://${bs58check.base58.encode(Uint8List.fromList(HEX.decode(userFinalDecodedHash!)))}",
+            "ipfs://${bs58check.base58.encode(Uint8List.fromList(HEX.decode(userFinalDecodedHash)))}",
           )
         };
       }
       throw Exception('invalid IPFS checksum');
     } else if (swarmMatch != null) {
-      if (swarmMatch.group(1)!.length == (32 * 2)) {
-        return {'success': true, 'msg': "bzz://${swarmMatch.group(2)!}"};
+      if (swarmMatch.group(1).length == (32 * 2)) {
+        return {'success': true, 'msg': "bzz://${swarmMatch.group(2)}"};
       }
       throw Exception('invalid SWARM checksum');
     }
@@ -1091,7 +1089,7 @@ Future ensToContentHashAndIPFS({required String cryptoDomainName}) async {
   }
 }
 
-Future<Map> ensToAddress({required String cryptoDomainName}) async {
+Future<Map> ensToAddress({String cryptoDomainName}) async {
   try {
     cryptoDomainName = cryptoDomainName.toLowerCase();
     final rpcUrl = getEVMBlockchains()['Ethereum']['rpc'];
@@ -1560,7 +1558,7 @@ Future<double> getStellarAddressBalance(
   // List<int> cluster.network = cluster.network!.toList();
 
   final key =
-      'stellarAddressBalance$address${bytesToHex(cluster.networkId!.toList())}';
+      'stellarAddressBalance$address${bytesToHex(cluster.networkId.toList())}';
 
   final storedBalance = pref.get(key);
 
@@ -1622,7 +1620,7 @@ Future<double> getSolanaAddressBalance(
 
 Future<double> getFileCoinAddressBalance(
   String address, {
-  required String baseUrl,
+  String baseUrl,
   bool skipNetworkRequest = false,
 }) async {
   final pref = Hive.box(secureStorageKey);
@@ -1660,7 +1658,7 @@ Future<double> getFileCoinAddressBalance(
 }
 
 Future<String> getCryptoPrice({
-  required bool skipNetworkRequest,
+  bool skipNetworkRequest,
 }) async {
   String allCrypto = "";
   int currentIndex = 0;
@@ -1742,10 +1740,10 @@ Future<String> contractDetailsKey(String rpc, String contractAddress) async {
 }
 
 Future getErc20Allowance({
-  required String owner,
-  required String spender,
-  required String rpc,
-  required String contractAddress,
+  String owner,
+  String spender,
+  String rpc,
+  String contractAddress,
 }) async {
   web3.Web3Client client = web3.Web3Client(
     rpc,
@@ -1845,11 +1843,11 @@ Future<double> getERC20TokenBalance(
 
 Future<double> getEtherTransactionFee(
   String rpc,
-  Uint8List? data,
+  Uint8List data,
   web3.EthereumAddress sender,
   web3.EthereumAddress to, {
-  double? value,
-  EtherAmount? gasPrice,
+  double value,
+  EtherAmount gasPrice,
 }) async {
   final client = web3.Web3Client(
     rpc,
@@ -1865,7 +1863,7 @@ Future<double> getEtherTransactionFee(
   if (gasPrice == null || gasPrice.getInWei == BigInt.from(0)) {
     gasPrice = await client.getGasPrice();
   }
-  BigInt? gasUnit;
+  BigInt gasUnit;
 
   try {
     gasUnit = await client.estimateGas(
@@ -1951,9 +1949,9 @@ Future<String> getCurrencyJson() async {
 }
 
 Future<double> totalCryptoBalance({
-  required String mnemonic,
-  required Map allCryptoPrice,
-  required String defaultCurrency,
+  String mnemonic,
+  Map allCryptoPrice,
+  String defaultCurrency,
   bool skipNetworkRequest = false,
 }) async {
   double totalBalance = 0.0;
@@ -2078,7 +2076,7 @@ Future<double> totalCryptoBalance({
   return totalBalance;
 }
 
-Future<String?> upload(
+Future<String> upload(
   File imageFile,
   String imagefileName,
   MediaType imageMediaType,
@@ -2127,7 +2125,7 @@ Uri blockChainToHttps(String value) {
 
   if (isURL(value)) return Uri.parse(value);
 
-  Uri? url = Uri.tryParse(value);
+  Uri url = Uri.tryParse(value);
   if (url != null && isLocalizedContent(url)) {
     return url;
   }
@@ -2137,7 +2135,7 @@ Uri blockChainToHttps(String value) {
 Future<double> getEthereumAddressBalance(
   String address,
   String rpcUrl, {
-  int? coinType,
+  int coinType,
   bool skipNetworkRequest = false,
 }) async {
   final preferencesInst = Hive.box(secureStorageKey);
@@ -2247,7 +2245,7 @@ Future getUniswapPolygonTokens() async {
   }
 }
 
-Map? getEthereumDetailsFromChainId(int chainId) {
+Map getEthereumDetailsFromChainId(int chainId) {
   List blockChains = getEVMBlockchains().values.toList();
   for (int i = 0; i < blockChains.length; i++) {
     if (blockChains[i]['chainId'] == chainId) {
@@ -2268,9 +2266,9 @@ getBitcoinDetailsFromNetwork(NetworkType network) {
 }
 
 showDialogWithMessage({
-  required BuildContext context,
-  required String message,
-  Function()? onConfirm,
+  BuildContext context,
+  String message,
+  Function() onConfirm,
 }) {
   AwesomeDialog(
     closeIcon: const Icon(
@@ -2283,18 +2281,18 @@ showDialogWithMessage({
     buttonsBorderRadius: const BorderRadius.all(Radius.circular(10)),
     headerAnimationLoop: false,
     animType: AnimType.BOTTOMSLIDE,
-    title: AppLocalizations.of(context)!.info,
+    title: AppLocalizations.of(context).info,
     desc: message,
     showCloseIcon: true,
-    btnOkText: AppLocalizations.of(context)!.ok,
+    btnOkText: AppLocalizations.of(context).ok,
     btnOkOnPress: onConfirm,
   ).show();
 }
 
 showProfileDialog({
-  required Function onTap,
-  required BuildContext context,
-  required String selectedProfile,
+  Function onTap,
+  BuildContext context,
+  String selectedProfile,
 }) {
   final pref = Hive.box(secureStorageKey);
   final mnemonicList = json.decode(pref.get(mnemonicListKey)) as List;
@@ -2375,9 +2373,9 @@ showProfileDialog({
 }
 
 showBlockChainDialog({
-  required Function onTap,
-  required BuildContext context,
-  int? selectedChainId,
+  Function onTap,
+  BuildContext context,
+  int selectedChainId,
 }) {
   final ethEnabledBlockChain = <Widget>[];
   for (String i in getEVMBlockchains().keys) {
@@ -2424,7 +2422,7 @@ showBlockChainDialog({
                 ),
               ),
               Text(
-                AppLocalizations.of(context)!.selectBlockchains,
+                AppLocalizations.of(context).selectBlockchains,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 20.0,
@@ -2453,26 +2451,51 @@ showBlockChainDialog({
   );
 }
 
-changeBlockChainAndReturnInit(
-  int coinType,
+Future changeBlockChainAndReturnInit(
   int chainId,
   String rpc,
 ) async {
-  final init = await rootBundle.loadString('dappBrowser/init.js');
   final pref = Hive.box(secureStorageKey);
+  await pref.put(dappChainIdKey, chainId);
   final mnemonic = pref.get(currentMmenomicKey);
+  final coinType = getEthereumDetailsFromChainId(chainId)['coinType'];
   final response = await getEthereumFromMemnomic(mnemonic, coinType);
 
-  final sendingAddress = response['eth_wallet_address'];
-  await pref.put(dappChainIdKey, chainId);
-
-  return init
-      .replaceFirst("%1\$s", sendingAddress)
-      .replaceFirst("%2\$s", rpc)
-      .replaceFirst(
-        "%3\$s",
-        chainId.toString(),
-      );
+  final address = response['eth_wallet_address'];
+  return '''
+   (function() {
+    let isFlutterInAppWebViewReady = false;
+    window.addEventListener("flutterInAppWebViewPlatformReady", function (event) {
+      isFlutterInAppWebViewReady = true;
+      console.log("done and ready");
+    });
+    var config = {                
+        ethereum: {
+            chainId: $chainId,
+            rpcUrl: "$rpc",  
+            address: "$address"
+        },
+        solana: {
+            cluster: "mainnet-beta",
+        },
+        isDebug: false
+    };
+    trustwallet.ethereum = new trustwallet.Provider(config);
+    trustwallet.solana = new trustwallet.SolanaProvider(config);
+    trustwallet.postMessage = (json) => {
+        const interval = setInterval(() => {
+          if (isFlutterInAppWebViewReady) {
+            clearInterval(interval);
+            window.flutter_inappwebview.callHandler(
+              "CryptoHandler",
+              JSON.stringify(json)
+            );
+          }
+        }, 100);
+    }
+    window.ethereum = trustwallet.ethereum;
+  })();
+''';
 }
 
 Future<Map> whoIsLookUp(String webUrl) async {
@@ -2482,55 +2505,36 @@ Future<Map> whoIsLookUp(String webUrl) async {
   // final date = DateTime.parse(parsedResponse['Creation Date']);
 }
 
-Future<Widget> dappWidget(
-  BuildContext context,
-  String data,
-) async {
+Future activateDapp() async {
   final pref = Hive.box(secureStorageKey);
   final currentMmemonic = pref.get(currentMmenomicKey);
 
   if (currentMmemonic == null) {
-    return Dapp(
-      provider: '',
-      webNotifier: '',
-      init: '',
-      data: data,
-    );
+    return;
   }
-  final provider =
-      await rootBundle.loadString('dappBrowser/alphawallet.min.js');
 
-  final currentDappChainIdKey = pref.get(dappChainIdKey);
+  provider = await rootBundle.loadString('js/trust.min.js');
+  webNotifer = await rootBundle.loadString('js/web_notification.js');
 
-  if (currentDappChainIdKey == null) {
+  if (pref.get(dappChainIdKey) == null) {
     await pref.put(
       dappChainIdKey,
       getEVMBlockchains()[tokenContractNetwork]['chainId'],
     );
   }
 
-  final webNotifer = await rootBundle.loadString('js/web_notification.js');
-
   int chainId = pref.get(dappChainIdKey);
-  final rpc = getEthereumDetailsFromChainId(chainId)!['rpc'];
+  final rpc = getEthereumDetailsFromChainId(chainId)['rpc'];
 
-  final init = await changeBlockChainAndReturnInit(
-    getEthereumDetailsFromChainId(chainId)!['coinType'],
+  init = await changeBlockChainAndReturnInit(
     chainId,
     rpc,
-  );
-
-  return Dapp(
-    provider: provider,
-    webNotifier: webNotifer,
-    init: init,
-    data: data,
   );
 }
 
 Future addEthereumChain({
   context,
-  required String jsonObj,
+  String jsonObj,
   onConfirm,
   onReject,
 }) async {
@@ -2543,7 +2547,7 @@ Future addEthereumChain({
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            AppLocalizations.of(context)!.addNetwork,
+            AppLocalizations.of(context).addNetwork,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
@@ -2586,7 +2590,7 @@ Future addEthereumChain({
                           }
                         },
                         child: Text(
-                          AppLocalizations.of(context)!.confirm,
+                          AppLocalizations.of(context).confirm,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18.0,
@@ -2603,7 +2607,7 @@ Future addEthereumChain({
                         ),
                         onPressed: onReject,
                         child: Text(
-                          AppLocalizations.of(context)!.reject,
+                          AppLocalizations.of(context).reject,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18.0,
@@ -2636,7 +2640,7 @@ switchEthereumChain({
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            AppLocalizations.of(context)!.switchChainRequest,
+            AppLocalizations.of(context).switchChainRequest,
             style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 20,
@@ -2669,7 +2673,7 @@ switchEthereumChain({
             height: 20,
           ),
           Text(
-            AppLocalizations.of(context)!.switchChainIdMessage(
+            AppLocalizations.of(context).switchChainIdMessage(
               switchChainIdData['symbol'],
               switchChainIdData['chainId'],
             ),
@@ -2689,7 +2693,7 @@ switchEthereumChain({
                   ),
                   onPressed: onConfirm,
                   child: Text(
-                    AppLocalizations.of(context)!.confirm,
+                    AppLocalizations.of(context).confirm,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18.0,
@@ -2706,7 +2710,7 @@ switchEthereumChain({
                   ),
                   onPressed: onReject,
                   child: Text(
-                    AppLocalizations.of(context)!.reject,
+                    AppLocalizations.of(context).reject,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18.0,
@@ -2724,22 +2728,22 @@ switchEthereumChain({
 }
 
 signTransaction({
-  required Function onReject,
-  String? gasPriceInWei_,
-  required BuildContext context,
-  required Function onConfirm,
-  String? valueInWei_,
-  String? gasInWei_,
-  String? txData,
-  required String from,
-  required String to,
-  String? networkIcon,
-  String? name,
-  required String blockChainCurrencySymbol,
-  required String title,
-  required int chainId,
+  Function onReject,
+  String gasPriceInWei_,
+  BuildContext context,
+  Function onConfirm,
+  String valueInWei_,
+  String gasInWei_,
+  String txData,
+  String from,
+  String to,
+  String networkIcon,
+  String name,
+  String blockChainCurrencySymbol,
+  String title,
+  int chainId,
 }) async {
-  final rpc = getEthereumDetailsFromChainId(chainId)!['rpc'];
+  final rpc = getEthereumDetailsFromChainId(chainId)['rpc'];
   final _wcClient = web3.Web3Client(
     rpc,
     Client(),
@@ -2753,11 +2757,11 @@ signTransaction({
 
   double userBalance = 0;
 
-  Uint8List? trxDataList = txDataToUintList(txData);
+  Uint8List trxDataList = txDataToUintList(txData);
   double transactionFee = 0;
   String message = '';
 
-  final Map? decodedFunction = await decodeAbi(txData);
+  final Map decodedFunction = await decodeAbi(txData);
 
   final String decodedName =
       decodedFunction == null ? null : decodedFunction['name'];
@@ -2784,7 +2788,7 @@ signTransaction({
     }
   }
 
-  String info = AppLocalizations.of(context)!.info;
+  String info = AppLocalizations.of(context).info;
 
   ValueNotifier<bool> isSigningTransaction = ValueNotifier(false);
   slideUpPanel(
@@ -2810,7 +2814,7 @@ signTransaction({
                   ),
                 ),
                 Text(
-                  AppLocalizations.of(context)!.signTransaction,
+                  AppLocalizations.of(context).signTransaction,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 20.0,
@@ -2905,9 +2909,9 @@ signTransaction({
                     message =
                         "$totalAmount NFT${totalAmount > 1 ? "s" : ""} would be sent out.";
                   } else if (decodedName == 'safeTransferFrom') {
-                    String? spender;
-                    String? from_;
-                    String? tokenId;
+                    String spender;
+                    String from_;
+                    String tokenId;
                     for (int i = 0; i < params.length; i++) {
                       if (params[i]['name'] == 'from') {
                         from_ = params[i]['value'].toString();
@@ -2927,12 +2931,12 @@ signTransaction({
                   } else if (decodedName == 'approve' ||
                       decodedName == 'transfer' ||
                       decodedName == 'transferFrom') {
-                    String? spender;
-                    double? token;
-                    String? from_;
+                    String spender;
+                    double token;
+                    String from_;
                     Map tokenDetails = await getERC20TokenDetails(
                       contractAddress: to,
-                      rpc: getEthereumDetailsFromChainId(chainId)!['rpc'],
+                      rpc: getEthereumDetailsFromChainId(chainId)['rpc'],
                     );
 
                     final decimals = tokenDetails['decimals'];
@@ -2973,7 +2977,7 @@ signTransaction({
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          AppLocalizations.of(context)!.couldNotFetchData,
+                          AppLocalizations.of(context).couldNotFetchData,
                           style: const TextStyle(fontSize: 16.0),
                         )
                       ],
@@ -3057,7 +3061,7 @@ signTransaction({
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLocalizations.of(context)!
+                                  AppLocalizations.of(context)
                                       .receipientAddress,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -3078,7 +3082,7 @@ signTransaction({
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLocalizations.of(context)!.balance,
+                                  AppLocalizations.of(context).balance,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16.0,
@@ -3098,7 +3102,7 @@ signTransaction({
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLocalizations.of(context)!
+                                  AppLocalizations.of(context)
                                       .transactionAmount,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -3122,7 +3126,7 @@ signTransaction({
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      AppLocalizations.of(context)!
+                                      AppLocalizations.of(context)
                                           .transactionFee,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
@@ -3145,7 +3149,7 @@ signTransaction({
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        AppLocalizations.of(context)!
+                                        AppLocalizations.of(context)
                                             .insufficientBalance,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
@@ -3189,7 +3193,7 @@ signTransaction({
                                           }
                                         },
                                         child: Text(
-                                          AppLocalizations.of(context)!.confirm,
+                                          AppLocalizations.of(context).confirm,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 18.0,
@@ -3205,9 +3209,9 @@ signTransaction({
                                           backgroundColor:
                                               const Color(0xff007bff),
                                         ),
-                                        onPressed: onReject(),
+                                        onPressed: onReject,
                                         child: Text(
-                                          AppLocalizations.of(context)!.reject,
+                                          AppLocalizations.of(context).reject,
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 18.0,
@@ -3237,7 +3241,7 @@ signTransaction({
                             height: 20,
                           ),
                           Text(
-                            AppLocalizations.of(context)!.functionType,
+                            AppLocalizations.of(context).functionType,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16.0,
@@ -3324,27 +3328,27 @@ signTransaction({
 }
 
 signMessage({
-  required BuildContext context,
-  List<String>? raw,
-  String? method,
-  required String data,
-  required String networkIcon,
-  required String name,
-  required Function onConfirm,
-  required Function onReject,
-  required String messageType,
+  BuildContext context,
+  List<String> raw,
+  String method,
+  String data,
+  String networkIcon,
+  String name,
+  Function onConfirm,
+  Function onReject,
+  String messageType,
   dynamic uri,
-  int? chainId,
-  String? version,
-  String? topic,
+  int chainId,
+  String version,
+  String topic,
 }) async {
   print(data);
-  print(raw?[0]);
+  print(raw[0]);
   String decoded = data;
 
   if (messageType == personalSignKey && data != null && isHexString(data)) {
     try {
-      decoded = ascii.decode(txDataToUintList(data)!.toList());
+      decoded = ascii.decode(txDataToUintList(data).toList());
     } catch (_) {}
   }
   // print(raw.length);
@@ -3380,7 +3384,7 @@ signMessage({
   // Navigator.pop(context);
 }
 
-Future<Map?> decodeAbi(String txData) async {
+Future<Map> decodeAbi(String txData) async {
   final js = await rootBundle.loadString('js/abi-decoder.js');
   JavascriptRuntime javaScriptRuntime = getJavascriptRuntime();
 
@@ -3414,7 +3418,7 @@ Uint8List txDataToUintList(String txData) {
   return isHexString(txData) ? hexToBytes(txData) : ascii.encode(txData);
 }
 
-String ellipsify({required String str, int? maxLength}) {
+String ellipsify({String str, int maxLength}) {
   maxLength ??= 10;
   if (maxLength % 2 != 0) {
     maxLength++;
@@ -3459,7 +3463,7 @@ Future<Map> processEIP681(String eip681URL) async {
     final cryptoBlock = getEthereumDetailsFromChainId(chainId);
 
     Map sendToken = {
-      "rpc": cryptoBlock!['rpc'],
+      "rpc": cryptoBlock['rpc'],
       "coinType": cryptoBlock['coinType'],
       "chainId": chainId,
     };
@@ -3521,8 +3525,8 @@ Future<Map> processEIP681(String eip681URL) async {
 }
 
 Future<Map> getERC20TokenDetails({
-  required String contractAddress,
-  required String rpc,
+  String contractAddress,
+  String rpc,
 }) async {
   final client = web3.Web3Client(
     rpc,
@@ -3554,9 +3558,9 @@ Future<Map> getERC20TokenDetails({
 }
 
 Future<Map> getERC20TokenNameSymbolDecimal({
-  required String contractAddress,
-  required String rpc,
-  int? chainId,
+  String contractAddress,
+  String rpc,
+  int chainId,
 }) async {
   final pref = Hive.box(secureStorageKey);
   String tokenDetailsKey = await contractDetailsKey(
@@ -3582,8 +3586,8 @@ Future<Map> getERC20TokenNameSymbolDecimal({
 }
 
 selectImage({
-  required BuildContext context,
-  required Function(XFile) onSelect,
+  BuildContext context,
+  Function(XFile) onSelect,
 }) {
   AwesomeDialog(
     context: context,
@@ -3594,20 +3598,20 @@ selectImage({
     closeIcon: const Icon(
       Icons.close,
     ),
-    title: AppLocalizations.of(context)!.chooseImageSource,
-    desc: AppLocalizations.of(context)!.imageSource,
+    title: AppLocalizations.of(context).chooseImageSource,
+    desc: AppLocalizations.of(context).imageSource,
     showCloseIcon: true,
-    btnOkText: AppLocalizations.of(context)!.gallery,
-    btnCancelText: AppLocalizations.of(context)!.camera,
+    btnOkText: AppLocalizations.of(context).gallery,
+    btnCancelText: AppLocalizations.of(context).camera,
     btnCancelOnPress: () async {
-      XFile? file = await ImagePicker().pickImage(source: ImageSource.camera);
+      XFile file = await ImagePicker().pickImage(source: ImageSource.camera);
       if (file == null) return;
       onSelect(file);
     },
     btnCancelColor: Colors.blue,
     btnOkColor: Colors.blue,
     btnOkOnPress: () async {
-      XFile? file = await ImagePicker().pickImage(source: ImageSource.gallery);
+      XFile file = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (file == null) return;
       onSelect(file);
     },
@@ -3646,6 +3650,80 @@ web3.Transaction wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
   );
 }
 
+validateAddress(Map data, String recipient) {
+  if (data['default'] == 'XRP') {
+    // final bytes = xrpBaseCodec.decode(recipient);
+
+    // final computedCheckSum = sha256
+    //     .convert(sha256.convert(bytes.sublist(0, bytes.length - 4)).bytes)
+    //     .bytes
+    //     .sublist(0, 4);
+    // final expectedCheckSum = bytes.sublist(bytes.length - 4);
+
+    // if (!seqEqual(computedCheckSum, expectedCheckSum)) {
+    //   throw Exception('Invalid XRP address');
+    // }
+  } else if (data['default'] == 'ALGO') {
+    // algo_rand.Address.fromAlgorandAddress(
+    //   address: recipient,
+    // );
+  } else if (data['default'] == 'BCH') {
+    // bitbox.Address.detectFormat(recipient);
+  } else if (data['default'] == 'XTZ') {
+    // if (!validateTezosAddress(recipient)) {
+    //   throw Exception('Invalid ${data['default']} address');
+    // }
+  } else if (data['default'] == 'TRX') {
+    // if (!wallet.isValidTronAddress(recipient)) {
+    //   throw Exception('Invalid ${data['default']} address');
+    // }
+  } else if (data['P2WPKH'] != null) {
+    // final NetworkType nw =
+    //     getBitCoinPOSBlockchains()[data['name']]['POSNetwork'];
+    // if (Address.validateAddress(recipient, nw)) {
+    //   return;
+    // }
+
+    // bool canReceivePayment = false;
+
+    // try {
+    //   final base58DecodeRecipient = bs58check.decode(recipient);
+
+    //   final pubHashString = base58DecodeRecipient[0].toRadixString(16) +
+    //       base58DecodeRecipient[1].toRadixString(16);
+
+    //   canReceivePayment = hexToInt(pubHashString).toInt() == nw.pubKeyHash;
+    // } catch (_) {}
+
+    // if (!canReceivePayment) {
+    //   Bech32 sel = bech32.decode(recipient);
+    //   canReceivePayment = nw.bech32 == sel.hrp;
+    // }
+
+    // if (!canReceivePayment) {
+    //   throw Exception('Invalid ${data['symbol']} address');
+    // }
+  } else if (data['default'] == 'SOL') {
+    solana.Ed25519HDPublicKey.fromBase58(recipient);
+  } else if (data['default'] == 'ADA') {
+    // cardano.ShelleyAddress.fromBech32(recipient);
+  } else if (data['default'] == 'XLM') {
+    stellar.KeyPair.fromAccountId(recipient);
+  } else if (data['default'] == 'FIL') {
+    //FIXME:
+    // if (!await Flotus.validateAddress(recipient)) {
+    //   throw Exception('not a valid filecoin address');
+    // }
+  } else if (data['default'] == 'ATOM') {
+    // Bech32 sel = bech32.decode(recipient);
+    // if (sel.hrp != data['bech32Hrp']) {
+    //   throw Exception('not a valid cosmos address');
+    // }
+  } else if (data['rpc'] != null) {
+    web3.EthereumAddress.fromHex(recipient);
+  }
+}
+
 bool isLocalizedContent(Uri url) {
   return (url.scheme == "file" ||
       url.scheme == "chrome" ||
@@ -3658,7 +3736,7 @@ bool urlIsSecure(Uri url) {
   return (url.scheme == "https") || isLocalizedContent(url);
 }
 
-Future<String?> downloadFile(String url, [String? filename]) async {
+Future<String> downloadFile(String url, [String filename]) async {
   var hasStoragePermission = await Permission.storage.isGranted;
   if (!hasStoragePermission) {
     final status = await Permission.storage.request();

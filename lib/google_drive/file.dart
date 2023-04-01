@@ -44,8 +44,8 @@ class FileReader {
     return await file.writeAsString(content);
   }
 
-  static Future<String?> getDownloadPath() async {
-    Directory? directory;
+  static Future<String> getDownloadPath() async {
+    Directory directory;
     try {
       if (Platform.isIOS) {
         directory = await getApplicationDocumentsDirectory();

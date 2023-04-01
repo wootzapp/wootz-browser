@@ -17,9 +17,9 @@ import '../utils/app_config.dart';
 import 'build_row.dart';
 
 class ProfilesTabView extends StatefulWidget {
-  Function? onTap;
+  Function onTap;
   ProfilesTabView({
-    Key? key,
+    Key key,
     this.onTap,
   }) : super(key: key);
 
@@ -30,14 +30,14 @@ class ProfilesTabView extends StatefulWidget {
 class _ProfilesTabViewState extends State<ProfilesTabView> {
   List<Tab> tabProfiles = [];
   List tabView = [];
-  Map? chainDetails = getEthereumDetailsFromChainId(1);
+  Map chainDetails = getEthereumDetailsFromChainId(1);
 
   int tabIndex = 0;
   int currentProfileIndex = 0;
   String currentTabProfile = pref.get(currentMmenomicKey);
   int currentTabChain = 1;
 
-  late int windowId;
+  int windowId;
 
   @override
   void initState() {
@@ -91,7 +91,7 @@ class _ProfilesTabViewState extends State<ProfilesTabView> {
             // print(currentTabProfile);
             blockChainDetails['name'] = i;
             if (widget.onTap != null) {
-              widget.onTap!(currentTabProfile, blockChainDetails['chainId']);
+              widget.onTap(currentTabProfile, blockChainDetails['chainId']);
             } else {
               Navigator.pop(context);
             }
@@ -139,7 +139,7 @@ class _ProfilesTabViewState extends State<ProfilesTabView> {
                   //   ),
                   // ),
                   Text(
-                    AppLocalizations.of(context)!.selectBlockchains,
+                    AppLocalizations.of(context).selectBlockchains,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 20.0,
@@ -214,7 +214,7 @@ class _ProfilesTabViewState extends State<ProfilesTabView> {
                     child: GestureDetector(
                       onTap: () {},
                       child: CircleAvatar(
-                        backgroundImage: AssetImage(chainDetails!['image']),
+                        backgroundImage: AssetImage(chainDetails['image']),
                       ),
                     ),
                   ),

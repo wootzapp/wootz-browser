@@ -3,11 +3,13 @@
 import 'dart:convert';
 
 import 'package:cryptowallet/models/provider.dart';
-import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
+import 'package:cryptowallet/webview_tab.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
@@ -16,14 +18,15 @@ import 'package:screenshot_callback/screenshot_callback.dart';
 import '../components/loader.dart';
 import '../config/colors.dart';
 import '../main.dart';
+import '../models/webview_model.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class Confirmmnemonic extends StatefulWidget {
   final List<String> mmenomic;
   const Confirmmnemonic({
-    Key? key,
-    required this.mmenomic,
+    Key key,
+    this.mmenomic,
   }) : super(key: key);
   @override
   _ConfirmmnemonicState createState() => _ConfirmmnemonicState();
@@ -44,7 +47,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
   // RxBool fourthStep = false.obs;
   final fourthStep = ValueNotifier<bool>(false);
 
-  late List numbers;
+  List numbers;
 
   int currentCorrectItem = 0;
   // RxBool firstTime = true.obs;
@@ -69,7 +72,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
-        message: AppLocalizations.of(context)!.youCantScreenshot,
+        message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
     disEnableScreenShot();
@@ -135,7 +138,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  AppLocalizations.of(context)!.mnemonicAlreadyImported,
+                  AppLocalizations.of(context).mnemonicAlreadyImported,
                 ),
                 backgroundColor: Colors.red,
                 action: SnackBarAction(
@@ -176,7 +179,8 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       );
       isLoading.value = false;
 
-      RestartWidget.restartApp(context);
+      // RestartWidget.restartApp(context);
+      // Phoenix.rebirth(context);
 
       final redirectUrl = pref.get('redirectUrl');
 
@@ -184,10 +188,16 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         // Navigator.of(context).pushReplacement(
         //     MaterialPageRoute(builder: (_) => WebViewTab(url: redirectUrl)));
         // Widget nextWidget = await dappWidget(context, redirectUrl);
-        Widget nextWidget = await dappWidget(context, redirectUrl);
 
-        Navigator.of(context)
-            .pushReplacement(MaterialPageRoute(builder: (_) => nextWidget));
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => WebViewTab(
+              webViewModel: WebViewModel(
+                url: WebUri(redirectUrl),
+              ),
+            ),
+          ),
+        );
       } else {
         for (int i = 0; i < 2; i++) {
           Navigator.pop(context);
@@ -197,7 +207,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            AppLocalizations.of(context)!.walletCreated,
+            AppLocalizations.of(context).walletCreated,
           ),
         ),
       );
@@ -219,7 +229,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            AppLocalizations.of(context)!.errorTryAgain,
+            AppLocalizations.of(context).errorTryAgain,
           ),
           backgroundColor: Colors.red,
           action: SnackBarAction(
@@ -246,7 +256,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          AppLocalizations.of(context)!.invalidmnemonic,
+          AppLocalizations.of(context).invalidmnemonic,
         ),
         backgroundColor: Colors.red,
         action: SnackBarAction(
@@ -276,7 +286,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          AppLocalizations.of(context)!.confirmmnemonic,
+          AppLocalizations.of(context).confirmmnemonic,
         ),
       ),
       key: scaffoldKey,
@@ -378,7 +388,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                           child: Column(
                             children: [
                               Text(
-                                AppLocalizations.of(context)!
+                                AppLocalizations.of(context)
                                     .selectEachWordAsPresented,
                               ),
                               Row(
@@ -475,7 +485,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
                                   child: isLoading.value
                                       ? Loader(color: white)
                                       : Text(
-                                          AppLocalizations.of(context)!
+                                          AppLocalizations.of(context)
                                               .continue_,
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,

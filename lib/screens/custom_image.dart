@@ -4,16 +4,16 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 class CustomImage extends StatelessWidget {
-  final double? width;
-  final double? height;
+  final double width;
+  final double height;
   final double maxWidth;
   final double maxHeight;
   final double minWidth;
   final double minHeight;
-  final Uri? url;
+  final Uri url;
 
   const CustomImage(
-      {Key? key,
+      {Key key,
       this.url,
       this.width,
       this.height,
@@ -39,7 +39,7 @@ class CustomImage extends StatelessWidget {
 
   Widget getImage() {
     if (url != null) {
-      if (url!.scheme == "data") {
+      if (url.scheme == "data") {
         Uint8List bytes = const Base64Decoder()
             .convert(url.toString().replaceFirst("data:image/png;base64,", ""));
         return Image.memory(

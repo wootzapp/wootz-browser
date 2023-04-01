@@ -9,7 +9,7 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({
-    Key? key,
+    Key key,
   }) : super(key: key);
   @override
   _MainScreenState createState() => _MainScreenState();
@@ -25,7 +25,7 @@ class _MainScreenState extends State<MainScreen> {
         //     onPressed: () {
         //       Navigator.of(context).pop();
         //     }),
-        title: Text(AppLocalizations.of(context)!.welcome),
+        title: Text(AppLocalizations.of(context).welcome),
       ),
       body: SizedBox(
         height: double.infinity,
@@ -55,28 +55,28 @@ class _MainScreenState extends State<MainScreen> {
                     height: 50,
                   ),
                   Text(
-                    AppLocalizations.of(context)!.swap,
+                    AppLocalizations.of(context).swap,
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(
                     height: 10,
                   ),
                   Text(
-                    '${AppLocalizations.of(context)!.send} & ${AppLocalizations.of(context)!.receive}',
+                    '${AppLocalizations.of(context).send} & ${AppLocalizations.of(context).receive}',
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(
                     height: 10,
                   ),
                   Text(
-                    AppLocalizations.of(context)!.privateAndSecure,
+                    AppLocalizations.of(context).privateAndSecure,
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(
                     height: 10,
                   ),
                   Text(
-                    AppLocalizations.of(context)!.defiAccess,
+                    AppLocalizations.of(context).defiAccess,
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(
@@ -109,7 +109,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(15),
                         child: Text(
-                          AppLocalizations.of(context)!.createNewWallet,
+                          AppLocalizations.of(context).createNewWallet,
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -144,7 +144,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(15),
                         child: Text(
-                          AppLocalizations.of(context)!.restoreWithPassphrase,
+                          AppLocalizations.of(context).restoreWithPassphrase,
                           style: const TextStyle(
                             color: appBackgroundblue,
                             fontWeight: FontWeight.bold,
@@ -180,7 +180,7 @@ class _MainScreenState extends State<MainScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(15),
                         child: Text(
-                          AppLocalizations.of(context)!.restoreWithSecretShare,
+                          AppLocalizations.of(context).restoreWithSecretShare,
                           style: const TextStyle(
                             color: appBackgroundblue,
                             fontWeight: FontWeight.bold,

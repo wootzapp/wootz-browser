@@ -5,7 +5,7 @@ import 'package:hive/hive.dart';
 import '../main.dart';
 
 class DarkModeToggler extends StatefulWidget {
-  const DarkModeToggler({Key? key}) : super(key: key);
+  const DarkModeToggler({Key key}) : super(key: key);
 
   @override
   State<DarkModeToggler> createState() => _DarkModeTogglerState();

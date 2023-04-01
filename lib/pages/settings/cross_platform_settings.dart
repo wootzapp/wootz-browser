@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import '../../project_info_popup.dart';
 
 class CrossPlatformSettings extends StatefulWidget {
-  const CrossPlatformSettings({Key? key}) : super(key: key);
+  const CrossPlatformSettings({Key key}) : super(key: key);
 
   @override
   State<CrossPlatformSettings> createState() => _CrossPlatformSettingsState();
@@ -301,7 +301,7 @@ class _CrossPlatformSettingsState extends State<CrossPlatformSettings> {
             title: const Text("Custom User Agent"),
             subtitle: Text(
                 currentWebViewModel.settings?.userAgent?.isNotEmpty ?? false
-                    ? currentWebViewModel.settings!.userAgent!
+                    ? currentWebViewModel.settings.userAgent
                     : "Set a custom user agent ..."),
             onTap: () {
               _customUserAgentController.text =

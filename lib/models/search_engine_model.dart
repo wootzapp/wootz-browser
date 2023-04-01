@@ -5,12 +5,9 @@ class SearchEngineModel {
   final String searchUrl;
 
   const SearchEngineModel(
-      {required this.name,
-      required this.url,
-      required this.searchUrl,
-      required this.assetIcon});
+      {this.name, this.url, this.searchUrl, this.assetIcon});
 
-  static SearchEngineModel? fromMap(Map<String, dynamic>? map) {
+  static SearchEngineModel fromMap(Map<String, dynamic> map) {
     return map != null
         ? SearchEngineModel(
             name: map["name"],

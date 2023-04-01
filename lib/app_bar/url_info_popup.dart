@@ -9,12 +9,12 @@ import '../custom_popup_dialog.dart';
 class UrlInfoPopup extends StatefulWidget {
   final CustomPopupDialogPageRoute route;
   final Duration transitionDuration;
-  final Function()? onWebViewTabSettingsClicked;
+  final Function() onWebViewTabSettingsClicked;
 
   const UrlInfoPopup(
-      {Key? key,
-      required this.route,
-      required this.transitionDuration,
+      {Key key,
+      this.route,
+      this.transitionDuration,
       this.onWebViewTabSettingsClicked})
       : super(key: key);
 
@@ -141,7 +141,7 @@ class _UrlInfoPopupState extends State<UrlInfoPopup> {
 
               Future.delayed(widget.transitionDuration, () {
                 if (widget.onWebViewTabSettingsClicked != null) {
-                  widget.onWebViewTabSettingsClicked!();
+                  widget.onWebViewTabSettingsClicked();
                 }
               });
             },
