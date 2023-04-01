@@ -114,7 +114,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                             return CircleAvatar(
                               radius: 20,
                               backgroundImage: AssetImage(
-                                networkImage.value ?? '',
+                                networkImage.value,
                               ),
                             );
                           }),
@@ -150,7 +150,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                                 await Clipboard.getData(Clipboard.kTextPlain);
                             if (cdata == null) return;
                             if (cdata.text == null) return;
-                            contractAddressController.text = cdata.text;
+                            contractAddressController.text = cdata.text ?? "";
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
@@ -322,7 +322,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           tokenContractAddress.toLowerCase()) {
                         // Get.snackbar(
                         //   '',
-                        //   AppLocalizations.of(context).tokenImportedAlready,
+                        //   AppLocalizations.of(context)!.tokenImportedAlready,
                         //   backgroundColor: Colors.red,
                         //   colorText: Colors.white,
                         // );
@@ -343,7 +343,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                       if (double.tryParse(contractDecimals) == null) {
                         // Get.snackbar(
                         //   '',
-                        //   AppLocalizations.of(context)
+                        //   AppLocalizations.of(context)!
                         //       .invalidContractAddressOrNetworkTimeout,
                         //   backgroundColor: Colors.red,
                         //   colorText: Colors.white,
@@ -369,7 +369,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           contractDecimals.isEmpty) {
                         // Get.snackbar(
                         //   '',
-                        //   AppLocalizations.of(context).enterContractAddress,
+                        //   AppLocalizations.of(context)!.enterContractAddress,
                         //   backgroundColor: Colors.red,
                         //   colorText: Colors.white,
                         // );

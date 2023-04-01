@@ -54,7 +54,7 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
       if (kDebugMode) {
         print(e.toString());
       }
-      return {};
+      // return {};
     }
   }
 
@@ -76,7 +76,8 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
         valueListenable: userDetails_,
         builder: (context, value, child) {
           if (userDetails_.value.isEmpty) {
-            return loader;
+            return Icon(Icons.account_box_sharp);
+            // return loader;
           }
 
           if (userDetails_.value['name'] == null) {
@@ -129,10 +130,10 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
               const SizedBox(
                 width: 10,
               ),
-              Text(
-                '${(widget.showHi ?? false) ? AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
-                style: TextStyle(fontSize: widget.textSize),
-              )
+              // Text(
+              //   '${(widget.showHi  false)  AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
+              //   style: TextStyle(fontSize: widget.textSize),
+              // )
             ],
           );
         });

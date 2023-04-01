@@ -1,0 +1,1 @@
+I was told it's a good practice to give guidelines to contributors. However this is the open-source project I have ever created or even contributed to, so the first contribution by someone more experience could be contribution rules :-)

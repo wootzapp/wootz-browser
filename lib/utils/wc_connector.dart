@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cryptowallet/utils/app_config.dart';
-import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
@@ -17,6 +16,8 @@ import 'package:web3dart/web3dart.dart' hide Wallet;
 import 'package:http/http.dart' as http;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import 'navigator_service.dart';
+
 class WcConnector {
   BuildContext context;
   static WCClient wcClient;
@@ -28,6 +29,7 @@ class WcConnector {
   WcConnector() {
     context = NavigationService.navigatorKey.currentContext;
     _prefs = Hive.box(secureStorageKey);
+
     wcClient = WCClient(
       onSessionRequest: _onSessionRequest,
       onFailure: _onSessionError,
@@ -43,6 +45,7 @@ class WcConnector {
       onConnect: _onConnect,
       onWalletSwitchNetwork: _onSwitchNetwork,
     );
+
     wcReconnect();
   }
 
@@ -379,6 +382,7 @@ class WcConnector {
     int id,
     WCEthereumTransaction ethereumTransaction,
   ) {
+    print('signing');
     _onTransaction(
       id: id,
       ethereumTransaction: ethereumTransaction,
@@ -452,6 +456,7 @@ class WcConnector {
     }
 
     await signMessage(
+      raw: [ethereumSignMessage.data],
       messageType: messageType,
       context: context,
       data: ethereumSignMessage.data,
@@ -468,11 +473,10 @@ class WcConnector {
             version: TypedDataVersion.V4,
           );
         } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
-          Uint8List signedData = credentials.signPersonalMessageToUint8List(
+          Uint8List signedData = await credentials.signPersonalMessage(
             txDataToUintList(
               ethereumSignMessage.data,
             ),
-            chainId: _chainId,
           );
           signedDataHex = bytesToHex(signedData, include0x: true);
         } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {

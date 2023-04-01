@@ -13,6 +13,7 @@ import 'package:cryptowallet/utils/format_money.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // import 'package:get/get.dart';
@@ -20,6 +21,9 @@ import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:intl/intl.dart';
 import 'package:page_transition/page_transition.dart';
+
+import '../models/webview_model.dart';
+import '../webview_tab.dart';
 
 class Token extends StatefulWidget {
   final Map data;
@@ -233,8 +237,8 @@ class _TokenState extends State<Token> {
         currentAddress =
             response['eth_wallet_address'].toString().toLowerCase();
       }
-      String contractAddrLookUpkey;
-      String evmAddrLookUpkey;
+      String contractAddrLookUpkey = '';
+      String evmAddrLookUpkey = '';
 
       if (widget.data['rpc'] != null) {
         contractAddrLookUpkey =
@@ -246,31 +250,36 @@ class _TokenState extends State<Token> {
       final isContractAddress = widget.data['contractAddress'] != null;
       final isEvmAddress = widget.data['rpc'] != null;
 
+      Map<dynamic, dynamic> tempTokenTransaction;
+
       if (isContractAddress && pref.get(contractAddrLookUpkey) != null) {
-        tokenTransaction.value = {
+        tempTokenTransaction = {
           'trx': jsonDecode(pref.get(contractAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           isEvmAddress &&
           pref.get(evmAddrLookUpkey) != null) {
-        tokenTransaction.value = {
+        tempTokenTransaction = {
           'trx': jsonDecode(pref.get(evmAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           !isEvmAddress &&
           pref.get('${widget.data['default']} Details') != null) {
-        tokenTransaction.value = {
+        tempTokenTransaction = {
           'trx': jsonDecode(pref.get('${widget.data['default']} Details')),
           'currentUser': currentAddress
         };
       } else {
-        tokenTransaction.value = {
+        tempTokenTransaction = {
           'trx': [],
           'currentUser': currentAddress,
         };
       }
+      setState(() {
+        tokenTransaction.value = tempTokenTransaction;
+      });
     } catch (_) {}
   }
 
@@ -541,6 +550,7 @@ class _TokenState extends State<Token> {
                               return GestureDetector(
                                 onTap: () {
                                   trxOpen.value = !trxOpen.value;
+                                  print("trxOpen-> ${trxOpen.value}");
                                 },
                                 child: Card(
                                   shape: RoundedRectangleBorder(
@@ -579,6 +589,7 @@ class _TokenState extends State<Token> {
                             valueListenable: tokenTransaction,
                             builder: (context, value, child) {
                               final listTransactions = <Widget>[];
+                              print(tokenTransaction);
                               if (tokenTransaction != null &&
                                   tokenTransaction.value.isNotEmpty) {
                                 List data =
@@ -602,19 +613,21 @@ class _TokenState extends State<Token> {
                                   listTransactions.addAll([
                                     GestureDetector(
                                       onTap: () async {
-                                        Widget nextWidget;
-                                        nextWidget = await dappWidget(
-                                          context,
-                                          widget.data['blockExplorer']
-                                              .toString()
-                                              .replaceFirst(
-                                                transactionhashTemplateKey,
-                                                datum['transactionHash'],
+                                        await Navigator.of(context)
+                                            .push(MaterialPageRoute(
+                                          builder: (_) => WebViewTab(
+                                            webViewModel: WebViewModel(
+                                              url: WebUri(
+                                                widget.data['blockExplorer']
+                                                    .toString()
+                                                    .replaceFirst(
+                                                      transactionhashTemplateKey,
+                                                      datum['transactionHash'],
+                                                    ),
                                               ),
-                                        );
-                                        await Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                                builder: (_) => nextWidget));
+                                            ),
+                                          ),
+                                        ));
                                         // Get.to(
                                         //   nextWidget,
                                         //   transition: Transition.leftToRight,

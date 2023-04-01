@@ -26,9 +26,6 @@ import 'package:bs58check/bs58check.dart' as bs58check;
 import 'package:solana/solana.dart' as solana;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
-import '../eip/eip681.dart';
-import '../utils/coin_pay.dart';
-
 class SendToken extends StatefulWidget {
   final Map data;
 
@@ -89,34 +86,15 @@ class _SendTokenState extends State<SendToken> {
                             Icons.qr_code_scanner,
                           ),
                           onPressed: () async {
-                            String recipientAddr = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (ctx) => const QRScanView(),
-                              ),
-                            );
-
+                            String recipientAddr = await Navigator.of(context)
+                                .push(MaterialPageRoute(
+                              builder: (_) => const QRScanView(),
+                            ));
+                            // Get.to(
+                            //   const QRScanView(),
+                            // );
                             if (recipientAddr == null) return;
-
-                            if (!recipientAddr.contains(':')) {
-                              recipientAddressController.text = recipientAddr;
-                            }
-
-                            try {
-                              if (widget.data['contractAddress'] != null) {
-                                Map data = EIP681.parse(recipientAddr);
-
-                                recipientAddressController.text =
-                                    data['parameters']['address'];
-                                return;
-                              }
-                            } catch (_) {}
-
-                            try {
-                              CoinPay data = CoinPay.parseUri(recipientAddr);
-                              recipientAddressController.text = data.recipient;
-                              amount.text = data?.amount?.toString();
-                            } catch (_) {}
+                            recipientAddressController.text = recipientAddr;
                           },
                         ),
                         InkWell(
@@ -430,7 +408,7 @@ class _SendTokenState extends State<SendToken> {
 
                             String recipient =
                                 recipientAddressController.text.trim();
-                            String cryptoDomain;
+                            String cryptoDomain = '';
                             bool iscryptoDomain = recipient.contains('.');
 
                             try {
@@ -462,9 +440,9 @@ class _SendTokenState extends State<SendToken> {
                                         : null,
                                   );
                                   cryptoDomain =
-                                      unstoppableDomainAddr['success']
+                                      (unstoppableDomainAddr['success']
                                           ? recipient
-                                          : null;
+                                          : null);
                                   recipient = unstoppableDomainAddr['success']
                                       ? unstoppableDomainAddr['msg']
                                       : recipient;

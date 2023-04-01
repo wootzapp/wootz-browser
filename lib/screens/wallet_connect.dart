@@ -125,10 +125,10 @@ class _WalletConnectState extends State<WalletConnect> {
                         Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: Theme.of(context)
+                              color: (Theme.of(context)
                                   .primaryTextTheme
                                   .bodyLarge
-                                  .color,
+                                  .color),
                             ),
                             borderRadius: const BorderRadius.all(
                               Radius.circular(10),

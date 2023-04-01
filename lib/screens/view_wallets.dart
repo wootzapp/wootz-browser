@@ -49,7 +49,6 @@ class _ViewWalletsState extends State<ViewWallets> {
                 if (seedList.value == null || seedList.value.isEmpty) {
                   seedList.value = widget.data;
                 }
-
                 List<Widget> userWallets = <Widget>[];
                 if (seedList.value != null) {
                   for (int index = 0; index < seedList.value.length; index++) {
@@ -76,6 +75,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                             seedList.value[index]['name'],
                           );
                           Navigator.pop(context);
+
                           // RestartWidget.restartApp(context);
                         },
                         child: Container(

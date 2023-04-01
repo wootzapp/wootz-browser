@@ -1,4 +1,9 @@
-(function () {
+// import { initializeProvider } from '@metamask/providers';
+// import detectEthereumProvider from '@metamask/detect-provider';
+(
+
+  function () {
+  // setMetatag();
   const __addressHex = "%1$s";
   const __rpcURL = "%2$s";
   const __chainID = "%3$s";
@@ -61,11 +66,16 @@
   window.addEventListener("flutterInAppWebViewPlatformReady", function (event) {
     isFlutterInAppWebViewReady = true;
     console.log("done and ready");
+
+    // metamaskProvider();
+    // console.log('metamaskProvider called');
+
   });
 
   window.AlphaWallet.init(
     __rpcURL,
     {
+
       getAccounts: function (cb) {
         cb(null, [__addressHex]);
       },

@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:bip39/bip39.dart' as bip39;
@@ -46,7 +47,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
         message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
-    WidgetsBinding.instance?.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     disEnableScreenShot();
   }
 
@@ -79,7 +80,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
   @override
   void dispose() {
     enableScreenShot();
-    WidgetsBinding.instance?.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     mnemonicController.dispose();
     walletNameController.dispose();
     super.dispose();
@@ -277,7 +278,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                       mnemonics) {
                                                     // Get.snackbar(
                                                     //   '',
-                                                    //   AppLocalizations.of(context)
+                                                    //   AppLocalizations.of(context)!
                                                     //       .mnemonicAlreadyImported,
                                                     //   backgroundColor: Colors.red,
                                                     //   colorText: Colors.white,
@@ -317,7 +318,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                               if (!mnemonicValid) {
                                                 // Get.snackbar(
                                                 //   '',
-                                                //   AppLocalizations.of(context)
+                                                //   AppLocalizations.of(context)!
                                                 //       .invalidmnemonic,
                                                 //   backgroundColor: Colors.red,
                                                 //   colorText: Colors.white,
@@ -350,7 +351,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                       .trim();
 
                                               if (walletName.isEmpty) {
-                                                walletName = null;
+                                                walletName = '';
                                               }
 
                                               await initializeAllPrivateKeys(
@@ -374,7 +375,8 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                 walletName,
                                               );
 
-                                              RestartWidget.restartApp(context);
+                                              // RestartWidget.restartApp(context);
+                                              Phoenix.rebirth(context);
 
                                               isLoading.value = false;
                                             } catch (e) {
@@ -383,7 +385,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                               }
                                               // Get.snackbar(
                                               //   '',
-                                              //   AppLocalizations.of(context)
+                                              //   AppLocalizations.of(context)!
                                               //       .errorTryAgain,
                                               //   backgroundColor: Colors.red,
                                               //   colorText: Colors.white,

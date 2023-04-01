@@ -10,10 +10,10 @@ class NotificationApi {
   static final _notification = FlutterLocalNotificationsPlugin();
 
   static _notificationDetails({
-    String picturePath,
-    String title,
-    String body,
-    bool showBigPicture,
+    String picturePath = '',
+    String title = '',
+    String body = '',
+    bool showBigPicture = false,
   }) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -38,7 +38,8 @@ class NotificationApi {
     );
   }
 
-  static Future _init({Function(NotificationResponse response) onclick}) async {
+  static Future _init(
+      {Function(NotificationResponse response) onclick}) async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iOS = DarwinInitializationSettings();
     const settings = InitializationSettings(android: android, iOS: iOS);
@@ -64,7 +65,7 @@ class NotificationApi {
     String picturePath,
     bool showBigPicture,
   ) {
-    if (picturePath == null) return null;
+    if (picturePath == '') return null;
     final FilePathAndroidBitmap filePath = FilePathAndroidBitmap(picturePath);
     return BigPictureStyleInformation(
       showBigPicture ? filePath : const FilePathAndroidBitmap("empty"),
@@ -78,11 +79,11 @@ class NotificationApi {
 
   static Future showNotification({
     int id = 0,
-    String title,
-    String body,
-    String payload,
+    String title = '',
+    String body = '',
+    String payload = '',
     Function onclose,
-    String imageUrl,
+    String imageUrl = '',
     Function(NotificationResponse response) onclick,
   }) async {
     String picturePath = await _downloadAndSavePicture(imageUrl);
@@ -105,7 +106,7 @@ class NotificationApi {
   static Future<String> _downloadAndSavePicture(
     String url,
   ) async {
-    if (url == null) return null;
+    if (url == '') return '';
     final Directory directory = await getApplicationDocumentsDirectory();
     final String filePath = '${directory.path}/${sha3(url)}';
     final Response response = await get(Uri.parse(url));

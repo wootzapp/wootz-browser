@@ -16,7 +16,6 @@ import 'package:share/share.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 import '../components/loader.dart';
-import '../utils/coin_pay.dart';
 
 class ReceiveToken extends StatefulWidget {
   final Map data;
@@ -89,6 +88,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
           );
           return {
             'address': response['eth_wallet_address'],
+            'isEthReceivePayment': true
           };
         }(),
         builder: (context, snapshot) {
@@ -185,7 +185,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                       ValueListenableBuilder(
                           valueListenable: amountRequested,
                           builder: (context, value, child) {
-                            return amountRequested.value != null
+                            return amountRequested != null
                                 ? Text(amountRequested.value)
                                 : Container();
                           }),
@@ -218,7 +218,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
 
                                     // Get.snackbar(
                                     //   '',
-                                    //   AppLocalizations.of(context)
+                                    //   AppLocalizations.of(context)!
                                     //       .copiedToClipboard,
                                     // );
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -273,163 +273,173 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                               Text(AppLocalizations.of(context).share),
                             ],
                           ),
-                          Column(
-                            children: [
-                              GestureDetector(
-                                  onTap: () {
-                                    AwesomeDialog(
-                                      showCloseIcon: true,
-                                      context: context,
-                                      closeIcon: const Icon(
-                                        Icons.close,
-                                      ),
-                                      animType: AnimType.SCALE,
-                                      dialogType: DialogType.INFO,
-                                      keyboardAware: true,
-                                      body: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Column(
-                                          children: <Widget>[
-                                            Text(
-                                              AppLocalizations.of(context)
-                                                  .requestPayment,
-                                            ),
-                                            const SizedBox(
-                                              height: 10,
-                                            ),
-                                            Material(
-                                              elevation: 0,
-                                              color:
-                                                  Colors.blueGrey.withAlpha(40),
-                                              child: TextFormField(
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                controller: amountField,
-                                                autofocus: true,
-                                                minLines: 1,
-                                                decoration: InputDecoration(
-                                                  border: InputBorder.none,
-                                                  labelText:
-                                                      AppLocalizations.of(
-                                                              context)
-                                                          .amount,
-                                                  prefixIcon: const Icon(
-                                                      Icons.text_fields),
+                          if (snapshot.data['isEthReceivePayment'] != null)
+                            Column(
+                              children: [
+                                GestureDetector(
+                                    onTap: () {
+                                      AwesomeDialog(
+                                        showCloseIcon: true,
+                                        context: context,
+                                        closeIcon: const Icon(
+                                          Icons.close,
+                                        ),
+                                        animType: AnimType.SCALE,
+                                        dialogType: DialogType.INFO,
+                                        keyboardAware: true,
+                                        body: Padding(
+                                          padding: const EdgeInsets.all(8.0),
+                                          child: Column(
+                                            children: <Widget>[
+                                              Text(
+                                                AppLocalizations.of(context)
+                                                    .requestPayment,
+                                              ),
+                                              const SizedBox(
+                                                height: 10,
+                                              ),
+                                              Material(
+                                                elevation: 0,
+                                                color: Colors.blueGrey
+                                                    .withAlpha(40),
+                                                child: TextFormField(
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  controller: amountField,
+                                                  autofocus: true,
+                                                  minLines: 1,
+                                                  decoration: InputDecoration(
+                                                    border: InputBorder.none,
+                                                    labelText:
+                                                        AppLocalizations.of(
+                                                                context)
+                                                            .amount,
+                                                    prefixIcon: const Icon(
+                                                        Icons.text_fields),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const SizedBox(
-                                              height: 10,
-                                            ),
-                                            AnimatedButton(
-                                              isFixedHeight: false,
-                                              text: AppLocalizations.of(context)
-                                                  .ok,
-                                              pressEvent: () {
-                                                if (Navigator.canPop(context)) {
-                                                  // Get.back();
-                                                  Navigator.of(context).pop();
-                                                }
-                                                Map blockchainData =
-                                                    snapshot.data as Map;
+                                              const SizedBox(
+                                                height: 10,
+                                              ),
+                                              AnimatedButton(
+                                                isFixedHeight: false,
+                                                text:
+                                                    AppLocalizations.of(context)
+                                                        .ok,
+                                                pressEvent: () {
+                                                  if (Navigator.canPop(
+                                                      context)) {
+                                                    // Get.back();
+                                                    Navigator.of(context).pop();
+                                                  }
 
-                                                FocusManager
-                                                    .instance.primaryFocus
-                                                    ?.unfocus();
-                                                String requestUrl;
+                                                  FocusManager
+                                                      .instance.primaryFocus
+                                                      ?.unfocus();
+                                                  String ethereumRequestURL =
+                                                      '';
 
-                                                if (amountField.text != null &&
-                                                    double.tryParse(amountField
-                                                            .text
-                                                            .trim()) !=
-                                                        null) {
-                                                  Decimal amountEntered =
-                                                      Decimal.parse(amountField
-                                                          .text
-                                                          .trim());
-                                                  try {
-                                                    if (widget
-                                                            .data['default'] !=
-                                                        null) {
-                                                      requestUrl = CoinPay(
-                                                        coinScheme:
-                                                            requestPaymentScheme[
-                                                                widget.data[
-                                                                    'symbol']],
-                                                        amount: amountEntered
-                                                            .toDouble(),
-                                                        recipient:
-                                                            blockchainData[
-                                                                'address'],
-                                                      ).toUri();
-                                                    } else {
-                                                      requestUrl = EIP681.build(
-                                                          targetAddress: widget
-                                                                  .data[
-                                                              'contractAddress'],
-                                                          chainId: widget
-                                                              .data['chainId']
-                                                              .toString(),
-                                                          functionName:
-                                                              'transfer',
-                                                          parameters: {
-                                                            'uint256': (amountEntered *
-                                                                    Decimal.parse(pow(
-                                                                            10,
-                                                                            double.parse(widget.data['decimals']))
-                                                                        .toString()))
-                                                                .toString(),
-                                                            'address':
+                                                  if (amountField.text !=
+                                                          null &&
+                                                      double.tryParse(
+                                                              amountField.text
+                                                                  .trim()) !=
+                                                          null) {
+                                                    Decimal
+                                                        amountUserEnteredInDecimals =
+                                                        Decimal.parse(
+                                                            amountField.text
+                                                                .trim());
+                                                    try {
+                                                      if (widget.data[
+                                                              'default'] !=
+                                                          null) {
+                                                        ethereumRequestURL = EIP681.build(
+                                                            targetAddress:
                                                                 (snapshot.data
                                                                         as Map)[
-                                                                    'address']
-                                                          });
+                                                                    'address'],
+                                                            chainId: widget
+                                                                .data['chainId']
+                                                                .toString(),
+                                                            parameters: {
+                                                              'value': (amountUserEnteredInDecimals *
+                                                                      Decimal.parse(pow(
+                                                                              10,
+                                                                              18)
+                                                                          .toString()))
+                                                                  .toString()
+                                                            });
+                                                      } else {
+                                                        ethereumRequestURL =
+                                                            EIP681.build(
+                                                                targetAddress:
+                                                                    widget.data[
+                                                                        'contractAddress'],
+                                                                chainId: widget
+                                                                    .data[
+                                                                        'chainId']
+                                                                    .toString(),
+                                                                functionName:
+                                                                    'transfer',
+                                                                parameters: {
+                                                              'uint256': (amountUserEnteredInDecimals *
+                                                                      Decimal.parse(pow(
+                                                                              10,
+                                                                              double.parse(widget.data['decimals']))
+                                                                          .toString()))
+                                                                  .toString(),
+                                                              'address':
+                                                                  (snapshot.data
+                                                                          as Map)[
+                                                                      'address']
+                                                            });
+                                                      }
+                                                    } catch (e) {
+                                                      if (kDebugMode) {
+                                                        print(e);
+                                                      }
                                                     }
-                                                  } catch (e) {
+
                                                     if (kDebugMode) {
-                                                      print(e);
+                                                      print(ethereumRequestURL);
                                                     }
                                                   }
 
-                                                  if (kDebugMode) {
-                                                    print(requestUrl);
-                                                  }
-                                                }
-
-                                                isRequestingPayment.value =
-                                                    true;
-                                                amountRequested
-                                                    .value = requestUrl !=
-                                                        null
-                                                    ? "+${amountField.text.trim()} ${widget.data['symbol']}"
-                                                    : null;
-                                                amountField.text = '';
-                                                userAddress.value =
-                                                    requestUrl ??
-                                                        (snapshot.data
-                                                            as Map)['address'];
-                                              },
-                                            )
-                                          ],
+                                                  isRequestingPayment.value =
+                                                      true;
+                                                  amountRequested.value =
+                                                      ethereumRequestURL ??
+                                                          "+${amountField.text.trim()} ${widget.data['symbol']}";
+                                                  amountField.text = '';
+                                                  userAddress.value =
+                                                      ethereumRequestURL ??
+                                                          (snapshot.data
+                                                                  as Map)[
+                                                              'address'];
+                                                },
+                                              )
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ).show();
-                                  },
-                                  child: Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.black,
-                                      ),
-                                      child: const Icon(Icons.add,
-                                          color: Colors.white))),
-                              const SizedBox(
-                                height: 5,
-                              ),
-                              Text(AppLocalizations.of(context).request),
-                            ],
-                          ),
+                                      ).show();
+                                    },
+                                    child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.black,
+                                        ),
+                                        child: const Icon(Icons.add,
+                                            color: Colors.white))),
+                                const SizedBox(
+                                  height: 5,
+                                ),
+                                Text(AppLocalizations.of(context).request),
+                              ],
+                            ),
                         ],
                       ),
                     ],
