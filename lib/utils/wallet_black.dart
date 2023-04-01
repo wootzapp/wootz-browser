@@ -23,7 +23,7 @@ import 'app_config.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class WalletBlack extends StatefulWidget {
-  const WalletBlack({Key? key}) : super(key: key);
+  const WalletBlack({Key key}) : super(key: key);
 
   @override
   State<WalletBlack> createState() => _WalletBlackState();
@@ -33,7 +33,7 @@ class _WalletBlackState extends State<WalletBlack> {
   final recipientAddrContr = TextEditingController();
   final amount = TextEditingController();
   final btcUSD = TextEditingController();
-  late num bitcoinPrice;
+  num bitcoinPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +216,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                     autocorrect: false,
                                     controller: amount,
                                     onChanged: (value) async {
-                                      Decimal? amount = Decimal.tryParse(value);
+                                      Decimal amount = Decimal.tryParse(value);
                                       if (amount == null) return;
                                       if (bitcoinPrice != null) {
                                         double conversion =
@@ -340,7 +340,7 @@ class _WalletBlackState extends State<WalletBlack> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                           content: Text(
-                                              AppLocalizations.of(context)!
+                                              AppLocalizations.of(context)
                                                   .invalidAddress),
                                           backgroundColor: Colors.red,
                                           action: SnackBarAction(

@@ -3,7 +3,7 @@ import 'package:cryptowallet/app_bar/find_on_page_app_bar.dart';
 import 'package:cryptowallet/app_bar/webview_tab_app_bar.dart';
 
 class BrowserAppBar extends StatefulWidget implements PreferredSizeWidget {
-  const BrowserAppBar({Key? key})
+  const BrowserAppBar({Key key})
       : preferredSize = const Size.fromHeight(kToolbarHeight),
         super(key: key);
 

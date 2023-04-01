@@ -8,10 +8,9 @@ import 'main.dart';
 class ScrollableTab extends StatefulWidget {
   final Widget child;
   final double top;
-  final Function? onTap;
+  final Function onTap;
 
-  const ScrollableTab(
-      {Key? key, required this.child, this.top = 0.0, this.onTap})
+  const ScrollableTab({Key key, this.child, this.top = 0.0, this.onTap})
       : super(key: key);
 
   @override
@@ -28,7 +27,7 @@ class _ScrollableTabState extends State<ScrollableTab> {
       child: GestureDetector(
         onTap: () {
           if (widget.onTap != null) {
-            widget.onTap!();
+            widget.onTap();
           }
         },
         child: Transform.scale(
@@ -49,10 +48,9 @@ class _ScrollableTabState extends State<ScrollableTab> {
 class TabViewer extends StatefulWidget {
   final List<Widget> children;
   final int currentIndex;
-  final Function(int index)? onTap;
+  final Function(int index) onTap;
 
-  const TabViewer(
-      {Key? key, required this.children, this.onTap, this.currentIndex = 0})
+  const TabViewer({Key key, this.children, this.onTap, this.currentIndex = 0})
       : super(key: key);
 
   @override
@@ -64,7 +62,7 @@ class _TabViewerState extends State<TabViewer>
   List<double> positions = [];
   int focusedIndex = 0;
   bool initialized = false;
-  Timer? _timer;
+  Timer _timer;
   double decelerationRate = 1.5;
 
   @override
@@ -209,7 +207,7 @@ class _TabViewerState extends State<TabViewer>
               return ScrollableTab(
                 onTap: () {
                   if (widget.onTap != null) {
-                    widget.onTap!(index);
+                    widget.onTap(index);
                   }
                 },
                 top: positions[index],

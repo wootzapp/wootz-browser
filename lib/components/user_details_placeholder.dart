@@ -11,12 +11,11 @@ import '../utils/app_config.dart';
 import '../utils/rpc_urls.dart';
 
 class UserDetailsPlaceHolder extends StatefulWidget {
-  final double? size;
-  final bool? showHi;
-  final double? textSize;
+  final double size;
+  final bool showHi;
+  final double textSize;
 
-  const UserDetailsPlaceHolder(
-      {Key? key, this.size, this.showHi, this.textSize})
+  const UserDetailsPlaceHolder({Key key, this.size, this.showHi, this.textSize})
       : super(key: key);
 
   @override
@@ -82,7 +81,7 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
           }
 
           if (userDetails_.value['name'] == null) {
-            userDetails_.value['name'] = AppLocalizations.of(context)!.user;
+            userDetails_.value['name'] = AppLocalizations.of(context).user;
           }
 
           final blockieGreetingWidget = Container(
@@ -132,7 +131,7 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
                 width: 10,
               ),
               // Text(
-              //   '${(widget.showHi ?? false) ? AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
+              //   '${(widget.showHi  false)  AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
               //   style: TextStyle(fontSize: widget.textSize),
               // )
             ],

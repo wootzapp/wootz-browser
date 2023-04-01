@@ -7,7 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
 
 class IOSSettings extends StatefulWidget {
-  const IOSSettings({Key? key}) : super(key: key);
+  const IOSSettings({Key key}) : super(key: key);
 
   @override
   State<IOSSettings> createState() => _IOSSettingsState();
@@ -153,7 +153,7 @@ class _IOSSettingsState extends State<IOSSettings> {
         trailing: DropdownButton<SelectionGranularity>(
           hint: const Text("Granularity"),
           onChanged: (value) {
-            currentWebViewModel.settings?.selectionGranularity = value!;
+            currentWebViewModel.settings?.selectionGranularity = value;
             webViewController?.setSettings(
                 settings:
                     currentWebViewModel.settings ?? InAppWebViewSettings());
@@ -263,7 +263,7 @@ class _IOSSettingsState extends State<IOSSettings> {
         trailing: DropdownButton<ScrollViewDecelerationRate>(
           hint: const Text("Deceleration"),
           onChanged: (value) {
-            currentWebViewModel.settings?.decelerationRate = value!;
+            currentWebViewModel.settings?.decelerationRate = value;
             webViewController?.setSettings(
                 settings:
                     currentWebViewModel.settings ?? InAppWebViewSettings());
@@ -385,7 +385,7 @@ class _IOSSettingsState extends State<IOSSettings> {
         trailing: DropdownButton<ScrollViewContentInsetAdjustmentBehavior>(
           onChanged: (value) {
             currentWebViewModel.settings?.contentInsetAdjustmentBehavior =
-                value!;
+                value;
             webViewController?.setSettings(
                 settings:
                     currentWebViewModel.settings ?? InAppWebViewSettings());

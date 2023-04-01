@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 
 class CertificateInfoPopup extends StatefulWidget {
-  const CertificateInfoPopup({Key? key}) : super(key: key);
+  const CertificateInfoPopup({Key key}) : super(key: key);
 
   @override
   State<CertificateInfoPopup> createState() => _CertificateInfoPopupState();
@@ -22,8 +22,8 @@ class CertificateInfoPopup extends StatefulWidget {
 
 class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
   final List<X509Certificate> _otherCertificates = [];
-  X509Certificate? _topMainCertificate;
-  X509Certificate? _selectedCertificate;
+  X509Certificate _topMainCertificate;
+  X509Certificate _selectedCertificate;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
       var webViewModel = Provider.of<WebViewModel>(context, listen: true);
 
       return FutureBuilder(
-        future: webViewModel.webViewController?.getCertificate(),
+        future: webViewModel.webViewController.getCertificate(),
         builder: (context, snapshot) {
           if (!snapshot.hasData ||
               snapshot.connectionState != ConnectionState.done) {
@@ -43,11 +43,11 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
           }
           SslCertificate sslCertificate = snapshot.data as SslCertificate;
           _topMainCertificate = sslCertificate.x509Certificate;
-          _selectedCertificate = _topMainCertificate!;
+          _selectedCertificate = _topMainCertificate;
 
           return FutureBuilder(
             future: _getOtherCertificatesFromTopMain(
-                _otherCertificates, _topMainCertificate!),
+                _otherCertificates, _topMainCertificate),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.done) {
                 return _buildCertificatesInfoAlertDialog();
@@ -79,10 +79,10 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
       X509Certificate x509certificate) async {
     var authorityInfoAccess = x509certificate.authorityInfoAccess;
     if (authorityInfoAccess != null && authorityInfoAccess.infoAccess != null) {
-      for (var i = 0; i < authorityInfoAccess.infoAccess!.length; i++) {
+      for (var i = 0; i < authorityInfoAccess.infoAccess.length; i++) {
         try {
           var caIssuerUrl = authorityInfoAccess
-              .infoAccess![i].location; // [OID.caIssuers.toValue()];
+              .infoAccess[i].location; // [OID.caIssuers.toValue()];
           HttpClientRequest request =
               await HttpClient().getUrl(Uri.parse(caIssuerUrl));
           HttpClientResponse response = await request.close();
@@ -98,8 +98,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
 
     var cRLDistributionPoints = x509certificate.cRLDistributionPoints;
     if (cRLDistributionPoints != null && cRLDistributionPoints.crls != null) {
-      for (var i = 0; i < cRLDistributionPoints.crls!.length; i++) {
-        var crlUrl = cRLDistributionPoints.crls![i];
+      for (var i = 0; i < cRLDistributionPoints.crls.length; i++) {
+        var crlUrl = cRLDistributionPoints.crls[i];
         try {
           HttpClientRequest request =
               await HttpClient().getUrl(Uri.parse(crlUrl));
@@ -144,7 +144,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        url?.host ?? "",
+                        url.host ?? "",
                         style: const TextStyle(
                             fontSize: 16.0, fontWeight: FontWeight.bold),
                       ),
@@ -177,7 +177,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                                   context: context,
                                   builder: (context) {
                                     List<X509Certificate> certificates = [
-                                      _topMainCertificate!
+                                      _topMainCertificate
                                     ];
                                     certificates.addAll(_otherCertificates);
 
@@ -250,7 +250,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                                                     child:
                                                         SingleChildScrollView(
                                                       child: _buildCertificateInfo(
-                                                          _selectedCertificate!),
+                                                          _selectedCertificate),
                                                     ),
                                                   ),
                                                 ],
@@ -295,8 +295,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     );
   }
 
-  String? _findCountryName(
-      {required X509Certificate x509certificate, required bool isSubject}) {
+  String _findCountryName({X509Certificate x509certificate, bool isSubject}) {
     try {
       return (isSubject
               ? x509certificate.subject(dn: ASN1DistinguishedNames.COUNTRY_NAME)
@@ -314,8 +313,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     return null;
   }
 
-  String? _findStateOrProvinceName(
-      {required X509Certificate x509certificate, required bool isSubject}) {
+  String _findStateOrProvinceName(
+      {X509Certificate x509certificate, bool isSubject}) {
     try {
       return (isSubject
               ? x509certificate.subject(
@@ -334,8 +333,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     return null;
   }
 
-  String? _findCommonName(
-      {required X509Certificate x509certificate, required bool isSubject}) {
+  String _findCommonName({X509Certificate x509certificate, bool isSubject}) {
     try {
       return (isSubject
               ? x509certificate.subject(dn: ASN1DistinguishedNames.COMMON_NAME)
@@ -353,8 +351,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     return null;
   }
 
-  String? _findOrganizationName(
-      {required X509Certificate x509certificate, required bool isSubject}) {
+  String _findOrganizationName(
+      {X509Certificate x509certificate, bool isSubject}) {
     try {
       return (isSubject
               ? x509certificate.subject(
@@ -373,8 +371,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     return null;
   }
 
-  String? _findOrganizationUnitName(
-      {required X509Certificate x509certificate, required bool isSubject}) {
+  String _findOrganizationUnitName(
+      {X509Certificate x509certificate, bool isSubject}) {
     try {
       return (isSubject
               ? x509certificate.subject(
@@ -605,10 +603,10 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
 
   List<Widget> _buildValidityPeriodSection(X509Certificate x509certificate) {
     var issuedOnDate = x509certificate.notBefore != null
-        ? DateFormat("dd MMM yyyy HH:mm:ss").format(x509certificate.notBefore!)
+        ? DateFormat("dd MMM yyyy HH:mm:ss").format(x509certificate.notBefore)
         : "<Not Part Of Certificate>";
     var expiresOnDate = x509certificate.notAfter != null
-        ? DateFormat("dd MMM yyyy HH:mm:ss").format(x509certificate.notAfter!)
+        ? DateFormat("dd MMM yyyy HH:mm:ss").format(x509certificate.notAfter)
         : "<Not Part Of Certificate>";
 
     return <Widget>[
@@ -651,11 +649,11 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     if (publicKey != null) {
       if (publicKey.algOid != null) {
         publicKeyAlg =
-            "${OID.fromValue(publicKey.algOid)!.name()} ( ${publicKey.algOid} )";
+            "${OID.fromValue(publicKey.algOid).name()} ( ${publicKey.algOid} )";
       }
       if (publicKey.algParams != null) {
         publicKeyAlgParams =
-            "${OID.fromValue(publicKey.algParams)!.name()} ( ${publicKey.algParams} )";
+            "${OID.fromValue(publicKey.algParams).name()} ( ${publicKey.algParams} )";
       }
     }
 
@@ -710,7 +708,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
       ),
       FutureBuilder(
         future: x509certificate.encoded != null
-            ? sha256.bind(Stream.value(x509certificate.encoded!)).first
+            ? sha256.bind(Stream.value(x509certificate.encoded)).first
             : null,
         builder: (context, snapshot) {
           if (!snapshot.hasData ||
@@ -742,7 +740,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
         style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold),
       ),
       FutureBuilder(
-        future: sha1.bind(Stream.value(x509certificate.encoded!)).first,
+        future: sha1.bind(Stream.value(x509certificate.encoded)).first,
         builder: (context, snapshot) {
           if (!snapshot.hasData ||
               snapshot.connectionState != ConnectionState.done) {
@@ -842,7 +840,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black)),
                 TextSpan(
-                    text: KeyUsage.fromIndex(i)!.name(),
+                    text: KeyUsage.fromIndex(i).name(),
                     style: const TextStyle(fontSize: 12.0, color: Colors.black))
               ]),
             ),
@@ -987,7 +985,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
         : "NO";
     if (extendedKeyUsage.isNotEmpty) {
       for (var i = 0; i < extendedKeyUsage.length; i++) {
-        OID oid = OID.fromValue(extendedKeyUsage[i])!;
+        OID oid = OID.fromValue(extendedKeyUsage[i]);
 
         extendedKeyUsageSection.addAll(<Widget>[
           const SizedBox(
@@ -1057,8 +1055,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
         ? "YES"
         : "NO";
     if (subjectKeyIdentifier?.value != null &&
-        subjectKeyIdentifier!.value!.isNotEmpty) {
-      var subjectKeyIdentifierToHexValue = subjectKeyIdentifier.value!
+        subjectKeyIdentifier.value.isNotEmpty) {
+      var subjectKeyIdentifierToHexValue = subjectKeyIdentifier.value
           .map((byte) {
             var hexValue = byte.toRadixString(16);
             if (byte == 0 || hexValue.length == 1) {
@@ -1136,9 +1134,9 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
         ? "YES"
         : "NO";
     if (authorityKeyIdentifier?.keyIdentifier != null &&
-        authorityKeyIdentifier!.keyIdentifier!.isNotEmpty) {
+        authorityKeyIdentifier.keyIdentifier.isNotEmpty) {
       var authorityKeyIdentifierToHexValue =
-          authorityKeyIdentifier.keyIdentifier!
+          authorityKeyIdentifier.keyIdentifier
               .map((byte) {
                 var hexValue = byte.toRadixString(16);
                 if (byte == 0 || hexValue.length == 1) {
@@ -1233,9 +1231,9 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     ];
 
     if (certificatePolicies?.policies != null &&
-        certificatePolicies!.policies!.isNotEmpty) {
-      for (var i = 0; i < certificatePolicies.policies!.length; i++) {
-        OID? oid = OID.fromValue(certificatePolicies.policies![i].oid);
+        certificatePolicies.policies.isNotEmpty) {
+      for (var i = 0; i < certificatePolicies.policies.length; i++) {
+        OID oid = OID.fromValue(certificatePolicies.policies[i].oid);
 
         certificatePoliciesSection.addAll(<Widget>[
           RichText(
@@ -1249,7 +1247,7 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
               TextSpan(
                   text: (oid != null)
                       ? "${oid.name()} ( ${oid.toValue()} )"
-                      : "( ${certificatePolicies.policies![i].oid} )",
+                      : "( ${certificatePolicies.policies[i].oid} )",
                   style: const TextStyle(fontSize: 12.0, color: Colors.black))
             ]),
           ),
@@ -1309,8 +1307,8 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     ];
 
     if (cRLDistributionPoints?.crls != null &&
-        cRLDistributionPoints!.crls!.isNotEmpty) {
-      for (var i = 0; i < cRLDistributionPoints.crls!.length; i++) {
+        cRLDistributionPoints.crls.isNotEmpty) {
+      for (var i = 0; i < cRLDistributionPoints.crls.length; i++) {
         cRLDistributionPointsSection.addAll(<Widget>[
           RichText(
             text: TextSpan(children: [
@@ -1321,15 +1319,14 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                       fontWeight: FontWeight.bold,
                       color: Colors.black)),
               TextSpan(
-                  text: cRLDistributionPoints.crls![i],
+                  text: cRLDistributionPoints.crls[i],
                   style: const TextStyle(fontSize: 12.0, color: Colors.blue),
                   recognizer: TapGestureRecognizer()
                     ..onTap = () async {
-                      Directory? directory =
-                          await getExternalStorageDirectory();
+                      Directory directory = await getExternalStorageDirectory();
                       await FlutterDownloader.enqueue(
-                        url: cRLDistributionPoints.crls![i],
-                        savedDir: directory!.path,
+                        url: cRLDistributionPoints.crls[i],
+                        savedDir: directory.path,
                         showNotification:
                             true, // show download progress in status bar (for Android)
                         openFileFromNotification:
@@ -1394,9 +1391,9 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
     ];
 
     if (authorityInfoAccess?.infoAccess != null &&
-        authorityInfoAccess!.infoAccess!.isNotEmpty) {
-      for (var i = 0; i < authorityInfoAccess.infoAccess!.length; i++) {
-        var infoAccess = authorityInfoAccess.infoAccess![i];
+        authorityInfoAccess.infoAccess.isNotEmpty) {
+      for (var i = 0; i < authorityInfoAccess.infoAccess.length; i++) {
+        var infoAccess = authorityInfoAccess.infoAccess[i];
         var value = infoAccess.location;
         var oid = OID.fromValue(infoAccess.method);
 
@@ -1430,11 +1427,10 @@ class _CertificateInfoPopupState extends State<CertificateInfoPopup> {
                   style: const TextStyle(fontSize: 12.0, color: Colors.blue),
                   recognizer: TapGestureRecognizer()
                     ..onTap = () async {
-                      Directory? directory =
-                          await getExternalStorageDirectory();
+                      Directory directory = await getExternalStorageDirectory();
                       await FlutterDownloader.enqueue(
                         url: value,
-                        savedDir: directory!.path,
+                        savedDir: directory.path,
                         showNotification:
                             true, // show download progress in status bar (for Android)
                         openFileFromNotification:

@@ -3,9 +3,9 @@ import 'package:cryptowallet/models/browser_model.dart';
 import 'package:provider/provider.dart';
 
 class FindOnPageAppBar extends StatefulWidget {
-  final void Function()? hideFindOnPage;
+  final void Function() hideFindOnPage;
 
-  const FindOnPageAppBar({Key? key, this.hideFindOnPage}) : super(key: key);
+  const FindOnPageAppBar({Key key, this.hideFindOnPage}) : super(key: key);
 
   @override
   State<FindOnPageAppBar> createState() => _FindOnPageAppBarState();
@@ -75,7 +75,7 @@ class _FindOnPageAppBarState extends State<FindOnPageAppBar> {
             _finOnPageController.text = "";
 
             if (widget.hideFindOnPage != null) {
-              widget.hideFindOnPage!();
+              widget.hideFindOnPage();
             }
           },
         ),

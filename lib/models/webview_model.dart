@@ -5,38 +5,38 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class WebViewModel extends ChangeNotifier {
-  int? _tabIndex;
-  WebUri? _url;
-  String? _title;
-  Favicon? _favicon;
-  late double _progress;
-  late bool _loaded;
-  late bool _isDesktopMode;
-  late bool _isIncognitoMode;
-  late List<Widget> _javaScriptConsoleResults;
-  late List<String> _javaScriptConsoleHistory;
-  late List<LoadedResource> _loadedResources;
-  late bool _isSecure;
-  int? windowId;
-  InAppWebViewSettings? settings;
-  InAppWebViewController? webViewController;
-  PullToRefreshController? pullToRefreshController;
-  FindInteractionController? findInteractionController;
-  Uint8List? screenshot;
+  int _tabIndex;
+  WebUri _url;
+  String _title;
+  Favicon _favicon;
+   double _progress;
+   bool _loaded;
+   bool _isDesktopMode;
+   bool _isIncognitoMode;
+   List<Widget> _javaScriptConsoleResults;
+   List<String> _javaScriptConsoleHistory;
+   List<LoadedResource> _loadedResources;
+   bool _isSecure;
+  int windowId;
+  InAppWebViewSettings settings;
+  InAppWebViewController webViewController;
+  PullToRefreshController pullToRefreshController;
+  FindInteractionController findInteractionController;
+  Uint8List screenshot;
   bool needsToCompleteInitialLoad;
 
   WebViewModel(
-      {int? tabIndex,
-        WebUri? url,
-      String? title,
-      Favicon? favicon,
+      {int tabIndex,
+        WebUri url,
+      String title,
+      Favicon favicon,
       double progress = 0.0,
       bool loaded = false,
       bool isDesktopMode = false,
       bool isIncognitoMode = false,
-      List<Widget>? javaScriptConsoleResults,
-      List<String>? javaScriptConsoleHistory,
-      List<LoadedResource>? loadedResources,
+      List<Widget> javaScriptConsoleResults,
+      List<String> javaScriptConsoleHistory,
+      List<LoadedResource> loadedResources,
       bool isSecure = false,
       this.windowId,
       this.settings,
@@ -58,36 +58,36 @@ class WebViewModel extends ChangeNotifier {
     settings = settings ?? InAppWebViewSettings();
   }
 
-  int? get tabIndex => _tabIndex;
+  int get tabIndex => _tabIndex;
 
-  set tabIndex(int? value) {
+  set tabIndex(int value) {
     if (value != _tabIndex) {
       _tabIndex = value;
       notifyListeners();
     }
   }
 
-  WebUri? get url => _url;
+  WebUri get url => _url;
 
-  set url(WebUri? value) {
+  set url(WebUri value) {
     if (value != _url) {
       _url = value;
       notifyListeners();
     }
   }
 
-  String? get title => _title;
+  String get title => _title;
 
-  set title(String? value) {
+  set title(String value) {
     if (value != _title) {
       _title = value;
       notifyListeners();
     }
   }
 
-  Favicon? get favicon => _favicon;
+  Favicon get favicon => _favicon;
 
-  set favicon(Favicon? value) {
+  set favicon(Favicon value) {
     if (value != _favicon) {
       _favicon = value;
       notifyListeners();
@@ -205,7 +205,7 @@ class WebViewModel extends ChangeNotifier {
     findInteractionController = webViewModel.findInteractionController;
   }
 
-  static WebViewModel? fromMap(Map<String, dynamic>? map) {
+  static WebViewModel fromMap(Map<String, dynamic> map) {
     return map != null
         ? WebViewModel(
             tabIndex: map["tabIndex"],

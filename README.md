@@ -1,24 +1,67 @@
-# Flutter Browser App
+# crypto wallet
 
-![flutter-browser-article-logo](https://user-images.githubusercontent.com/5956938/86740154-b7a48180-c036-11ea-85c1-cbd662f65f84.png)
+This is a Mobile crypto wallet, developed with flutter for IOS and Android.
 
-A Full-Featured Mobile Browser App (such as the Google Chrome mobile browser) created using Flutter and the features offered by the [flutter_inappwebview](https://github.com/pichillilorenzo/flutter_inappwebview) plugin.
+add solana to total balance ✅
+add solana transactions ✅
+make qr code also use gallery and torch light ✅
+fix transaction fee on sign transaction modal ✅
+pause camera when app in background ✅
+added filecoin ✅
 
-It is available on the **Google Play Store** at [https://play.google.com/store/apps/details?id=com.pichillilorenzo.flutter_browser](https://play.google.com/store/apps/details?id=com.pichillilorenzo.flutter_browser)
+autheniticate on pause. ✅
+localization, add more languages. ✅
+ens support ✅
+block explorer closure can not be json encoded fixed ✅
+add stellar blockchain ✅
 
-## Introduction
-Article: [Creating a Full-Featured Browser using WebViews in Flutter](https://medium.com/flutter-community/creating-a-full-featured-browser-using-webviews-in-flutter-9c8f2923c574?source=friends_link&sk=55fc8267f351082aa9e73ced546f6bcb).
+add support for wallet connect and ethereum links externally. ✅
+decode known abis. ✅
+https://www.npmjs.com/package/xpring-js for xrp
+check intent url link opening wc: wallet connect url on ios.
 
-Check out also the article that introduces the [flutter_inappwebview](https://github.com/pichillilorenzo/flutter_inappwebview) plugin here: [InAppWebView: The Real Power of WebViews in Flutter](https://medium.com/flutter-community/inappwebview-the-real-power-of-webviews-in-flutter-c6d52374209d?source=friends_link&sk=cb74487219bcd85e610a670ee0b447d0).
+fix cardano ✅
+set changeaddress = firstunused ✅
+so the unspent will be transferred to user wallet. ✅
 
-## Features
-- **WebView Tab**, with custom on long-press link/image preview, and how to move from one tab to another without losing the WebView state;
-- **Browser App Bar** with the current URL and all popup menu actions such as opening a new tab, a new incognito tab, saving the current URL to the favorite list, saving a page to offline usage, viewing the SSL Certificate used by the website, enable Desktop Mode, etc. (features similar to the Google Chrome App);
-- **Developer console**, where you can execute JavaScript code, see some network info, manage the browser storage such as cookies, window.localStorage , etc;
-- **Settings page**, where you can update the browser general settings and enable/disable all the features offered by the flutter_inappwebview for each WebView Tab, such as enabling/disabling JavaScript, caching, scrollbars, setting custom user-agent, etc., and all the Android and iOS-specific features;
-- **Save** and **restore** the current Browser state.
+Class '\_InternalLinkedHashMap<String, Object>' ---> find more about this. ✅
 
-## Final Result
-Video: [Flutter Browser App Final Result](https://drive.google.com/file/d/1wE2yUGwjNBiUy72GOjPIYyDXYQn3ewYn/view?usp=sharing).
+set transaction list length to maximum length to save automatically in transfer token. ✅
 
-If you found this useful and you like the [flutter_inappwebview](https://github.com/pichillilorenzo/flutter_inappwebview) plugin and this App project, give a star to these projects, thanks!
+fix swap page. ✅
+
+decode abi. ✅
+
+fix cosmos sending...
+change lcdurl for cosmos to sdk 0.37.9 / cosmoshub-3
+find a lcd with this version.
+format eip712 message signature ✅
+update xcode to version 14 for run app.
+
+fix .wallet domain for unstoppable domain ✅
+fix eip 712 ui ✅
+
+0xb80Df2BF515CBEf0E62b31Ba67B288fd9cC164E5// error contract
+
+saved session, prevent destroying session on dismiss. ✅
+restore walletconnect session while opening the app ✅
+
+show dialog when adding ethereum chain to wallet ✅
+
+added bitcoin cash (BCH) ✅
+
+**Things to do**
+1. Follow up the two tutorials on the game(FPS and Beat 'em Up) and recreate the game again.
+2. Know how to implement mocks in flutter for the hive library.
+3. Learn about redux in react and how to use it instead on setstate.
+
+
+<!-- hive_test: ^1.0.1 -->
+
+task to do
+................
+1. change the wallet provider from alphawallet to trust wallet.
+2. https://github.com/wootzapp/wootzap/issues/36
+3. Better Wallet connect support(qr code)
+ 3.1  replicate import token flow through a special wootz://import/ flow issue #36
+ e.g wz://add-rpc?network-name=Shardeum%20Liberty&rpc-url=https%3A%2F%2Fliberty20.shardeum.org%2F&chain-id=8081&currency-symbol=SHM&block-explorer-url=https%3A%2F%2Fexplorer-liberty20.shardeum.org%2F

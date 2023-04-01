@@ -19,21 +19,21 @@ class ProviderClass extends ChangeNotifier {
 
   Map<int, dynamic> get tabUserCred => _tabUserCred;
 
-  String? _defaultProfile;
+  String _defaultProfile;
 
-  String? get defaultProfile => _defaultProfile;
+  String get defaultProfile => _defaultProfile;
 
-  int? _defaultChain;
+  int _defaultChain;
 
-  int? get defaultChain => _defaultChain;
+  int get defaultChain => _defaultChain;
 
-  String? _currentProfile;
+  String _currentProfile;
 
-  String? get currentProfile => _currentProfile;
+  String get currentProfile => _currentProfile;
 
-  int? _currentChain;
+  int _currentChain;
 
-  int? get currentChain => _currentChain;
+  int get currentChain => _currentChain;
 
   void setCurrentWindowId(int windowId) {
     _currentWindowId = windowId;
@@ -71,7 +71,7 @@ class ProviderClass extends ChangeNotifier {
     notifyListeners();
   }
 
-  void changeTabUserCred(int windowId, String? profile, int? chain) {
+  void changeTabUserCred(int windowId, String profile, int chain) {
     print('changeTabUser called');
     print('windowId $windowId');
     if (profile == '') {

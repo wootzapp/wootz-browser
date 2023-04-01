@@ -16,8 +16,8 @@ import '../utils/rpc_urls.dart';
 
 class WalletConnectPreview extends StatefulWidget {
   final Map data;
-  final String? currentPhrase;
-  const WalletConnectPreview({Key? key, required this.data, this.currentPhrase})
+  final String currentPhrase;
+  const WalletConnectPreview({Key key, this.data, this.currentPhrase})
       : super(key: key);
   @override
   State<WalletConnectPreview> createState() => _WalletConnectPreviewState();
@@ -26,8 +26,8 @@ class WalletConnectPreview extends StatefulWidget {
 class _WalletConnectPreviewState extends State<WalletConnectPreview> {
   String networkName = '';
   String networkIcon = '';
-  late List icons;
-  late DateTime trnDate;
+  List icons;
+  DateTime trnDate;
   @override
   initState() {
     super.initState();

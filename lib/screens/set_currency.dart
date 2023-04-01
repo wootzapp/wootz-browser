@@ -10,8 +10,8 @@ import 'package:http/http.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class SetCurrency extends StatefulWidget {
-  final String? data;
-  const SetCurrency({this.data, Key? key}) : super(key: key);
+  final String data;
+  const SetCurrency({this.data, Key key}) : super(key: key);
 
   @override
   _SetCurrencyState createState() => _SetCurrencyState();
@@ -23,7 +23,7 @@ class _SetCurrencyState extends State<SetCurrency> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.selectCurrency),
+        title: Text(AppLocalizations.of(context).selectCurrency),
       ),
       key: _scaffoldKey,
       body: SafeArea(

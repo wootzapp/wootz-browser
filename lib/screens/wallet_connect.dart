@@ -17,17 +17,17 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import '../utils/qr_scan_view.dart';
 
 class WalletConnect extends StatefulWidget {
-  const WalletConnect({Key? key}) : super(key: key);
+  const WalletConnect({Key key}) : super(key: key);
 
   @override
   _WalletConnectState createState() => _WalletConnectState();
 }
 
 class _WalletConnectState extends State<WalletConnect> {
-  late Box prefs;
-  late TextEditingController _textEditingController;
+  Box prefs;
+  TextEditingController _textEditingController;
   String connectedWebsiteUrl = "";
-  late List previousSessions;
+  List previousSessions;
 
   @override
   void initState() {
@@ -96,7 +96,7 @@ class _WalletConnectState extends State<WalletConnect> {
                                     color: Colors.transparent,
                                   ),
                                   Text(
-                                    AppLocalizations.of(context)!.connectViAQR,
+                                    AppLocalizations.of(context).connectViAQR,
                                     style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -127,8 +127,8 @@ class _WalletConnectState extends State<WalletConnect> {
                             border: Border.all(
                               color: (Theme.of(context)
                                   .primaryTextTheme
-                                  .bodyLarge!
-                                  .color)!,
+                                  .bodyLarge
+                                  .color),
                             ),
                             borderRadius: const BorderRadius.all(
                               Radius.circular(10),
@@ -155,13 +155,13 @@ class _WalletConnectState extends State<WalletConnect> {
                             child: Align(
                               alignment: Alignment.center,
                               child: Text(
-                                AppLocalizations.of(context)!.connectViACode,
+                                AppLocalizations.of(context).connectViACode,
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Theme.of(context)
                                       .primaryTextTheme
-                                      .bodyLarge!
+                                      .bodyLarge
                                       .color,
                                 ),
                               ),
@@ -171,11 +171,11 @@ class _WalletConnectState extends State<WalletConnect> {
                                   context: context,
                                   barrierDismissible: true,
                                   barrierLabel:
-                                      AppLocalizations.of(context)!.pasteCode,
+                                      AppLocalizations.of(context).pasteCode,
                                   pageBuilder: (context, _, __) {
                                     return SimpleDialog(
                                       title: Text(
-                                        AppLocalizations.of(context)!.pasteCode,
+                                        AppLocalizations.of(context).pasteCode,
                                       ),
                                       titlePadding: const EdgeInsets.fromLTRB(
                                           16.0, 16.0, 16.0, .0),
@@ -186,7 +186,7 @@ class _WalletConnectState extends State<WalletConnect> {
                                           controller: _textEditingController,
                                           decoration: InputDecoration(
                                             label: Text(
-                                              AppLocalizations.of(context)!
+                                              AppLocalizations.of(context)
                                                   .enterCode,
                                             ),
 
@@ -222,7 +222,7 @@ class _WalletConnectState extends State<WalletConnect> {
                                               onPressed: () =>
                                                   Navigator.pop(context),
                                               child: Text(
-                                                AppLocalizations.of(context)!
+                                                AppLocalizations.of(context)
                                                     .confirm,
                                               ),
                                             ),
@@ -260,7 +260,7 @@ class _WalletConnectState extends State<WalletConnect> {
                               child: Align(
                                 alignment: Alignment.center,
                                 child: Text(
-                                  AppLocalizations.of(context)!.killSession,
+                                  AppLocalizations.of(context).killSession,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,

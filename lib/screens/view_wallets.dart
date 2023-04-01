@@ -15,8 +15,7 @@ import 'package:multi_value_listenable_builder/multi_value_listenable_builder.da
 class ViewWallets extends StatefulWidget {
   final List data;
   final String currentPhrase;
-  const ViewWallets({Key? key, required this.data, required this.currentPhrase})
-      : super(key: key);
+  const ViewWallets({Key key, this.data, this.currentPhrase}) : super(key: key);
   @override
   State<ViewWallets> createState() => _ViewWalletsState();
 }
@@ -40,7 +39,7 @@ class _ViewWalletsState extends State<ViewWallets> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.wallet)),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).wallet)),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(15),
@@ -98,7 +97,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                                   Flexible(
                                     child: Text(
                                       seedList.value[index]['name'] ??
-                                          '${AppLocalizations.of(context)!.mainWallet} ${seedList.value.indexOf(seedList.value[index]) + 1}',
+                                          '${AppLocalizations.of(context).mainWallet} ${seedList.value.indexOf(seedList.value[index]) + 1}',
                                       style: const TextStyle(
                                         fontSize: 20,
                                       ),
@@ -190,7 +189,7 @@ class _ViewWalletsState extends State<ViewWallets> {
         child: Column(
           children: <Widget>[
             Text(
-              AppLocalizations.of(context)!.editWalletName,
+              AppLocalizations.of(context).editWalletName,
             ),
             const SizedBox(
               height: 10,
@@ -205,7 +204,7 @@ class _ViewWalletsState extends State<ViewWallets> {
                 minLines: 1,
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  labelText: AppLocalizations.of(context)!.walletName,
+                  labelText: AppLocalizations.of(context).walletName,
                   prefixIcon: const Icon(Icons.text_fields),
                 ),
               ),
@@ -215,7 +214,7 @@ class _ViewWalletsState extends State<ViewWallets> {
             ),
             AnimatedButton(
               isFixedHeight: false,
-              text: AppLocalizations.of(context)!.ok,
+              text: AppLocalizations.of(context).ok,
               pressEvent: () async {
                 FocusManager.instance.primaryFocus?.unfocus();
 
@@ -285,11 +284,11 @@ class _ViewWalletsState extends State<ViewWallets> {
       ),
       onDissmissCallback: (type) {},
       dismissOnTouchOutside: true,
-      title: AppLocalizations.of(context)!.confirmWalletDelete,
-      btnOkText: AppLocalizations.of(context)!.delete,
+      title: AppLocalizations.of(context).confirmWalletDelete,
+      btnOkText: AppLocalizations.of(context).delete,
       btnOkColor: Colors.red,
       btnCancelColor: appBackgroundblue,
-      desc: AppLocalizations.of(context)!.confirmWalletDeleteDescription,
+      desc: AppLocalizations.of(context).confirmWalletDeleteDescription,
       btnCancelOnPress: () {
         // Get.back(result: false);
         Navigator.of(context).pop(false);

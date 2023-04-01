@@ -11,7 +11,7 @@ import '../custom_popup_menu_item.dart';
 import '../tab_viewer_popup_menu_actions.dart';
 
 class TabViewerAppBar extends StatefulWidget implements PreferredSizeWidget {
-  const TabViewerAppBar({Key? key})
+  const TabViewerAppBar({Key key})
       : preferredSize = const Size.fromHeight(kToolbarHeight),
         super(key: key);
 
@@ -182,7 +182,7 @@ class _TabViewerAppBarState extends State<TabViewerAppBar> {
     }
   }
 
-  void addNewTab({WebUri? url}) {
+  void addNewTab({WebUri url}) {
     var browserModel = Provider.of<BrowserModel>(context, listen: false);
     var settings = browserModel.getSettings();
 
@@ -198,7 +198,7 @@ class _TabViewerAppBarState extends State<TabViewerAppBar> {
     ));
   }
 
-  void addNewIncognitoTab({WebUri? url}) {
+  void addNewIncognitoTab({WebUri url}) {
     var browserModel = Provider.of<BrowserModel>(context, listen: false);
     var settings = browserModel.getSettings();
 

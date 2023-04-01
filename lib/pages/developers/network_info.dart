@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 // import 'package:charts_flutter/flutter.dart' as charts;
 
 class NetworkInfo extends StatefulWidget {
-  const NetworkInfo({Key? key}) : super(key: key);
+  const NetworkInfo({Key key}) : super(key: key);
 
   @override
   State<NetworkInfo> createState() => _NetworkInfoState();
@@ -198,7 +198,7 @@ class _NetworkInfoState extends State<NetworkInfo> {
                       vertical: 5.0, horizontal: 2.5),
                   child: Text(
                       (loadedResoruce.duration != null)
-                          ? "${loadedResoruce.duration!.toStringAsFixed(2)} ms"
+                          ? "${loadedResoruce.duration.toStringAsFixed(2)} ms"
                           : "",
                       style: textStyle),
                 ))
