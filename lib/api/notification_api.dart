@@ -39,7 +39,7 @@ class NotificationApi {
   }
 
   static Future _init(
-      {Function(NotificationResponse response)? onclick}) async {
+      {Function(NotificationResponse response) onclick}) async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iOS = DarwinInitializationSettings();
     const settings = InitializationSettings(android: android, iOS: iOS);
@@ -59,7 +59,7 @@ class NotificationApi {
     await _notification.cancel(id);
   }
 
-  static BigPictureStyleInformation? _buildBigPictureStyleInformation(
+  static BigPictureStyleInformation _buildBigPictureStyleInformation(
     String title,
     String body,
     String picturePath,
@@ -82,9 +82,9 @@ class NotificationApi {
     String title = '',
     String body = '',
     String payload = '',
-    Function? onclose,
+    Function onclose,
     String imageUrl = '',
-    Function(NotificationResponse response)? onclick,
+    Function(NotificationResponse response) onclick,
   }) async {
     String picturePath = await _downloadAndSavePicture(imageUrl);
 

@@ -5,16 +5,16 @@ import '../utils/format_money.dart';
 import 'hide_balance_widget.dart';
 
 class UserBalance extends StatefulWidget {
-  final double? balance;
-  final double? iconSize;
-  final String? symbol;
-  final TextStyle? textStyle;
-  final Color? iconColor;
-  final Widget? iconDivider;
-  final bool? reversed;
-  final Widget? iconSuffix;
+  final double balance;
+  final double iconSize;
+  final String symbol;
+  final TextStyle textStyle;
+  final Color iconColor;
+  final Widget iconDivider;
+  final bool reversed;
+  final Widget iconSuffix;
   const UserBalance({
-    Key? key,
+    Key key,
     this.symbol,
     this.balance,
     this.textStyle,

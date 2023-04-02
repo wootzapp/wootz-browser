@@ -18,7 +18,7 @@ import '../utils/slide_up_panel.dart';
 
 class SignMessage extends StatefulWidget {
   final String data;
-  final List<String>? raw;
+  final List<String> raw;
   final String networkIcon;
   final String name;
   final Function onConfirm;
@@ -26,26 +26,26 @@ class SignMessage extends StatefulWidget {
   final String messageType;
   final String decoded;
   final DateTime dateTime;
-  final int? chainId;
+  final int chainId;
   final dynamic uri;
-  final String? version;
-  final String? topic;
-  final String? method;
+  final String version;
+  final String topic;
+  final String method;
   const SignMessage({
-    Key? key,
+    Key key,
     this.method,
     this.raw,
-    required this.data,
-    required this.networkIcon,
-    required this.name,
-    required this.onConfirm,
-    required this.onReject,
-    required this.messageType,
-    required this.decoded,
-    required this.dateTime,
+    this.data,
+    this.networkIcon,
+    this.name,
+    this.onConfirm,
+    this.onReject,
+    this.messageType,
+    this.decoded,
+    this.dateTime,
     this.chainId,
-    required this.uri,
-    required this.version,
+    this.uri,
+    this.version,
     this.topic,
   }) : super(key: key);
 
@@ -55,8 +55,8 @@ class SignMessage extends StatefulWidget {
 
 class _SignMessageState extends State<SignMessage>
     with TickerProviderStateMixin {
-  late String walletName;
-  late TabController _tabController;
+  String walletName;
+  TabController _tabController;
   void initstate() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
@@ -74,14 +74,14 @@ class _SignMessageState extends State<SignMessage>
     }
     print('ind $ind');
     walletName = pref.get(currentUserWalletNameKey) ??
-        '${AppLocalizations.of(context)!.mainWallet} ${ind + 1}';
+        '${AppLocalizations.of(context).mainWallet} ${ind + 1}';
     return walletName;
   }
 
   Widget getRawData() {
     // print(widget.raw);
     return Column(
-        children: widget.raw!.map((item) {
+        children: widget.raw.map((item) {
       return Container(
         padding: const EdgeInsets.all(10),
         child: Text(
@@ -118,7 +118,7 @@ class _SignMessageState extends State<SignMessage>
                       ),
                     ),
                     Text(
-                      AppLocalizations.of(context)!.signMessage,
+                      AppLocalizations.of(context).signMessage,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 20.0,
@@ -207,7 +207,7 @@ class _SignMessageState extends State<SignMessage>
                           initiallyExpanded: true,
                           tilePadding: EdgeInsets.zero,
                           title: Text(
-                            AppLocalizations.of(context)!.message,
+                            AppLocalizations.of(context).message,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18.0,
@@ -310,7 +310,7 @@ class _SignMessageState extends State<SignMessage>
                         }
                       },
                       child: Text(
-                        AppLocalizations.of(context)!.sign,
+                        AppLocalizations.of(context).sign,
                         style: const TextStyle(fontSize: 18),
                       ),
                     ),
@@ -327,7 +327,7 @@ class _SignMessageState extends State<SignMessage>
                         // Navigator.pop(context);
                       },
                       child: Text(
-                        AppLocalizations.of(context)!.reject,
+                        AppLocalizations.of(context).reject,
                         style: const TextStyle(fontSize: 18),
                       ),
                     ),

@@ -9,16 +9,16 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:hive/hive.dart';
 
 class OpenAppPinFailed extends StatefulWidget {
-  final int? remainSec;
-  const OpenAppPinFailed({Key? key, this.remainSec}) : super(key: key);
+  final int remainSec;
+  const OpenAppPinFailed({Key key, this.remainSec}) : super(key: key);
 
   @override
   State<OpenAppPinFailed> createState() => _OpenAppPinFailedState();
 }
 
 class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
-  late CountdownTimerController controller;
-  late int endTime;
+  CountdownTimerController controller;
+  int endTime;
   int minutesForUnlock = 1;
 
   @override
@@ -65,7 +65,7 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
                   builder: (context, value, child) {
                     if (!hideHeader.value) {
                       return Text(
-                        AppLocalizations.of(context)!.lockedAppMessage,
+                        AppLocalizations.of(context).lockedAppMessage,
                         style: const TextStyle(fontSize: 18),
                       );
                     }
@@ -76,7 +76,7 @@ class _OpenAppPinFailedState extends State<OpenAppPinFailed> {
               ),
               CountdownTimer(
                 endWidget: Text(
-                  AppLocalizations.of(context)!.expiredTimeMessage,
+                  AppLocalizations.of(context).expiredTimeMessage,
                   style: const TextStyle(fontSize: 18),
                 ),
                 controller: controller,

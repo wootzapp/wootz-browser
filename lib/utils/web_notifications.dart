@@ -28,7 +28,7 @@ class WebNotificationAction {
 
 class WebNotification {
   final int id;
-  final List<WebNotificationAction>? actions;
+  final List<WebNotificationAction> actions;
   final String badge;
   final String body;
   final dynamic data;
@@ -45,7 +45,7 @@ class WebNotification {
   final List<int> vibrate;
 
   final InAppWebViewController _webViewController;
-  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? snackBarController;
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason> snackBarController;
 
   WebNotification(
       this.id,
@@ -185,7 +185,7 @@ abstract class WebNotificationPermissionDb {
     }
   }
 
-  static WebNotificationPermission? getPermission(String host) {
+  static WebNotificationPermission getPermission(String host) {
     final permission = _db[host];
     if (permission != null) {
       switch (permission) {

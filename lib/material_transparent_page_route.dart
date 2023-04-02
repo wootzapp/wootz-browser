@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 class MaterialTransparentPageRoute<T> extends PageRoute<T> {
   MaterialTransparentPageRoute({
-    required this.builder,
+    this.builder,
     bool fullscreenDialog = false,
-    RouteSettings? settings,
+    RouteSettings settings,
   }) : super(settings: settings, fullscreenDialog: fullscreenDialog);
 
   final WidgetBuilder builder;
@@ -14,10 +14,10 @@ class MaterialTransparentPageRoute<T> extends PageRoute<T> {
   bool get opaque => false;
 
   @override
-  Color? get barrierColor => null;
+  Color get barrierColor => null;
 
   @override
-  String? get barrierLabel => null;
+  String get barrierLabel => null;
 
   @override
   bool get maintainState => true;

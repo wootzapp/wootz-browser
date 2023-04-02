@@ -12,6 +12,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // import 'package:get/get.dart';
 import 'package:hex/hex.dart';
@@ -25,8 +26,8 @@ import '../components/loader.dart';
 import '../utils/qr_scan_view.dart';
 
 class ImportWithSecretShare extends StatefulWidget {
-  final bool? add;
-  const ImportWithSecretShare({Key? key, this.add}) : super(key: key);
+  final bool add;
+  const ImportWithSecretShare({Key key, this.add}) : super(key: key);
   @override
   State<ImportWithSecretShare> createState() => _ImportWithSecretShareState();
 }
@@ -55,7 +56,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
-        message: AppLocalizations.of(context)!.youCantScreenshot,
+        message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
     disEnableScreenShot();
@@ -74,7 +75,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
     return Scaffold(
         appBar: AppBar(
           title: Text(
-            AppLocalizations.of(context)!.enterSecretShare,
+            AppLocalizations.of(context).enterSecretShare,
           ),
           actions: [
             IconButton(
@@ -120,8 +121,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                   controller: walletNameController,
                                   keyboardType: TextInputType.visiblePassword,
                                   decoration: InputDecoration(
-                                    hintText:
-                                        AppLocalizations.of(context)!.name,
+                                    hintText: AppLocalizations.of(context).name,
                                     focusedBorder: const OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
                                             Radius.circular(10.0)),
@@ -158,13 +158,13 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                             GestureDetector(
                                               onTap: () async {
                                                 try {
-                                                  FilePickerResult? result =
+                                                  FilePickerResult result =
                                                       await FilePicker.platform
                                                           .pickFiles();
 
                                                   if (result != null) {
                                                     File file = File(result
-                                                        .files.single.path!);
+                                                        .files.single.path);
                                                     fileContent[i] = await file
                                                         .readAsString();
                                                     togglerFile.value =
@@ -183,7 +183,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                     SnackBar(
                                                       content: Text(
                                                         AppLocalizations.of(
-                                                                context)!
+                                                                context)
                                                             .errorTryAgain,
                                                       ),
                                                       backgroundColor:
@@ -276,7 +276,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                           MainAxisAlignment.center,
                                       children: [
                                         Text(
-                                          AppLocalizations.of(context)!
+                                          AppLocalizations.of(context)
                                               .doNotShareYourShemir,
                                           style: const TextStyle(
                                               color: Colors.red,
@@ -360,7 +360,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                       SnackBar(
                                                         content: Text(
                                                           AppLocalizations.of(
-                                                                  context)!
+                                                                  context)
                                                               .mnemonicAlreadyImported,
                                                         ),
                                                         backgroundColor:
@@ -400,7 +400,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                   SnackBar(
                                                     content: Text(
                                                       AppLocalizations.of(
-                                                              context)!
+                                                              context)
                                                           .invalidmnemonic,
                                                     ),
                                                     backgroundColor: Colors.red,
@@ -445,7 +445,8 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                 walletName,
                                               );
 
-                                              RestartWidget.restartApp(context);
+                                              Phoenix.rebirth(context);
+                                              // RestartWidget.restartApp(context);
 
                                               isLoading.value = false;
                                             } catch (e) {
@@ -464,8 +465,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                   .showSnackBar(
                                                 SnackBar(
                                                   content: Text(
-                                                    AppLocalizations.of(
-                                                            context)!
+                                                    AppLocalizations.of(context)
                                                         .errorTryAgain,
                                                   ),
                                                   backgroundColor: Colors.red,
@@ -487,8 +487,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                     color: Colors.white,
                                                   )
                                                 : Text(
-                                                    AppLocalizations.of(
-                                                            context)!
+                                                    AppLocalizations.of(context)
                                                         .confirm,
                                                     style: const TextStyle(
                                                       color: Colors.white,

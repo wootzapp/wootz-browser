@@ -5,7 +5,7 @@ import 'package:cryptowallet/models/webview_model.dart';
 import 'package:provider/provider.dart';
 
 class JavaScriptConsole extends StatefulWidget {
-  const JavaScriptConsole({Key? key}) : super(key: key);
+  const JavaScriptConsole({Key key}) : super(key: key);
 
   @override
   State<JavaScriptConsole> createState() => _JavaScriptConsoleState();

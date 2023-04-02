@@ -4,7 +4,7 @@ import 'package:cryptowallet/pages/developers/network_info.dart';
 import 'package:cryptowallet/pages/developers/storage_manager.dart';
 
 class DevelopersPage extends StatefulWidget {
-  const DevelopersPage({Key? key}) : super(key: key);
+  const DevelopersPage({Key key}) : super(key: key);
 
   @override
   State<DevelopersPage> createState() => _DevelopersPageState();

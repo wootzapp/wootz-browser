@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:bip39/bip39.dart' as bip39;
@@ -19,7 +20,7 @@ import '../utils/qr_scan_view.dart';
 
 class EnterPhrase extends StatefulWidget {
   final bool add;
-  const EnterPhrase({Key? key, required this.add}) : super(key: key);
+  const EnterPhrase({Key key, this.add}) : super(key: key);
   @override
   State<EnterPhrase> createState() => _EnterPhraseState();
 }
@@ -43,7 +44,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
-        message: AppLocalizations.of(context)!.youCantScreenshot,
+        message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
     WidgetsBinding.instance.addObserver(this);
@@ -90,7 +91,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
     return Scaffold(
         appBar: AppBar(
           title: Text(
-            AppLocalizations.of(context)!.entermnemonic,
+            AppLocalizations.of(context).entermnemonic,
           ),
           actions: [
             IconButton(
@@ -136,8 +137,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                   controller: walletNameController,
                                   keyboardType: TextInputType.visiblePassword,
                                   decoration: InputDecoration(
-                                    hintText:
-                                        AppLocalizations.of(context)!.name,
+                                    hintText: AppLocalizations.of(context).name,
                                     focusedBorder: const OutlineInputBorder(
                                         borderRadius: BorderRadius.all(
                                             Radius.circular(10.0)),
@@ -169,7 +169,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                           left: 12,
                                           right: 12,
                                         ),
-                                        hintText: AppLocalizations.of(context)!
+                                        hintText: AppLocalizations.of(context)
                                             .entermnemonic,
                                         focusedBorder: const OutlineInputBorder(
                                           borderRadius: BorderRadius.all(
@@ -193,12 +193,12 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                       top: 10,
                                       child: InkWell(
                                         onTap: () async {
-                                          ClipboardData? cdata =
+                                          ClipboardData cdata =
                                               await Clipboard.getData(
                                                   Clipboard.kTextPlain);
                                           if (cdata == null) return;
                                           if (cdata.text == null) return;
-                                          mnemonicController.text = cdata.text!;
+                                          mnemonicController.text = cdata.text;
                                         },
                                         child: Container(
                                           decoration: BoxDecoration(
@@ -210,7 +210,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                           child: Padding(
                                             padding: const EdgeInsets.all(8.0),
                                             child: Text(
-                                              AppLocalizations.of(context)!
+                                              AppLocalizations.of(context)
                                                   .paste,
                                             ),
                                           ),
@@ -289,7 +289,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                       SnackBar(
                                                         content: Text(
                                                           AppLocalizations.of(
-                                                                  context)!
+                                                                  context)
                                                               .mnemonicAlreadyImported,
                                                         ),
                                                         backgroundColor:
@@ -329,7 +329,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                   SnackBar(
                                                     content: Text(
                                                       AppLocalizations.of(
-                                                              context)!
+                                                              context)
                                                           .invalidmnemonic,
                                                     ),
                                                     backgroundColor: Colors.red,
@@ -375,7 +375,8 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                 walletName,
                                               );
 
-                                              RestartWidget.restartApp(context);
+                                              // RestartWidget.restartApp(context);
+                                              Phoenix.rebirth(context);
 
                                               isLoading.value = false;
                                             } catch (e) {
@@ -394,8 +395,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                   .showSnackBar(
                                                 SnackBar(
                                                   content: Text(
-                                                    AppLocalizations.of(
-                                                            context)!
+                                                    AppLocalizations.of(context)
                                                         .errorTryAgain,
                                                   ),
                                                   backgroundColor: Colors.red,
@@ -416,8 +416,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                     color: Colors.white,
                                                   )
                                                 : Text(
-                                                    AppLocalizations.of(
-                                                            context)!
+                                                    AppLocalizations.of(context)
                                                         .confirm,
                                                     style: const TextStyle(
                                                       color: Colors.white,

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 class JsonViewer extends StatefulWidget {
   final dynamic jsonObj;
   final double fontSize;
-  const JsonViewer(this.jsonObj, {Key? key, required this.fontSize})
-      : super(key: key);
+  const JsonViewer(this.jsonObj, {Key key, this.fontSize}) : super(key: key);
   @override
   _JsonViewerState createState() => _JsonViewerState();
 }
@@ -29,11 +28,11 @@ class _JsonViewerState extends State<JsonViewer> {
 class JsonObjectViewer extends StatefulWidget {
   final Map<String, dynamic> jsonObj;
   final bool notRoot;
-  final double? fontSize;
+  final double fontSize;
 
   const JsonObjectViewer(
     this.jsonObj, {
-    Key? key,
+    Key key,
     this.notRoot = false,
     this.fontSize,
   }) : super(key: key);
@@ -230,11 +229,11 @@ class JsonArrayViewer extends StatefulWidget {
   final List<dynamic> jsonArray;
 
   final bool notRoot;
-  final double? fontSize;
+  final double fontSize;
 
   const JsonArrayViewer(
     this.jsonArray, {
-    Key? key,
+    Key key,
     this.notRoot = false,
     this.fontSize,
   }) : super(key: key);

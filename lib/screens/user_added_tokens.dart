@@ -16,7 +16,7 @@ import '../utils/get_blockchain_widget.dart';
 import '../utils/rpc_urls.dart';
 
 class UserAddedTokens extends StatefulWidget {
-  const UserAddedTokens({Key? key}) : super(key: key);
+  const UserAddedTokens({Key key}) : super(key: key);
 
   @override
   State<UserAddedTokens> createState() => UserAddedTokensState();
@@ -28,7 +28,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
   List<ValueNotifier<double>> addedTokenListNotifiers =
       <ValueNotifier<double>>[];
   List<Timer> addedTokenListTimer = <Timer>[];
-  late double tokenBalance;
+  double tokenBalance;
   int addedTokenListNotifiersCounter = 0;
   // RxBool toggler = false.obs;
   final toggler = ValueNotifier<bool>(false);
@@ -147,7 +147,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                           symbol_: userAddedToken.value[i]['symbol'],
                           cryptoAmount_: ValueListenableBuilder(
                             valueListenable: notifier,
-                            builder: ((_, double? value, Widget? __) {
+                            builder: ((_, double value, Widget __) {
                               if (value == null) {
                                 () async {
                                   try {

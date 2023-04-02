@@ -14,7 +14,7 @@ import '../models/provider.dart';
 import '../utils/app_config.dart';
 
 class Portfolio extends StatefulWidget {
-  const Portfolio({Key? key}) : super(key: key);
+  const Portfolio({Key key}) : super(key: key);
 
   @override
   State<Portfolio> createState() => _PortfolioState();
@@ -22,7 +22,7 @@ class Portfolio extends StatefulWidget {
 
 class _PortfolioState extends State<Portfolio> {
   var userBalance = ValueNotifier<Map<dynamic, dynamic>>({});
-  Timer? timer;
+  Timer timer;
   final bool skipNetworkRequest = true;
 
   @override
@@ -107,7 +107,7 @@ class _PortfolioState extends State<Portfolio> {
                       height: 20,
                     ),
                     Text(
-                      AppLocalizations.of(context)!.portfolio,
+                      AppLocalizations.of(context).portfolio,
                       style: const TextStyle(
                         fontSize: 20,
                         color: Color.fromRGBO(255, 255, 255, .6),

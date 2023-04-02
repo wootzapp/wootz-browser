@@ -2,30 +2,30 @@ import 'package:flutter/material.dart';
 
 class CustomPopupMenuItem<T> extends PopupMenuEntry<T> {
   const CustomPopupMenuItem({
-    Key? key,
+    Key key,
     this.value,
     this.enabled = true,
     this.height = kMinInteractiveDimension,
     this.textStyle,
     this.isIconButtonRow = false,
-    required this.child,
+    this.child,
   }) : super(key: key);
 
-  final T? value;
+  final T value;
 
   final bool enabled;
 
   @override
   final double height;
 
-  final TextStyle? textStyle;
+  final TextStyle textStyle;
 
   final Widget child;
 
   final bool isIconButtonRow;
 
   @override
-  bool represents(T? value) => value == this.value;
+  bool represents(T value) => value == this.value;
 
   @override
   CustomPopupMenuItemState<T, CustomPopupMenuItem<T>> createState() =>
@@ -48,7 +48,7 @@ class CustomPopupMenuItemState<T, W extends CustomPopupMenuItem<T>>
     final PopupMenuThemeData popupMenuTheme = PopupMenuTheme.of(context);
     TextStyle style = (widget.textStyle ??
         popupMenuTheme.textStyle ??
-        theme.textTheme.subtitle1)!;
+        theme.textTheme.subtitle1);
 
     if (!widget.enabled) style = style.copyWith(color: theme.disabledColor);
 
