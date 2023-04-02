@@ -10,7 +10,7 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 // import 'package:get/get.dart';
 
 class QRScanView extends StatefulWidget {
-  const QRScanView({Key? key}) : super(key: key);
+  const QRScanView({Key key}) : super(key: key);
 
   @override
   _QRScanViewState createState() => _QRScanViewState();
@@ -20,7 +20,7 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
   final ScanController controller = ScanController();
   // RxBool cameraOn = false.obs;
   final cameraOn = ValueNotifier<bool>(false);
-  File? image;
+  File image;
 
   @override
   void initState() {
@@ -108,7 +108,7 @@ class _QRScanViewState extends State<QRScanView> with WidgetsBindingObserver {
                             showDialogWithMessage(
                               context: context,
                               message:
-                                  AppLocalizations.of(context)!.errorTryAgain,
+                                  AppLocalizations.of(context).errorTryAgain,
                             );
                           }
                         });

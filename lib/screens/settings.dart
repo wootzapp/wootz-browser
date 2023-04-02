@@ -26,8 +26,8 @@ import '../utils/app_config.dart';
 import '../utils/qr_scan_view.dart';
 
 class Settings extends StatefulWidget {
-  final bool? isDarkMode;
-  const Settings({this.isDarkMode, Key? key}) : super(key: key);
+  final bool isDarkMode;
+  const Settings({this.isDarkMode, Key key}) : super(key: key);
 
   @override
   _SettingsState createState() => _SettingsState();
@@ -50,7 +50,7 @@ class _SettingsState extends State<Settings> {
       key: _scaffoldKey,
       appBar: AppBar(
         actions: const [DarkModeToggler()],
-        title: Text(AppLocalizations.of(context)!.settings),
+        title: Text(AppLocalizations.of(context).settings),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -62,7 +62,7 @@ class _SettingsState extends State<Settings> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      AppLocalizations.of(context)!.account,
+                      AppLocalizations.of(context).account,
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -97,7 +97,7 @@ class _SettingsState extends State<Settings> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      AppLocalizations.of(context)!.wallet,
+                      AppLocalizations.of(context).wallet,
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -146,7 +146,7 @@ class _SettingsState extends State<Settings> {
                                         width: 10,
                                       ),
                                       Text(
-                                        AppLocalizations.of(context)!.currency,
+                                        AppLocalizations.of(context).currency,
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],
@@ -191,7 +191,7 @@ class _SettingsState extends State<Settings> {
                                         width: 10,
                                       ),
                                       Text(
-                                        AppLocalizations.of(context)!.language,
+                                        AppLocalizations.of(context).language,
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],
@@ -212,7 +212,7 @@ class _SettingsState extends State<Settings> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      AppLocalizations.of(context)!.security,
+                      AppLocalizations.of(context).security,
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -264,7 +264,7 @@ class _SettingsState extends State<Settings> {
                                   // );
                                   ScaffoldMessenger.of(context)
                                       .showSnackBar(SnackBar(
-                                    content: Text(AppLocalizations.of(context)!
+                                    content: Text(AppLocalizations.of(context)
                                         .authFailed),
                                     backgroundColor: Colors.red,
                                     action: SnackBarAction(
@@ -293,7 +293,7 @@ class _SettingsState extends State<Settings> {
                                           width: 10,
                                         ),
                                         Text(
-                                          AppLocalizations.of(context)!
+                                          AppLocalizations.of(context)
                                               .showmnemonic,
                                           style: TextStyle(fontSize: 18),
                                         ),
@@ -332,7 +332,7 @@ class _SettingsState extends State<Settings> {
                                   // );
                                   ScaffoldMessenger.of(context)
                                       .showSnackBar(SnackBar(
-                                    content: Text(AppLocalizations.of(context)!
+                                    content: Text(AppLocalizations.of(context)
                                         .authFailed),
                                     backgroundColor: Colors.red,
                                     action: SnackBarAction(
@@ -362,7 +362,7 @@ class _SettingsState extends State<Settings> {
                                           width: 10,
                                         ),
                                         Text(
-                                          AppLocalizations.of(context)!
+                                          AppLocalizations.of(context)
                                               .changePin,
                                           style: TextStyle(fontSize: 18),
                                         ),
@@ -378,7 +378,7 @@ class _SettingsState extends State<Settings> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    AppLocalizations.of(context)!.web,
+                    AppLocalizations.of(context).web,
                     style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -407,7 +407,7 @@ class _SettingsState extends State<Settings> {
                                 data =
                                     jsonDecode(pref.get(bookMarkKey)) as List;
                               }
-                              final localize = AppLocalizations.of(context)!;
+                              final localize = AppLocalizations.of(context);
 
                               final bookmarkTitle = localize.bookMark;
                               final bookmarkEmpty = localize.noBookMark;
@@ -446,7 +446,7 @@ class _SettingsState extends State<Settings> {
                                         width: 10,
                                       ),
                                       Text(
-                                        AppLocalizations.of(context)!.bookMark,
+                                        AppLocalizations.of(context).bookMark,
                                         style: TextStyle(fontSize: 18),
                                       ),
                                     ],

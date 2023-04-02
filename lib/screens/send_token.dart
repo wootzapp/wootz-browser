@@ -29,7 +29,7 @@ import 'package:flutter_gen/gen_l10n/app_localization.dart';
 class SendToken extends StatefulWidget {
   final Map data;
 
-  const SendToken({required this.data, Key? key}) : super(key: key);
+  const SendToken({this.data, Key key}) : super(key: key);
 
   @override
   _SendTokenState createState() => _SendTokenState();
@@ -55,7 +55,7 @@ class _SendTokenState extends State<SendToken> {
       key: _scaffoldKey,
       appBar: AppBar(
         title: Text(
-            '${AppLocalizations.of(context)!.send} ${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['symbol']) : widget.data['symbol']}'),
+            '${AppLocalizations.of(context).send} ${widget.data['contractAddress'] != null ? ellipsify(str: widget.data['symbol']) : widget.data['symbol']}'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -68,7 +68,7 @@ class _SendTokenState extends State<SendToken> {
                   keyboardType: TextInputType.visiblePassword,
                   validator: (value) {
                     if (value?.trim() == '') {
-                      return AppLocalizations.of(context)!
+                      return AppLocalizations.of(context)
                           .receipientAddressIsRequired;
                     } else {
                       return null;
@@ -99,25 +99,25 @@ class _SendTokenState extends State<SendToken> {
                         ),
                         InkWell(
                           onTap: () async {
-                            ClipboardData? cdata =
+                            ClipboardData cdata =
                                 await Clipboard.getData(Clipboard.kTextPlain);
                             if (cdata == null) return;
                             if (cdata.text == null) return;
-                            recipientAddressController.text = cdata.text!;
+                            recipientAddressController.text = cdata.text;
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              AppLocalizations.of(context)!.paste,
+                              AppLocalizations.of(context).paste,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    hintText: AppLocalizations.of(context)!.receipientAddress +
+                    hintText: AppLocalizations.of(context).receipientAddress +
                         (widget.data['rpc'] == null
                             ? ''
-                            : ' ${AppLocalizations.of(context)!.or} ENS'),
+                            : ' ${AppLocalizations.of(context).or} ENS'),
 
                     focusedBorder: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(10.0)),
@@ -141,7 +141,7 @@ class _SendTokenState extends State<SendToken> {
                             decimal: true),
                         validator: (value) {
                           if (value?.trim() == '') {
-                            return AppLocalizations.of(context)!
+                            return AppLocalizations.of(context)
                                 .amountIsRequired;
                           } else {
                             return null;
@@ -171,7 +171,7 @@ class _SendTokenState extends State<SendToken> {
                             decimal: true),
                         validator: (value) {
                           if (value?.trim() == '') {
-                            return AppLocalizations.of(context)!
+                            return AppLocalizations.of(context)
                                 .amountIsRequired;
                           } else {
                             return null;
@@ -184,7 +184,7 @@ class _SendTokenState extends State<SendToken> {
                           suffixIcon: IconButton(
                             alignment: Alignment.centerRight,
                             icon: Text(
-                              AppLocalizations.of(context)!.max,
+                              AppLocalizations.of(context).max,
                               textAlign: TextAlign.end,
                             ),
                             onPressed: () async {
@@ -326,7 +326,7 @@ class _SendTokenState extends State<SendToken> {
                               }
                             },
                           ),
-                          hintText: AppLocalizations.of(context)!.amount,
+                          hintText: AppLocalizations.of(context).amount,
 
                           focusedBorder: const OutlineInputBorder(
                               borderRadius:
@@ -368,7 +368,7 @@ class _SendTokenState extends State<SendToken> {
                           child: isLoading.value
                               ? const Loader()
                               : Text(
-                                  AppLocalizations.of(context)!.continue_,
+                                  AppLocalizations.of(context).continue_,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
@@ -386,14 +386,14 @@ class _SendTokenState extends State<SendToken> {
                             if (double.tryParse(amount.text.trim()) == null) {
                               // Get.snackbar(
                               //   '',
-                              //   AppLocalizations.of(context)!.pleaseEnterAmount,
+                              //   AppLocalizations.of(context).pleaseEnterAmount,
                               //   colorText: Colors.white,
                               //   backgroundColor: Colors.red,
                               // );
                               ScaffoldMessenger.of(context)
                                   .showSnackBar(SnackBar(
                                 content: Text(
-                                  AppLocalizations.of(context)!
+                                  AppLocalizations.of(context)
                                       .pleaseEnterAmount,
                                 ),
                                 backgroundColor: Colors.red,
@@ -421,7 +421,7 @@ class _SendTokenState extends State<SendToken> {
                                       await stellar.Federation
                                           .resolveStellarAddress(recipient);
                                   cryptoDomain = recipient;
-                                  recipient = response.accountId!;
+                                  recipient = response.accountId;
                                 } catch (_) {}
                               } else if (iscryptoDomain) {
                                 Map ensAddress = await ensToAddress(
@@ -442,7 +442,7 @@ class _SendTokenState extends State<SendToken> {
                                   cryptoDomain =
                                       (unstoppableDomainAddr['success']
                                           ? recipient
-                                          : null)!;
+                                          : null);
                                   recipient = unstoppableDomainAddr['success']
                                       ? unstoppableDomainAddr['msg']
                                       : recipient;
@@ -512,14 +512,14 @@ class _SendTokenState extends State<SendToken> {
                               }
                               // Get.snackbar(
                               //   '',
-                              //   AppLocalizations.of(context)!.invalidAddress,
+                              //   AppLocalizations.of(context).invalidAddress,
                               //   colorText: Colors.white,
                               //   backgroundColor: Colors.red,
                               // );
                               ScaffoldMessenger.of(context)
                                   .showSnackBar(SnackBar(
                                 content: Text(
-                                  AppLocalizations.of(context)!.invalidAddress,
+                                  AppLocalizations.of(context).invalidAddress,
                                 ),
                                 backgroundColor: Colors.red,
                                 action: SnackBarAction(

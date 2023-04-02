@@ -77,8 +77,8 @@ Future<Map<String, dynamic>> _getFileCoinGas(
 Future<Map> sendFilecoin(
   String destinationAddress,
   int filecoinToSend, {
-  required String baseUrl,
-  required String addressPrefix,
+  String baseUrl,
+  String addressPrefix,
   List<String> references = const [],
 }) async {
   final pref = Hive.box(secureStorageKey);

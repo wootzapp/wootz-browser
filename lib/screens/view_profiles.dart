@@ -19,8 +19,7 @@ import 'package:multi_value_listenable_builder/multi_value_listenable_builder.da
 class ViewProfiles extends StatefulWidget {
   final List data;
   String currentPhrase;
-  ViewProfiles({Key? key, required this.data, required this.currentPhrase})
-      : super(key: key);
+  ViewProfiles({Key key, this.data, this.currentPhrase}) : super(key: key);
   @override
   State<ViewProfiles> createState() => _ViewProfilesState();
 }
@@ -234,7 +233,7 @@ class _ViewProfilesState extends State<ViewProfiles> {
         child: Column(
           children: <Widget>[
             Text(
-              AppLocalizations.of(context)!.editWalletName,
+              AppLocalizations.of(context).editWalletName,
             ),
             const SizedBox(
               height: 10,
@@ -249,7 +248,7 @@ class _ViewProfilesState extends State<ViewProfiles> {
                 minLines: 1,
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  labelText: AppLocalizations.of(context)!.walletName,
+                  labelText: AppLocalizations.of(context).walletName,
                   prefixIcon: const Icon(Icons.text_fields),
                 ),
               ),
@@ -259,7 +258,7 @@ class _ViewProfilesState extends State<ViewProfiles> {
             ),
             AnimatedButton(
               isFixedHeight: false,
-              text: AppLocalizations.of(context)!.ok,
+              text: AppLocalizations.of(context).ok,
               pressEvent: () async {
                 FocusManager.instance.primaryFocus?.unfocus();
 
@@ -329,11 +328,11 @@ class _ViewProfilesState extends State<ViewProfiles> {
       ),
       onDissmissCallback: (type) {},
       dismissOnTouchOutside: true,
-      title: AppLocalizations.of(context)!.confirmWalletDelete,
-      btnOkText: AppLocalizations.of(context)!.delete,
+      title: AppLocalizations.of(context).confirmWalletDelete,
+      btnOkText: AppLocalizations.of(context).delete,
       btnOkColor: Colors.red,
       btnCancelColor: appBackgroundblue,
-      desc: AppLocalizations.of(context)!.confirmWalletDeleteDescription,
+      desc: AppLocalizations.of(context).confirmWalletDeleteDescription,
       btnCancelOnPress: () {
         // Get.back(result: false);
         Navigator.of(context).pop(false);

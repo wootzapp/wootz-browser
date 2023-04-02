@@ -24,8 +24,8 @@ import '../utils/filecoin_util.dart';
 
 class TransferToken extends StatefulWidget {
   final Map data;
-  final String? cryptoDomain;
-  const TransferToken({Key? key, required this.data, this.cryptoDomain})
+  final String cryptoDomain;
+  const TransferToken({Key key, this.data, this.cryptoDomain})
       : super(key: key);
 
   @override
@@ -39,17 +39,17 @@ class _TransferTokenState extends State<TransferToken> {
   // RxBool allowSend = true.obs;
   final allowSend = ValueNotifier<bool>(true);
 
-  bool? get kDebugMode => null;
-  late Timer timer;
+  bool get kDebugMode => null;
+  Timer timer;
   // RxMap transactionFeeMap = {}.obs;
   final transactionFeeMap = ValueNotifier<Map<dynamic, dynamic>>({});
-  late bool isContract;
-  late bool isBitcoinType;
-  late bool isSolana;
-  late bool isCardano;
-  late bool isFilecoin;
-  late bool isStellar;
-  late bool isNFTTransfer;
+  bool isContract;
+  bool isBitcoinType;
+  bool isSolana;
+  bool isCardano;
+  bool isFilecoin;
+  bool isStellar;
+  bool isNFTTransfer;
   // RxString userAddress = ''.obs;
   final userAddress = ValueNotifier<String>('');
 
@@ -77,7 +77,7 @@ class _TransferTokenState extends State<TransferToken> {
     super.dispose();
   }
 
-  late Map transactionFee;
+  Map transactionFee;
 
   Future getTransactionFee() async {
     try {
@@ -291,7 +291,7 @@ class _TransferTokenState extends State<TransferToken> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.transfer)),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).transfer)),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -321,7 +321,7 @@ class _TransferTokenState extends State<TransferToken> {
                         height: 20,
                       ),
                       Text(
-                        AppLocalizations.of(context)!.asset,
+                        AppLocalizations.of(context).asset,
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
@@ -336,7 +336,7 @@ class _TransferTokenState extends State<TransferToken> {
                         height: 20,
                       ),
                       Text(
-                        AppLocalizations.of(context)!.from,
+                        AppLocalizations.of(context).from,
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
@@ -351,7 +351,7 @@ class _TransferTokenState extends State<TransferToken> {
                         height: 20,
                       ),
                       Text(
-                        AppLocalizations.of(context)!.to,
+                        AppLocalizations.of(context).to,
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                       ),
@@ -369,7 +369,7 @@ class _TransferTokenState extends State<TransferToken> {
                       ),
                       if (transactionFeeMap.value.isNotEmpty) ...[
                         Text(
-                          AppLocalizations.of(context)!.transactionFee,
+                          AppLocalizations.of(context).transactionFee,
                           style: const TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
@@ -411,7 +411,7 @@ class _TransferTokenState extends State<TransferToken> {
                                       child: Checkbox(
                                         value: allowSend.value,
                                         onChanged: (onChanged) {
-                                          allowSend.value = onChanged!;
+                                          allowSend.value = onChanged;
                                         },
                                         fillColor:
                                             MaterialStateProperty.resolveWith(
@@ -423,7 +423,7 @@ class _TransferTokenState extends State<TransferToken> {
                                       width: 10,
                                     ),
                                     Text(
-                                      AppLocalizations.of(context)!
+                                      AppLocalizations.of(context)
                                           .sendingToYourself,
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
@@ -472,7 +472,7 @@ class _TransferTokenState extends State<TransferToken> {
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(SnackBar(
                                             content: Text(
-                                                AppLocalizations.of(context)!
+                                                AppLocalizations.of(context)
                                                     .insufficientBalance),
                                             backgroundColor: Colors.red,
                                             action: SnackBarAction(
@@ -844,7 +844,7 @@ class _TransferTokenState extends State<TransferToken> {
                                               ScaffoldMessenger.of(context)
                                                   .showSnackBar(SnackBar(
                                                 content: Text(
-                                                  AppLocalizations.of(context)!
+                                                  AppLocalizations.of(context)
                                                       .trxSent,
                                                 ),
                                                 backgroundColor: Colors.red,
@@ -956,7 +956,7 @@ class _TransferTokenState extends State<TransferToken> {
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(SnackBar(
                                               content: Text(
-                                                  AppLocalizations.of(context)!
+                                                  AppLocalizations.of(context)
                                                       .authFailed),
                                               backgroundColor: Colors.red,
                                               action: SnackBarAction(
@@ -977,7 +977,7 @@ class _TransferTokenState extends State<TransferToken> {
                                             child: const Loader(color: white),
                                           )
                                         : Text(
-                                            AppLocalizations.of(context)!.send,
+                                            AppLocalizations.of(context).send,
                                             style: const TextStyle(
                                               color: Colors.white,
                                               fontWeight: FontWeight.bold,
@@ -1004,7 +1004,7 @@ class _TransferTokenState extends State<TransferToken> {
                                   child: Padding(
                                     padding: const EdgeInsets.all(15),
                                     child: Text(
-                                      AppLocalizations.of(context)!.loading,
+                                      AppLocalizations.of(context).loading,
                                       style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,

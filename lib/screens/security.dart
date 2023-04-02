@@ -9,11 +9,11 @@ import 'package:screenshot_callback/screenshot_callback.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class Security extends StatefulWidget {
-  final bool? isEnterPin;
-  final bool? isChangingPin;
-  final bool? useLocalAuth;
+  final bool isEnterPin;
+  final bool isChangingPin;
+  final bool useLocalAuth;
   const Security(
-      {Key? key, this.isEnterPin, this.isChangingPin, this.useLocalAuth})
+      {Key key, this.isEnterPin, this.isChangingPin, this.useLocalAuth})
       : super(key: key);
 
   @override
@@ -39,7 +39,7 @@ class _SecurityState extends State<Security> {
     screenshotCallback.addListener(() {
       showDialogWithMessage(
         context: context,
-        message: AppLocalizations.of(context)!.youCantScreenshot,
+        message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
     disEnableScreenShot();
@@ -101,7 +101,7 @@ class _SecurityState extends State<Security> {
                   ),
                   widget.isEnterPin != null && widget.isEnterPin == true
                       ? Text(
-                          AppLocalizations.of(context)!.enterYourPasscode,
+                          AppLocalizations.of(context).enterYourPasscode,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -112,8 +112,8 @@ class _SecurityState extends State<Security> {
                           builder: (context, value, _) {
                             return Text(
                               isConfirming.value
-                                  ? AppLocalizations.of(context)!.confirmYourPin
-                                  : AppLocalizations.of(context)!.createYourPin,
+                                  ? AppLocalizations.of(context).confirmYourPin
+                                  : AppLocalizations.of(context).createYourPin,
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -178,7 +178,7 @@ class _SecurityState extends State<Security> {
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(AppLocalizations.of(context)!
+                              content: Text(AppLocalizations.of(context)
                                   .passcodeMismatch),
                               backgroundColor: Colors.red,
                               action: SnackBarAction(
@@ -211,7 +211,7 @@ class _SecurityState extends State<Security> {
                       widget.isChangingPin != true &&
                       trialsRemaining != userPinTrials)
                     Text(
-                      AppLocalizations.of(context)!.youHave(trialsRemaining),
+                      AppLocalizations.of(context).youHave(trialsRemaining),
                       style: const TextStyle(color: Colors.grey),
                     ),
                   const SizedBox(
@@ -439,7 +439,7 @@ class _SecurityState extends State<Security> {
                   Align(
                     alignment: Alignment.center,
                     child: Text(
-                      AppLocalizations.of(context)!.passcodeInfo,
+                      AppLocalizations.of(context).passcodeInfo,
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),

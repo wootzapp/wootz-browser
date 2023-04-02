@@ -1,16 +1,16 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class WebArchiveModel {
-  WebUri? url;
-  String? title;
-  Favicon? favicon;
-  String? path;
+  WebUri url;
+  String title;
+  Favicon favicon;
+  String path;
   DateTime timestamp;
 
   WebArchiveModel(
-      {this.url, this.title, this.favicon, this.path, required this.timestamp});
+      {this.url, this.title, this.favicon, this.path, this.timestamp});
 
-  static WebArchiveModel? fromMap(Map<String, dynamic>? map) {
+  static WebArchiveModel fromMap(Map<String, dynamic> map) {
     return map != null
         ? WebArchiveModel(
             url: map["url"] != null ? WebUri(map["url"]) : null,

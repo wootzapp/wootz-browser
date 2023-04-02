@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HideBalanceWidget extends StatelessWidget {
-  final double? iconSize;
-  final Color? iconColor;
-  final Widget? iconDivider;
-  final Widget? iconSuffix;
+  final double iconSize;
+  final Color iconColor;
+  final Widget iconDivider;
+  final Widget iconSuffix;
   const HideBalanceWidget({
-    Key? key,
+    Key key,
     this.iconSize,
     this.iconColor,
     this.iconDivider,

@@ -21,7 +21,7 @@ import '../utils/get_blockchain_widget.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class WalletMainBody extends StatefulWidget {
-  const WalletMainBody({Key? key}) : super(key: key);
+  const WalletMainBody({Key key}) : super(key: key);
 
   @override
   _WalletMainBodyState createState() => _WalletMainBodyState();
@@ -31,7 +31,7 @@ Future<void> handleAllIntent(String value, BuildContext context) async {
   if (value == null) return;
   bool isWalletConnect = value.trim().startsWith('wc:');
 
-  Widget? navigateWidget;
+  Widget navigateWidget;
 
   if (isWalletConnect) {
   } else {
@@ -48,13 +48,13 @@ Future<void> handleAllIntent(String value, BuildContext context) async {
   SchedulerBinding.instance.addPostFrameCallback((_) {
     if (Navigator.canPop(context)) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => navigateWidget!),
+        MaterialPageRoute(builder: (_) => navigateWidget),
       );
       return;
     }
 
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => navigateWidget!),
+      MaterialPageRoute(builder: (_) => navigateWidget),
     );
   });
 }
@@ -63,7 +63,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
     with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-  late StreamSubscription _intentDataStreamSubscription;
+  StreamSubscription _intentDataStreamSubscription;
   List<ValueNotifier<double>> cryptoBalanceListNotifiers =
       <ValueNotifier<double>>[];
   ValueNotifier<double> walletNotifier = ValueNotifier(0.0);
@@ -101,8 +101,8 @@ class _WalletMainBodyState extends State<WalletMainBody>
       }
     });
 
-    ReceiveSharingIntent.getInitialText().then((String? value) async {
-      await handleAllIntent(value!, context);
+    ReceiveSharingIntent.getInitialText().then((String value) async {
+      await handleAllIntent(value, context);
     }).catchError((err) {
       if (kDebugMode) {
         print("getLinkStream error: $err");
@@ -141,7 +141,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
               image_: AssetImage(bitcoinBlockchain['image']),
               cryptoAmount_: ValueListenableBuilder(
                 valueListenable: notifier,
-                builder: ((_, double value, Widget? __) {
+                builder: ((_, double value, Widget __) {
                   if (value == null) {
                     () async {
                       final getBitcoinDetails = await getBitcoinFromMemnomic(
@@ -607,7 +607,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              AppLocalizations.of(context)!.assets,
+                              AppLocalizations.of(context).assets,
                               style: const TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.bold),
                             ),
@@ -640,8 +640,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                                     child: Row(
                                       children: [
                                         Text(
-                                          AppLocalizations.of(context)!
-                                              .addToken,
+                                          AppLocalizations.of(context).addToken,
                                           style: const TextStyle(
                                             fontSize: 16,
                                           ),

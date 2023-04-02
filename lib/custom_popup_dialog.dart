@@ -3,25 +3,25 @@ import 'package:cryptowallet/material_transparent_page_route.dart';
 
 class CustomPopupDialogPageRoute<T> extends MaterialTransparentPageRoute<T> {
   final Color overlayColor;
-  final Duration? customTransitionDuration;
+  final Duration customTransitionDuration;
   bool isPopped = false;
 
   CustomPopupDialogPageRoute({
-    required WidgetBuilder builder,
-    Duration? transitionDuration,
-    Color? overlayColor,
-    RouteSettings? settings,
+     WidgetBuilder builder,
+    Duration transitionDuration,
+    Color overlayColor,
+    RouteSettings settings,
   })  : overlayColor = overlayColor ?? Colors.black.withOpacity(0.5),
         customTransitionDuration = transitionDuration,
         super(builder: builder, settings: settings);
 
   @override
   Duration get transitionDuration => customTransitionDuration != null
-      ? customTransitionDuration!
+      ? customTransitionDuration
       : const Duration(milliseconds: 300);
 
   @override
-  bool didPop(T? result) {
+  bool didPop(T result) {
     isPopped = true;
     return super.didPop(result);
   }
@@ -60,8 +60,8 @@ class CustomPopupDialog extends StatefulWidget {
   final Duration transitionDuration;
 
   const CustomPopupDialog(
-      {Key? key,
-      required this.child,
+      {Key key,
+       this.child,
       this.transitionDuration = const Duration(milliseconds: 300)})
       : super(key: key);
 
@@ -69,18 +69,18 @@ class CustomPopupDialog extends StatefulWidget {
   State<StatefulWidget> createState() => _CustomPopupDialogState();
 
   static CustomPopupDialogPageRoute show(
-      {required BuildContext context,
-      Widget? child,
-      WidgetBuilder? builder,
-      Color? overlayColor,
-      required Duration transitionDuration}) {
+      { BuildContext context,
+      Widget child,
+      WidgetBuilder builder,
+      Color overlayColor,
+       Duration transitionDuration}) {
     var route = CustomPopupDialogPageRoute(
       transitionDuration: transitionDuration,
       overlayColor: overlayColor,
       builder: (context) {
         return CustomPopupDialog(
           transitionDuration: transitionDuration,
-          child: builder != null ? builder(context) : child!,
+          child: builder != null ? builder(context) : child,
         );
       },
     );
@@ -91,8 +91,8 @@ class CustomPopupDialog extends StatefulWidget {
 
 class _CustomPopupDialogState extends State<CustomPopupDialog>
     with SingleTickerProviderStateMixin {
-  late AnimationController _slideController;
-  late Animation<Offset> _offsetSlideAnimation;
+   AnimationController _slideController;
+   Animation<Offset> _offsetSlideAnimation;
 
   @override
   void initState() {

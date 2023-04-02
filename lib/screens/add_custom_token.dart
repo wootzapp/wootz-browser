@@ -10,7 +10,7 @@ import '../utils/app_config.dart';
 import '../utils/qr_scan_view.dart';
 
 class AddCustomToken extends StatefulWidget {
-  const AddCustomToken({Key? key}) : super(key: key);
+  const AddCustomToken({Key key}) : super(key: key);
 
   @override
   _AddCustomTokenState createState() => _AddCustomTokenState();
@@ -18,7 +18,7 @@ class AddCustomToken extends StatefulWidget {
 
 class _AddCustomTokenState extends State<AddCustomToken> {
   List networks = getEVMBlockchains().keys.toList();
-  String? network;
+  String network;
   // RxString networkImage = RxString('');
   final networkImage = ValueNotifier<String>('');
   @override
@@ -74,7 +74,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
       key: scaffoldKey,
       appBar: AppBar(
         title: Text(
-          AppLocalizations.of(context)!.addToken,
+          AppLocalizations.of(context).addToken,
           style: const TextStyle(fontSize: 18),
         ),
       ),
@@ -88,7 +88,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      AppLocalizations.of(context)!.network,
+                      AppLocalizations.of(context).network,
                       style: const TextStyle(
                         fontSize: 20,
                       ),
@@ -146,7 +146,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         ),
                         InkWell(
                           onTap: () async {
-                            ClipboardData? cdata =
+                            ClipboardData cdata =
                                 await Clipboard.getData(Clipboard.kTextPlain);
                             if (cdata == null) return;
                             if (cdata.text == null) return;
@@ -155,15 +155,14 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                           child: Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              AppLocalizations.of(context)!.paste,
+                              AppLocalizations.of(context).paste,
                             ),
                           ),
                         ),
                       ],
                     ),
 
-                    hintText:
-                        AppLocalizations.of(context)!.enterContractAddress,
+                    hintText: AppLocalizations.of(context).enterContractAddress,
                     focusedBorder: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(10.0)),
                       borderSide: BorderSide.none,
@@ -186,7 +185,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                   readOnly: true,
                   controller: nameAddressController,
                   decoration: InputDecoration(
-                    hintText: AppLocalizations.of(context)!.name,
+                    hintText: AppLocalizations.of(context).name,
                     focusedBorder: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(10.0)),
                         borderSide: BorderSide.none),
@@ -206,7 +205,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                   readOnly: true,
                   controller: symbolAddressController,
                   decoration: InputDecoration(
-                    hintText: AppLocalizations.of(context)!.symbol,
+                    hintText: AppLocalizations.of(context).symbol,
                     focusedBorder: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(10.0)),
                         borderSide: BorderSide.none),
@@ -230,7 +229,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                   ],
                   controller: decimalsAddressController,
                   decoration: InputDecoration(
-                    hintText: AppLocalizations.of(context)!.decimals,
+                    hintText: AppLocalizations.of(context).decimals,
                     focusedBorder: const OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(10.0)),
                         borderSide: BorderSide.none),
@@ -258,12 +257,12 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          AppLocalizations.of(context)!.anyoneCanCreateToken,
+                          AppLocalizations.of(context).anyoneCanCreateToken,
                           style: const TextStyle(
                               color: Colors.red, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          AppLocalizations.of(context)!.includingScamTokens,
+                          AppLocalizations.of(context).includingScamTokens,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.red,
@@ -294,7 +293,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                       ),
                     ),
                     child: Text(
-                      AppLocalizations.of(context)!.done,
+                      AppLocalizations.of(context).done,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -329,7 +328,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         // );
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text(
-                            AppLocalizations.of(context)!.tokenImportedAlready,
+                            AppLocalizations.of(context).tokenImportedAlready,
                           ),
                           backgroundColor: Colors.red,
                           action: SnackBarAction(
@@ -351,7 +350,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         // );
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text(
-                            AppLocalizations.of(context)!
+                            AppLocalizations.of(context)
                                 .invalidContractAddressOrNetworkTimeout,
                           ),
                           backgroundColor: Colors.red,
@@ -376,7 +375,7 @@ class _AddCustomTokenState extends State<AddCustomToken> {
                         // );
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text(
-                            AppLocalizations.of(context)!.enterContractAddress,
+                            AppLocalizations.of(context).enterContractAddress,
                           ),
                           backgroundColor: Colors.red,
                           action: SnackBarAction(

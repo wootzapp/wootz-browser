@@ -5,7 +5,7 @@ class AnimatedFlutterBrowserLogo extends StatefulWidget {
   final double size;
 
   const AnimatedFlutterBrowserLogo({
-    Key? key,
+    Key key,
     this.animationDuration = const Duration(milliseconds: 1000),
     this.size = 100.0,
   }) : super(key: key);
@@ -16,7 +16,7 @@ class AnimatedFlutterBrowserLogo extends StatefulWidget {
 
 class _AnimatedFlutterBrowserLogoState extends State<AnimatedFlutterBrowserLogo>
     with TickerProviderStateMixin {
-  late AnimationController _controller;
+  AnimationController _controller;
 
   @override
   void initState() {

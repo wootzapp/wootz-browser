@@ -5,8 +5,8 @@ import 'package:sha3/sha3.dart';
 import 'package:web3dart/web3dart.dart' as web3;
 
 Future<Map> unstoppableDomainENS({
-  required String cryptoDomainName,
-  String? currency,
+   String cryptoDomainName,
+  String currency,
 }) async {
   try {
     cryptoDomainName = cryptoDomainName.toLowerCase();
@@ -47,7 +47,7 @@ Future<Map> unstoppableDomainENS({
   }
 }
 
-String nameHash(String? inputName) {
+String nameHash(String inputName) {
   String node = '';
   for (int i = 0; i < 32; i++) {
     node += '00';
@@ -95,7 +95,7 @@ String sha3(String string) {
 }
 
 extension Slice on String {
-  String slice(int start, [int? end]) {
+  String slice(int start, [int end]) {
     if (end != null && end.isNegative) {
       return substring(start, length - end.abs());
     }
