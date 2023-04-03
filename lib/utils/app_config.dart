@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-String provider;
-String webNotifer;
-String init;
+String provider = '';
+String webNotifer = '';
+String init = '';
 const minShemirShare = 3;
 const isShemirBase64 = false;
 const walletAbbr = 'WTZ';
