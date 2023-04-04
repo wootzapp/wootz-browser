@@ -692,6 +692,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       final data = JsDataModel.fromJson(jsData.object ?? {});
 
                       await signMessage(
+                        raw: [data.data],
                         context: context,
                         messageType: personalSignKey,
                         data: data.data,
@@ -732,6 +733,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         String signedDataHex;
 
                         await signMessage(
+                          raw: [data.data],
                           context: context,
                           messageType: normalSignKey,
                           data: data.data,
@@ -793,6 +795,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       }
 
                       await signMessage(
+                        raw: [data.data],
                         context: context,
                         messageType: typedMessageSignKey,
                         data: data.raw,
