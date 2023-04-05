@@ -36,6 +36,10 @@ class WebViewTab extends StatefulWidget {
   const WebViewTab({Key key, this.webViewModel}) : super(key: key);
 
   final WebViewModel webViewModel;
+  getWZlinks(String url) {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    state?.getWZlinks_(url);
+  }
 
   @override
   State<WebViewTab> createState() => _WebViewTabState();
@@ -1290,7 +1294,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             return NavigationActionPolicy.DOWNLOAD;
           }
         }
-        if (url_.contains('wz://add-rpc')) {
+        if (url_.trim().contains('wz://add-rpc')) {
           await getWZlinks_(url_);
           return NavigationActionPolicy.CANCEL;
         }
