@@ -382,6 +382,7 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
 
                                               final redirectUrl =
                                                   pref.get('redirectUrl');
+                                              await activateDapp();
 
                                               if (redirectUrl != null) {
                                                 // Navigator.of(context).pushReplacement(
