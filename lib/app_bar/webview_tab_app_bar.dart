@@ -165,7 +165,11 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       child: Stack(
         children: <Widget>[
           TextField(
-            onSubmitted: (value) {
+            onSubmitted: (value) async {
+              if (value.trim().startsWith('wz://add-rpc')) {
+                await browserModel.getCurrentTab().getWZlinks(value);
+                return;
+              }
               Uri url = WebUri.uri(blockChainToHttps(value));
 
               if (webViewController != null) {
