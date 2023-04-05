@@ -1161,8 +1161,6 @@ Future<void> initializeAllPrivateKeys(String mnemonic) async {
   await getSolanaFromMemnomic(mnemonic);
 
   await getStellarFromMemnomic(mnemonic);
-
-  await activateDapp();
 }
 
 Future<Map> sendCardano(Map config) async {
