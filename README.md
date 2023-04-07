@@ -65,3 +65,8 @@ task to do
 3. Better Wallet connect support(qr code)
  3.1  replicate import token flow through a special wootz://import/ flow issue #36
  e.g wz://add-rpc?network-name=Shardeum%20Liberty&rpc-url=https%3A%2F%2Fliberty20.shardeum.org%2F&chain-id=8081&currency-symbol=SHM&block-explorer-url=https%3A%2F%2Fexplorer-liberty20.shardeum.org%2F
+
+
+To test QR code - use Opensea on your laptop computer and use WootzApp for QR code scan. Make sure it is working perfectly.
+
+To test wz:// link, try add shardeum https://github.com/wootzapp/wootz-browser/issues/36#issuecomment-1406184632 and connect to https://www.chainhash.io/

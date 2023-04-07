@@ -1,6 +1,7 @@
 // import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 
+import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cryptowallet/app_bar/url_info_popup.dart';
@@ -164,7 +165,11 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       child: Stack(
         children: <Widget>[
           TextField(
-            onSubmitted: (value) {
+            onSubmitted: (value) async {
+              if (value.trim().startsWith('wz://add-rpc')) {
+                await browserModel.getCurrentTab().getWZlinks(value);
+                return;
+              }
               Uri url = WebUri.uri(blockChainToHttps(value));
 
               if (webViewController != null) {
@@ -542,6 +547,20 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                         )
                       ]),
                 );
+              case PopupMenuActions.QR_SCAN:
+                return CustomPopupMenuItem<String>(
+                  enabled: true,
+                  value: choice,
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(choice),
+                        const Icon(
+                          Icons.qr_code,
+                          color: Colors.black,
+                        )
+                      ]),
+                );
               case PopupMenuActions.NEW_INCOGNITO_TAB:
                 return CustomPopupMenuItem<String>(
                   enabled: true,
@@ -759,6 +778,16 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
         break;
       case PopupMenuActions.WEB_ARCHIVES:
         showWebArchives();
+        break;
+      case PopupMenuActions.QR_SCAN:
+        Future.delayed(const Duration(milliseconds: 300), () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WalletConnect(),
+            ),
+          );
+        });
         break;
       case PopupMenuActions.FIND_ON_PAGE:
         var isFindInteractionEnabled =

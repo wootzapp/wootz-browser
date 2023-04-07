@@ -178,6 +178,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         null,
       );
       isLoading.value = false;
+      await activateDapp();
 
       // RestartWidget.restartApp(context);
       // Phoenix.rebirth(context);

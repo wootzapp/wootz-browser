@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
@@ -16,7 +17,9 @@ import 'package:bip39/bip39.dart' as bip39;
 import 'package:screenshot_callback/screenshot_callback.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import '../components/loader.dart';
+import '../models/webview_model.dart';
 import '../utils/qr_scan_view.dart';
+import '../webview_tab.dart';
 
 class EnterPhrase extends StatefulWidget {
   final bool add;
@@ -375,10 +378,34 @@ class _EnterPhraseState extends State<EnterPhrase> with WidgetsBindingObserver {
                                                 walletName,
                                               );
 
-                                              // RestartWidget.restartApp(context);
-                                              Phoenix.rebirth(context);
-
                                               isLoading.value = false;
+
+                                              final redirectUrl =
+                                                  pref.get('redirectUrl');
+                                              await activateDapp();
+
+                                              if (redirectUrl != null) {
+                                                // Navigator.of(context).pushReplacement(
+                                                //     MaterialPageRoute(builder: (_) => WebViewTab(url: redirectUrl)));
+                                                // Widget nextWidget = await dappWidget(context, redirectUrl);
+
+                                                Navigator.of(context)
+                                                    .pushReplacement(
+                                                  MaterialPageRoute(
+                                                    builder: (_) => WebViewTab(
+                                                      webViewModel:
+                                                          WebViewModel(
+                                                        url:
+                                                            WebUri(redirectUrl),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              } else {
+                                                for (int i = 0; i < 2; i++) {
+                                                  Navigator.pop(context);
+                                                }
+                                              }
                                             } catch (e) {
                                               if (kDebugMode) {
                                                 print(e);
