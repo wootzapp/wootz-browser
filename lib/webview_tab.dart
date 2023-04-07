@@ -36,6 +36,10 @@ class WebViewTab extends StatefulWidget {
   const WebViewTab({Key key, this.webViewModel}) : super(key: key);
 
   final WebViewModel webViewModel;
+  getWZlinks(String url) {
+    final state = (key as GlobalKey).currentState as _WebViewTabState;
+    state?.getWZlinks_(url);
+  }
 
   @override
   State<WebViewTab> createState() => _WebViewTabState();
@@ -692,6 +696,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       final data = JsDataModel.fromJson(jsData.object ?? {});
 
                       await signMessage(
+                        raw: [data.data],
                         context: context,
                         messageType: personalSignKey,
                         data: data.data,
@@ -732,6 +737,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         String signedDataHex;
 
                         await signMessage(
+                          raw: [data.data],
                           context: context,
                           messageType: normalSignKey,
                           data: data.data,
@@ -793,6 +799,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                       }
 
                       await signMessage(
+                        raw: [data.data],
                         context: context,
                         messageType: typedMessageSignKey,
                         data: data.raw,
@@ -1287,7 +1294,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
             return NavigationActionPolicy.DOWNLOAD;
           }
         }
-        if (url_.contains('wz://add-rpc')) {
+        if (url_.trim().contains('wz://add-rpc')) {
           await getWZlinks_(url_);
           return NavigationActionPolicy.CANCEL;
         }
