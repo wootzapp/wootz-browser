@@ -11,11 +11,15 @@ import 'package:cryptowallet/utils/format_money.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:intl/intl.dart';
+
+import '../models/webview_model.dart';
+import '../webview_tab.dart';
 
 class Token extends StatefulWidget {
   final Map data;
@@ -267,13 +271,19 @@ class _TokenState extends State<Token> {
         listTransactions.addAll([
           GestureDetector(
             onTap: () async {
-              // await navigateToDappBrowser(
-              //   context,
-              //   widget.data['blockExplorer'].toString().replaceFirst(
-              //         transactionhashTemplateKey,
-              //         datum['transactionHash'],
-              //       ),
-              // );
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => WebViewTab(
+                    webViewModel: WebViewModel(
+                      url: WebUri(
+                          widget.data['blockExplorer'].toString().replaceFirst(
+                                transactionhashTemplateKey,
+                                datum['transactionHash'],
+                              )),
+                    ),
+                  ),
+                ),
+              );
             },
             child: Container(
               color: Colors.transparent,
@@ -352,29 +362,6 @@ class _TokenState extends State<Token> {
               ? ellipsify(str: widget.data['name'])
               : widget.data['name'],
         ),
-        actions: [
-          IconButton(
-            onPressed: widget.data['default'] != null
-                ? () async {
-                    // await Navigator.push(
-                    //   context,
-                    //   MaterialPageRoute(
-                    //     builder: (ctx) => CryptoChart(
-                    //       name: widget.data['name'],
-                    //       symbol: widget.data['default'],
-                    //     ),
-                    //   ),
-                    // );
-                  }
-                : null,
-            icon: SvgPicture.asset(
-              'assets/chart-mixed.svg',
-              color: widget.data['default'] != null
-                  ? Colors.white
-                  : const Color(0x00aaaaaa),
-            ),
-          ),
-        ],
       ),
       body: SizedBox(
         height: double.infinity,
