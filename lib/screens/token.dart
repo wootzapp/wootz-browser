@@ -276,10 +276,11 @@ class _TokenState extends State<Token> {
                   builder: (_) => WebViewTab(
                     webViewModel: WebViewModel(
                       url: WebUri(
-                          widget.data['blockExplorer'].toString().replaceFirst(
-                                transactionhashTemplateKey,
-                                datum['transactionHash'],
-                              )),
+                        widget.data['blockExplorer'].toString().replaceFirst(
+                              transactionhashTemplateKey,
+                              datum['transactionHash'],
+                            ),
+                      ),
                     ),
                   ),
                 ),
