@@ -25,6 +25,10 @@ class PopupMenuActions {
   static const String WALLET = "Wallet";
   // ignore: constant_identifier_names
   static const String QR_SCAN = "Wallet Connect";
+  // ignore: constant_identifier_names
+  static const String ADD_WALLET = "Add Wallet";
+  // ignore: constant_identifier_names
+  static const String VIEW_WALLETS = "View Wallets";
 
   static const List<String> choices = <String>[
     NEW_TAB,
@@ -40,5 +44,7 @@ class PopupMenuActions {
     INAPPWEBVIEW_PROJECT,
     WALLET,
     QR_SCAN,
+    ADD_WALLET,
+    VIEW_WALLETS,
   ];
 }
