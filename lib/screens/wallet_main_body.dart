@@ -119,7 +119,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       Map bitcoinBlockchain = Map.from(getBitCoinPOSBlockchains()[name])
         ..addAll({'name': name});
 
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
 
       cryptoBalanceListNotifiers.add(notifier);
 
@@ -189,7 +189,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final Map evmBlockchain = Map.from(getEVMBlockchains()[i])
         ..addAll({'name': i});
 
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
       final currentList = blockChainsArray.value;
@@ -221,6 +221,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                       mnemonic,
                       evmBlockchain['coinType'],
                     );
+                    print(getEthereumDetails);
                     try {
                       notifier.value = await getEthereumAddressBalance(
                         getEthereumDetails['eth_wallet_address'],
@@ -228,7 +229,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
                         coinType: evmBlockchain['coinType'],
                         skipNetworkRequest: notifier.value == null,
                       );
-                    } catch (_) {}
+                    } catch (_) {
+                      print(_);
+                    }
 
                     cryptoBalancesTimer.add(
                       Timer.periodic(httpPollingDelay, (timer) async {
@@ -262,7 +265,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final Map solanaBlockchain = Map.from(getSolanaBlockChains()[i])
         ..addAll({'name': i});
 
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
       final currentList = blockChainsArray.value;
@@ -329,7 +332,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
     for (String i in getStellarBlockChains().keys) {
       final Map stellarBlockChain = Map.from(getStellarBlockChains()[i])
         ..addAll({'name': i});
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
       final currentList = blockChainsArray.value;
@@ -401,7 +404,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final Map filecoinBlockchain = Map.from(getFilecoinBlockChains()[i])
         ..addAll({'name': i});
 
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
       final currentList = blockChainsArray.value;
@@ -473,7 +476,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
       final Map cardanoBlockchain = Map.from(getCardanoBlockChains()[i])
         ..addAll({'name': i});
 
-      final notifier = ValueNotifier<double>(0.0);
+      final notifier = ValueNotifier<double>(null);
       cryptoBalanceListNotifiers.add(notifier);
 
       final currentList = blockChainsArray.value;

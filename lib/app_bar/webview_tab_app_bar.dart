@@ -1,6 +1,8 @@
 // import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:cryptowallet/screens/view_wallets.dart';
 import 'package:cryptowallet/screens/wallet_connect.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -561,6 +563,34 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                         )
                       ]),
                 );
+              case PopupMenuActions.ADD_WALLET:
+                return CustomPopupMenuItem<String>(
+                  enabled: true,
+                  value: choice,
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(choice),
+                        const Icon(
+                          Icons.wallet,
+                          color: Colors.black,
+                        )
+                      ]),
+                );
+              case PopupMenuActions.VIEW_WALLETS:
+                return CustomPopupMenuItem<String>(
+                  enabled: true,
+                  value: choice,
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(choice),
+                        const Icon(
+                          Icons.wallet,
+                          color: Colors.black,
+                        )
+                      ]),
+                );
               case PopupMenuActions.NEW_INCOGNITO_TAB:
                 return CustomPopupMenuItem<String>(
                   enabled: true,
@@ -760,6 +790,56 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             dappWidget = const WalletMainBody();
           } else if (hasPasscode) {
             dappWidget = const MainScreen();
+          } else {
+            dappWidget = const Security();
+          }
+          await Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => dappWidget));
+        });
+        break;
+      case PopupMenuActions.ADD_WALLET:
+        Future.delayed(const Duration(milliseconds: 300), () async {
+          final pref = Hive.box(secureStorageKey);
+          bool hasWallet = pref.get(currentMmenomicKey) != null;
+
+          bool hasPasscode = pref.get(userUnlockPasscodeKey) != null;
+          Widget dappWidget;
+          // Get.back();
+          // Navigator.of(context).pop();
+
+          if (hasWallet) {
+            dappWidget = const MainScreen();
+          } else if (hasPasscode) {
+            dappWidget = const MainScreen();
+          } else {
+            dappWidget = const Security();
+          }
+          await Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => dappWidget));
+        });
+        break;
+      case PopupMenuActions.VIEW_WALLETS:
+        Future.delayed(const Duration(milliseconds: 300), () async {
+          final pref = Hive.box(secureStorageKey);
+          bool hasWallet = pref.get(currentMmenomicKey) != null;
+
+          bool hasPasscode = pref.get(userUnlockPasscodeKey) != null;
+          Widget dappWidget;
+
+          final mnemonics = pref.get(mnemonicListKey);
+
+          final currentPhrase = pref.get(currentMmenomicKey);
+
+          // Get.back();
+          // Navigator.of(context).pop();
+
+          if (hasWallet) {
+            dappWidget = ViewWallets(
+              data: (jsonDecode(mnemonics) as List),
+              currentPhrase: currentPhrase,
+            );
+          } else if (hasPasscode) {
+            dappWidget = const ViewWallets();
           } else {
             dappWidget = const Security();
           }

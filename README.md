@@ -70,3 +70,7 @@ task to do
 To test QR code - use Opensea on your laptop computer and use WootzApp for QR code scan. Make sure it is working perfectly.
 
 To test wz:// link, try add shardeum https://github.com/wootzapp/wootz-browser/issues/36#issuecomment-1406184632 and connect to https://www.chainhash.io/
+
+
+1. to fix the corrupted balance in wootzapp ✅
+2. to fix the hidden transaction in wootzapp
