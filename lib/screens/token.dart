@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cryptowallet/components/user_balance.dart';
-// import 'package:cryptowallet/crypto_charts/crypto_chart.dart';
-import 'package:cryptowallet/screens/dapp.dart';
 import 'package:cryptowallet/screens/receive_token.dart';
 import 'package:cryptowallet/screens/send_token.dart';
 import 'package:cryptowallet/utils/app_config.dart';
@@ -16,11 +14,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-// import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:intl/intl.dart';
-import 'package:page_transition/page_transition.dart';
 
 import '../models/webview_model.dart';
 import '../webview_tab.dart';
@@ -34,30 +30,12 @@ class Token extends StatefulWidget {
 }
 
 class _TokenState extends State<Token> {
-  // RxMap tokenTransaction = {}.obs;
-  final tokenTransaction = ValueNotifier<Map<dynamic, dynamic>>({});
-  // RxDouble cryptoBalance = 0.0.obs;
-  final cryptoBalance = ValueNotifier<double>(0.0);
-  // RxMap blockchainPrice = {}.obs;
-  final blockchainPrice = ValueNotifier<Map<dynamic, dynamic>>({});
+  Map tokenTransaction;
+  double cryptoBalance;
+  Map blockchainPrice;
   bool skipNetworkRequest = true;
   Timer timer;
-  // RxBool trxOpen = true.obs;
-  final trxOpen = ValueNotifier<bool>(true);
-  final List<String> months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ];
+  ValueNotifier trxOpen = ValueNotifier(true);
 
   @override
   void initState() {
@@ -112,21 +90,16 @@ class _TokenState extends State<Token> {
           (cryptoMarket[defaultCurrency.toLowerCase() + '_24h_change'] as num)
               .toDouble();
 
-      blockchainPrice.value = {
-        'price': price,
-        'change': change,
-        'symbol': symbol
-      };
-    } catch (_) {
-      print(_);
-    }
+      blockchainPrice = {'price': price, 'change': change, 'symbol': symbol};
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   Future getBlockchainBalance() async {
     try {
       final mnemonic = Hive.box(secureStorageKey).get(currentMmenomicKey);
       if (widget.data['contractAddress'] != null) {
-        cryptoBalance.value = await getERC20TokenBalance(
+        cryptoBalance = await getERC20TokenBalance(
           widget.data,
           skipNetworkRequest: skipNetworkRequest,
         );
@@ -135,14 +108,14 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['POSNetwork'],
         );
-        cryptoBalance.value = await getBitcoinAddressBalance(
+        cryptoBalance = await getBitcoinAddressBalance(
           getBitcoinDetails['address'],
           widget.data['POSNetwork'],
           skipNetworkRequest: skipNetworkRequest,
         );
       } else if (widget.data['default'] == 'SOL') {
         final getSolanaDetails = await getSolanaFromMemnomic(mnemonic);
-        cryptoBalance.value = await getSolanaAddressBalance(
+        cryptoBalance = await getSolanaAddressBalance(
           getSolanaDetails['address'],
           widget.data['solanaCluster'],
           skipNetworkRequest: skipNetworkRequest,
@@ -152,7 +125,7 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['cardano_network'],
         );
-        cryptoBalance.value = await getCardanoAddressBalance(
+        cryptoBalance = await getCardanoAddressBalance(
           getCardanoDetails['address'],
           widget.data['cardano_network'],
           widget.data['blockFrostKey'],
@@ -163,7 +136,7 @@ class _TokenState extends State<Token> {
           mnemonic,
           widget.data['prefix'],
         );
-        cryptoBalance.value = await getFileCoinAddressBalance(
+        cryptoBalance = await getFileCoinAddressBalance(
           getFileCoinDetails['address'],
           baseUrl: widget.data['baseUrl'],
           skipNetworkRequest: skipNetworkRequest,
@@ -173,7 +146,7 @@ class _TokenState extends State<Token> {
           mnemonic,
         );
 
-        cryptoBalance.value = await getStellarAddressBalance(
+        cryptoBalance = await getStellarAddressBalance(
           getStellarDetails['address'],
           widget.data['sdk'],
           widget.data['cluster'],
@@ -190,17 +163,20 @@ class _TokenState extends State<Token> {
           coinType: widget.data['coinType'],
           skipNetworkRequest: skipNetworkRequest,
         );
-        cryptoBalance.value = ethBalance;
+        cryptoBalance = ethBalance;
       }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
+  String rampName;
+  String currentAddress;
+  String rampCurrentAddress;
   Future getTokenTransactions() async {
     try {
       final pref = Hive.box(secureStorageKey);
 
       String mnemonic = pref.get(currentMmenomicKey);
-      String currentAddress;
 
       if (widget.data['POSNetwork'] != null) {
         currentAddress = (await getBitcoinFromMemnomic(
@@ -208,37 +184,34 @@ class _TokenState extends State<Token> {
           widget.data['POSNetwork'],
         ))['address'];
       } else if (widget.data['default'] == 'SOL') {
-        currentAddress = (await getSolanaFromMemnomic(mnemonic))['address']
-            .toString()
-            .toLowerCase();
+        currentAddress =
+            (await getSolanaFromMemnomic(mnemonic))['address'].toString();
       } else if (widget.data['default'] == 'ADA') {
         currentAddress = (await getCardanoFromMemnomic(
           mnemonic,
           widget.data['cardano_network'],
         ))['address']
-            .toString()
-            .toLowerCase();
+            .toString();
       } else if (widget.data['default'] == 'FIL') {
         currentAddress = (await getFileCoinFromMemnomic(
           mnemonic,
           widget.data['prefix'],
         ))['address']
-            .toString()
-            .toLowerCase();
+            .toString();
       } else if (widget.data['default'] == 'XLM') {
-        currentAddress = (await getStellarFromMemnomic(mnemonic))['address']
-            .toString()
-            .toLowerCase();
+        currentAddress =
+            (await getStellarFromMemnomic(mnemonic))['address'].toString();
       } else {
         final response = await getEthereumFromMemnomic(
           mnemonic,
           widget.data['coinType'],
         );
-        currentAddress =
-            response['eth_wallet_address'].toString().toLowerCase();
+        currentAddress = response['eth_wallet_address'].toString();
       }
-      String contractAddrLookUpkey = '';
-      String evmAddrLookUpkey = '';
+
+      currentAddress = currentAddress.toLowerCase();
+      String contractAddrLookUpkey;
+      String evmAddrLookUpkey;
 
       if (widget.data['rpc'] != null) {
         contractAddrLookUpkey =
@@ -249,42 +222,140 @@ class _TokenState extends State<Token> {
 
       final isContractAddress = widget.data['contractAddress'] != null;
       final isEvmAddress = widget.data['rpc'] != null;
-
-      Map<dynamic, dynamic> tempTokenTransaction;
-
       if (isContractAddress && pref.get(contractAddrLookUpkey) != null) {
-        tempTokenTransaction = {
+        tokenTransaction = {
           'trx': jsonDecode(pref.get(contractAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           isEvmAddress &&
           pref.get(evmAddrLookUpkey) != null) {
-        tempTokenTransaction = {
+        tokenTransaction = {
           'trx': jsonDecode(pref.get(evmAddrLookUpkey)),
           'currentUser': currentAddress
         };
       } else if (widget.data['default'] != null &&
           !isEvmAddress &&
           pref.get('${widget.data['default']} Details') != null) {
-        tempTokenTransaction = {
+        tokenTransaction = {
           'trx': jsonDecode(pref.get('${widget.data['default']} Details')),
           'currentUser': currentAddress
         };
       } else {
-        tempTokenTransaction = {
+        tokenTransaction = {
           'trx': [],
           'currentUser': currentAddress,
         };
       }
-      setState(() {
-        tokenTransaction.value = tempTokenTransaction;
-      });
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final listTransactions = <Widget>[];
+    if (tokenTransaction != null) {
+      List data = tokenTransaction['trx'] as List;
+
+      int count = 1;
+
+      for (final datum in data) {
+        if (datum == null) continue;
+        if (count > maximumTransactionToSave) break;
+        if (datum['from'].toString().toLowerCase() !=
+            tokenTransaction['currentUser'].toString().toLowerCase()) continue;
+        final tokenSent = datum['value'] / pow(10, datum['decimal']);
+        DateTime trnDate =
+            DateFormat("yyyy-MM-dd hh:mm:ss").parse(datum['time']);
+
+        listTransactions.addAll([
+          GestureDetector(
+            onTap: () async {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => WebViewTab(
+                    webViewModel: WebViewModel(
+                      url: WebUri(
+                        widget.data['blockExplorer'].toString().replaceFirst(
+                              transactionhashTemplateKey,
+                              datum['transactionHash'],
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              color: Colors.transparent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    height: 10,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Row(
+                          children: [
+                            SvgPicture.asset('assets/sent-trans.svg'),
+                            const SizedBox(
+                              width: 10,
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  UserBalance(
+                                    balance: tokenSent,
+                                    symbol: '-',
+                                    reversed: true,
+                                    textStyle: const TextStyle(
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '${trnDate.day} ${months[trnDate.month - 1]} ${trnDate.year}',
+                                    style: const TextStyle(color: Colors.grey),
+                                  )
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('Sent'),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    ellipsify(
+                                      str: datum['to'],
+                                    ),
+                                    overflow: TextOverflow.fade,
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
+          ),
+          const Divider()
+        ]);
+        count++;
+      }
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -297,7 +368,9 @@ class _TokenState extends State<Token> {
         height: double.infinity,
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () async {},
+            onRefresh: () async {
+              setState(() {});
+            },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -340,52 +413,41 @@ class _TokenState extends State<Token> {
                                                       : null),
                                             )
                                           : Container(),
-                                      ValueListenableBuilder(
-                                        valueListenable: blockchainPrice,
-                                        builder: ((context, value, child) {
-                                          return blockchainPrice != null &&
-                                                  blockchainPrice
-                                                      .value.isNotEmpty
-                                              ? Row(
-                                                  children: [
-                                                    Text(
-                                                      '${widget.data['contractAddress'] != null ? ellipsify(str: blockchainPrice.value['symbol']) : (blockchainPrice).value['symbol']}${formatMoney((blockchainPrice).value['price'])}',
-                                                      style: const TextStyle(
-                                                          fontSize: 16),
-                                                    ),
-                                                    const SizedBox(
-                                                      width: 5,
-                                                    ),
-                                                    Text(
-                                                      ((blockchainPrice).value[
-                                                                      'change'] >
-                                                                  0
-                                                              ? '+'
-                                                              : '') +
-                                                          formatMoney(
-                                                              (blockchainPrice)
-                                                                      .value[
-                                                                  'change']) +
-                                                          '%',
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                        color: ((blockchainPrice)
-                                                                        .value[
-                                                                    'change'] <
-                                                                0)
-                                                            ? red
-                                                            : green,
-                                                      ),
-                                                    )
-                                                  ],
+                                      blockchainPrice != null
+                                          ? Row(
+                                              children: [
+                                                Text(
+                                                  '${widget.data['contractAddress'] != null ? ellipsify(str: blockchainPrice['symbol']) : (blockchainPrice)['symbol']}${formatMoney((blockchainPrice)['price'])}',
+                                                  style: const TextStyle(
+                                                      fontSize: 16),
+                                                ),
+                                                const SizedBox(
+                                                  width: 5,
+                                                ),
+                                                Text(
+                                                  ((blockchainPrice)['change'] >
+                                                              0
+                                                          ? '+'
+                                                          : '') +
+                                                      formatMoney(
+                                                          (blockchainPrice)[
+                                                              'change']) +
+                                                      '%',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: ((blockchainPrice)[
+                                                                'change'] <
+                                                            0)
+                                                        ? red
+                                                        : green,
+                                                  ),
                                                 )
-                                              : const Text(
-                                                  '',
-                                                  style:
-                                                      TextStyle(fontSize: 18),
-                                                );
-                                        }),
-                                      ),
+                                              ],
+                                            )
+                                          : const Text(
+                                              '',
+                                              style: TextStyle(fontSize: 18),
+                                            )
                                     ],
                                   ),
                                   const SizedBox(
@@ -415,33 +477,27 @@ class _TokenState extends State<Token> {
                                   const SizedBox(
                                     height: 10,
                                   ),
-                                  ValueListenableBuilder(
-                                      valueListenable: cryptoBalance,
-                                      builder: (context, value, child) {
-                                        return cryptoBalance != null
-                                            ? UserBalance(
-                                                iconSize: 20,
-                                                textStyle: const TextStyle(
-                                                    fontSize: 20,
-                                                    fontWeight:
-                                                        FontWeight.bold),
-                                                balance: cryptoBalance.value,
-                                                symbol: widget.data[
-                                                            'contractAddress'] !=
-                                                        null
-                                                    ? ellipsify(
-                                                        str: widget
-                                                            .data['symbol'])
-                                                    : widget.data['symbol'],
-                                              )
-                                            : const Text(
-                                                '',
-                                                style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              );
-                                      }),
+                                  if (cryptoBalance != null)
+                                    UserBalance(
+                                      iconSize: 20,
+                                      textStyle: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold),
+                                      balance: cryptoBalance,
+                                      symbol:
+                                          widget.data['contractAddress'] != null
+                                              ? ellipsify(
+                                                  str: widget.data['symbol'])
+                                              : widget.data['symbol'],
+                                    )
+                                  else
+                                    const Text(
+                                      '',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   const SizedBox(
                                     height: 10,
                                   ),
@@ -457,28 +513,25 @@ class _TokenState extends State<Token> {
                                           children: [
                                             GestureDetector(
                                               onTap: () async {
-                                                // Get.to(
-                                                //   SendToken(
-                                                //     data: widget.data,
-                                                //   ),
-                                                // );
-                                                Navigator.of(context)
-                                                    .push(MaterialPageRoute(
-                                                  builder: (_) => SendToken(
-                                                    data: widget.data,
-                                                  ),
-                                                ));
+                                                Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (ctx) =>
+                                                          SendToken(
+                                                        data: widget.data,
+                                                      ),
+                                                    ));
                                               },
                                               child: Container(
                                                 width: 40,
                                                 height: 40,
                                                 decoration: const BoxDecoration(
                                                   shape: BoxShape.circle,
-                                                  color: Color(0xff0C66F1),
+                                                  color: appBackgroundblue,
                                                 ),
                                                 child: const Icon(
                                                     Icons.arrow_upward,
-                                                    color: Colors.white),
+                                                    color: Colors.black),
                                               ),
                                             ),
                                             const SizedBox(
@@ -499,30 +552,27 @@ class _TokenState extends State<Token> {
                                                     Hive.box(secureStorageKey)
                                                         .get('mmemonic');
 
-                                                // Get.to(
-                                                //   ReceiveToken(
-                                                //     data: widget.data,
-                                                //     mnemonic: mnemonic,
-                                                //   ),
-                                                // );
-                                                Navigator.of(context)
-                                                    .push(MaterialPageRoute(
-                                                  builder: (_) => ReceiveToken(
-                                                    data: widget.data,
-                                                    mnemonic: mnemonic,
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (ctx) =>
+                                                        ReceiveToken(
+                                                      data: widget.data,
+                                                      mnemonic: mnemonic,
+                                                    ),
                                                   ),
-                                                ));
+                                                );
                                               },
                                               child: Container(
                                                 width: 40,
                                                 height: 40,
                                                 decoration: const BoxDecoration(
                                                   shape: BoxShape.circle,
-                                                  color: Color(0xff171840),
+                                                  color: appBackgroundblue,
                                                 ),
                                                 child: const Icon(
                                                     Icons.arrow_downward,
-                                                    color: Colors.white),
+                                                    color: Colors.black),
                                               ),
                                             ),
                                             const SizedBox(
@@ -546,191 +596,55 @@ class _TokenState extends State<Token> {
                         ),
                         ValueListenableBuilder(
                             valueListenable: trxOpen,
-                            builder: (context, value, child) {
-                              return GestureDetector(
-                                onTap: () {
-                                  trxOpen.value = !trxOpen.value;
-                                  print("trxOpen-> ${trxOpen.value}");
-                                },
-                                child: Card(
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(15.0),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Text(
-                                          "Transactions",
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                          width: 5,
-                                        ),
-                                        Transform.rotate(
-                                          child: const Icon(
-                                            Icons.arrow_back_ios_new,
-                                            size: 15,
-                                          ),
-                                          angle: trxOpen.value
-                                              ? 90 * pi / 180
-                                              : 270 * pi / 180,
-                                        )
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }),
-                        ValueListenableBuilder(
-                            valueListenable: tokenTransaction,
-                            builder: (context, value, child) {
-                              final listTransactions = <Widget>[];
-                              print(tokenTransaction);
-                              if (tokenTransaction != null &&
-                                  tokenTransaction.value.isNotEmpty) {
-                                List data =
-                                    tokenTransaction.value['trx'] as List;
-
-                                int count = 1;
-
-                                for (final datum in data) {
-                                  if (datum == null) continue;
-                                  if (count > maximumTransactionToSave) break;
-                                  if (datum['from'].toString().toLowerCase() !=
-                                      tokenTransaction.value['currentUser']
-                                          .toString()
-                                          .toLowerCase()) continue;
-                                  final tokenSent = datum['value'] /
-                                      pow(10, datum['decimal']);
-                                  DateTime trnDate =
-                                      DateFormat("yyyy-MM-dd hh:mm:ss")
-                                          .parse(datum['time']);
-
-                                  listTransactions.addAll([
-                                    GestureDetector(
-                                      onTap: () async {
-                                        await Navigator.of(context)
-                                            .push(MaterialPageRoute(
-                                          builder: (_) => WebViewTab(
-                                            webViewModel: WebViewModel(
-                                              url: WebUri(
-                                                widget.data['blockExplorer']
-                                                    .toString()
-                                                    .replaceFirst(
-                                                      transactionhashTemplateKey,
-                                                      datum['transactionHash'],
-                                                    ),
+                            builder: (_, trxOpen_, __) {
+                              return Column(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      trxOpen.value = !trxOpen.value;
+                                    },
+                                    child: Card(
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(30)),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(15.0),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Text(
+                                              "Transactions",
+                                              style: TextStyle(
+                                                fontSize: 18,
                                               ),
                                             ),
-                                          ),
-                                        ));
-                                        // Get.to(
-                                        //   nextWidget,
-                                        //   transition: Transition.leftToRight,
-                                        // );
-                                      },
-                                      child: Container(
-                                        color: Colors.transparent,
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
                                             const SizedBox(
-                                              height: 10,
+                                              width: 5,
                                             ),
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Flexible(
-                                                  child: Row(
-                                                    children: [
-                                                      SvgPicture.asset(
-                                                          'assets/sent-trans.svg'),
-                                                      const SizedBox(
-                                                        width: 10,
-                                                      ),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            UserBalance(
-                                                              balance:
-                                                                  tokenSent,
-                                                              symbol: '-',
-                                                              reversed: true,
-                                                              textStyle:
-                                                                  const TextStyle(
-                                                                fontSize: 18,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 10),
-                                                            Text(
-                                                              '${trnDate.day} ${months[trnDate.month - 1]} ${trnDate.year}',
-                                                              style: const TextStyle(
-                                                                  color: Colors
-                                                                      .grey),
-                                                            )
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .end,
-                                                          children: [
-                                                            const Text('Sent'),
-                                                            const SizedBox(
-                                                                height: 10),
-                                                            Text(
-                                                              ellipsify(
-                                                                str:
-                                                                    datum['to'],
-                                                              ),
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .fade,
-                                                              style:
-                                                                  const TextStyle(
-                                                                color:
-                                                                    Colors.grey,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
+                                            Transform.rotate(
+                                              child: const Icon(
+                                                Icons.arrow_back_ios_new,
+                                                size: 15,
+                                              ),
+                                              angle: trxOpen_
+                                                  ? 90 * pi / 180
+                                                  : 270 * pi / 180,
                                             )
                                           ],
                                         ),
                                       ),
                                     ),
-                                    const Divider()
-                                  ]);
-                                  count++;
-                                }
-                              }
-                              return (listTransactions.isNotEmpty &&
-                                      trxOpen.value)
-                                  ? Column(
+                                  ),
+                                  if (listTransactions.isNotEmpty && trxOpen_)
+                                    Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: listTransactions,
-                                    )
-                                  : Container();
-                            })
+                                    ),
+                                ],
+                              );
+                            }),
                       ],
                     ),
                   ),

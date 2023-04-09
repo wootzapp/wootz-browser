@@ -41,7 +41,6 @@ class _TransferTokenState extends State<TransferToken> {
 
   bool get kDebugMode => null;
   Timer timer;
-  // RxMap transactionFeeMap = {}.obs;
   final transactionFeeMap = ValueNotifier<Map<dynamic, dynamic>>({});
   bool isContract;
   bool isBitcoinType;
