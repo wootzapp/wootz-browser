@@ -533,6 +533,27 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             )
           ];
 
+          final pref = Hive.box(secureStorageKey);
+
+          final blockchaindet =
+              getEthereumDetailsFromChainId(pref.get(dappChainIdKey));
+
+          items.add(
+            CustomPopupMenuItem<String>(
+              enabled: true,
+              value: 'Network: ${blockchaindet['symbol']}',
+              child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Network: ${blockchaindet['symbol']}'),
+                    const Icon(
+                      Icons.add,
+                      color: Colors.transparent,
+                    )
+                  ]),
+            ),
+          );
+
           items.addAll(PopupMenuActions.choices.map((choice) {
             switch (choice) {
               case PopupMenuActions.NEW_TAB:
