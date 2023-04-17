@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^0.12.0+1
+  http: ">=0.12.0+1 <0.14.0"
   bip39: ^1.0.3
   pointycastle: ^1.0.1
   bip32: ^1.0.5
