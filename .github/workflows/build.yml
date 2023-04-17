@@ -85,8 +85,8 @@ jobs:
 #           ./ciscripts/get_version.sh
 #         env:
 #           CI_COMMIT_SHORT_SHA: ${{ steps.short-sha.outputs.sha }}
-##      - name: Flutter Analyze
-##        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Flutter Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 #       - name: Build Android Split APK
 #         run: |
 #           flutter build apk --target-platform android-arm,android-arm64,android-x64 --split-per-abi
