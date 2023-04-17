@@ -1,3 +1,6 @@
+import 'package:cryptowallet/utils/app_config.dart';
+import 'package:hive/hive.dart';
+
 class PopupMenuActions {
   // ignore: constant_identifier_names
   static const String NEW_TAB = "New tab";
@@ -29,8 +32,8 @@ class PopupMenuActions {
   static const String ADD_WALLET = "Add Wallet";
   // ignore: constant_identifier_names
   static const String VIEW_WALLETS = "View Wallets";
-
-  static const List<String> choices = <String>[
+  static Box pref = Hive.box(secureStorageKey);
+  static List<String> choices = <String>[
     NEW_TAB,
     NEW_INCOGNITO_TAB,
     FAVORITES,
@@ -44,7 +47,9 @@ class PopupMenuActions {
     INAPPWEBVIEW_PROJECT,
     WALLET,
     QR_SCAN,
-    ADD_WALLET,
-    VIEW_WALLETS,
+    if (pref.get(currentMmenomicKey) != null) ...[
+      ADD_WALLET,
+      VIEW_WALLETS,
+    ],
   ];
 }

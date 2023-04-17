@@ -26,6 +26,8 @@ import 'package:bs58check/bs58check.dart' as bs58check;
 import 'package:solana/solana.dart' as solana;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
+import 'coin_pay.dart';
+
 class SendToken extends StatefulWidget {
   final Map data;
 
@@ -95,6 +97,15 @@ class _SendTokenState extends State<SendToken> {
                             // );
                             if (recipientAddr == null) return;
                             recipientAddressController.text = recipientAddr;
+                            if (!recipientAddr.contains(':')) {
+                              recipientAddressController.text = recipientAddr;
+                              return;
+                            }
+                            try {
+                              CoinPay data = CoinPay.parseUri(recipientAddr);
+                              recipientAddressController.text = data.recipient;
+                              amount.text = data?.amount?.toString();
+                            } catch (_) {}
                           },
                         ),
                         InkWell(

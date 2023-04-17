@@ -694,7 +694,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                   case "signPersonalMessage":
                     {
                       final data = JsDataModel.fromJson(jsData.object ?? {});
-
+                      final url = await _webViewController.getUrl();
                       await signMessage(
                         raw: [data.data],
                         context: context,
@@ -702,6 +702,10 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
                         data: data.data,
                         networkIcon: null,
                         name: null,
+                        method: jsData.name,
+                        uri: url.toString(),
+                        chainId: chainId,
+                        version: jsData.name,
                         onConfirm: () async {
                           try {
                             List signedData =
