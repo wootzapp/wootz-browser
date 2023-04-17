@@ -41,7 +41,6 @@ class _TransferTokenState extends State<TransferToken> {
 
   bool get kDebugMode => null;
   Timer timer;
-  // RxMap transactionFeeMap = {}.obs;
   final transactionFeeMap = ValueNotifier<Map<dynamic, dynamic>>({});
   bool isContract;
   bool isBitcoinType;
@@ -105,7 +104,7 @@ class _TransferTokenState extends State<TransferToken> {
 
         web3.ContractFunction decimalsFunction;
 
-        BigInt decimals;
+        BigInt decimals = BigInt.zero;
 
         if (!isNFTTransfer) {
           decimalsFunction = contract.function('decimals');
@@ -464,7 +463,7 @@ class _TransferTokenState extends State<TransferToken> {
                                       ? () {
                                           // Get.snackbar(
                                           //   '',
-                                          //   AppLocalizations.of(context)
+                                          //   AppLocalizations.of(context)!
                                           //       .insufficientBalance,
                                           //   colorText: Colors.white,
                                           //   backgroundColor: Colors.red,
@@ -497,10 +496,10 @@ class _TransferTokenState extends State<TransferToken> {
                                               String mnemonic =
                                                   pref.get(currentMmenomicKey);
 
-                                              String userAddress;
-                                              String transactionHash;
-                                              int coinDecimals;
-                                              String userTransactionsKey;
+                                              String userAddress = '';
+                                              String transactionHash = '';
+                                              int coinDecimals = 0;
+                                              String userTransactionsKey = '';
                                               if (isContract) {
                                                 final client = web3.Web3Client(
                                                   widget.data['rpc'],
@@ -838,7 +837,7 @@ class _TransferTokenState extends State<TransferToken> {
                                               }
                                               // Get.snackbar(
                                               //   '',
-                                              //   AppLocalizations.of(context)
+                                              //   AppLocalizations.of(context)!
                                               //       .trxSent,
                                               // );
                                               ScaffoldMessenger.of(context)
@@ -923,7 +922,6 @@ class _TransferTokenState extends State<TransferToken> {
                                                 //     (route) => count++ == 3,
                                                 //   );
                                                 // });
-
                                               }
                                             } catch (e) {
                                               isSending.value = false;
@@ -949,7 +947,7 @@ class _TransferTokenState extends State<TransferToken> {
                                           } else {
                                             // Get.snackbar(
                                             //   '',
-                                            //   AppLocalizations.of(context)
+                                            //   AppLocalizations.of(context)!
                                             //       .authFailed,
                                             //   colorText: Colors.white,
                                             //   backgroundColor: Colors.red,

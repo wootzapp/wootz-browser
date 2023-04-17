@@ -2,12 +2,14 @@
 
 import 'dart:convert';
 
-import 'package:cryptowallet/model/provider.dart';
-import 'package:cryptowallet/screens/webview_tab.dart';
+import 'package:cryptowallet/models/provider.dart';
 import 'package:cryptowallet/utils/alt_ens.dart';
 import 'package:cryptowallet/utils/app_config.dart';
+import 'package:cryptowallet/webview_tab.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
@@ -16,11 +18,12 @@ import 'package:screenshot_callback/screenshot_callback.dart';
 import '../components/loader.dart';
 import '../config/colors.dart';
 import '../main.dart';
+import '../models/webview_model.dart';
 import '../utils/rpc_urls.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
 class Confirmmnemonic extends StatefulWidget {
-  final List mmenomic;
+  final List<String> mmenomic;
   const Confirmmnemonic({
     Key key,
     this.mmenomic,
@@ -128,7 +131,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
           if (phrases['phrase'] == mnemonics) {
             // Get.snackbar(
             //   '',
-            //   AppLocalizations.of(context).mnemonicAlreadyImported,
+            //   AppLocalizations.of(context)!.mnemonicAlreadyImported,
             //   backgroundColor: Colors.red,
             //   colorText: Colors.white,
             // );
@@ -175,18 +178,27 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
         null,
       );
       isLoading.value = false;
+      await activateDapp();
 
-      RestartWidget.restartApp(context);
+      // RestartWidget.restartApp(context);
+      // Phoenix.rebirth(context);
+
       final redirectUrl = pref.get('redirectUrl');
 
       if (redirectUrl != null) {
         // Navigator.of(context).pushReplacement(
         //     MaterialPageRoute(builder: (_) => WebViewTab(url: redirectUrl)));
         // Widget nextWidget = await dappWidget(context, redirectUrl);
-        Widget nextWidget = await dappWidget(context, redirectUrl);
 
-        Navigator.of(context)
-            .pushReplacement(MaterialPageRoute(builder: (_) => nextWidget));
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => WebViewTab(
+              webViewModel: WebViewModel(
+                url: WebUri(redirectUrl),
+              ),
+            ),
+          ),
+        );
       } else {
         for (int i = 0; i < 2; i++) {
           Navigator.pop(context);
@@ -203,7 +215,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
 
       // Get.snackbar(
       //   '',
-      //   AppLocalizations.of(context).walletCreated,
+      //   AppLocalizations.of(context)!.walletCreated,
       // );
     } catch (e) {
       if (kDebugMode) {
@@ -211,7 +223,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
       }
       // Get.snackbar(
       //   '',
-      //   AppLocalizations.of(context).errorTryAgain,
+      //   AppLocalizations.of(context)!.errorTryAgain,
       //   backgroundColor: Colors.red,
       //   colorText: Colors.white,
       // );
@@ -238,7 +250,7 @@ class _ConfirmmnemonicState extends State<Confirmmnemonic> {
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
     // Get.snackbar(
     //   '',
-    //   AppLocalizations.of(context).invalidmnemonic,
+    //   AppLocalizations.of(context)!.invalidmnemonic,
     //   backgroundColor: Colors.red,
     //   colorText: Colors.white,
     // );

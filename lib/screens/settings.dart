@@ -258,7 +258,7 @@ class _SettingsState extends State<Settings> {
                                 } else {
                                   // Get.snackbar(
                                   //   '',
-                                  //   AppLocalizations.of(context).authFailed,
+                                  //   AppLocalizations.of(context)!.authFailed,
                                   //   colorText: Colors.white,
                                   //   backgroundColor: Colors.red,
                                   // );
@@ -326,7 +326,7 @@ class _SettingsState extends State<Settings> {
                                 } else {
                                   // Get.snackbar(
                                   //   '',
-                                  //   AppLocalizations.of(context).authFailed,
+                                  //   AppLocalizations.of(context)!.authFailed,
                                   //   colorText: Colors.white,
                                   //   backgroundColor: Colors.red,
                                   // );
@@ -472,7 +472,7 @@ class _SettingsState extends State<Settings> {
                     };
                   }(), builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      Map data = snapshot.data;
+                      Map data = snapshot.data as Map<dynamic, dynamic>;
                       return Align(
                         alignment: Alignment.center,
                         child: Text.rich(

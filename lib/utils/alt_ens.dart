@@ -5,7 +5,7 @@ import 'package:sha3/sha3.dart';
 import 'package:web3dart/web3dart.dart' as web3;
 
 Future<Map> unstoppableDomainENS({
-  String cryptoDomainName,
+   String cryptoDomainName,
   String currency,
 }) async {
   try {
@@ -67,8 +67,7 @@ String nameHash(String inputName) {
       node = sha3(String.fromCharCodes(hex.decode('$node$labelSha')));
     }
   }
-
-  return '0x' + node;
+  return '0x$node';
 }
 
 bool _isEncodedLabelhash(hash) {

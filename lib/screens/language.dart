@@ -1,16 +1,10 @@
-import 'dart:io';
 
 import 'package:cryptowallet/main.dart';
-import 'package:cryptowallet/model/provider.dart';
 import 'package:cryptowallet/utils/language_locale.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/src/foundation/key.dart';
-import 'package:flutter/src/widgets/container.dart';
-import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 // import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:provider/provider.dart';
 
 import '../utils/app_config.dart';
 
@@ -22,7 +16,7 @@ class Language extends StatefulWidget {
 }
 
 class _LanguageState extends State<Language> {
-  List languages;
+  List<Locale> languages;
   String languageCode;
   @override
   initState() {
@@ -31,7 +25,7 @@ class _LanguageState extends State<Language> {
     languages = context
         .findAncestorWidgetOfExactType<MaterialApp>()
         ?.supportedLocales
-        ?.toList();
+        .toList();
   }
 
   @override

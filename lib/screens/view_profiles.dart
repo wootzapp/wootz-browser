@@ -11,7 +11,7 @@ import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:provider/provider.dart';
 
-import '../model/provider.dart';
+import '../models/provider.dart';
 import '../utils/navigator_service.dart';
 import '../utils/rpc_urls.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
@@ -46,7 +46,7 @@ class _ViewProfilesState extends State<ViewProfiles> {
       key: _scaffoldKey,
       appBar: AppBar(
           title: Text(
-        // AppLocalizations.of(context).wallet,
+        // AppLocalizations.of(context)!.wallet,
         'Profiles',
       )),
       body: SafeArea(
@@ -112,7 +112,7 @@ class _ViewProfilesState extends State<ViewProfiles> {
                                         Flexible(
                                           child: Text(
                                             // seedList.value[index]['name'] ??
-                                            //     '${AppLocalizations.of(context).mainWallet} ${seedList.value.indexOf(seedList.value[index]) + 1}',
+                                            //     '${AppLocalizations.of(context)!.mainWallet} ${seedList.value.indexOf(seedList.value[index]) + 1}',
                                             seedList.value[index]['name'] ??
                                                 'Main Profile ${seedList.value.indexOf(seedList.value[index]) + 1}',
                                             style: const TextStyle(

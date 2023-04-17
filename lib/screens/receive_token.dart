@@ -218,7 +218,7 @@ class _ReceiveTokenState extends State<ReceiveToken> {
 
                                     // Get.snackbar(
                                     //   '',
-                                    //   AppLocalizations.of(context)
+                                    //   AppLocalizations.of(context)!
                                     //       .copiedToClipboard,
                                     // );
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -337,7 +337,8 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                   FocusManager
                                                       .instance.primaryFocus
                                                       ?.unfocus();
-                                                  String ethereumRequestURL;
+                                                  String ethereumRequestURL =
+                                                      '';
 
                                                   if (amountField.text !=
                                                           null &&
@@ -409,9 +410,8 @@ class _ReceiveTokenState extends State<ReceiveToken> {
                                                   isRequestingPayment.value =
                                                       true;
                                                   amountRequested.value =
-                                                      ethereumRequestURL != null
-                                                          ? "+${amountField.text.trim()} ${widget.data['symbol']}"
-                                                          : null;
+                                                      ethereumRequestURL ??
+                                                          "+${amountField.text.trim()} ${widget.data['symbol']}";
                                                   amountField.text = '';
                                                   userAddress.value =
                                                       ethereumRequestURL ??

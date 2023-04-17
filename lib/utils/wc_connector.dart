@@ -1,11 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cryptowallet/screens/profiles_tabView.dart';
 import 'package:cryptowallet/utils/app_config.dart';
-import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:provider/provider.dart';
 import 'package:wallet_connect/wallet_connect.dart';
 import 'package:web3dart/web3dart.dart';
 import 'dart:convert';
@@ -19,7 +16,7 @@ import 'package:web3dart/web3dart.dart' hide Wallet;
 import 'package:http/http.dart' as http;
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
-import '../model/provider.dart';
+import 'navigator_service.dart';
 
 class WcConnector {
   BuildContext context;
@@ -29,10 +26,10 @@ class WcConnector {
   int _chainId;
   Web3Client _web3client;
   String _currencySymbol;
-  static int windowId;
   WcConnector() {
     context = NavigationService.navigatorKey.currentContext;
     _prefs = Hive.box(secureStorageKey);
+
     wcClient = WCClient(
       onSessionRequest: _onSessionRequest,
       onFailure: _onSessionError,
@@ -48,6 +45,7 @@ class WcConnector {
       onConnect: _onConnect,
       onWalletSwitchNetwork: _onSwitchNetwork,
     );
+
     wcReconnect();
   }
 
@@ -71,18 +69,17 @@ class WcConnector {
     try {
       String wcSessions = _prefs.get(wcSessionKey);
       if (wcSessions != null) {
-        Map sessions_ = json.decode(wcSessions);
-        String windowIdString = windowId.toString();
-        for (int i = 0; i < sessions_[windowIdString].length; i++) {
-          Map session = sessions_[windowIdString][i];
+        List sessions_ = jsonDecode(wcSessions);
+        for (int i = 0; i < sessions_.length; i++) {
+          Map session = sessions_[i];
           bool sameTopic = session['session']['topic'] ==
               wcClient.sessionStore.session.topic;
           bool sameKey =
               session['session']['key'] == wcClient.sessionStore.session.key;
 
           if (sameTopic && sameKey) {
-            sessions_[windowIdString].removeAt(i);
-            await _prefs.put(wcSessionKey, json.encode(sessions_));
+            sessions_.removeAt(i);
+            await _prefs.put(wcSessionKey, jsonEncode(sessions_));
           }
         }
       }
@@ -91,29 +88,21 @@ class WcConnector {
 
   static Future wcReconnect() async {
     String wcSessions = _prefs.get(wcSessionKey);
-    print('windowId from wcReconnect $windowId');
-    if (windowId != null) {
-      Map sessions_ = json.decode(wcSessions);
-      String windowIdString = windowId.toString();
-      if (sessions_[windowIdString] != null && !wcClient.isConnected) {
-        for (Map session in sessions_[windowId]) {
-          try {
-            await wcClient.connectFromSessionStore(
-              WCSessionStore.fromJson(session),
-            );
-          } catch (_) {}
-        }
+    if (wcSessions != null && !wcClient.isConnected) {
+      List sessions_ = jsonDecode(wcSessions);
+      for (Map session in sessions_) {
+        try {
+          await wcClient.connectFromSessionStore(
+            WCSessionStore.fromJson(session),
+          );
+        } catch (_) {}
       }
     }
   }
 
   setSigningDetails(int chainId) async {
-    final tabUserData = Provider.of<ProviderClass>(context, listen: false);
-    windowId = tabUserData.currentWindowId;
-    // int chainId = tabUserData.tabUserCred[currentWindowId]['chain'];
     Map blockChainData = getEthereumDetailsFromChainId(chainId);
-    // final _mnemonic = _prefs.get(currentMmenomicKey);
-    final _mnemonic = tabUserData.tabUserCred[windowId]['profile'];
+    final _mnemonic = _prefs.get(currentMmenomicKey);
     final response = await getEthereumFromMemnomic(
       _mnemonic,
       blockChainData['coinType'],
@@ -130,7 +119,6 @@ class WcConnector {
   _onConnect() {}
 
   _onSessionRequest(int id, WCPeerMeta peerMeta) {
-    // print(peerMeta);
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -188,155 +176,39 @@ class WcConnector {
                       backgroundColor: Theme.of(context).colorScheme.secondary,
                     ),
                     onPressed: () async {
-                      // Navigator.of(context).push(
-                      //   MaterialPageRoute(
-                      //     builder: (_) => ProfilesTabView(
-                      //       onTap: (blockChainData) async {
-                      //         _chainId = blockChainData['chainId'];
-                      //         await setSigningDetails(_chainId);
-                      //         wcClient.approveSession(
-                      //           accounts: [_walletAddress],
-                      //           chainId: blockChainData['chainId'],
-                      //         );
-                      //         List sessions = [];
+                      showBlockChainDialog(
+                          context: context,
+                          onTap: (blockChainData) async {
+                            _chainId = blockChainData['chainId'];
+                            await setSigningDetails(_chainId);
+                            wcClient.approveSession(
+                              accounts: [_walletAddress],
+                              chainId: blockChainData['chainId'],
+                            );
+                            List sessions = [];
 
-                      //         sessions.add(
-                      //           wcClient.sessionStore.toJson()
-                      //             ..addAll(
-                      //               {
-                      //                 'date': DateFormat("yyyy-MM-dd HH:mm:ss")
-                      //                     .format(
-                      //                   DateTime.now(),
-                      //                 ),
-                      //                 'address': _walletAddress
-                      //               },
-                      //             ),
-                      //         );
-                      //         await _prefs.put(
-                      //           wcSessionKey,
-                      //           jsonEncode(sessions),
-                      //         );
+                            sessions.add(
+                              wcClient.sessionStore.toJson()
+                                ..addAll(
+                                  {
+                                    'date': DateFormat("yyyy-MM-dd HH:mm:ss")
+                                        .format(
+                                      DateTime.now(),
+                                    ),
+                                    'address': _walletAddress
+                                  },
+                                ),
+                            );
+                            await _prefs.put(
+                              wcSessionKey,
+                              jsonEncode(sessions),
+                            );
 
-                      //         int count = 0;
-                      //         Navigator.popUntil(context, (route) {
-                      //           return count++ == 2;
-                      //         });
-                      //       },
-                      //     ),
-                      //   ),
-                      // );
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ProfilesTabView(
-                            onTap: (tabProfile, tabChainId) async {
-                              print('tabProfile from wcConnector $tabProfile');
-                              print('tabChainId from wcConnector $tabChainId');
-                              await setSigningDetails(tabChainId);
-                              wcClient.approveSession(
-                                accounts: [_walletAddress],
-                                // chainId: blockChainData['chainId'],
-                                chainId: tabChainId,
-                              );
-                              Map<String, List> sessions = {};
-                              List temp = [];
-                              temp.add(
-                                wcClient.sessionStore.toJson()
-                                  ..addAll(
-                                    {
-                                      'date': DateFormat("yyyy-MM-dd HH:mm:ss")
-                                          .format(
-                                        DateTime.now(),
-                                      ),
-                                      'address': _walletAddress
-                                    },
-                                  ),
-                              );
-                              String windowIdString = windowId.toString();
-                              sessions[windowIdString] = temp;
-                              print('windowId $windowId');
-                              print('sessions[windowId] ${sessions[windowId]}');
-                              await _prefs.put(
-                                wcSessionKey,
-                                jsonEncode(sessions),
-                              );
-
-                              // tabUserData.changeTabUserCred(windowId, '', _chainId);
-
-                              int count = 0;
-                              Navigator.popUntil(context, (route) {
-                                return count++ == 2;
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                      final tabUserData =
-                          Provider.of<ProviderClass>(context, listen: false);
-                      final tabProfile =
-                          tabUserData.tabUserCred[windowId]['profile'];
-                      final tabChainId =
-                          tabUserData.tabUserCred[windowId]['chain'];
-
-                      //   showProfileDialog(
-                      //     onTap: (phrase, name) {
-                      //       print('name inside showProfileDialog $name');
-                      //       tabUserData.changeTabUserCred(windowId, phrase, null);
-                      //       Navigator.of(context).pop();
-                      //       showBlockChainDialog(
-                      //           context: context,
-                      //           selectedChainId: tabChainId,
-                      //           onTap: (blockChainData) async {
-                      //             _chainId = blockChainData['chainId'];
-
-                      //             await setSigningDetails(_chainId);
-                      //             wcClient.approveSession(
-                      //               accounts: [_walletAddress],
-                      //               chainId: blockChainData['chainId'],
-                      //             );
-                      //             // List sessions = [];
-                      //             Map<String, List> sessions = {};
-                      //             // final tabUserData =
-                      //             //     Provider.of<ProviderClass>(context);
-                      //             // int currentWindowId = tabUserData.currentWindowId;
-                      //             List temp = [];
-                      //             // sessions[windowId].add
-                      //             temp.add(
-                      //               wcClient.sessionStore.toJson()
-                      //                 ..addAll(
-                      //                   {
-                      //                     'date':
-                      //                         DateFormat("yyyy-MM-dd HH:mm:ss")
-                      //                             .format(
-                      //                       DateTime.now(),
-                      //                     ),
-                      //                     'address': _walletAddress
-                      //                   },
-                      //                 ),
-                      //             );
-                      //             String windowIdString = windowId.toString();
-                      //             sessions[windowIdString] = temp;
-                      //             print('windowId $windowId');
-                      //             print(
-                      //                 'sessions[windowId] ${sessions[windowId]}');
-                      //             await _prefs.put(
-                      //               wcSessionKey,
-                      //               jsonEncode(sessions),
-                      //             );
-
-                      //             tabUserData.changeTabUserCred(
-                      //                 windowId, '', _chainId);
-
-                      //             int count = 0;
-                      //             Navigator.popUntil(context, (route) {
-                      //               return count++ == 2;
-                      //             });
-                      //           });
-                      //       // loadUserData(false);
-                      //       // selectBlockChain();
-                      //     },
-                      //     context: context,
-                      //     selectedProfile: tabProfile,
-                      //   );
+                            int count = 0;
+                            Navigator.popUntil(context, (route) {
+                              return count++ == 2;
+                            });
+                          });
                     },
                     child: Text(AppLocalizations.of(context).confirm),
                   ),
@@ -510,6 +382,7 @@ class WcConnector {
     int id,
     WCEthereumTransaction ethereumTransaction,
   ) {
+    print('signing');
     _onTransaction(
       id: id,
       ethereumTransaction: ethereumTransaction,
@@ -572,9 +445,6 @@ class WcConnector {
     int id,
     WCEthereumSignMessage ethereumSignMessage,
   ) async {
-    // print(ethereumSignMessage.raw);
-    // print(ethereumSignMessage.type);
-    // print(ethereumSignMessage.data);
     List icon = wcClient.remotePeerMeta.icons;
     String messageType = '';
     if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
@@ -584,19 +454,14 @@ class WcConnector {
     } else if (ethereumSignMessage.type == WCSignType.TYPED_MESSAGE) {
       messageType = typedMessageSignKey;
     }
-    String method = 'onEthSign';
+
     await signMessage(
-      method: method,
-      raw: ethereumSignMessage.raw,
+      raw: [ethereumSignMessage.data],
       messageType: messageType,
       context: context,
       data: ethereumSignMessage.data,
       networkIcon: icon.isNotEmpty ? icon[0] : null,
       name: wcClient.remotePeerMeta.name,
-      uri: wcClient.remotePeerMeta.url,
-      chainId: wcClient.chainId,
-      version: wcClient.session.version,
-      topic: wcClient.session.topic,
       onConfirm: () async {
         await setSigningDetails(wcClient.chainId);
         String signedDataHex;
@@ -608,11 +473,10 @@ class WcConnector {
             version: TypedDataVersion.V4,
           );
         } else if (ethereumSignMessage.type == WCSignType.PERSONAL_MESSAGE) {
-          Uint8List signedData = credentials.signPersonalMessageToUint8List(
+          Uint8List signedData = await credentials.signPersonalMessage(
             txDataToUintList(
               ethereumSignMessage.data,
             ),
-            chainId: _chainId,
           );
           signedDataHex = bytesToHex(signedData, include0x: true);
         } else if (ethereumSignMessage.type == WCSignType.MESSAGE) {

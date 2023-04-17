@@ -10,7 +10,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hive/hive.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 import 'package:provider/provider.dart';
-import '../model/provider.dart';
+import '../models/provider.dart';
 import '../utils/app_config.dart';
 
 class Portfolio extends StatefulWidget {

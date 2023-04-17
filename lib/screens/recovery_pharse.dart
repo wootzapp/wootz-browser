@@ -86,13 +86,13 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
         message: AppLocalizations.of(context).youCantScreenshot,
       );
     });
-    WidgetsBinding.instance?.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     disEnableScreenShot();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance?.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     enableScreenShot();
     super.dispose();
   }
@@ -390,7 +390,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
 
                                     // Get.snackbar(
                                     //   '',
-                                    //   AppLocalizations.of(context)
+                                    //   AppLocalizations.of(context)!
                                     //       .savedToDownloadFolder,
                                     //   backgroundColor: Colors.green,
                                     //   colorText: Colors.white,
@@ -412,7 +412,7 @@ class _RecoveryPhraseState extends State<RecoveryPhrase>
                                   } catch (e) {
                                     // Get.snackbar(
                                     //   '',
-                                    //   AppLocalizations.of(context)
+                                    //   AppLocalizations.of(context)!
                                     //       .errorTryAgain,
                                     //   backgroundColor: Colors.red,
                                     //   colorText: Colors.white,

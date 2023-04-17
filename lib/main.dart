@@ -1,131 +1,98 @@
-import 'dart:async';
-import 'dart:io';
+import 'dart:convert';
 
-import 'package:cryptowallet/screens/dapp.dart';
 import 'package:cryptowallet/screens/open_app_pin_failed.dart';
 import 'package:cryptowallet/utils/app_config.dart';
 import 'package:cryptowallet/utils/navigator_service.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
-import 'package:cryptowallet/utils/wallet_black.dart';
-import 'package:cryptowallet/utils/web_notifications.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_phoenix/flutter_phoenix.dart';
-import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
-// import 'package:get/get.dart';
-import 'package:provider/provider.dart';
-import 'firebase_options.dart';
-import 'package:bip32/bip32.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:cryptowallet/utils/wc_connector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:cryptowallet/models/browser_model.dart';
+import 'package:cryptowallet/models/webview_model.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:page_transition/page_transition.dart';
+import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
 
-import 'model/provider.dart';
-import 'utils/wc_connector.dart';
+import 'browser.dart';
+import 'models/provider.dart';
 
+// ignore: non_constant_identifier_names
+String WEB_ARCHIVE_DIR;
+// ignore: non_constant_identifier_names
+double TAB_VIEWER_BOTTOM_OFFSET_1;
+// ignore: non_constant_identifier_names
+double TAB_VIEWER_BOTTOM_OFFSET_2;
+// ignore: non_constant_identifier_names
+double TAB_VIEWER_BOTTOM_OFFSET_3;
+// ignore: constant_identifier_names
+const double TAB_VIEWER_TOP_OFFSET_1 = 0.0;
+// ignore: constant_identifier_names
+const double TAB_VIEWER_TOP_OFFSET_2 = 10.0;
+// ignore: constant_identifier_names
+const double TAB_VIEWER_TOP_OFFSET_3 = 20.0;
+// ignore: constant_identifier_names
+const double TAB_VIEWER_TOP_SCALE_TOP_OFFSET = 250.0;
+// ignore: constant_identifier_names
+const double TAB_VIEWER_TOP_SCALE_BOTTOM_OFFSET = 230.0;
+
+const secureEncryptionKey = 'encryptionKeyekalslslaidkeiaoa';
 void main() async {
-  Paint.enableDithering = true;
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    await InAppWebViewController.setWebContentsDebuggingEnabled(true);
-  }
-  await FlutterDownloader.initialize();
+
+  WEB_ARCHIVE_DIR = (await getApplicationSupportDirectory()).path;
+
+  TAB_VIEWER_BOTTOM_OFFSET_1 = 130.0;
+  TAB_VIEWER_BOTTOM_OFFSET_2 = 140.0;
+  TAB_VIEWER_BOTTOM_OFFSET_3 = 150.0;
+
+  await FlutterDownloader.initialize(debug: kDebugMode);
+
+  await Permission.camera.request();
+  await Permission.microphone.request();
+  await Permission.storage.request();
   await Hive.initFlutter();
-
-  if (Platform.isIOS) {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyCgZEhbaF-KLBXW4J00GXg4Xmav8fS_EfU',
-        appId: '1:753261675970:ios:00cd66a3716e9be4c4825b',
-        messagingSenderId: '753261675970',
-        projectId: 'browser-252c6',
-      ),
+  const FlutterSecureStorage secureStorage = FlutterSecureStorage();
+  var containsEncryptionKey =
+      await secureStorage.containsKey(key: secureEncryptionKey);
+  if (!containsEncryptionKey) {
+    var key = Hive.generateSecureKey();
+    await secureStorage.write(
+      key: secureEncryptionKey,
+      value: base64UrlEncode(key),
     );
-  } else {
-    await Firebase.initializeApp();
   }
 
-  FocusManager.instance.primaryFocus?.unfocus();
-  // make app always in portrait mode
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  // change error widget
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
-    if (kReleaseMode) {
-      return Container();
-    }
-    return Container(
-      color: Colors.red,
-      child: Center(
-        child: Text(
-          details.exceptionAsString(),
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  };
+  var encryptionKey =
+      base64Url.decode(await secureStorage.read(key: secureEncryptionKey));
+  await Hive.openBox(secureStorageKey,
+      encryptionCipher: HiveAesCipher(encryptionKey));
+  await activateDapp();
 
-  FlutterError.onError = (errorDetails) async {
-    await FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
-  final pref = await Hive.openBox(secureStorageKey);
-  await WebNotificationPermissionDb.loadSavedPermissions();
   runApp(
-    Phoenix(
-        child: RestartWidget(
-      child: MyApp(
-        userDarkMode: pref.get(darkModekey, defaultValue: false),
-        locale: Locale.fromSubtags(
-          languageCode: pref.get(languageKey, defaultValue: 'en'),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => WebViewModel(),
         ),
-      ),
-    )),
+        ChangeNotifierProxyProvider<WebViewModel, BrowserModel>(
+          update: (context, webViewModel, browserModel) {
+            browserModel.setCurrentWebViewModel(webViewModel);
+            return browserModel;
+          },
+          create: (BuildContext context) => BrowserModel(),
+        ),
+      ],
+      child: const FlutterBrowserApp(),
+    ),
   );
-}
-
-class RestartWidget extends StatefulWidget {
-  const RestartWidget({Key key, this.child}) : super(key: key);
-
-  final Widget child;
-
-  static void restartApp(BuildContext context) {
-    context.findAncestorStateOfType<_RestartWidgetState>().restartApp();
-  }
-
-  @override
-  _RestartWidgetState createState() => _RestartWidgetState();
-}
-
-class _RestartWidgetState extends State<RestartWidget> {
-  Key key = UniqueKey();
-
-  void restartApp() async {
-    // await Get.deleteAll(force: true); This will remove all the Initialized controllers instances from your memory.
-    Phoenix.rebirth(context);
-    // Get.reset();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return KeyedSubtree(
-      key: key,
-      child: widget.child,
-    );
-  }
 }
 
 class MyApp extends StatefulWidget {
@@ -188,6 +155,37 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
+// class RestartWidget extends StatefulWidget {
+//   const RestartWidget({Key key, this.child}) : super(key: key);
+
+//   final Widget child;
+
+//   static void restartApp(BuildContext context) {
+//     context.findAncestorStateOfType<_RestartWidgetState>().restartApp();
+//   }
+
+//   @override
+//   _RestartWidgetState createState() => _RestartWidgetState();
+// }
+
+// class _RestartWidgetState extends State<RestartWidget> {
+//   Key key = UniqueKey();
+
+//   void restartApp() async {
+//     // await Get.deleteAll(force: true); This will remove all the Initialized controllers instances from your memory.
+//     Phoenix.rebirth(context);
+//     // Get.reset();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return KeyedSubtree(
+//       key: key,
+//       child: widget.child,
+//     );
+//   }
+// }
+
 class MyHomePage extends StatefulWidget {
   const MyHomePage({Key key}) : super(key: key);
 
@@ -199,49 +197,8 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    checkNavigation();
+
     WcConnector();
-  }
-
-  Future<void> checkNavigation() async {
-    final pref = Hive.box(secureStorageKey);
-    bool hasWallet = pref.get(currentMmenomicKey) != null;
-    int hasUnlockTime = pref.get(appUnlockTime, defaultValue: 1);
-
-    bool defaultSecurity = true;
-
-    Widget nextWidget;
-
-    if (hasUnlockTime > 1) {
-      nextWidget = OpenAppPinFailed(remainSec: hasUnlockTime);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => nextWidget),
-        );
-      });
-      return;
-    }
-
-    if (hasWallet) {
-      defaultSecurity = await authenticate(
-        context,
-        disableGoBack_: true,
-      );
-    }
-
-    if (hasWallet && !defaultSecurity) {
-      nextWidget = const OpenAppPinFailed();
-    } else {
-      nextWidget = await dappWidget(
-        context,
-        walletURL,
-      );
-    }
-    await Future.delayed(const Duration(milliseconds: 2500));
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => nextWidget),
-    );
   }
 
   @override
@@ -267,6 +224,40 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class FlutterBrowserApp extends StatelessWidget {
+  const FlutterBrowserApp({Key key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // print(AppLocalizations.of(context).passcodeInfo);
+    return ChangeNotifierProvider.value(
+      // value: _locale,
+      child: MultiValueListenableBuilder(
+        valueListenables: [
+          MyApp.themeNotifier,
+          // _locale
+        ],
+        builder: (context, value, child) {
+          return ChangeNotifierProvider(
+            create: (context) => ProviderClass(),
+            child: MaterialApp(
+              navigatorKey: NavigationService.navigatorKey, // set property
+              // locale: _locale.value,
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              // darkTheme: darkTheme,
+              // themeMode: MyApp.themeNotifier.value,
+              home: const Browser(),
+            ),
+          );
+        },
       ),
     );
   }

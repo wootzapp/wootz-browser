@@ -20,7 +20,7 @@ class EIP681 {
     String addressRegex = '(0x[\\w]{40})';
 
     if (uri.substring(9, 11).toLowerCase() == '0x') {
-      prefix = null;
+      prefix = '';
     } else {
       int cutOff = uri.indexOf('-', 9);
       String rest = uri.substring(9);
@@ -66,14 +66,14 @@ class EIP681 {
             Uri.decodeComponent(keyValue[1]);
       }
     });
-    Map finalMapping;
+    Map finalMapping = {};
 
     Map<dynamic, dynamic> obj = {
       'scheme': 'ethereum',
       'target_address': match.group(2),
     };
 
-    if (prefix != null) {
+    if (prefix != '') {
       obj['prefix'] = prefix;
     }
 
@@ -109,8 +109,9 @@ class EIP681 {
         }
       }
     }
+    if (finalMapping != {}) return finalMapping;
 
-    return finalMapping ?? obj;
+    return obj;
   }
 
 // Builds a valid Ethereum URI based on the initial parameters
@@ -131,7 +132,7 @@ class EIP681 {
         amountKey = 'value';
       }
 
-      Map parametersValues;
+      Map parametersValues = {};
 
       if (parameters[amountKey] != null) {
         final amount = parameters[amountKey];
@@ -145,7 +146,11 @@ class EIP681 {
         }
       }
 
-      parameters = parametersValues ?? parameters;
+      if (parametersValues != {}) {
+        parameters = parametersValues;
+      } else {
+        parameters = parameters;
+      }
 
       // convert map to query string
       query = parameters.keys.map((key) {

@@ -1,9 +1,10 @@
+// ignore_for_file: null_safety_warnings
+
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:ffi';
 import 'package:cryptowallet/google_drive/drive.dart';
 import 'package:cryptowallet/screens/sign.dart';
-import 'package:cryptowallet/screens/webview_tab.dart';
 import 'package:cryptowallet/utils/json_viewer.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 // import 'package:get/get.dart' hide Response;
@@ -152,7 +153,7 @@ solana.SolanaClient getSolanaClient(SolanaClusters solanaClusterType) {
 Future<Map> viewUserTokens(
   int chainId,
   String address, {
-  bool skipNetworkRequest,
+  bool skipNetworkRequest = false,
 }) async {
   final pref = Hive.box(secureStorageKey);
   final tokenListKey = 'tokenListKey_$chainId-$address';
@@ -669,26 +670,6 @@ Map getEVMBlockchains() {
       'image': 'assets/optimism.png',
       'coinType': 60
     },
-    'Shardeum_1.6': {
-      "rpc": 'https://liberty10.shardeum.org/',
-      'chainId': 8080,
-      'blockExplorer':
-          'https://explorer-liberty10.shardeum.org/transaction/$transactionhashTemplateKey',
-      'symbol': 'SHM',
-      'default': 'SHM',
-      'image': 'assets/shardeum.jpeg',
-      'coinType': 60
-    },
-    'Shardeum_2.0': {
-      "rpc": 'https://liberty20.shardeum.org/',
-      'chainId': 8081,
-      'blockExplorer':
-          'https://explorer-liberty20.shardeum.org/transaction/$transactionhashTemplateKey',
-      'symbol': 'SHM',
-      'default': 'SHM',
-      'image': 'assets/shardeum.jpeg',
-      'coinType': 60
-    },
     'Ethereum Classic': {
       'symbol': 'ETC',
       'default': 'ETH',
@@ -1064,20 +1045,20 @@ Future ensToContentHashAndIPFS({String cryptoDomainName}) async {
     final match = ipfsCIDRegex.firstMatch(contentHash);
     final swarmMatch = swarmRegex.firstMatch(contentHash);
     if (match != null) {
-      final length = int.parse(match.group(3), radix: 16);
+      final length = int.parse(match.group(3) ?? "", radix: 16);
       if (match.group(4).length == length * 2) {
         final userFinalDecodedHash = match.group(1);
         return {
           'success': true,
           'msg': ipfsTohttp(
-            "ipfs://${bs58check.base58.encode(HEX.decode(userFinalDecodedHash))}",
+            "ipfs://${bs58check.base58.encode(Uint8List.fromList(HEX.decode(userFinalDecodedHash)))}",
           )
         };
       }
       throw Exception('invalid IPFS checksum');
     } else if (swarmMatch != null) {
       if (swarmMatch.group(1).length == (32 * 2)) {
-        return {'success': true, 'msg': "bzz://" + swarmMatch.group(2)};
+        return {'success': true, 'msg': "bzz://${swarmMatch.group(2)}"};
       }
       throw Exception('invalid SWARM checksum');
     }
@@ -1554,8 +1535,10 @@ Future<double> getStellarAddressBalance(
   bool skipNetworkRequest = false,
 }) async {
   final pref = Hive.box(secureStorageKey);
+  // List<int> cluster.network = cluster.network!.toList();
 
-  final key = 'stellarAddressBalance$address${bytesToHex(cluster.networkId)}';
+  final key =
+      'stellarAddressBalance$address${bytesToHex(cluster.networkId.toList())}';
 
   final storedBalance = pref.get(key);
 
@@ -1605,7 +1588,7 @@ Future<double> getSolanaAddressBalance(
   try {
     final balanceInLamport =
         await getSolanaClient(solanaClusterType).rpcClient.getBalance(address);
-    double balanceInSol = balanceInLamport / solana.lamportsPerSol;
+    double balanceInSol = (balanceInLamport as double) / solana.lamportsPerSol;
 
     await pref.put(key, balanceInSol);
 
@@ -1655,7 +1638,7 @@ Future<double> getFileCoinAddressBalance(
 }
 
 Future<String> getCryptoPrice({
-  bool skipNetworkRequest = false,
+  bool skipNetworkRequest,
 }) async {
   String allCrypto = "";
   int currentIndex = 0;
@@ -1664,7 +1647,7 @@ Future<String> getCryptoPrice({
     if (currentIndex == listOfCoinGeckoValue.length - 1) {
       allCrypto += value;
     } else {
-      allCrypto += value + ",";
+      allCrypto += "$value,";
     }
     currentIndex++;
   }
@@ -1684,7 +1667,7 @@ Future<String> getCryptoPrice({
       MyApp.getCoinGeckoData = true;
     }
 
-    if (useCachedResponse || skipNetworkRequest) {
+    if (useCachedResponse || skipNetworkRequest != null) {
       return json.decode(savedCryptoPrice)['data'];
     }
   }
@@ -1723,7 +1706,7 @@ Future<String> getCryptoPrice({
     if (savedCryptoPrice != null) {
       return json.decode(savedCryptoPrice)['data'];
     }
-    return null;
+    return '';
   }
 }
 
@@ -2265,7 +2248,7 @@ getBitcoinDetailsFromNetwork(NetworkType network) {
 showDialogWithMessage({
   BuildContext context,
   String message,
-  Function onConfirm,
+  Function() onConfirm,
 }) {
   AwesomeDialog(
     closeIcon: const Icon(
@@ -2282,7 +2265,7 @@ showDialogWithMessage({
     desc: message,
     showCloseIcon: true,
     btnOkText: AppLocalizations.of(context).ok,
-    btnOkOnPress: onConfirm ?? () {},
+    btnOkOnPress: onConfirm,
   ).show();
 }
 
@@ -2448,26 +2431,51 @@ showBlockChainDialog({
   );
 }
 
-changeBlockChainAndReturnInit(
-  int coinType,
+Future changeBlockChainAndReturnInit(
   int chainId,
   String rpc,
 ) async {
-  final init = await rootBundle.loadString('dappBrowser/init.js');
   final pref = Hive.box(secureStorageKey);
+  await pref.put(dappChainIdKey, chainId);
   final mnemonic = pref.get(currentMmenomicKey);
+  final coinType = getEthereumDetailsFromChainId(chainId)['coinType'];
   final response = await getEthereumFromMemnomic(mnemonic, coinType);
 
-  final sendingAddress = response['eth_wallet_address'];
-  await pref.put(dappChainIdKey, chainId);
-
-  return init
-      .replaceFirst("%1\$s", sendingAddress)
-      .replaceFirst("%2\$s", rpc)
-      .replaceFirst(
-        "%3\$s",
-        chainId.toString(),
-      );
+  final address = response['eth_wallet_address'];
+  return '''
+   (function() {
+    let isFlutterInAppWebViewReady = false;
+    window.addEventListener("flutterInAppWebViewPlatformReady", function (event) {
+      isFlutterInAppWebViewReady = true;
+      console.log("done and ready");
+    });
+    var config = {                
+        ethereum: {
+            chainId: $chainId,
+            rpcUrl: "$rpc",  
+            address: "$address"
+        },
+        solana: {
+            cluster: "mainnet-beta",
+        },
+        isDebug: false
+    };
+    trustwallet.ethereum = new trustwallet.Provider(config);
+    trustwallet.solana = new trustwallet.SolanaProvider(config);
+    trustwallet.postMessage = (json) => {
+        const interval = setInterval(() => {
+          if (isFlutterInAppWebViewReady) {
+            clearInterval(interval);
+            window.flutter_inappwebview.callHandler(
+              "CryptoHandler",
+              JSON.stringify(json)
+            );
+          }
+        }, 100);
+    }
+    window.ethereum = trustwallet.ethereum;
+  })();
+''';
 }
 
 Future<Map> whoIsLookUp(String webUrl) async {
@@ -2477,49 +2485,30 @@ Future<Map> whoIsLookUp(String webUrl) async {
   // final date = DateTime.parse(parsedResponse['Creation Date']);
 }
 
-Future<Widget> dappWidget(
-  BuildContext context,
-  String data,
-) async {
+Future activateDapp() async {
   final pref = Hive.box(secureStorageKey);
   final currentMmemonic = pref.get(currentMmenomicKey);
 
   if (currentMmemonic == null) {
-    return Dapp(
-      provider: '',
-      webNotifier: '',
-      init: '',
-      data: data,
-    );
+    return;
   }
-  final provider =
-      await rootBundle.loadString('dappBrowser/alphawallet.min.js');
 
-  final currentDappChainIdKey = pref.get(dappChainIdKey);
+  provider = await rootBundle.loadString('js/trust.min.js');
+  webNotifer = await rootBundle.loadString('js/web_notification.js');
 
-  if (currentDappChainIdKey == null) {
+  if (pref.get(dappChainIdKey) == null) {
     await pref.put(
       dappChainIdKey,
       getEVMBlockchains()[tokenContractNetwork]['chainId'],
     );
   }
 
-  final webNotifer = await rootBundle.loadString('js/web_notification.js');
-
   int chainId = pref.get(dappChainIdKey);
   final rpc = getEthereumDetailsFromChainId(chainId)['rpc'];
 
-  final init = await changeBlockChainAndReturnInit(
-    getEthereumDetailsFromChainId(chainId)['coinType'],
+  init = await changeBlockChainAndReturnInit(
     chainId,
     rpc,
-  );
-
-  return Dapp(
-    provider: provider,
-    webNotifier: webNotifer,
-    init: init,
-    data: data,
   );
 }
 
@@ -2529,6 +2518,7 @@ Future addEthereumChain({
   onConfirm,
   onReject,
 }) async {
+  print(jsonObj);
   ValueNotifier isLoading = ValueNotifier(false);
   await slideUpPanel(
     context,
@@ -2544,7 +2534,9 @@ Future addEthereumChain({
               fontSize: 20,
             ),
           ),
-          JsonViewer(json.decode(jsonObj)),
+          JsonViewer(
+            json.decode(jsonObj),
+          ),
           const SizedBox(
             height: 20,
           ),
@@ -2753,7 +2745,7 @@ signTransaction({
 
   final String decodedName =
       decodedFunction == null ? null : decodedFunction['name'];
-  String methodId;
+  String methodId = "";
   Map decodedParams = {};
 
   if (decodedFunction != null) {
@@ -3336,7 +3328,7 @@ signMessage({
 
   if (messageType == personalSignKey && data != null && isHexString(data)) {
     try {
-      decoded = ascii.decode(txDataToUintList(data));
+      decoded = ascii.decode(txDataToUintList(data).toList());
     } catch (_) {}
   }
   // print(raw.length);
@@ -3401,7 +3393,8 @@ solidityFunctionSig(String methodId) {
 }
 
 Uint8List txDataToUintList(String txData) {
-  if (txData == null) return null;
+  // if (txData == null) return
+  // do check whether the above code is to be commented or not
   return isHexString(txData) ? hexToBytes(txData) : ascii.encode(txData);
 }
 
@@ -3622,19 +3615,93 @@ final List<String> months = [
 web3.Transaction wcEthTxToWeb3Tx(WCEthereumTransaction ethereumTransaction) {
   return web3.Transaction(
     from: EthereumAddress.fromHex(ethereumTransaction.from),
-    to: EthereumAddress.fromHex(ethereumTransaction.to),
+    to: EthereumAddress.fromHex(ethereumTransaction.to ?? ""),
     maxGas: ethereumTransaction.gasLimit != null
-        ? int.tryParse(ethereumTransaction.gasLimit)
+        ? int.tryParse(ethereumTransaction.gasLimit ?? "")
         : null,
     gasPrice: ethereumTransaction.gasPrice != null
-        ? EtherAmount.inWei(BigInt.parse(ethereumTransaction.gasPrice))
+        ? EtherAmount.inWei(BigInt.parse(ethereumTransaction.gasPrice ?? ""))
         : null,
     value: EtherAmount.inWei(BigInt.parse(ethereumTransaction.value ?? '0')),
-    data: hexToBytes(ethereumTransaction.data),
+    data: hexToBytes(ethereumTransaction.data ?? ""),
     nonce: ethereumTransaction.nonce != null
-        ? int.tryParse(ethereumTransaction.nonce)
+        ? int.tryParse(ethereumTransaction.nonce ?? "")
         : null,
   );
+}
+
+validateAddress(Map data, String recipient) {
+  if (data['default'] == 'XRP') {
+    // final bytes = xrpBaseCodec.decode(recipient);
+
+    // final computedCheckSum = sha256
+    //     .convert(sha256.convert(bytes.sublist(0, bytes.length - 4)).bytes)
+    //     .bytes
+    //     .sublist(0, 4);
+    // final expectedCheckSum = bytes.sublist(bytes.length - 4);
+
+    // if (!seqEqual(computedCheckSum, expectedCheckSum)) {
+    //   throw Exception('Invalid XRP address');
+    // }
+  } else if (data['default'] == 'ALGO') {
+    // algo_rand.Address.fromAlgorandAddress(
+    //   address: recipient,
+    // );
+  } else if (data['default'] == 'BCH') {
+    // bitbox.Address.detectFormat(recipient);
+  } else if (data['default'] == 'XTZ') {
+    // if (!validateTezosAddress(recipient)) {
+    //   throw Exception('Invalid ${data['default']} address');
+    // }
+  } else if (data['default'] == 'TRX') {
+    // if (!wallet.isValidTronAddress(recipient)) {
+    //   throw Exception('Invalid ${data['default']} address');
+    // }
+  } else if (data['P2WPKH'] != null) {
+    // final NetworkType nw =
+    //     getBitCoinPOSBlockchains()[data['name']]['POSNetwork'];
+    // if (Address.validateAddress(recipient, nw)) {
+    //   return;
+    // }
+
+    // bool canReceivePayment = false;
+
+    // try {
+    //   final base58DecodeRecipient = bs58check.decode(recipient);
+
+    //   final pubHashString = base58DecodeRecipient[0].toRadixString(16) +
+    //       base58DecodeRecipient[1].toRadixString(16);
+
+    //   canReceivePayment = hexToInt(pubHashString).toInt() == nw.pubKeyHash;
+    // } catch (_) {}
+
+    // if (!canReceivePayment) {
+    //   Bech32 sel = bech32.decode(recipient);
+    //   canReceivePayment = nw.bech32 == sel.hrp;
+    // }
+
+    // if (!canReceivePayment) {
+    //   throw Exception('Invalid ${data['symbol']} address');
+    // }
+  } else if (data['default'] == 'SOL') {
+    solana.Ed25519HDPublicKey.fromBase58(recipient);
+  } else if (data['default'] == 'ADA') {
+    // cardano.ShelleyAddress.fromBech32(recipient);
+  } else if (data['default'] == 'XLM') {
+    stellar.KeyPair.fromAccountId(recipient);
+  } else if (data['default'] == 'FIL') {
+    //FIXME:
+    // if (!await Flotus.validateAddress(recipient)) {
+    //   throw Exception('not a valid filecoin address');
+    // }
+  } else if (data['default'] == 'ATOM') {
+    // Bech32 sel = bech32.decode(recipient);
+    // if (sel.hrp != data['bech32Hrp']) {
+    //   throw Exception('not a valid cosmos address');
+    // }
+  } else if (data['rpc'] != null) {
+    web3.EthereumAddress.fromHex(recipient);
+  }
 }
 
 bool isLocalizedContent(Uri url) {

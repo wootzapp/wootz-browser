@@ -54,7 +54,7 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
       if (kDebugMode) {
         print(e.toString());
       }
-      return {};
+      // return {};
     }
   }
 
@@ -131,7 +131,7 @@ class _UserDetailsPlaceHolderState extends State<UserDetailsPlaceHolder> {
                 width: 10,
               ),
               // Text(
-              //   '${(widget.showHi ?? false) ? AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
+              //   '${(widget.showHi  false)  AppLocalizations.of(context).hi : ''} ${ellipsify(str: userDetails_.value['name'])}',
               //   style: TextStyle(fontSize: widget.textSize),
               // )
             ],

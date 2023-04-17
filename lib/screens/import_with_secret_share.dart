@@ -12,6 +12,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 // import 'package:get/get.dart';
 import 'package:hex/hex.dart';
@@ -47,7 +48,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
   // RxBool securitydialogOpen = false.obs;
   final securitydialogOpen = ValueNotifier<bool>(false);
 
-  List<String> fileContent = [null, null, null];
+  List<String> fileContent = ['', '', ''];
 
   @override
   void initState() {
@@ -172,7 +173,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                 } catch (e) {
                                                   // Get.snackbar(
                                                   //   '',
-                                                  //   AppLocalizations.of(context)
+                                                  //   AppLocalizations.of(context)!
                                                   //       .errorTryAgain,
                                                   //   backgroundColor: Colors.red,
                                                   //   colorText: Colors.white,
@@ -388,7 +389,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                               if (!mnemonicValid) {
                                                 // Get.snackbar(
                                                 //   '',
-                                                //   AppLocalizations.of(context)
+                                                //   AppLocalizations.of(context)!
                                                 //       .invalidmnemonic,
                                                 //   backgroundColor: Colors.red,
                                                 //   colorText: Colors.white,
@@ -421,7 +422,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                       .trim();
 
                                               if (walletName.isEmpty)
-                                                walletName = null;
+                                                walletName = '';
 
                                               await initializeAllPrivateKeys(
                                                 mnemonics,
@@ -444,7 +445,8 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                                 walletName,
                                               );
 
-                                              RestartWidget.restartApp(context);
+                                              Phoenix.rebirth(context);
+                                              // RestartWidget.restartApp(context);
 
                                               isLoading.value = false;
                                             } catch (e) {
@@ -453,7 +455,7 @@ class _ImportWithSecretShareState extends State<ImportWithSecretShare> {
                                               }
                                               // Get.snackbar(
                                               //   '',
-                                              //   AppLocalizations.of(context)
+                                              //   AppLocalizations.of(context)!
                                               //       .errorTryAgain,
                                               //   backgroundColor: Colors.red,
                                               //   colorText: Colors.white,

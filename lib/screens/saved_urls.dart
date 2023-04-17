@@ -5,11 +5,14 @@ import 'package:cryptowallet/screens/dapp.dart';
 import 'package:cryptowallet/utils/rpc_urls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:hive/hive.dart';
 import 'package:multi_value_listenable_builder/multi_value_listenable_builder.dart';
 // import 'package:get/get.dart';
 
+import '../models/webview_model.dart';
 import '../utils/app_config.dart';
+import '../webview_tab.dart';
 
 class SavedUrls extends StatefulWidget {
   final List data;
@@ -135,19 +138,20 @@ class _SavedUrlsState extends State<SavedUrls> {
                               children: [
                                 InkWell(
                                   onTap: () async {
-                                    Widget nextWidget = await dappWidget(
-                                      context,
-                                      urlDetails['url'],
-                                    );
-
                                     if (widget.savedKey == historyKey) {
                                       // Get.back(result: urlDetails['url']);
                                       Navigator.of(context)
                                           .pop(urlDetails['url']);
                                     } else {
                                       Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                              builder: (_) => nextWidget));
+                                        MaterialPageRoute(
+                                          builder: (_) => WebViewTab(
+                                            webViewModel: WebViewModel(
+                                              url: WebUri(urlDetails['url']),
+                                            ),
+                                          ),
+                                        ),
+                                      );
                                       // Get.to(
                                       //   nextWidget,
                                       //   transition: Transition.leftToRight,

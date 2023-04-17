@@ -408,7 +408,7 @@ class _SendTokenState extends State<SendToken> {
 
                             String recipient =
                                 recipientAddressController.text.trim();
-                            String cryptoDomain;
+                            String cryptoDomain = '';
                             bool iscryptoDomain = recipient.contains('.');
 
                             try {
@@ -440,9 +440,9 @@ class _SendTokenState extends State<SendToken> {
                                         : null,
                                   );
                                   cryptoDomain =
-                                      unstoppableDomainAddr['success']
+                                      (unstoppableDomainAddr['success']
                                           ? recipient
-                                          : null;
+                                          : null);
                                   recipient = unstoppableDomainAddr['success']
                                       ? unstoppableDomainAddr['msg']
                                       : recipient;

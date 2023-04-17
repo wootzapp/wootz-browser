@@ -76,7 +76,9 @@ class UserAddedTokensState extends State<UserAddedTokens> {
         'noPrice': true,
       });
     }
-    userAddedToken.value = tokenList;
+    setState(() {
+      userAddedToken.value = tokenList;
+    });
   }
 
   @override
@@ -87,7 +89,7 @@ class UserAddedTokensState extends State<UserAddedTokens> {
           List<Widget> addedTokens = <Widget>[];
           if (userAddedToken != null) {
             for (int i = 0; i < userAddedToken.value.length; i++) {
-              final notifier = ValueNotifier<double>(null);
+              final notifier = ValueNotifier<double>(0.0);
               addedTokenListNotifiers.add(notifier);
               addedTokens.addAll([
                 Dismissible(
@@ -137,9 +139,8 @@ class UserAddedTokensState extends State<UserAddedTokens> {
                         GetBlockChainWidget(
                           name_:
                               ellipsify(str: userAddedToken.value[i]['name']),
-                          image_: userAddedToken.value[i]['image'] != null
-                              ? AssetImage(userAddedToken.value[i]['image'])
-                              : null,
+                          image_: userAddedToken.value[i]['image'] ??
+                              AssetImage(userAddedToken.value[i]['image']),
                           priceWithCurrency_: '0',
                           hasPrice_: false,
                           cryptoChange_: 0,

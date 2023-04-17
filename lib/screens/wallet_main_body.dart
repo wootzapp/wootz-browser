@@ -15,7 +15,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
-import '../model/provider.dart';
+import '../models/provider.dart';
 import '../utils/app_config.dart';
 import '../utils/get_blockchain_widget.dart';
 import 'package:flutter_gen/gen_l10n/app_localization.dart';
@@ -66,7 +66,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
   StreamSubscription _intentDataStreamSubscription;
   List<ValueNotifier<double>> cryptoBalanceListNotifiers =
       <ValueNotifier<double>>[];
-  ValueNotifier<double> walletNotifier = ValueNotifier(null);
+  ValueNotifier<double> walletNotifier = ValueNotifier(0.0);
 
   // RxList<Widget> blockChainsArray = <Widget>[].obs;
   final blockChainsArray = ValueNotifier<List<Widget>>(<Widget>[]);
@@ -221,6 +221,7 @@ class _WalletMainBodyState extends State<WalletMainBody>
                       mnemonic,
                       evmBlockchain['coinType'],
                     );
+                    print(getEthereumDetails);
                     try {
                       notifier.value = await getEthereumAddressBalance(
                         getEthereumDetails['eth_wallet_address'],
@@ -228,7 +229,9 @@ class _WalletMainBodyState extends State<WalletMainBody>
                         coinType: evmBlockchain['coinType'],
                         skipNetworkRequest: notifier.value == null,
                       );
-                    } catch (_) {}
+                    } catch (_) {
+                      print(_);
+                    }
 
                     cryptoBalancesTimer.add(
                       Timer.periodic(httpPollingDelay, (timer) async {
