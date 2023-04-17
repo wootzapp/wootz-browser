@@ -6,7 +6,7 @@ env:
   CI_PIPELINE_IID: ${{ github.run_number }} # Make sure when we actually build release builds it starts from 2009
   CI_COMMIT_REF_NAME: ${{ github.ref_name }}
   FLUTTER_CHANNEL: "stable"
-  FLUTTER_VERSION: "3.3.10"
+  FLUTTER_VERSION: "3.7.11"
   FLUTTER_PATH: /opt/hostedtoolcache/flutter #ubuntu-latest
   
 #Encode the JSON key in base64 using this command base64 -w 0 service-account-example.json and paste the base64 string 
