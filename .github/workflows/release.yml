@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Flutter Stable
-        uses: subosito/flutter-action@v2.8.0
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
           flutter-version: ${{ env.FLUTTER_VERSION }}
