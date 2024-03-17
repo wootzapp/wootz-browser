@@ -1,0 +1,12 @@
+{
+  "format_version": "1",
+  "package_name": "chromium/third_party/icu4j",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lib/icu4j.jar",
+      "size": 9709288,
+      "hash": "43pEZ7rFzesCxcS45QY9L05ntp48ffbWthDxMYVXK6sC"
+    }
+  ]
+}

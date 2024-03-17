@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/android_arch_lifecycle_common",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "common-1.1.1.jar",
+      "size": 20618,
+      "hash": "jTeOiOvVGJ4J7vYjQUgSyGj9kKpRnWFg4jEfuLgc_1YC"
+    }
+  ]
+}

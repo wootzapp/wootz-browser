@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_firebase_firebase_measurement_connector",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "firebase-measurement-connector-18.0.0.aar",
+      "size": 8839,
+      "hash": "F-i5tgrAp5_L7XVNA9S5ZsxbuIN-ecIwi_KXDx0FcAwC"
+    }
+  ]
+}

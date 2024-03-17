@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_tools_common",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "common-30.2.0-beta01.jar",
+      "size": 388921,
+      "hash": "RNwt04wXGftjKCqE90WSRRUkqAPJ9gC2LIUiNA9REn8C"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_iid",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-iid-17.0.0.aar",
+      "size": 57180,
+      "hash": "193OrIYS3lsJE3FlEnnrRh9c9vm2bZ2V0Hw4O4GZGGkC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_dagger_dagger_spi",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "dagger-spi-2.30.jar",
+      "size": 150508,
+      "hash": "AV6VZZd6_zWXZoCL0N5uOQIVnvJ_lMLAZRMg85SVNcsC"
+    }
+  ]
+}

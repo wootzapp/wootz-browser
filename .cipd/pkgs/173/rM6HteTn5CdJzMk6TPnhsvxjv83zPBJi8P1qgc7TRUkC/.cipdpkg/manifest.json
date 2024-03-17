@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/aosp_dalvik/linux-amd64",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lib/dx.jar",
+      "size": 934308,
+      "hash": "ZxDNGkwG-IW8KnHe7-HRCT8nt8b4Gag_JNszTQpqWq4C"
+    }
+  ]
+}

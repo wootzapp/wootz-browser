@@ -1,0 +1,33 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/espresso",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lib/espresso-contrib-release-no-dep.jar",
+      "size": 34455,
+      "hash": "Lwe6PwWeorzqpxl7Sb8dzDuQDXOjl7Fmv7cpI6y0QI8C"
+    },
+    {
+      "name": "lib/espresso-core-release-no-dep.jar",
+      "size": 2970890,
+      "hash": "VXLa85jEng_08wgqRVP333aYgs5rHfeaAYGb8MfIZFMC"
+    },
+    {
+      "name": "lib/espresso-idling-resource-release-no-dep.jar",
+      "size": 1640,
+      "hash": "aiSMPc7kiOVcKYG9liXrB6OLasjauHrK5fx0k6PgDQgC"
+    },
+    {
+      "name": "lib/espresso-intents-release-no-dep.jar",
+      "size": 50840,
+      "hash": "oWdmz56XQ08MvKc0Qm2Sb34bn19ohAFY18RNMDJR-UcC"
+    },
+    {
+      "name": "lib/espresso-web-release-no-dep.jar",
+      "size": 229917,
+      "hash": "wkWazmWnvb_ehw2XaA2-MB-X-zs4NqijuTjL8Vql7vAC"
+    }
+  ]
+}

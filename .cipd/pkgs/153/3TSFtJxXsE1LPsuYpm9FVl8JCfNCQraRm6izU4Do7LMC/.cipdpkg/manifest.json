@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_robolectric_nativeruntime",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "nativeruntime-4.11.1.jar",
+      "size": 52520,
+      "hash": "9F_khUZV7sC9sNhexoaqHmcqSNG67g3u6ZKki1cCvhAC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_errorprone_javac",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "javac-9+181-r4173-1.jar",
+      "size": 6885456,
+      "hash": "HY00eg4VefP8hqwE0ZdOSJr8ZjV_AAmsmASnrDCRLtYC"
+    }
+  ]
+}

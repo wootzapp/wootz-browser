@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_j2objc_j2objc_annotations",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "j2objc-annotations-2.8.jar",
+      "size": 9301,
+      "hash": "8CqV-hpele2z7YWf0Pt99wnRIaNSkO_4t03OKrf01u0C"
+    }
+  ]
+}

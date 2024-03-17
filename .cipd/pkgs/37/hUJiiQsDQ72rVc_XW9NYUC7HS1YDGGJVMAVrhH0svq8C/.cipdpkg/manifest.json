@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_github_kevinstern_software_and_algorithms",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "software-and-algorithms-1.0.jar",
+      "size": 63927,
+      "hash": "YauCQ5zvNzQ7FPUxVMRhYZN1NzpWuTOOiVcJ-1TghkwC"
+    }
+  ]
+}

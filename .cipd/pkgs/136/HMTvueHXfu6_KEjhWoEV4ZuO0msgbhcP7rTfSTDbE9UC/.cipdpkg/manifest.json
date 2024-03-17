@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlinx_atomicfu_jvm",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "atomicfu-jvm-0.23.2.jar",
+      "size": 36181,
+      "hash": "EB_0P_Vj_KFnr1remMO2m_VpAQ6rdFATuE2JVQNNOzwC"
+    }
+  ]
+}

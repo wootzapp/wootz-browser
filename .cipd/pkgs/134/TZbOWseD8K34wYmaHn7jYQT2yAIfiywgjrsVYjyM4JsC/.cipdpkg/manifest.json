@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlinx_kotlinx_coroutines_android",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlinx-coroutines-android-1.6.4.jar",
+      "size": 19520,
+      "hash": "P9wO7VvEuD7pYid0UgotslRwNw6s0VgcrB43cE8JWwAC"
+    }
+  ]
+}
