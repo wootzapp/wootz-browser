@@ -327,7 +327,7 @@
     Settings
   </message>
   <message name="IDS_SETTINGS_ALT_PAGE_TITLE" desc="The settings page title for the about page.">
-    Settings - <ph name="SECTION_TITLE">$1<ex>About Chromium</ex></ph>
+    Settings - <ph name="SECTION_TITLE">$1<ex>About WootzApp</ex></ph>
   </message>
   <message name="IDS_SETTINGS_SUBPAGE_BUTTON" desc="Accessibility description for a button navigating the user from a settings page to one of the settings subpages.">
     Subpage button
@@ -653,7 +653,7 @@
     <message name="IDS_AUTOFILL_MANAGE_PASSKEYS_DELETE_CONFIRMATION_DESCRIPTION" desc="The body of a dialog that asks the user to confirm the deletion of a passkey. For consistency, the word 'passkey' is in the glossary with translations already suggested.">
       Are you sure you want to delete this passkey?
     </message>
-    <message name="IDS_AUTOFILL_MANAGE_PASSKEYS_CANNOT_DELETE_TITLE" desc="The title of a dialog shown when Chromium fails to delete a passkey. For consistency, the word 'passkey' is in the glossary with translations already suggested.">
+    <message name="IDS_AUTOFILL_MANAGE_PASSKEYS_CANNOT_DELETE_TITLE" desc="The title of a dialog shown when WootzApp fails to delete a passkey. For consistency, the word 'passkey' is in the glossary with translations already suggested.">
       Can't delete passkey
     </message>
     <message name="IDS_AUTOFILL_MANAGE_PASSKEYS_CANNOT_DELETE_BODY" desc="The body of a dialog that explains that we cannot delete certain passkeys on Windows which are involved when the user signs into the Windows computer itself. For consistency, the word 'passkey' is in the glossary with translations already suggested.">
@@ -1866,7 +1866,7 @@
     Passwords
   </message>
   <message name="IDS_SETTINGS_SAFETY_CHECK_PASSWORDS_FEATURE_UNAVAILABLE" desc="Explains that the password check feature is not available in this version of the browser.">
-    Password check is not available in Chromium
+    Password check is not available in WootzApp
   </message>
   <message name="IDS_SETTINGS_SAFETY_CHECK_PASSWORDS_BUTTON_ARIA_LABEL" desc="Accessibility text for the button that allows users to review their passwords.">
     Review passwords

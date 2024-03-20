@@ -451,7 +451,7 @@
     </if>
     <if expr="not _google_chrome">
       <message name="IDS_AUTOFILL_CARD_UNMASK_PROMPT_STORAGE_TOOLTIP" desc="Text that provides further explanation on iOS for the option in the card unmasking dialog that allows user to store a Wallet card on their local device.">
-        If enabled, Chromium will store a copy of your card on this device for faster form filling.
+        If enabled, WootzApp will store a copy of your card on this device for faster form filling.
       </message>
     </if>
   </if>
@@ -582,13 +582,13 @@
     </if>
     <if expr="not _google_chrome">
       <message name="IDS_PAYMENTS_AUTOFILL_FILLING_MANDATORY_REAUTH" desc="Text that appears in the payments autofill mandatory re-authentication popup as the sublabel, asking the user to authenticate using biometric or device unlock before filling.">
-        Verify it's you so Chromium can fill in your payment info.
+        Verify it's you so WootzApp can fill in your payment info.
       </message>
       <message name="IDS_PAYMENTS_AUTOFILL_SETTINGS_TOGGLE_MANDATORY_REAUTH" desc="Text that appears in the payments autofill mandatory re-authentication popup as the sublabel when users try to switch the mandatory reauth settings page toggle, asking the user to authenticate using biometric or device unlock before the toggle is switched.">
-        Chromium is trying to modify settings for filling payment methods.
+        WootzApp is trying to modify settings for filling payment methods.
       </message>
       <message name="IDS_PAYMENTS_AUTOFILL_SETTINGS_EDIT_MANDATORY_REAUTH" desc="Text that appears in the payments autofill mandatory re-authentication popup as the sublabel when users try to edit cards in the settings page, asking the user to authenticate using biometric or device unlock first.">
-        Chromium is trying to edit payment methods.
+        WootzApp is trying to edit payment methods.
       </message>
     </if>
   </if>
@@ -710,7 +710,7 @@
   </if>
   <if expr="not _google_chrome">
   <message name="IDS_AUTOFILL_MANDATORY_REAUTH_OPT_IN_EXPLANATION" desc="Explanation text for the mandatory reauth opt-in prompt that is displayed to the user after filling in payment method information. Mandatory reauth requires the user to unlock their device or pass a biometric auth when autofilling payment method information." formatter_data="android_java">
-    If you share this device, Chromium can ask you to verify every time you pay using autofill
+    If you share this device, WootzApp can ask you to verify every time you pay using autofill
   </message>
   </if>
   <message name="IDS_AUTOFILL_MANDATORY_REAUTH_ICON_TOOLTIP" desc="The tooltip message for the omnibox icon for the mandatory reauth opt-in bubble on Desktop. This bubble prompts users if they would like to enroll in mandatory reauth. Mandatory reauth requires the user to unlock their device or pass a biometric auth when autofilling payment method information.">
