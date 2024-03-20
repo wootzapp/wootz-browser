@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_instantapps",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-instantapps-18.0.1.aar",
+      "size": 192364,
+      "hash": "_5anRdvRVyHEZ3QU6WKmpqk3c5hFMzQb6678TPcVfCcC"
+    }
+  ]
+}

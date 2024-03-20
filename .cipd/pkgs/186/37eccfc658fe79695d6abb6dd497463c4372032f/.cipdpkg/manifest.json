@@ -1,0 +1,22 @@
+{
+  "format_version": "1",
+  "package_name": "chromium/third_party/hamcrest",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lib/hamcrest-core.jar",
+      "size": 44125,
+      "hash": "BfxGTV7wyU6YKfDg1L0x1Ry-axpLEi_XdNs5IFruoQwC"
+    },
+    {
+      "name": "lib/hamcrest-integration.jar",
+      "size": 3921,
+      "hash": "G2X-o_LgYZNOUuD-JzgLD4GcVhrb3Ezu8TJzZi7DGJwC"
+    },
+    {
+      "name": "lib/hamcrest-library.jar",
+      "size": 52171,
+      "hash": "RptnqXmNO0dLNbZYjpx-GFulrr8dsYtnOwe_o4BUGD0C"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_datatransport_transport_api",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "transport-api-2.2.1.aar",
+      "size": 4879,
+      "hash": "5i9zuhx_XRX12G2OmimMQszQZI585gueMS8uzRI7XtAC"
+    }
+  ]
+}

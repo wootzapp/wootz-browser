@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/hamcrest",
+  "package_name": "chromium/third_party/hamcrest"
+}

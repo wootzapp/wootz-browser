@@ -1,0 +1,1607 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_sdk/public/emulator",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "emulator/LICENSE",
+      "size": 524,
+      "hash": "8q_SGAyD_CufqtdBWZ3-IJX9JVffLkeYc7-Hr2LPER0C"
+    },
+    {
+      "name": "emulator/NOTICE.csv",
+      "size": 37425,
+      "hash": "FTyn-cPmIxZY9BBEt5U9pSCa4LHO24TyxCmCVnr0lCIC"
+    },
+    {
+      "name": "emulator/NOTICE.txt",
+      "size": 171408,
+      "hash": "KaoJS7WvUBdnblWRDlw5IzHSlWnAk4bDrgJeYE2pctkC"
+    },
+    {
+      "name": "emulator/android-info.txt",
+      "size": 250,
+      "hash": "aqLFJUs7dwxoGYb48KhnyG-_Lbw_jaWQHVyFF-e3ewwC"
+    },
+    {
+      "name": "emulator/bin64/e2fsck",
+      "size": 475248,
+      "executable": true,
+      "hash": "A3Plv9kU3Mooe0D4XWNY0E-lcUUyGHDCzN3_FFUBwPQC"
+    },
+    {
+      "name": "emulator/bin64/fsck.ext4",
+      "size": 475248,
+      "executable": true,
+      "hash": "7iZWJ2JqWnvev9aXp9s045z8GNmdUMCbz9hKrCnSIlcC"
+    },
+    {
+      "name": "emulator/bin64/mkfs.ext4",
+      "size": 309896,
+      "executable": true,
+      "hash": "uhTYAHioB9XcxQdNkp9VeueGUsLRfgeyR_AU65qjV1kC"
+    },
+    {
+      "name": "emulator/bin64/resize2fs",
+      "size": 157512,
+      "executable": true,
+      "hash": "kWWELvU050DPY5ImEIK-yZv8V_QHCNnxjS2M6_p5JfsC"
+    },
+    {
+      "name": "emulator/bin64/tune2fs",
+      "size": 282728,
+      "executable": true,
+      "hash": "VNgdEkoeGDNGnrrwAPmor5DpUPgTLJQ7wokT0j-kZxQC"
+    },
+    {
+      "name": "emulator/emulator",
+      "size": 12637224,
+      "executable": true,
+      "hash": "dAbxRUg2pFd2w_thRtwblyPgkbuBfXrR0cEDExvkDS8C"
+    },
+    {
+      "name": "emulator/emulator-check",
+      "size": 165704,
+      "executable": true,
+      "hash": "h-Fpts1Dh6q-to7uURAZTzrR_z5XT9gEY3IchXVPYmIC"
+    },
+    {
+      "name": "emulator/emulator64-crash-service",
+      "size": 18489976,
+      "executable": true,
+      "hash": "f4QavfWsHOxS6zYNLImcKYju0JITN3mx4dGGbPMPv4IC"
+    },
+    {
+      "name": "emulator/goldfish-webrtc-bridge",
+      "size": 29362304,
+      "executable": true,
+      "hash": "HW5Mrv3lt3XmB54jmKC4IC7blMaKuiFB1TNnhYSgYEEC"
+    },
+    {
+      "name": "emulator/lib/advancedFeatures.ini",
+      "size": 19538,
+      "hash": "uzd77a9RcefXpbNskj7GfymIDxQ2Z3KLC-sNx4SxCjQC"
+    },
+    {
+      "name": "emulator/lib/advancedFeaturesCanary.ini",
+      "size": 19535,
+      "hash": "-B84c2SLPTacfPFdH-2E9vEg9iLJNdiNgW_VzsIYYq4C"
+    },
+    {
+      "name": "emulator/lib/ca-bundle.pem",
+      "size": 258424,
+      "hash": "DxGdogQCXaeAgnP6tC7Y4DDK-1x-pOHe2k518Gb1KPsC"
+    },
+    {
+      "name": "emulator/lib/emu-original-feature-flags.protobuf",
+      "size": 21063,
+      "hash": "pHJXW2bIC8Y-8J9io_J5oSFa_RtlJMYo2MAiss6lD9IC"
+    },
+    {
+      "name": "emulator/lib/emulator_controller.proto",
+      "size": 44831,
+      "hash": "8niek3jbUNEPwC0endFHRlLp6s_s1CjbXLZ0olZw8_UC"
+    },
+    {
+      "name": "emulator/lib/hardware-properties.ini",
+      "size": 27357,
+      "hash": "xdCpM9Gf7tNBYKMExxNz6dP5ysHJgdjAvZJDWQHITWYC"
+    },
+    {
+      "name": "emulator/lib/hostapd.conf",
+      "size": 72186,
+      "hash": "F4nwEeWU6B_2AGivlgS30dwyT32g0VvSKKQq8CR5VRQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/bios-256k.bin",
+      "size": 262144,
+      "hash": "-ublxzR1exujQkwNeLORR2ELc4QCsE3f1s-fmaFSPIYC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/bios.bin",
+      "size": 131072,
+      "hash": "jZtDuaFjGYBIcYP-7g24ZvJYfobNl2I-EOF8-_MUo4kC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/efi-e1000.rom",
+      "size": 240128,
+      "hash": "2yNEdnu3tJbxuHQZE7SA2tjOb4JiRGEapuXNxVeXhKMC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/efi-e1000e.rom",
+      "size": 240128,
+      "hash": "zP7LhPgSDRQz67iRiNGuqDENp5o2yn6kbABHqcKuFrAC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/efi-virtio.rom",
+      "size": 242176,
+      "hash": "un2seyr5uwjhwdW_MSOx8cWaerpu1VoERdI5gNm3_7kC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/Makefile",
+      "size": 1194,
+      "hash": "1WZhglpUmtgzkKr6EYge6z0Pi1X-vu61x7XxPCl7tzgC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/ar",
+      "size": 18962,
+      "hash": "DOFgvt_EEtcaXJ8Ag8ciQpbBUEOb_WBjrX2vuWIzFgMC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/bepo",
+      "size": 18975,
+      "hash": "7mg9ALl1jYjPT1AVQYjs9-Wj-B1daEqD-yLmnfEk8d4C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/common",
+      "size": 2077,
+      "hash": "oMw_NyG7Ed9FNIuqh5Byqzc-z-kqf9HkVUHtkCrccHQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/cz",
+      "size": 20375,
+      "hash": "1famRHKbqbtdpNg9aZ_kM_yMXn1-YCGL74zOCdiWJ60C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/da",
+      "size": 20396,
+      "hash": "-N00hN-1YX-W_YfJVk4Y8W3BmCTp4eb2mNTSBjeLfCMC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/de",
+      "size": 20497,
+      "hash": "fBj_MEhoo2EYdHkjGPgtoqYqq0ZSHkOJcWL59tUK2ksC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/de-ch",
+      "size": 20380,
+      "hash": "vQluJ4UtTatYJ-O_7sqTU1VKG9BTi-eHteHzhus1v9MC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/en-gb",
+      "size": 20385,
+      "hash": "dCnSzJzgVdqe9bIBRNtFkoWmKwzTOo1Oramtpjj2dPcC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/en-us",
+      "size": 18252,
+      "hash": "tIfvrgcIUMHtxlHFpyxfMer2sNcmQLTxUVrNm__9NWQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/es",
+      "size": 20369,
+      "hash": "Y5J8ZQzvLM1v3Leo9NpT3iMSaiTA07c7Wtf6LanbdI0C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/et",
+      "size": 18457,
+      "hash": "q8pIXotHUvN6qbMVoMivdIGHjU2e-rHIlA2IdshnBpUC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fi",
+      "size": 19770,
+      "hash": "kFSG_85TrKW_9pghrRThX8bT-QVPZ6T7XcM4NMByGUgC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fo",
+      "size": 20383,
+      "hash": "nxP4rzVZIdkcOQ8JRZAt1fk_CfcmkPR9hs77aDJXDtIC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fr",
+      "size": 20399,
+      "hash": "X2VrdQTYW-leUdkxYZBPQL4MIB0jeCwTXMa8dYPZrGwC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fr-be",
+      "size": 20377,
+      "hash": "D5Fe0zMyE5CWezBDylGfPWhLnnFRYgYefIrWHKjsk-kC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fr-ca",
+      "size": 18730,
+      "hash": "e5Rqs48LxdmStxpzeThY1ohAiiw3YB5t6TEd-jl4kIgC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/fr-ch",
+      "size": 20381,
+      "hash": "xk3JUALZOnRRXZ12MrVmHHqonlhZYv8UfjNfv5LazEIC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/hr",
+      "size": 20421,
+      "hash": "BbrB7yuUeU6dd5BfaWDwrxkLrOdgfr0XcFCU7-MxoEcC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/hu",
+      "size": 20373,
+      "hash": "71PjFixCDHTBrc-e7Z5ZQ1ykJY44BsIX7kbQoGJzv_MC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/is",
+      "size": 20420,
+      "hash": "CW5jWweOP2NcaqWFG3CzYP5RGgVOL0afGmZCZic2JK0C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/it",
+      "size": 20478,
+      "hash": "HpF-44oY6T6jtiNME2FedxRRyoMzSUEECe48xMzhiUkC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/ja",
+      "size": 18329,
+      "hash": "B24LwwySjAtSj7aHYjhQ6CnyL1SGvx1R9pOq_NJfW_wC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/lt",
+      "size": 20332,
+      "hash": "LyN_lyT8SjuYAbORB5B4qg8BmlSrvsmIqIEweu5DSPQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/lv",
+      "size": 19784,
+      "hash": "ORxGM10tBvUDyI_NRoIlGS-awG5Z-Zg6aGOMIUwg2OUC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/mk",
+      "size": 18851,
+      "hash": "B23ZqlqfRGgIf8g62wcabrTBq2uMEqPQxggMue3DkwMC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/modifiers",
+      "size": 293,
+      "hash": "dxSvy7yIjfHbCbp-MpzAQVvcBZS_NiKy7dnKEFEvUr0C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/nl",
+      "size": 20434,
+      "hash": "7YuCVRsXdvfyHrSuMxwSh3OWmiSclfQnRIKBd44oNoMC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/nl-be",
+      "size": 43,
+      "hash": "XpZk3hcwtZPdKlCWzeFtN6Jl0W9lkjGojFmg6-kVHgwC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/no",
+      "size": 20729,
+      "hash": "7VLXlb6Wj8KJLqnT8pyur7zkfWtfX4DaLaVeAD-uouYC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/pl",
+      "size": 20493,
+      "hash": "t1iLjUYeoJqkHqCUL5mQK36rqJ4WGE0pD6FlTGnyJ-oC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/pt",
+      "size": 20361,
+      "hash": "If8XNosuOxX0tnehFcHRkJJPWaC_UjKDWXBGKcaPl5sC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/pt-br",
+      "size": 20341,
+      "hash": "LBmcC5BeUZcLrxoT1FmhWhKkVGU3V8AkzMrGDRB8rtgC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/ru",
+      "size": 18870,
+      "hash": "MoPPIGNAr01fK_vjBLuk73IVKbUwtH-RI8gvxgc0SZ4C"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/sl",
+      "size": 2293,
+      "hash": "Jg5jNZqZFJOnZYnajXaxQ6dBWx9Z-XgsugOB9N_SZUEC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/sv",
+      "size": 1008,
+      "hash": "Nvfo3nbVrVeso2oHvn8-bt7sTbxHhTjPMyUQRYN-isQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/th",
+      "size": 18995,
+      "hash": "3k_f50ZrBtrBnLEwlmKUurn1bMPcA_anmBhMaE8JlVAC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/keymaps/tr",
+      "size": 20308,
+      "hash": "9t4CWqjE4dIwX7XERbdOrUJ57e7ydT3sHSKx0Ru9NSAC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/kvmvapic.bin",
+      "size": 9216,
+      "hash": "zfBXpxsH47UrGcviEL3vpZJQ0BqYELlg9_4fmO7ZWicC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/linuxboot.bin",
+      "size": 1024,
+      "hash": "cuDZ9PHCgMjesPIaB18uMS_wCpaRF8QVX8Ok9usg6tQC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/linuxboot_dma.bin",
+      "size": 1536,
+      "hash": "nEniVTQMePwS5U7QQ0YrygL7f8opt8-rYv-IpTRLaVAC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/multiboot.bin",
+      "size": 1024,
+      "hash": "UClE8RWL5hpjFe5fhFiBhUM8v1xc6i9Q7wmKwx5Sl3cC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/vgabios-cirrus.bin",
+      "size": 38400,
+      "hash": "6JDejmA7UYzD8uTwlNM-2kSRVjiyyzP92RQJO0aBLLEC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/vgabios-stdvga.bin",
+      "size": 38912,
+      "hash": "b5OedWUc5P6Z7pMmvZ5VYdkuF63h51yPfoz6R6TsGXsC"
+    },
+    {
+      "name": "emulator/lib/pc-bios/vgabios-virtio.bin",
+      "size": 38912,
+      "hash": "WFBv0XoC96cPxk8iW7hCycpT9yYodBWfSlgSG44QFWkC"
+    },
+    {
+      "name": "emulator/lib/rtc_service.proto",
+      "size": 4847,
+      "hash": "mEkVfAJIXaZKmZ6gcVcFWLK37v8oM90xeIc1--q7ZkEC"
+    },
+    {
+      "name": "emulator/lib/snapshot.proto",
+      "size": 5216,
+      "hash": "f_urx7mf10VbXfALjmIjVE7ggkd7AwdbZdpa2-7XNJ8C"
+    },
+    {
+      "name": "emulator/lib/snapshot_service.proto",
+      "size": 11296,
+      "hash": "PybkBb1MiEe5QmW8Nk15hnQ1AVLfMMnacaZOr1kIG40C"
+    },
+    {
+      "name": "emulator/lib/ui_controller_service.proto",
+      "size": 5092,
+      "hash": "z8OmNcu1_fpVCQqquMbcC_YcMZOO0-0r8P2bmFPQlFoC"
+    },
+    {
+      "name": "emulator/lib/waterfall.proto",
+      "size": 4135,
+      "hash": "7-R8Rue-y6bHF99PrAJZjr7xZnZYRbLihTJx5omFpPwC"
+    },
+    {
+      "name": "emulator/lib64/gles_mesa/libGL.so",
+      "size": 19809784,
+      "hash": "XH_T5V1BRlrbVAMLNqwcjY3xzvUYbTqfFK5XC0I5C64C"
+    },
+    {
+      "name": "emulator/lib64/gles_mesa/libGL.so.1",
+      "size": 19809784,
+      "hash": "JHoKfqCzlgbO_B9OoJ10XKI4CcxhOr5fR4fNhA_KY2QC"
+    },
+    {
+      "name": "emulator/lib64/gles_swiftshader/libEGL.so",
+      "size": 59064,
+      "hash": "SBwTe22P50gPPnQ3TU_QAuM8klDf_WagVoT1SUmC4BIC"
+    },
+    {
+      "name": "emulator/lib64/gles_swiftshader/libGLES_CM.so",
+      "size": 6230832,
+      "hash": "8EiDcc1a0GODHm1lcvzR1Jk1aI74YVAmnlRfbDAAPHkC"
+    },
+    {
+      "name": "emulator/lib64/gles_swiftshader/libGLESv2.so",
+      "size": 6800840,
+      "hash": "lHGiIP2WbGKSeLG2uZIn2-KS5XxjdKWRMqQQNw55WwYC"
+    },
+    {
+      "name": "emulator/lib64/libOpenglRender.so",
+      "size": 5961208,
+      "hash": "0LrU6CMDug31EC0WFYzWJkLyhFFqX0CfjJMsi4BKnGcC"
+    },
+    {
+      "name": "emulator/lib64/libc++.so",
+      "size": 970320,
+      "hash": "YUnTFwcZwtAHoV2bH4sceaDPI18k3dHYA4KKGMfXzeEC"
+    },
+    {
+      "name": "emulator/lib64/libc++.so.1",
+      "size": 970320,
+      "hash": "XfEKbkVfYVvK3x3hJRd2yw8cdD_a4VDaYy6jb2QWNPgC"
+    },
+    {
+      "name": "emulator/lib64/libemugl_common.so",
+      "size": 209552,
+      "hash": "B217qX7NWJn2f2iOaPLrvdlOMnDz3YOR7D_V9Egl7BoC"
+    },
+    {
+      "name": "emulator/lib64/libimage_converter.so",
+      "size": 8288,
+      "hash": "Dh1T4XTR9HoX5rKjPwRAeFOgO2DCjvmlKo3DKoQjdMcC"
+    },
+    {
+      "name": "emulator/lib64/libshadertranslator.so",
+      "size": 1671640,
+      "hash": "qIMvPy2PkAt30uiUtlnHHvUJOv1RRUO7o7OYuqRQgE4C"
+    },
+    {
+      "name": "emulator/lib64/libtcmalloc_minimal.so.4",
+      "size": 297704,
+      "hash": "dHqhBXVDKb4NdxmZq0wa5tAgG46aQZ46gLaU9dnClbEC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5CoreAndroidEmu.so.5",
+      "size": 6313720,
+      "executable": true,
+      "hash": "pgiVvgULDURgXXvS-X4l80gjos7mJzhBckfnzkTFrsMC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5DBusAndroidEmu.so.5",
+      "size": 530272,
+      "executable": true,
+      "hash": "OrZDuk7l9Z93IvB94GZF3jflemEpLB6cSCOxRBIkrqMC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5GuiAndroidEmu.so.5",
+      "size": 5955936,
+      "executable": true,
+      "hash": "_gf718LO0MWFlJ1G2o1K_Z5k1q3FeiMnu4Q2DfmhN_4C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5NetworkAndroidEmu.so.5",
+      "size": 1277264,
+      "executable": true,
+      "hash": "meMS5p9t9D3jzMIjuas3XQmm-p636HjazV4CskP7z_0C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5PrintSupportAndroidEmu.so.5",
+      "size": 393608,
+      "executable": true,
+      "hash": "JTve5pyHzm_C0vV9MMXrEmVO3duDVbsaIipmCjjhyxQC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5QmlAndroidEmu.so.5",
+      "size": 4960144,
+      "executable": true,
+      "hash": "uD1MK_wEoZFoxz2APB06hKcig1ZKmS9i3in1ZJfxu0sC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5QuickAndroidEmu.so.5",
+      "size": 4721920,
+      "executable": true,
+      "hash": "k29bP9tR7lqttmDAobQJ22q5yIjXXOFyplF8mYj7g78C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5QuickWidgetsAndroidEmu.so.5",
+      "size": 83456,
+      "executable": true,
+      "hash": "D-sUDaBlaMDotMEgX5YazYS4IKTOdaZuXW1kKRjzoS4C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5SvgAndroidEmu.so.5",
+      "size": 349024,
+      "executable": true,
+      "hash": "ELOYTZ4L2RXfa4ZlrL-uPKmSkXQjiJlbqvqrcmipg1gC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5WebChannelAndroidEmu.so.5",
+      "size": 125296,
+      "executable": true,
+      "hash": "bmpU4raDGvPVoeIR3fzMLbjHIu-Hurn6z6WEoL96hAAC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5WebEngineCoreAndroidEmu.so.5",
+      "size": 111785768,
+      "executable": true,
+      "hash": "ZT1Y6koz-RO09JttCoHawc7O-tKj3EfIvj06XKtqWfYC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5WebEngineWidgetsAndroidEmu.so.5",
+      "size": 262632,
+      "executable": true,
+      "hash": "Jp6FevvsJ8dD89eybARUN2Mf4SAcpZSL7e2daBmeaZIC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5WebSocketsAndroidEmu.so.5",
+      "size": 154480,
+      "executable": true,
+      "hash": "ixfql6gWUp4hnrNFw6sdy9b1l6ADD95mUtR2TfEuW3kC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5WidgetsAndroidEmu.so.5",
+      "size": 6668080,
+      "executable": true,
+      "hash": "VwhhPoIE0kAsyQxfhDM35V7aSmVipzzH6QaR6GyfR5gC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libQt5XcbQpaAndroidEmu.so.5",
+      "size": 1254040,
+      "executable": true,
+      "hash": "sb9LSvNaocCBo38EPPTJpJb-OP6KgCSWQnPt2smeom8C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libX11-xcb.so.1",
+      "size": 6096,
+      "executable": true,
+      "hash": "MJAwGiSOvH-2CV58Zib7QhGNfYHIi1B3LTJMQg_FxRMC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libX11-xcb.so.1.0",
+      "size": 6096,
+      "executable": true,
+      "hash": "x5U67w6nlnO7MbZsVo5kB9iZe8_wrCOa3HJYU1o9CroC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libX11-xcb.so.1.0.0",
+      "size": 6096,
+      "executable": true,
+      "hash": "cNOs0bg3tnowSweh-L3oCPYh9J_51yt-TIkKbnxKlQcC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libfontconfig.so.1",
+      "size": 277600,
+      "executable": true,
+      "hash": "8eYNlcxFITsxku2AxsNszCc2gxLPu1Awjvc-DFKWeUIC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libfreetype.so.6",
+      "size": 739608,
+      "executable": true,
+      "hash": "uBfG17ziKPAvVRRqM_ADj8SxpzzGlE1ik529LcozF8EC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libsoftokn3.so",
+      "size": 345248,
+      "executable": true,
+      "hash": "HPBJNZ1tvxGJ3MkJi5CFC25f9hmLQgJ5n_jywDVoLn8C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libsqlite3.so",
+      "size": 853720,
+      "executable": true,
+      "hash": "r1oh86wMKLlkVXxdL1KR8N9V0aKkaPFVfd_qFwTz5XMC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxcb-xkb.so.1",
+      "size": 117400,
+      "executable": true,
+      "hash": "2a8Lcr-EHDa6Dz_B-gn3jXn2vrrv_JQBfT3G2G2Mh3wC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxcb-xkb.so.1.0",
+      "size": 117400,
+      "executable": true,
+      "hash": "pZy-aYpkhAhV-xw9Fxq7n-72p8cZPjOptCSCXG6qjTUC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxcb-xkb.so.1.0.0",
+      "size": 117400,
+      "executable": true,
+      "hash": "ybeqEvXE7GczNuKa6b3Y7AScw2kW1ESmp8O2BqnjT48C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon-x11.so",
+      "size": 31624,
+      "executable": true,
+      "hash": "NKdV9Anpg_wSV31uVJQ3zQohxJAMbhuEi8whr8rafigC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon-x11.so.0",
+      "size": 31624,
+      "executable": true,
+      "hash": "kmTwcwZkOPK7R5EBVEaaCqHE5ty20fCexIoUUYjZ0lcC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon-x11.so.0.0.0",
+      "size": 31632,
+      "executable": true,
+      "hash": "uH1kfhy9TFxw_qZ-9CMhKsrs4EGX-hylx3qJlXAKpr4C"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon.so",
+      "size": 260904,
+      "executable": true,
+      "hash": "rhR47k-5e-FYKIn_qYvE5jfV72jVFtfcQIUEvyRs3CgC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon.so.0",
+      "size": 260904,
+      "executable": true,
+      "hash": "tT2RYvCiSBM8xBYGLYiQNgEyxcvAwZZ22XoY0FwxWggC"
+    },
+    {
+      "name": "emulator/lib64/qt/lib/libxkbcommon.so.0.0.0",
+      "size": 260904,
+      "executable": true,
+      "hash": "WeXjXPe-bgqF3yMaLxMW5iEJ7PX20IqYTg4Vdo8JzWgC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/QtWebEngineProcess",
+      "size": 14976,
+      "executable": true,
+      "hash": "2EKFyaGGRLOCWICP9BJUBjAqhygPS6qznsPW82HBJnMC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/icudtl.dat",
+      "size": 10218000,
+      "executable": true,
+      "hash": "bJi7TMw4iK1PlBY9FlRXhEJQbwQBLV2oGURagLuFY28C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_devtools_resources.pak",
+      "size": 8362606,
+      "executable": true,
+      "hash": "miPfIcTeHRChEzqISuNZW7C3HYQbqqzhI-WovkKcBEwC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/am.pak",
+      "size": 294870,
+      "executable": true,
+      "hash": "p5ftlipHUFRT1onDQ_hWi6slGuYVe5ANm8VPryqS8lcC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ar.pak",
+      "size": 292138,
+      "executable": true,
+      "hash": "qrncETI4IBosIu8FQaLNlE9swRSLpr2A0JT3Lw7yaUEC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/bg.pak",
+      "size": 338703,
+      "executable": true,
+      "hash": "iu6KjC95DYi9NpWqlT-ILnBzFaC1rLgJNQeIf2zn6AUC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/bn.pak",
+      "size": 439153,
+      "executable": true,
+      "hash": "XWy4ADfrdAlGTijZO5PO6yufTXDBMhObNgkD_fd3Q7sC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ca.pak",
+      "size": 210276,
+      "executable": true,
+      "hash": "c5uuhNmcHljuhLm7oiaAEs3SAEoZUfxDB9YQ7_EgXooC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/cs.pak",
+      "size": 212851,
+      "executable": true,
+      "hash": "PSW2Ql44-cSBgfsBgSeVzO663K1805Ar6-hYmxN-Bm0C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/da.pak",
+      "size": 191535,
+      "executable": true,
+      "hash": "iFwD4XiC-FwESoz9-e5JdJD1jV_e9IFAxdNwn8vwD-MC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/de.pak",
+      "size": 208592,
+      "executable": true,
+      "hash": "oLbkk8t0VHfqsMvmwQJu8UR-ESwifirL3ZC6rMwAFe8C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/el.pak",
+      "size": 370700,
+      "executable": true,
+      "hash": "iuX7aNyxmil5miN8v1ZvP0vNe0cO4zYUjk1hhuYgDgwC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/en-GB.pak",
+      "size": 172178,
+      "executable": true,
+      "hash": "z9QfI1F9h7cwLPRxzGUyDrfp4HbUPi2t0Dx-IomMAv8C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/en-US.pak",
+      "size": 173816,
+      "executable": true,
+      "hash": "tmtHLXGCCm4Aou84sfhyGL30cNy9O56Lfn1_-5gEFOgC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/es-419.pak",
+      "size": 206512,
+      "executable": true,
+      "hash": "bdxYeT3tXZXL-InIzqNC4sJSj4k0RzVopDqYoSvBP6cC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/es.pak",
+      "size": 210069,
+      "executable": true,
+      "hash": "-jq7AUMKwj3XAjt1Tt_izD6qzzkPgDLEm9tJNgpOHzQC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/et.pak",
+      "size": 187141,
+      "executable": true,
+      "hash": "Obfk2zAEtHDj6DpxsTtS1aEClxFXuJ6u_9_VXljhmRcC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/fa.pak",
+      "size": 296435,
+      "executable": true,
+      "hash": "Ngm5GDfUFVxlsv6K2UoodeCmPAWGzzLCKsR5pByGWgMC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/fi.pak",
+      "size": 193405,
+      "executable": true,
+      "hash": "Mc6bNBOOI9JFZ3NYZyPlk6KcbxmUHgRl_-MQRgUQ93YC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/fil.pak",
+      "size": 213242,
+      "executable": true,
+      "hash": "sL0xhFhkStQfPMWtANOPopm7ZsiqskgX8FU_eKLWzs4C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/fr.pak",
+      "size": 224258,
+      "executable": true,
+      "hash": "BWpsD7ionnFYSx1Zkqwfl7TxGUqJQUwjF13hRQ8v-rkC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/gu.pak",
+      "size": 417214,
+      "executable": true,
+      "hash": "OJiYJcOPlnBkaBnJOf7FzqXJ3Y8aJIh6tT4fezyn1Y8C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/he.pak",
+      "size": 248819,
+      "executable": true,
+      "hash": "f3UcSYA6TXzdcTnY7l7OjBxqbyeW87K4dxxZL3uhzesC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/hi.pak",
+      "size": 427128,
+      "executable": true,
+      "hash": "fLE3g8EKXtdxuG62S49q8DPet9HFW2jjK6Kg44tx0AoC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/hr.pak",
+      "size": 201981,
+      "executable": true,
+      "hash": "Iw3_Ua0qqCXT3vV5DgjqempiVqEUakDcqeb-8gtGZEAC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/hu.pak",
+      "size": 220979,
+      "executable": true,
+      "hash": "Nzf_W9g3Iq-DPdl1ILrPvzMkwymL4lSEMlSnk6IiN0QC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/id.pak",
+      "size": 185131,
+      "executable": true,
+      "hash": "TaTGVKZSZKS3drCds1_N-4ueQ1J9VlRovNMeT3qH9LoC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/it.pak",
+      "size": 203354,
+      "executable": true,
+      "hash": "TrvbYMILX5Cfh8-nO27YRP8t5xYoEN9c7iEvoHAaThMC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ja.pak",
+      "size": 251212,
+      "executable": true,
+      "hash": "oFdoT80gMYlJ68wkvhNpL78-X3bkBQK9P0WfNNVx4JIC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/kn.pak",
+      "size": 484222,
+      "executable": true,
+      "hash": "kjJ53sSXxMmeXX9ARPtdRX6ibAIUK3Cjd8n4e5UHyREC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ko.pak",
+      "size": 210978,
+      "executable": true,
+      "hash": "OBlHr5jOwYQSlandkOtAY3zZ2g615MBtyXnyZjsGk9cC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/lt.pak",
+      "size": 216028,
+      "executable": true,
+      "hash": "Lov9LXazbII3WN42ahEJvW2NwJMlbGeBi_XkyWrSskwC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/lv.pak",
+      "size": 215660,
+      "executable": true,
+      "hash": "kROXGGk4IgI8CiPilKUN184wACkn6Moq_ZifRHsm0TcC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ml.pak",
+      "size": 523181,
+      "executable": true,
+      "hash": "4Th4C6Aspx4kDjOrITwPYiZWIx3xG_LFYlN1rLF9LtQC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/mr.pak",
+      "size": 419529,
+      "executable": true,
+      "hash": "RlMWwu0N3t_N1ssd_9LEIkAa7TsDsuUeWKEmE2cixLkC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ms.pak",
+      "size": 191560,
+      "executable": true,
+      "hash": "YLlVc0Cy3kVn6TpgiE_Rpfb6mdc26M61NAWcJHi6B2AC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/nb.pak",
+      "size": 189072,
+      "executable": true,
+      "hash": "sFoh-ntzCaw0_HkWuyOUXoStInqeT3CzpkXvPw6LUtoC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/nl.pak",
+      "size": 198192,
+      "executable": true,
+      "hash": "KC4ZBrpb9CAmhrXaeQml8QP0g_cWn5YJoltJchXv13cC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/pl.pak",
+      "size": 208848,
+      "executable": true,
+      "hash": "ZO12pkB2qGVFENdPz0RMoHd0zyqYECWVl_JbPr13wF4C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/pt-BR.pak",
+      "size": 203735,
+      "executable": true,
+      "hash": "D8I_ER0d-zeqCGw1_CL6KX1BtEy56aAy6dFtYzLBH2EC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/pt-PT.pak",
+      "size": 205733,
+      "executable": true,
+      "hash": "v8Roeo4kxmIVFuKm6KEt1fnYu_ig15liHFyzBJcSnVkC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ro.pak",
+      "size": 211599,
+      "executable": true,
+      "hash": "MyNqq6eNMuDie1jtEI6nndw0pH74iTBrjEL-yjD5CR4C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ru.pak",
+      "size": 324802,
+      "executable": true,
+      "hash": "fLk6ep_hrTI0udyavTnS7RFH4Q4U3UNsOv6JQpW8h6QC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/sk.pak",
+      "size": 216821,
+      "executable": true,
+      "hash": "IEo5g_PVPTU5HPbP-9cHiopG07Wop6jULpj0ws-I_XgC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/sl.pak",
+      "size": 202192,
+      "executable": true,
+      "hash": "WyYRZ5CO0tNPVeSldr_WLhnp47RhHNBVew2UN8VMkPcC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/sr.pak",
+      "size": 316728,
+      "executable": true,
+      "hash": "rbsORNS8aG_sBP7LRwqcirOzmRDTXndNLxe2KOVvJ20C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/sv.pak",
+      "size": 190206,
+      "executable": true,
+      "hash": "nfGt4NifR9XFBIzvEKhKNSvlfok0-5wFOzEkFurMNyIC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/sw.pak",
+      "size": 194205,
+      "executable": true,
+      "hash": "G-DTLaqsdagdzkBOTmHOg2zLcsNZp5CHwAdzDE-VqTAC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/ta.pak",
+      "size": 491895,
+      "executable": true,
+      "hash": "AsRwCUQ3jcb1usyqjWMiipLPtzd83X8AVkXEQla9cTAC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/te.pak",
+      "size": 466021,
+      "executable": true,
+      "hash": "unSd-yApZctO292FczdjsT07GHw7eNgLD7x8Gp2ezZIC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/th.pak",
+      "size": 395383,
+      "executable": true,
+      "hash": "nwzP_XJzjckJu8l8mUFe58THCBc8Ut96hn6JaAw4NkkC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/tr.pak",
+      "size": 203405,
+      "executable": true,
+      "hash": "gHnDdKeoLvb-W9OtW7tZxvTcA_x2d5m4M37GJXh7wpcC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/uk.pak",
+      "size": 329788,
+      "executable": true,
+      "hash": "Mq83IPg2EFYuQ57pJ9DoJbCgUdb4wqjCvu9mdKxD_UsC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/vi.pak",
+      "size": 234450,
+      "executable": true,
+      "hash": "UujErLiAXsFR5-dAEZPJ_UYwZG_XHyllcUyzfmyAs0sC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/zh-CN.pak",
+      "size": 175484,
+      "executable": true,
+      "hash": "y5_GDDUcmOthItwbss_MLBn50DSxea6Fzu6setoHf0YC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_locales/zh-TW.pak",
+      "size": 175522,
+      "executable": true,
+      "hash": "3Gdjrf0XPymwrC5Z_s2Rt66XCeBYXaY8Zr5JeWHlsRYC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_resources.pak",
+      "size": 1633793,
+      "executable": true,
+      "hash": "ahHSYzuQFJxPrYDPjnSSlKUFzoVGaYRgG7VJ4JcCO04C"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_resources_100p.pak",
+      "size": 626267,
+      "executable": true,
+      "hash": "zOcJMgoVIrZGibU6JdcSLOTgL4gEHo04s8nfeyf5_NMC"
+    },
+    {
+      "name": "emulator/lib64/qt/libexec/qtwebengine_resources_200p.pak",
+      "size": 679936,
+      "executable": true,
+      "hash": "frCiqiva8LQEQzBvAawJmbCacWjbdV1RIznPZNBsLGwC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/bearer/libqconnmanbearer.so",
+      "size": 169744,
+      "executable": true,
+      "hash": "SQHPHPygwzj3jQmm1adwxxc-VHm9Rrdx5uFPAieVkhMC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/bearer/libqgenericbearer.so",
+      "size": 53928,
+      "executable": true,
+      "hash": "8gPz3dcTTHEMXcc2Ebl2rEnGB5orf3NwIGVR690PgEYC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/bearer/libqnmbearer.so",
+      "size": 239720,
+      "executable": true,
+      "hash": "DfoipIm3zzOnqTKpQLEZ_bysA2hU3C_ze3mRbC74hNMC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/iconengines/libqsvgicon.so",
+      "size": 36208,
+      "executable": true,
+      "hash": "4MedH3FOY7WLT354EeadV49uCvpdi4-HGW8hMMjTVtYC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqgif.so",
+      "size": 31808,
+      "executable": true,
+      "hash": "UOnkj_oIYQr8vwDPbIykF3UX29gqgaJDTzlOmmxIwpUC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqicns.so",
+      "size": 36752,
+      "executable": true,
+      "hash": "AIIRvt5b1892ikbZGgF5aatATMsx54qDv9yuLE52up4C"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqico.so",
+      "size": 31960,
+      "executable": true,
+      "hash": "pR4MrZHw0eZM3oOVqWj64MZ3MbWsK2OsA89ecb5vmD4C"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqjpeg.so",
+      "size": 446072,
+      "executable": true,
+      "hash": "CRyOE6jYh-hQnOUJNneqtSNefFNLYYE1gisp3LUjiKoC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqsvg.so",
+      "size": 23784,
+      "executable": true,
+      "hash": "OKjJTdLL4H0BR7u6YnNrPdgw1NKEAUJ7HQE3rU1vhIQC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqtga.so",
+      "size": 19448,
+      "executable": true,
+      "hash": "f5BCB_VPD0ayg4aR9oKrhy3gHcOnCtnzy0_xw_2Zbi4C"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqtiff.so",
+      "size": 458832,
+      "executable": true,
+      "hash": "Rzi3RBP91c4hrCw-y1lX5T_0qe2jNExH-rXiXhP3FIoC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqwbmp.so",
+      "size": 19544,
+      "executable": true,
+      "hash": "l0gXa7BQhtVN0ZlfK93o_a6MjOW74mPGT8rsoH3ZnhEC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/imageformats/libqwebp.so",
+      "size": 671648,
+      "executable": true,
+      "hash": "BmXnKARns3rM9rpjM5NeVJdWwg068C6imCoY6XiChosC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/platforminputcontexts/libcomposeplatforminputcontextplugin.so",
+      "size": 45064,
+      "executable": true,
+      "hash": "J3vONMMcrfJpO_vCwPxCb_mXzOdU_xYcWGaUKAKsXXoC"
+    },
+    {
+      "name": "emulator/lib64/qt/plugins/platforms/libqxcb.so",
+      "size": 11040,
+      "executable": true,
+      "hash": "MGSOaX38cCGopVPZ74b8y7oXXKMfbI6u7t-4pAbdzH0C"
+    },
+    {
+      "name": "emulator/lib64/qt/resources/icudtl.dat",
+      "size": 10218000,
+      "executable": true,
+      "hash": "bJi7TMw4iK1PlBY9FlRXhEJQbwQBLV2oGURagLuFY28C"
+    },
+    {
+      "name": "emulator/lib64/qt/resources/qtwebengine_devtools_resources.pak",
+      "size": 8362606,
+      "executable": true,
+      "hash": "miPfIcTeHRChEzqISuNZW7C3HYQbqqzhI-WovkKcBEwC"
+    },
+    {
+      "name": "emulator/lib64/qt/resources/qtwebengine_resources.pak",
+      "size": 1633793,
+      "executable": true,
+      "hash": "ahHSYzuQFJxPrYDPjnSSlKUFzoVGaYRgG7VJ4JcCO04C"
+    },
+    {
+      "name": "emulator/lib64/qt/resources/qtwebengine_resources_100p.pak",
+      "size": 626267,
+      "executable": true,
+      "hash": "zOcJMgoVIrZGibU6JdcSLOTgL4gEHo04s8nfeyf5_NMC"
+    },
+    {
+      "name": "emulator/lib64/qt/resources/qtwebengine_resources_200p.pak",
+      "size": 679936,
+      "executable": true,
+      "hash": "frCiqiva8LQEQzBvAawJmbCacWjbdV1RIznPZNBsLGwC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/am.pak",
+      "size": 294870,
+      "executable": true,
+      "hash": "p5ftlipHUFRT1onDQ_hWi6slGuYVe5ANm8VPryqS8lcC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ar.pak",
+      "size": 292138,
+      "executable": true,
+      "hash": "qrncETI4IBosIu8FQaLNlE9swRSLpr2A0JT3Lw7yaUEC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/bg.pak",
+      "size": 338703,
+      "executable": true,
+      "hash": "iu6KjC95DYi9NpWqlT-ILnBzFaC1rLgJNQeIf2zn6AUC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/bn.pak",
+      "size": 439153,
+      "executable": true,
+      "hash": "XWy4ADfrdAlGTijZO5PO6yufTXDBMhObNgkD_fd3Q7sC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ca.pak",
+      "size": 210276,
+      "executable": true,
+      "hash": "c5uuhNmcHljuhLm7oiaAEs3SAEoZUfxDB9YQ7_EgXooC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/cs.pak",
+      "size": 212851,
+      "executable": true,
+      "hash": "PSW2Ql44-cSBgfsBgSeVzO663K1805Ar6-hYmxN-Bm0C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/da.pak",
+      "size": 191535,
+      "executable": true,
+      "hash": "iFwD4XiC-FwESoz9-e5JdJD1jV_e9IFAxdNwn8vwD-MC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/de.pak",
+      "size": 208592,
+      "executable": true,
+      "hash": "oLbkk8t0VHfqsMvmwQJu8UR-ESwifirL3ZC6rMwAFe8C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/el.pak",
+      "size": 370700,
+      "executable": true,
+      "hash": "iuX7aNyxmil5miN8v1ZvP0vNe0cO4zYUjk1hhuYgDgwC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/en-GB.pak",
+      "size": 172178,
+      "executable": true,
+      "hash": "z9QfI1F9h7cwLPRxzGUyDrfp4HbUPi2t0Dx-IomMAv8C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/en-US.pak",
+      "size": 173816,
+      "executable": true,
+      "hash": "tmtHLXGCCm4Aou84sfhyGL30cNy9O56Lfn1_-5gEFOgC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/es-419.pak",
+      "size": 206512,
+      "executable": true,
+      "hash": "bdxYeT3tXZXL-InIzqNC4sJSj4k0RzVopDqYoSvBP6cC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/es.pak",
+      "size": 210069,
+      "executable": true,
+      "hash": "-jq7AUMKwj3XAjt1Tt_izD6qzzkPgDLEm9tJNgpOHzQC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/et.pak",
+      "size": 187141,
+      "executable": true,
+      "hash": "Obfk2zAEtHDj6DpxsTtS1aEClxFXuJ6u_9_VXljhmRcC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/fa.pak",
+      "size": 296435,
+      "executable": true,
+      "hash": "Ngm5GDfUFVxlsv6K2UoodeCmPAWGzzLCKsR5pByGWgMC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/fi.pak",
+      "size": 193405,
+      "executable": true,
+      "hash": "Mc6bNBOOI9JFZ3NYZyPlk6KcbxmUHgRl_-MQRgUQ93YC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/fil.pak",
+      "size": 213242,
+      "executable": true,
+      "hash": "sL0xhFhkStQfPMWtANOPopm7ZsiqskgX8FU_eKLWzs4C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/fr.pak",
+      "size": 224258,
+      "executable": true,
+      "hash": "BWpsD7ionnFYSx1Zkqwfl7TxGUqJQUwjF13hRQ8v-rkC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/gu.pak",
+      "size": 417214,
+      "executable": true,
+      "hash": "OJiYJcOPlnBkaBnJOf7FzqXJ3Y8aJIh6tT4fezyn1Y8C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/he.pak",
+      "size": 248819,
+      "executable": true,
+      "hash": "f3UcSYA6TXzdcTnY7l7OjBxqbyeW87K4dxxZL3uhzesC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/hi.pak",
+      "size": 427128,
+      "executable": true,
+      "hash": "fLE3g8EKXtdxuG62S49q8DPet9HFW2jjK6Kg44tx0AoC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/hr.pak",
+      "size": 201981,
+      "executable": true,
+      "hash": "Iw3_Ua0qqCXT3vV5DgjqempiVqEUakDcqeb-8gtGZEAC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/hu.pak",
+      "size": 220979,
+      "executable": true,
+      "hash": "Nzf_W9g3Iq-DPdl1ILrPvzMkwymL4lSEMlSnk6IiN0QC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/id.pak",
+      "size": 185131,
+      "executable": true,
+      "hash": "TaTGVKZSZKS3drCds1_N-4ueQ1J9VlRovNMeT3qH9LoC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/it.pak",
+      "size": 203354,
+      "executable": true,
+      "hash": "TrvbYMILX5Cfh8-nO27YRP8t5xYoEN9c7iEvoHAaThMC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ja.pak",
+      "size": 251212,
+      "executable": true,
+      "hash": "oFdoT80gMYlJ68wkvhNpL78-X3bkBQK9P0WfNNVx4JIC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/kn.pak",
+      "size": 484222,
+      "executable": true,
+      "hash": "kjJ53sSXxMmeXX9ARPtdRX6ibAIUK3Cjd8n4e5UHyREC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ko.pak",
+      "size": 210978,
+      "executable": true,
+      "hash": "OBlHr5jOwYQSlandkOtAY3zZ2g615MBtyXnyZjsGk9cC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/lt.pak",
+      "size": 216028,
+      "executable": true,
+      "hash": "Lov9LXazbII3WN42ahEJvW2NwJMlbGeBi_XkyWrSskwC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/lv.pak",
+      "size": 215660,
+      "executable": true,
+      "hash": "kROXGGk4IgI8CiPilKUN184wACkn6Moq_ZifRHsm0TcC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ml.pak",
+      "size": 523181,
+      "executable": true,
+      "hash": "4Th4C6Aspx4kDjOrITwPYiZWIx3xG_LFYlN1rLF9LtQC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/mr.pak",
+      "size": 419529,
+      "executable": true,
+      "hash": "RlMWwu0N3t_N1ssd_9LEIkAa7TsDsuUeWKEmE2cixLkC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ms.pak",
+      "size": 191560,
+      "executable": true,
+      "hash": "YLlVc0Cy3kVn6TpgiE_Rpfb6mdc26M61NAWcJHi6B2AC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/nb.pak",
+      "size": 189072,
+      "executable": true,
+      "hash": "sFoh-ntzCaw0_HkWuyOUXoStInqeT3CzpkXvPw6LUtoC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/nl.pak",
+      "size": 198192,
+      "executable": true,
+      "hash": "KC4ZBrpb9CAmhrXaeQml8QP0g_cWn5YJoltJchXv13cC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/pl.pak",
+      "size": 208848,
+      "executable": true,
+      "hash": "ZO12pkB2qGVFENdPz0RMoHd0zyqYECWVl_JbPr13wF4C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/pt-BR.pak",
+      "size": 203735,
+      "executable": true,
+      "hash": "D8I_ER0d-zeqCGw1_CL6KX1BtEy56aAy6dFtYzLBH2EC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/pt-PT.pak",
+      "size": 205733,
+      "executable": true,
+      "hash": "v8Roeo4kxmIVFuKm6KEt1fnYu_ig15liHFyzBJcSnVkC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ro.pak",
+      "size": 211599,
+      "executable": true,
+      "hash": "MyNqq6eNMuDie1jtEI6nndw0pH74iTBrjEL-yjD5CR4C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ru.pak",
+      "size": 324802,
+      "executable": true,
+      "hash": "fLk6ep_hrTI0udyavTnS7RFH4Q4U3UNsOv6JQpW8h6QC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/sk.pak",
+      "size": 216821,
+      "executable": true,
+      "hash": "IEo5g_PVPTU5HPbP-9cHiopG07Wop6jULpj0ws-I_XgC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/sl.pak",
+      "size": 202192,
+      "executable": true,
+      "hash": "WyYRZ5CO0tNPVeSldr_WLhnp47RhHNBVew2UN8VMkPcC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/sr.pak",
+      "size": 316728,
+      "executable": true,
+      "hash": "rbsORNS8aG_sBP7LRwqcirOzmRDTXndNLxe2KOVvJ20C"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/sv.pak",
+      "size": 190206,
+      "executable": true,
+      "hash": "nfGt4NifR9XFBIzvEKhKNSvlfok0-5wFOzEkFurMNyIC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/sw.pak",
+      "size": 194205,
+      "executable": true,
+      "hash": "G-DTLaqsdagdzkBOTmHOg2zLcsNZp5CHwAdzDE-VqTAC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/ta.pak",
+      "size": 491895,
+      "executable": true,
+      "hash": "AsRwCUQ3jcb1usyqjWMiipLPtzd83X8AVkXEQla9cTAC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/te.pak",
+      "size": 466021,
+      "executable": true,
+      "hash": "unSd-yApZctO292FczdjsT07GHw7eNgLD7x8Gp2ezZIC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/th.pak",
+      "size": 395383,
+      "executable": true,
+      "hash": "nwzP_XJzjckJu8l8mUFe58THCBc8Ut96hn6JaAw4NkkC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/tr.pak",
+      "size": 203405,
+      "executable": true,
+      "hash": "gHnDdKeoLvb-W9OtW7tZxvTcA_x2d5m4M37GJXh7wpcC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/uk.pak",
+      "size": 329788,
+      "executable": true,
+      "hash": "Mq83IPg2EFYuQ57pJ9DoJbCgUdb4wqjCvu9mdKxD_UsC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/vi.pak",
+      "size": 234450,
+      "executable": true,
+      "hash": "UujErLiAXsFR5-dAEZPJ_UYwZG_XHyllcUyzfmyAs0sC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/zh-CN.pak",
+      "size": 175484,
+      "executable": true,
+      "hash": "y5_GDDUcmOthItwbss_MLBn50DSxea6Fzu6setoHf0YC"
+    },
+    {
+      "name": "emulator/lib64/qt/translations/qtwebengine_locales/zh-TW.pak",
+      "size": 175522,
+      "executable": true,
+      "hash": "3Gdjrf0XPymwrC5Z_s2Rt66XCeBYXaY8Zr5JeWHlsRYC"
+    },
+    {
+      "name": "emulator/lib64/vulkan/glslangValidator",
+      "size": 7976760,
+      "hash": "d-AL9oOJX2L40zBpCIXwDKMIMg9sr0fwUO6OqTa1kyYC"
+    },
+    {
+      "name": "emulator/lib64/vulkan/libvk_swiftshader.so",
+      "size": 23148752,
+      "hash": "7HQPrP9zd3N5-9EmO26mKFpdhKX6vdSArW9-H8xh8x4C"
+    },
+    {
+      "name": "emulator/lib64/vulkan/libvulkan.so",
+      "size": 377920,
+      "hash": "FbSw3zx696ioz0R1SueDYOoIhI8lK5PPhEC9n4-19QsC"
+    },
+    {
+      "name": "emulator/lib64/vulkan/libvulkan.so.1",
+      "size": 377920,
+      "hash": "gwy3u_2C9kwX-xwGa00T7Fv-S2jvHgcs0iXRsnd16sQC"
+    },
+    {
+      "name": "emulator/lib64/vulkan/vk_swiftshader_icd.json",
+      "size": 126,
+      "hash": "wLhx00X9pxmlSMII0CZbhnUVHWQNgO3sPHjE0xwwu7MC"
+    },
+    {
+      "name": "emulator/mksdcard",
+      "size": 9136,
+      "executable": true,
+      "hash": "Ray_wTJLwtYdeknsrToRE6hXw-BDCnqrriAaGLlnJP4C"
+    },
+    {
+      "name": "emulator/package.xml",
+      "size": 18380,
+      "hash": "crASums1sOcVP90kG8eJNlGCaeBk_3CoJAZ76IqefToC"
+    },
+    {
+      "name": "emulator/perfetto-protozero-protoc-plugin",
+      "size": 1258672,
+      "executable": true,
+      "hash": "yvdIpfwczKuJr_TPjexlQ8qKgHNILNVWwxNBx2qeq1oC"
+    },
+    {
+      "name": "emulator/qemu-img",
+      "size": 1898936,
+      "executable": true,
+      "hash": "TLbkFpaNi9Qhgo_I7THosplHaHDPTkraS0UcqQ13tKQC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-aarch64",
+      "size": 39982320,
+      "executable": true,
+      "hash": "h4EQH1OwG_U03svU44z7iArhJ9IDsNQNtYsXaKqeKXUC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-aarch64-headless",
+      "size": 33043016,
+      "executable": true,
+      "hash": "7Eyb9L8ES5v7lLT2_gV75ozNJ-Io81U99QSUih6_KksC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-armel",
+      "size": 39733392,
+      "executable": true,
+      "hash": "cIfzeXpQ4vnuyF7PmgBU9JwKS4qHTUnY8jx31fAyqL8C"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-armel-headless",
+      "size": 32794152,
+      "executable": true,
+      "hash": "oxrVNcxj0iOUEGSYmCR8oCih-eXYTeSHWM45RoM56mYC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-i386",
+      "size": 38691528,
+      "executable": true,
+      "hash": "6ywWRHE09gxGpEOiHixLAAElGOBWwNGfvGOSVzuCV7MC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-i386-headless",
+      "size": 31756320,
+      "executable": true,
+      "hash": "7fEhwjR-XdtjAKbmXT37_HzTI3niSRlCxua9BlRa8ZcC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-x86_64",
+      "size": 38742024,
+      "executable": true,
+      "hash": "AIyWyxByWaihd3a_-SqNy166AK8k47o5CEUiH05ojvgC"
+    },
+    {
+      "name": "emulator/qemu/linux-x86_64/qemu-system-x86_64-headless",
+      "size": 31802728,
+      "executable": true,
+      "hash": "6JNoCYqmyHQZYqRoVqVGL1_TVmzleL0dzo5HNsCqqnEC"
+    },
+    {
+      "name": "emulator/qsn",
+      "size": 12643320,
+      "executable": true,
+      "hash": "MdmUwaiCsNFtPZ5-eWYocH9FSIOYgFsgMnHzpzB0J2sC"
+    },
+    {
+      "name": "emulator/resources/Toren1BD.mtl",
+      "size": 345,
+      "hash": "6KyeXzWqbLLX6sr0B6MoMk-SVYfBLgk9y27-93W8xDgC"
+    },
+    {
+      "name": "emulator/resources/Toren1BD.obj",
+      "size": 3609412,
+      "hash": "LhiEhn0aoMMy9-SjU94P6ztWzm4CNM4ZlMRLavefSSoC"
+    },
+    {
+      "name": "emulator/resources/Toren1BD.posters",
+      "size": 157,
+      "hash": "dt812BeU6xZjYgnZ1RdZRkpPrlHkqaRUBhqynkzzA58C"
+    },
+    {
+      "name": "emulator/resources/Toren1BD_Decor.png",
+      "size": 3669905,
+      "hash": "Et17VJa1-DnaIAOIyxu4wxA-txihtc8UalSyufYFE3YC"
+    },
+    {
+      "name": "emulator/resources/Toren1BD_Main.png",
+      "size": 3845619,
+      "hash": "NoSUDfGgGs0KaYVQ-_x_ZFxLAll_VETSKG05QU9ZoPQC"
+    },
+    {
+      "name": "emulator/resources/macroPreviews/Reset_position.mp4",
+      "size": 240740,
+      "hash": "i9xsl3zTgWgoG2dR7k6tSOak-pN96R7sDdYDbTnlklwC"
+    },
+    {
+      "name": "emulator/resources/macroPreviews/Track_horizontal_plane.mp4",
+      "size": 972478,
+      "hash": "2L0j06xrvXqZMtogvG5ss7HePMOm7HIqzdRA7f3KsGMC"
+    },
+    {
+      "name": "emulator/resources/macroPreviews/Track_vertical_plane.mp4",
+      "size": 631994,
+      "hash": "zt_egPRqjmRjhlPUTpmXHsqWA9wjUASssQihITv-17QC"
+    },
+    {
+      "name": "emulator/resources/macroPreviews/Walk_to_image_room.mp4",
+      "size": 950115,
+      "hash": "exDvYHDoeYtiiBqXLH6AVl_giWHvEA-je9i3mLkmJHUC"
+    },
+    {
+      "name": "emulator/resources/macros/Reset_position",
+      "size": 28,
+      "hash": "3IzKfPalKTzGtXek_QttMznVIRflfzqNzV1fWlko2GIC"
+    },
+    {
+      "name": "emulator/resources/macros/Track_horizontal_plane",
+      "size": 52928,
+      "hash": "dpCnuFFz-kUhW4gQw-W0mUGWGRpb5BBfHxReuEOHDIQC"
+    },
+    {
+      "name": "emulator/resources/macros/Track_vertical_plane",
+      "size": 28373,
+      "hash": "YmSYvciII2UJPno42-pmz5oqgS08Ma1zVUNdflZKIyQC"
+    },
+    {
+      "name": "emulator/resources/macros/Walk_to_image_room",
+      "size": 37137,
+      "hash": "sKcBeRLKsgI-QNLX3ndzYyNCuigy_TNElvCzqqcU_aUC"
+    },
+    {
+      "name": "emulator/resources/poster.png",
+      "size": 164254,
+      "hash": "LZLOnBZ0sB5kCc0Lnl2QXe5HhQdau7l25Wr-l2Bt9ekC"
+    },
+    {
+      "name": "emulator/source.properties",
+      "size": 102,
+      "hash": "qnvWXXNDz7S-RfiZij3tpoOu-FyT6Rr0STOOUZnSVvMC"
+    }
+  ]
+}

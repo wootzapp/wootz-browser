@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/apache-linux",
+  "package_name": "infra/3pp/tools/httpd-php/linux-amd64"
+}

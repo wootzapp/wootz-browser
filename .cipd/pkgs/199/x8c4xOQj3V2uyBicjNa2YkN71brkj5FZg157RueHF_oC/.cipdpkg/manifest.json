@@ -1,0 +1,133 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/screen-ai/linux",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "BUILD.gn",
+      "size": 292,
+      "hash": "uf5qdHCNsGc17WB-LyuFKBKUsvgPfNEGvyIiIm4qFsQC"
+    },
+    {
+      "name": "OWNERS",
+      "size": 71,
+      "hash": "bheaaJA-XyyJ7BRKW1XqYIDZEBQiIYPoZxvAGfyO6x0C"
+    },
+    {
+      "name": "README.md",
+      "size": 84,
+      "hash": "art1jVJZMSGeObcXZlVEwPWq9HOS9Y_JPD1irk1kn6sC"
+    },
+    {
+      "name": "cipd.yaml",
+      "size": 480,
+      "hash": "xKjzx_1AY1w-06sqkHbafodiSsq7vuf4hj5j0H0M8vcC"
+    },
+    {
+      "name": "resources/aksara/aksara_page_layout_analysis_ti_rpn_gro.binarypb",
+      "size": 275,
+      "hash": "NHIDGG-dWWebcwRkkGrUx_ebqsd3S76AV715ctz3E_EC"
+    },
+    {
+      "name": "resources/files_list_main_content_extraction.txt",
+      "size": 43,
+      "hash": "BartmXuEU_7vzpq5X0ImyOqIet4U9T6g6gTxyHr5nmgC"
+    },
+    {
+      "name": "resources/files_list_ocr.txt",
+      "size": 1086,
+      "hash": "R2uJbz_7-qt-XrP5IKmMuY8-px89R9NoZNuz1zhNh3UC"
+    },
+    {
+      "name": "resources/gocr/gocr_models/line_recognition_mobile_convnext320/Latn_ctc/optical/assets.extra/LabelMap.pb",
+      "size": 8246,
+      "hash": "DxvvsEH1-LJg0S8G8biZ_gG9g1l2vS1Eipkme_fAwAIC"
+    },
+    {
+      "name": "resources/gocr/gocr_models/line_recognition_mobile_convnext320/Latn_ctc/optical/model.fb",
+      "size": 1741360,
+      "hash": "LZ0zBaLjmhjJFZvCM8LZu6Es_u4_HBnT_HslWERienIC"
+    },
+    {
+      "name": "resources/gocr/gocr_models/line_recognition_mobile_convnext320/Latn_ctc_cpu.binarypb",
+      "size": 286,
+      "hash": "PV0Pf2C1cjQ9rDiQEAR2kmJN57vCzWqHsggCY8E76kAC"
+    },
+    {
+      "name": "resources/gocr/gocr_models/line_recognition_mobile_convnext320/tflite_langid.tflite",
+      "size": 315520,
+      "hash": "f5Mfb3wd0OxZGs53gN-RZFpFD6_INQXz_0XOXvfIRBsC"
+    },
+    {
+      "name": "resources/gocr/layout/cluster_sort_custom_ops/model.tflite",
+      "size": 326540,
+      "hash": "SVek5Len-wQT8OVdSbLC9Tp7rIHBkAkIvhyp24-2dpAC"
+    },
+    {
+      "name": "resources/gocr/layout/line_splitting_custom_ops/model.tflite",
+      "size": 114384,
+      "hash": "9CGX5laXLDMLufCS7b4pi0psL82Aj_bWFDgTEfjdIqcC"
+    },
+    {
+      "name": "resources/libchromescreenai.so",
+      "size": 313980704,
+      "hash": "9ReVR2e0oyUPHToXhAVklMqE0bQRQ_MUt8JXb1ACwvQC"
+    },
+    {
+      "name": "resources/screen2x_config.pbtxt",
+      "size": 1234,
+      "hash": "QqARR23_CuoMFN5-0PVpTMFIJPYq8XuL9kDYEWRLtHIC"
+    },
+    {
+      "name": "resources/screen2x_model.tflite",
+      "size": 928208,
+      "hash": "3LAOp_qtqpLB571UIYP9zw-tuW5Yc5gEs5gB6OIq3n0C"
+    },
+    {
+      "name": "resources/taser/detector/region_proposal_text_detector_tflite_vertical_mbv2_v1.bincfg",
+      "size": 452,
+      "hash": "esLUwE-y_gzVwz4wMNknbEAobHP5fC2qOrlOqMPzFMMC"
+    },
+    {
+      "name": "resources/taser/detector/rpn_text_detector_mobile_space_to_depth_quantized_mbv2_v1.tflite",
+      "size": 340760,
+      "hash": "64EaEpBzjxMeQAXYodY-8hdwhmQUuEcZCpMvC1bA0Y8C"
+    },
+    {
+      "name": "resources/taser/rpn_text_detection_tflite_mobile_mbv2.binarypb",
+      "size": 192,
+      "hash": "0zA1OwmBQJLdv7Mp3W-AknkerInMrLFOUV9pWNZ2KFcC"
+    },
+    {
+      "name": "resources/taser/segmenter/tflite_script_detector_0.3.bincfg",
+      "size": 1118,
+      "hash": "1CI8I82O49PUmZ1OELsW7AuBGfiBLl5m5k6QfFUI8hsC"
+    },
+    {
+      "name": "resources/taser/segmenter/tflite_script_detector_0.3.conv_model",
+      "size": 40808,
+      "hash": "Fr6fwMDJQpzDcU1dLoZixTvSjPADE3XiN9sojcjajV8C"
+    },
+    {
+      "name": "resources/taser/segmenter/tflite_script_detector_0.3.lstm_model",
+      "size": 161448,
+      "hash": "IoGgFob5_5Fk8qEu10OBjiuOCvaufHMkCSTXA0LT8ssC"
+    },
+    {
+      "name": "resources/taser/taser_script_identification_tflite_mobile.binarypb",
+      "size": 136,
+      "hash": "o-vycg-G4UQOQmBPi9SBlBEeFS-pOIb5h2VfAakzbTIC"
+    },
+    {
+      "name": "resources/taser_tflite_gocrlatinconvnext320_mbv2_scriptid_aksara_layout_gro_mobile_engine_ti.binarypb",
+      "size": 12878,
+      "hash": "dQ1BrU3w8etdhUo6AlOqxwxNDfnWNuh4E2j8Zj-OJp4C"
+    },
+    {
+      "name": "resources/taser_tflite_gocrlatinconvnext320_mbv2_scriptid_aksara_layout_gro_mobile_recognizer.binarypb",
+      "size": 238,
+      "hash": "my95bHD-Z9TLS6hjnkx1EOjwJCsRSH5WJdp9FJNyXmoC"
+    }
+  ]
+}

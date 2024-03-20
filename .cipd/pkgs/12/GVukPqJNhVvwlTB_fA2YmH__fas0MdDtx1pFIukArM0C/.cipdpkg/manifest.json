@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/android_arch_lifecycle_runtime",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "runtime-1.1.1.aar",
+      "size": 9635,
+      "hash": "xOS-ZsGy8KvsWTVxRU4d4UAT9-D5a_Kp8hKTGkjK5VAC"
+    }
+  ]
+}

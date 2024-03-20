@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlinx_kotlinx_metadata_jvm",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlinx-metadata-jvm-0.1.0.jar",
+      "size": 2598562,
+      "hash": "l1O7Oe_vNZV8XBXfmjy3aaq_LN-nS0evy3dg5RRr47UC"
+    }
+  ]
+}

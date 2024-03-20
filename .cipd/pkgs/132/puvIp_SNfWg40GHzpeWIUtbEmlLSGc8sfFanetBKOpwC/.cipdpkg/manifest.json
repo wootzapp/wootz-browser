@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_stdlib_jdk7",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlin-stdlib-jdk7-1.8.20.jar",
+      "size": 963,
+      "hash": "rx7EDDuVGv3MDCoBc8e4F2PFKBwtW6-_CoVEokxdzAwC"
+    }
+  ]
+}

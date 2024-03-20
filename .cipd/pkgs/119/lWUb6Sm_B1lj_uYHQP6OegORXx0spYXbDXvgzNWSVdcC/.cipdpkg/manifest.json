@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/net_bytebuddy_byte_buddy_agent",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "byte-buddy-agent-1.14.10.jar",
+      "size": 256776,
+      "hash": "Z5k6idR8pY_4aIAqREjd0VDl_k5aVkXe2ZDXtNVXprkC"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+include_rules = [
+  "+media/audio",
+  "+pdf/pdf_features.h",
+  "+services/metrics/public/cpp",
+  "+services/network/public/cpp",
+  "+services/network/public/mojom",
+]

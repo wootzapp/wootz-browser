@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_protoc",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "protoc",
+      "size": 5219800,
+      "executable": true,
+      "hash": "FQWVm-wEZGZQvZul9FdNkblmG1UY5fjW-2tkaopEgn8C"
+    }
+  ]
+}

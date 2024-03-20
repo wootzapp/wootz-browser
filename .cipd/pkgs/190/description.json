@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/kotlinc/current",
+  "package_name": "chromium/third_party/kotlinc"
+}

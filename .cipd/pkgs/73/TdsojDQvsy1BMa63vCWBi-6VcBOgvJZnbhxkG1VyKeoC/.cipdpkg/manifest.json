@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_code_gson_gson",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "gson-2.9.0.jar",
+      "size": 249277,
+      "hash": "yW1gVRMxoZbaxUt0WqZCzQeO-JtvJnFGtwXywsvvBS0C"
+    }
+  ]
+}

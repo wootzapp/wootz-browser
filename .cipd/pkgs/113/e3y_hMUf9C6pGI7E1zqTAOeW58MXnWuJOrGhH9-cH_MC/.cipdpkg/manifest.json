@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_grpc_grpc_stub",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "grpc-stub-1.49.0.jar",
+      "size": 50909,
+      "hash": "sOKtEiv9TCtxtUxzbqgl9cDHkEnQS6OUG8hzIs4-xmMC"
+    }
+  ]
+}

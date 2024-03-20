@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_android_extensions_runtime",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlin-android-extensions-runtime-1.9.22.jar",
+      "size": 9709,
+      "hash": "8AU3xwI-YEkz9qlWOxuzuD5h-_0sw9DpkA1ha6toYqQC"
+    }
+  ]
+}

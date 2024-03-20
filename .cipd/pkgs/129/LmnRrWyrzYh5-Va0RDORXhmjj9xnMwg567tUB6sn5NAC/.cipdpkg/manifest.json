@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_hamcrest_hamcrest",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "hamcrest-2.2.jar",
+      "size": 123360,
+      "hash": "XmKEaonwXNeM2cGlU_NA0AJFg4DDIEVd0fj8VJeoocEC"
+    }
+  ]
+}

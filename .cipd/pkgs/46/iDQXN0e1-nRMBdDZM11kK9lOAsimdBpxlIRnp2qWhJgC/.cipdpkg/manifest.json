@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_basement",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-basement-18.1.0.aar",
+      "size": 379617,
+      "hash": "A7oV84bPJgvecvxAEPuJqCDEfVHOY7wJKX6r5szgm90C"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_cursoradapter",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "cursoradapter-28.0.0.aar",
+      "size": 10686,
+      "hash": "h_7_50K41iyoqYM6vlZIOL9qZy4xx60TBuxABq35DSEC"
+    }
+  ]
+}

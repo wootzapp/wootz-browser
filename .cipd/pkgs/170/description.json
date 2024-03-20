@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/android_system_sdk",
+  "package_name": "chromium/third_party/android_system_sdk/public"
+}

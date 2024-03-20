@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_auth",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-auth-20.1.0.aar",
+      "size": 183079,
+      "hash": "_W5nlZGvC5KS7MhLnKhbuWEJBAR42bRiZTWlDRqf904C"
+    }
+  ]
+}

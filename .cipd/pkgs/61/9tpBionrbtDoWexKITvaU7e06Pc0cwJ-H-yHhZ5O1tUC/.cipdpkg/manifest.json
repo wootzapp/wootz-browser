@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_vision",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-vision-20.1.3.aar",
+      "size": 95531,
+      "hash": "1wFzylqH-inGeUQ94bxrA7bukjea7stIRjQDpC7JkwMC"
+    }
+  ]
+}

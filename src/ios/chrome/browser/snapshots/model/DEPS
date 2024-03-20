@@ -1,0 +1,10 @@
+include_rules = [
+  "+ios/chrome/browser/sessions",
+  "+ios/chrome/browser/net/model/crurl.h",
+]
+
+specific_include_rules = {
+  "^snapshot_storage.mm": [
+    "+ios/chrome/browser/tabs/model/features.h",
+  ],
+}

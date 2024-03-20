@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_stats",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-stats-17.0.0.aar",
+      "size": 17218,
+      "hash": "6K5bQFErceIli_rNjNPaOYczqkzeOzLQVgk_gyuDpv4C"
+    }
+  ]
+}

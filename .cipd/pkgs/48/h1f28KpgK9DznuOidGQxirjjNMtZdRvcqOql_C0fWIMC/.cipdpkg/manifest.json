@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_cloud_messaging",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-cloud-messaging-16.0.0.aar",
+      "size": 44394,
+      "hash": "OlAA3z1rkfm4toGykzG0aA0wwUD2k7HF0paXVbb8TPkC"
+    }
+  ]
+}

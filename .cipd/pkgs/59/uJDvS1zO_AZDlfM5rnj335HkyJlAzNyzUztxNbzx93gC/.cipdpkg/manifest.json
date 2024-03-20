@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_tasks",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-tasks-18.0.2.aar",
+      "size": 73978,
+      "hash": "A0Zc9TaA2iPT1KOZXAMpt_c7IR04eR7LNuWR_ruJZmQC"
+    }
+  ]
+}

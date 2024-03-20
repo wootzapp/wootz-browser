@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_gms_play_services_clearcut",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "play-services-clearcut-17.0.0.aar",
+      "size": 308903,
+      "hash": "zOcgc8JpwrTP8wEwR1Hy-qLNGwNE_vWBpZ2mNmX5pLQC"
+    }
+  ]
+}

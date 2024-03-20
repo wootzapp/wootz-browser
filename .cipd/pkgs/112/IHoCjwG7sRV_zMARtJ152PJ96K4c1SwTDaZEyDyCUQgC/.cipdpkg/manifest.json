@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_perfmark_perfmark_api",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "perfmark-api-0.25.0.jar",
+      "size": 6730,
+      "hash": "IERUKTP830CtGEQb7DdkbRUMSRhxFX8oiEfinLgd5MsC"
+    }
+  ]
+}

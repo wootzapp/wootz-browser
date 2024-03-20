@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_android_play_core_common",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "core-common-2.0.2.aar",
+      "size": 101563,
+      "hash": "bYDsNkyr8kwNCwC-KxfKVX_dsUwYnVi9viSoEcSHexQC"
+    }
+  ]
+}

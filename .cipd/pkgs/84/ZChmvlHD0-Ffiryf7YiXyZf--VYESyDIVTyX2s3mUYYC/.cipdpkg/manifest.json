@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_firebase_firebase_components",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "firebase-components-16.1.0.aar",
+      "size": 30176,
+      "hash": "gukape0Ybu2vHyIQ9dJBum5EVs8MMpSdXNvhUrDi6IsC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlin_kotlin_parcelize_runtime",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlin-parcelize-runtime-1.9.22.jar",
+      "size": 7000,
+      "hash": "8Ad_NeyCjhSKyS0MaqFBpzK163pKORZ5ru-ln6mhpcwC"
+    }
+  ]
+}

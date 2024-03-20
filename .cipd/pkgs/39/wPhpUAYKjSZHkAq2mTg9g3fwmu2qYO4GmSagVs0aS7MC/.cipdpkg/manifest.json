@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_github_ben_manes_caffeine_caffeine",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "caffeine-2.8.8.jar",
+      "size": 921827,
+      "hash": "e3tyxs4-R-d04pBgzroZ6D6CWb1HWYbgS08yctSlj3MC"
+    }
+  ]
+}

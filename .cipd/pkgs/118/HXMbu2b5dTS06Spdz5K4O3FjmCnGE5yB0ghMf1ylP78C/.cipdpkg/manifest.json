@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/net_ltgt_gradle_incap_incap",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "incap-0.2.jar",
+      "size": 2268,
+      "hash": "tiW5gGsPHkvHouNFcRlIjePNV-og_u3VE9sHClc6T_0C"
+    }
+  ]
+}

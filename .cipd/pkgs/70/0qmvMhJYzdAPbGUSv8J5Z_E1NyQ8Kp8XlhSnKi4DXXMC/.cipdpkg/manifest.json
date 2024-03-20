@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_auto_value_auto_value_annotations",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "auto-value-annotations-1.10.4.jar",
+      "size": 7493,
+      "hash": "4cRea-ra75eXyw2a_VpFYhrQYc2GMgEvhVgoU6OIeCUC"
+    }
+  ]
+}

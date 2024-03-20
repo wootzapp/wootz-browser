@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_dagger_dagger",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "dagger-2.30.jar",
+      "size": 34535,
+      "hash": "mT4zBeRdxFhRvzZmS3WRFn97ka_I4_ZMZm4-STcdRKQC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_checkerframework_checker_qual",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "checker-qual-3.37.0.jar",
+      "size": 224460,
+      "hash": "5M4TdswnNeHd4iC2KtCRP1EpdwTarRVaM_OGvF2w2fcC"
+    }
+  ]
+}

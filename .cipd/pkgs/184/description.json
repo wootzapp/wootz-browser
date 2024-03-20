@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/devtools-frontend/src/third_party/esbuild",
+  "package_name": "infra/3pp/tools/esbuild/linux-amd64"
+}

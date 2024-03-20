@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_protobuf_protobuf_java",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "protobuf-java-3.19.2.jar",
+      "size": 1681866,
+      "hash": "NEbL-hN5Uii8ZUm5GkCfJ832kT0cjwPg-ZVymIYjoEsC"
+    }
+  ]
+}

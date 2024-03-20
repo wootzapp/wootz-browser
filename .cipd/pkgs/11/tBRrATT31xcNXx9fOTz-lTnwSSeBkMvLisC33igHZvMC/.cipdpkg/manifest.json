@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/android_arch_lifecycle_livedata_core",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "livedata-core-1.1.1.aar",
+      "size": 9142,
+      "hash": "1v3YuYXWF41-ovFphqJOg_G-6Ta3TUMWfGngjTzBLFAC"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format_version": "1.1",
+  "package_name": "infra/3pp/tools/esbuild/linux-amd64",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "esbuild",
+      "size": 11019212,
+      "executable": true,
+      "hash": "YqkuUCO-cQhuxNgyKpToood1JjUBzwEN0G2be9jbamsC"
+    }
+  ]
+}

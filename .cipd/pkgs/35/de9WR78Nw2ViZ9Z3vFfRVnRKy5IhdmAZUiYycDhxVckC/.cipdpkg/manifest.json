@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_tools_layoutlib_layoutlib_api",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "layoutlib-api-30.2.0-beta01.jar",
+      "size": 119315,
+      "hash": "LH15RbovjUpILY6KXpBpIzUCVfuLJ15dxv0KSm7gmrcC"
+    }
+  ]
+}

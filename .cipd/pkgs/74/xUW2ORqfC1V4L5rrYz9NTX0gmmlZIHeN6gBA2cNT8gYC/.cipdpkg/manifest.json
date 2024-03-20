@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_dagger_dagger_producers",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "dagger-producers-2.30.jar",
+      "size": 94306,
+      "hash": "x1VdwlKObrXhlEUS-m4rjRQkbpBFhVZbiSaVXJ-dE5AC"
+    }
+  ]
+}

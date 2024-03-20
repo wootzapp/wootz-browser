@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_checkerframework_checker_util",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "checker-util-3.25.0.jar",
+      "size": 27762,
+      "hash": "gljI77deYbT5_zbYgNJjfXYelTAnAWLyY95sWuONMC0C"
+    }
+  ]
+}

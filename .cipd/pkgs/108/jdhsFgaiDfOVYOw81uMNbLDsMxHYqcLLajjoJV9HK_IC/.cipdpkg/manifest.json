@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_grpc_grpc_context",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "grpc-context-1.49.0.jar",
+      "size": 30584,
+      "hash": "rlt9idBT8TmnS8mgnRWWx8pv7urtCs88f1gor0VMnrkC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_squareup_javawriter",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "javawriter-2.1.1.jar",
+      "size": 11911,
+      "hash": "9pmCPQCB9py7Z2wYReoiLgraebyIpT5dIti9AtMo9X4C"
+    }
+  ]
+}

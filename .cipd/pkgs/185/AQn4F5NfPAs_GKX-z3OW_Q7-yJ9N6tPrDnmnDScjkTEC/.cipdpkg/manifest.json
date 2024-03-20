@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/google-java-format",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "google-java-format.jar",
+      "size": 3511287,
+      "hash": "MwaLu9zhCZmC7BFx9eICiY6zXykZz0hhQeQ5_G46QgMC"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/icu4j",
+  "package_name": "chromium/third_party/icu4j"
+}

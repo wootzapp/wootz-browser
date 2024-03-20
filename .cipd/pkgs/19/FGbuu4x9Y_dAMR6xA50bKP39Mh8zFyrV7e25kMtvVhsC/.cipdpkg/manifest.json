@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_customview",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "customview-28.0.0.aar",
+      "size": 33513,
+      "hash": "mNsDhF-ZTggki_cBwf8MyqEucPlCUeyScpAPD2lOBysC"
+    }
+  ]
+}

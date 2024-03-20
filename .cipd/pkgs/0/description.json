@@ -1,0 +1,4 @@
+{
+  "subdir": "src/android_webview/tools/cts_archive",
+  "package_name": "chromium/android_webview/tools/cts_archive"
+}

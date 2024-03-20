@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_viewpager",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "viewpager-28.0.0.aar",
+      "size": 53814,
+      "hash": "ATxMUwWHWOwQTbrpcL5YFZ913-NCuouTfRX_UoLjX_wC"
+    }
+  ]
+}
