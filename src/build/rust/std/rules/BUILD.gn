@@ -772,6 +772,7 @@ cargo_crate("core") {
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../portable-simd/crates/core_simd/tests/u64_ops.rs",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../portable-simd/crates/core_simd/tests/u8_ops.rs",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../portable-simd/crates/core_simd/tests/usize_ops.rs",
+    "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../portable-simd/crates/core_simd/webdriver.json",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../stdarch/crates/core_arch/MISSING.md",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../stdarch/crates/core_arch/README.md",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/library/core/src/../../stdarch/crates/core_arch/avx512bw.md",
@@ -1470,7 +1471,7 @@ cargo_crate("memchr") {
     "//third_party/rust-toolchain/lib/rustlib/src/rust/vendor/memchr-2.5.0/src/tests/memchr/testdata.rs",
     "//third_party/rust-toolchain/lib/rustlib/src/rust/vendor/memchr-2.5.0/src/tests/mod.rs",
   ]
-  inputs = []
+  inputs = [ "//third_party/rust-toolchain/lib/rustlib/src/rust/vendor/memchr-2.5.0/src/tests/x86_64-soft_float.json" ]
   no_std = true
 
   # Unit tests skipped. Generate with --with-tests to include them.

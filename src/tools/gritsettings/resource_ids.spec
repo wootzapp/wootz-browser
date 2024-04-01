@@ -573,6 +573,10 @@
     "META": {"sizes": {"includes": [20],}},
     "includes": [4560],
   },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/hello_wallet/resources.grd": {
+    "META": {"sizes": {"includes": [5]}},
+    "includes": [4570],
+  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/invalidations/resources.grd": {
     "META": {"sizes": {"includes": [10],}},
     "includes": [4580],

@@ -46,6 +46,8 @@ static_library("ui") {
     "accelerator_utils.h",
     "app_list/app_list_util.cc",
     "app_list/app_list_util.h",
+    "webui/hello_wallet/hello_wallet_ui.cc",
+    "webui/hello_wallet/hello_wallet_ui.h",
 
     # All other app_list/ files go under is_chromeos_ash below.
     "autofill/autofill_bubble_handler.h",

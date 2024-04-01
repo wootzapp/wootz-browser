@@ -39,6 +39,7 @@
 #include "chrome/browser/ui/webui/engagement/site_engagement_ui.h"
 #include "chrome/browser/ui/webui/flags/flags_ui.h"
 #include "chrome/browser/ui/webui/gcm_internals_ui.h"
+#include "chrome/browser/ui/webui/hello_wallet/hello_wallet_ui.h"
 #include "chrome/browser/ui/webui/internals/internals_ui.h"
 #include "chrome/browser/ui/webui/interstitials/interstitial_ui.h"
 #include "chrome/browser/ui/webui/intro/intro_ui.h"
@@ -454,6 +455,9 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<FlagsUI>;
   if (url.host_piece() == chrome::kChromeUIGCMInternalsHost)
     return &NewWebUI<GCMInternalsUI>;
+  if (url.host_piece() == chrome::kChromeUIHelloWalletHost) {
+    return &NewWebUI<HelloWalletUI>;
+  }
   if (url.host_piece() == chrome::kChromeUIInternalsHost)
     return &NewWebUI<InternalsUI>;
   if (url.host_piece() == chrome::kChromeUIInterstitialHost)
