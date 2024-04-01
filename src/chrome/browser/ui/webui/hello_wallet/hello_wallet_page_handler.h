@@ -16,31 +16,25 @@
 
 class Profile;
 
-class HelloWalletPageHandler
-    : public solana_wallet::mojom::PageHandler {
+class HelloWalletPageHandler : public solana_wallet::mojom::PageHandler {
  public:
   HelloWalletPageHandler(
-      mojo::PendingReceiver<solana_wallet::mojom::PageHandler>
-          receiver,
+      mojo::PendingReceiver<solana_wallet::mojom::PageHandler> receiver,
       mojo::PendingRemote<solana_wallet::mojom::Page> page,
       Profile* profile);
   ~HelloWalletPageHandler() override;
 
-  HelloWalletPageHandler(
-      const HelloWalletPageHandler&) = delete;
-  HelloWalletPageHandler& operator=(
-      const HelloWalletPageHandler&) = delete;
+  HelloWalletPageHandler(const HelloWalletPageHandler&) = delete;
+  HelloWalletPageHandler& operator=(const HelloWalletPageHandler&) = delete;
 
   // solana_wallet::mojom::PageHandler:
   void ShowApprovePanelUI() override;
   void ShowWalletBackupUI() override;
 
  private:
-
   raw_ptr<Profile> profile_ = nullptr;  // NOT OWNED
   mojo::Receiver<solana_wallet::mojom::PageHandler> receiver_;
-  base::WeakPtrFactory<HelloWalletPageHandler> weak_ptr_factory_{
-      this};
+  base::WeakPtrFactory<HelloWalletPageHandler> weak_ptr_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_WEBUI_solana_wallet_solana_wallet_PAGE_HANDLER_IMPL_H_

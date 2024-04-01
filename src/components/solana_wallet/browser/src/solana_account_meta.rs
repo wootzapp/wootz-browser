@@ -1,6 +1,4 @@
-
 use base::Value;
-
 
 #[derive(Debug, PartialEq)]
 pub struct SolanaAccountMeta {
@@ -10,13 +8,12 @@ pub struct SolanaAccountMeta {
     pub is_writable: bool,
 }
 
-
 impl PartialEq for SolanaAccountMeta {
     fn eq(&self, other: &Self) -> bool {
-        self.pubkey == other.pubkey &&
-        self.address_table_lookup_index == other.address_table_lookup_index &&
-        self.is_signer == other.is_signer &&
-        self.is_writable == other.is_writable
+        self.pubkey == other.pubkey
+            && self.address_table_lookup_index == other.address_table_lookup_index
+            && self.is_signer == other.is_signer
+            && self.is_writable == other.is_writable
     }
 }
 
@@ -49,12 +46,7 @@ impl SolanaAccountMeta {
                 None => None,
             };
 
-            Some(Self {
-                pubkey,
-                address_table_lookup_index,
-                is_signer,
-                is_writable,
-            })
+            Some(Self { pubkey, address_table_lookup_index, is_signer, is_writable })
         } else {
             None
         }

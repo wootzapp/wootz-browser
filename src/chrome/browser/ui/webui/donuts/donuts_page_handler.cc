@@ -2,19 +2,17 @@
 #include "chrome/browser/ui/webui/donuts/donuts.mojom.h"
 
 namespace {
-  bool pilot_light_on = false; // Tracks the state of the pilot light
-  uint32_t total_donuts_baked = 0; // Tracks the total number of donuts baked
-}
+bool pilot_light_on = false;      // Tracks the state of the pilot light
+uint32_t total_donuts_baked = 0;  // Tracks the total number of donuts baked
+}  // namespace
 
 DonutsPageHandler::DonutsPageHandler(
     mojo::PendingReceiver<donuts::mojom::PageHandler> receiver,
     mojo::PendingRemote<donuts::mojom::Page> page)
-    : receiver_(this, std::move(receiver)),
-      page_(std::move(page)) {
-}
+    : receiver_(this, std::move(receiver)), page_(std::move(page)) {}
 
 DonutsPageHandler::~DonutsPageHandler() {
-    pilot_light_on = false;
+  pilot_light_on = false;
 }
 
 // Triggered by outside asynchronous event; sends information to the renderer.
@@ -31,7 +29,8 @@ void DonutsPageHandler::StartPilotLight() {
 void DonutsPageHandler::BakeDonuts(uint32_t num_donuts) {
   if (!pilot_light_on) {
     // Can't bake donuts without the pilot light!
-    return; // Or handle the error in a way that makes sense for your application.
+    return;  // Or handle the error in a way that makes sense for your
+             // application.
   }
   // Simulate baking donuts. In a real application, you might start a timer or
   // trigger a background task here.

@@ -34,4 +34,4 @@ struct SolanaAccountMeta {
 
 }  // namespace solana_wallet
 
-#endif  //SOLANA_WALLET_BROWSER_SOLANA_ACCOUNT_META_H_
+#endif  // SOLANA_WALLET_BROWSER_SOLANA_ACCOUNT_META_H_

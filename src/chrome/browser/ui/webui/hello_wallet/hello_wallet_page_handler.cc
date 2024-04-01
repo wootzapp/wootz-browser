@@ -6,11 +6,10 @@
 
 #include <utility>
 
-#include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "base/functional/bind.h"
 #include "chrome/browser/profiles/profile.h"
-
+#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_finder.h"
 
 using segmentation_platform::proto::SegmentId;
 
@@ -21,7 +20,6 @@ HelloWalletPageHandler::HelloWalletPageHandler(
     : profile_(profile),
       receiver_(this, std::move(receiver)),
       weak_ptr_factory_(this) {}
-
 
 HelloWalletPageHandler::~HelloWalletPageHandler() = default;
 
@@ -35,23 +33,26 @@ void HelloWalletPageHandler::ShowApprovePanelUI() {
 }
 
 void SegmentationInternalsPageHandlerImpl::ExecuteModel(int segment_id) {
-  if (!service_proxy_)
+  if (!service_proxy_) {
     return;
+  }
   service_proxy_->ExecuteModel(static_cast<SegmentId>(segment_id));
 }
 
 void SegmentationInternalsPageHandlerImpl::OverwriteResult(int segment_id,
                                                            float result) {
-  if (!service_proxy_)
+  if (!service_proxy_) {
     return;
+  }
   service_proxy_->OverwriteResult(static_cast<SegmentId>(segment_id), result);
 }
 
 void SegmentationInternalsPageHandlerImpl::SetSelected(
     const std::string& segmentation_key,
     int segment_id) {
-  if (!service_proxy_)
+  if (!service_proxy_) {
     return;
+  }
 
   service_proxy_->SetSelectedSegment(segmentation_key,
                                      static_cast<SegmentId>(segment_id));

@@ -1,10 +1,10 @@
 #ifndef CHROME_BROWSER_UI_WEBUI_DONUTS_DONUTS_H_
 #define CHROME_BROWSER_UI_WEBUI_DONUTS_DONUTS_H_
 
-#include "content/public/browser/web_ui_controller.h"
-#include "content/public/browser/webui_config.h"
 #include "chrome/browser/ui/webui/donuts/donuts.mojom.h"
 #include "chrome/browser/ui/webui/donuts/donuts_page_handler.h"
+#include "content/public/browser/web_ui_controller.h"
+#include "content/public/browser/webui_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -40,5 +40,4 @@ class DonutsUI : public ui::MojoWebUIController,
   WEB_UI_CONTROLLER_TYPE_DECL();
 };
 
-
-#endif // CHROME_BROWSER_UI_WEBUI_DONUTS_DONUTS_H_
+#endif  // CHROME_BROWSER_UI_WEBUI_DONUTS_DONUTS_H_

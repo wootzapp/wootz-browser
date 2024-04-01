@@ -48,7 +48,6 @@ void RegisterChromeWebUIConfigs() {
   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
   map.AddWebUIConfig(std::make_unique<PasswordManagerInternalsUIConfig>());
 
-
 #if !BUILDFLAG(IS_CHROMEOS_LACROS)
   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
 #endif  // !BUILDFLAG(IS_CHROMEOS_LACROS)

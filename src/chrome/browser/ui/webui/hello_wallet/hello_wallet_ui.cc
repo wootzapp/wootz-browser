@@ -19,28 +19,23 @@ HelloWalletUI::HelloWalletUI(content::WebUI* web_ui)
       web_ui->GetWebContents()->GetBrowserContext(),
       chrome::kChromeUIHelloWalletHost);
   webui::SetupWebUIDataSource(
-      source,
-      base::make_span(kHelloWalletResources,
-                      kHelloWalletResourcesSize),
+      source, base::make_span(kHelloWalletResources, kHelloWalletResourcesSize),
       IDR_HELLO_WALLET_HELLO_WALLET_HTML);
 }
 
 HelloWalletUI::~HelloWalletUI() = default;
 
 void HelloWalletUI::BindInterface(
-    mojo::PendingReceiver<solana_wallet::mojom::PageHandlerFactory>
-        receiver) {
+    mojo::PendingReceiver<solana_wallet::mojom::PageHandlerFactory> receiver) {
   hello_wallet_page_factory_receiver_.reset();
   hello_wallet_page_factory_receiver_.Bind(std::move(receiver));
 }
 
 void HelloWalletUI::CreatePageHandler(
     mojo::PendingRemote<solana_wallet::mojom::Page> page,
-    mojo::PendingReceiver<solana_wallet::mojom::PageHandler>
-        receiver) {
-  hello_wallet_page_handler_ =
-      std::make_unique<HelloWalletPageHandler>(
-          std::move(receiver), std::move(page), profile_);
+    mojo::PendingReceiver<solana_wallet::mojom::PageHandler> receiver) {
+  hello_wallet_page_handler_ = std::make_unique<HelloWalletPageHandler>(
+      std::move(receiver), std::move(page), profile_);
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(HelloWalletUI)

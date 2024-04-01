@@ -4,19 +4,18 @@
 
 class DonutsPageHandler : public donuts::mojom::PageHandler {
  public:
-  DonutsPageHandler(
-      mojo::PendingReceiver<donuts::mojom::PageHandler> receiver,
-      mojo::PendingRemote<donuts::mojom::Page> page);
+  DonutsPageHandler(mojo::PendingReceiver<donuts::mojom::PageHandler> receiver,
+                    mojo::PendingRemote<donuts::mojom::Page> page);
 
   DonutsPageHandler(const DonutsPageHandler&) = delete;
   DonutsPageHandler& operator=(const DonutsPageHandler&) = delete;
 
   ~DonutsPageHandler() override;
 
-  private:
-    mojo::Receiver<donuts::mojom::PageHandler> receiver_;
-    mojo::Remote<donuts::mojom::Page> page_;
-    
+ private:
+  mojo::Receiver<donuts::mojom::PageHandler> receiver_;
+  mojo::Remote<donuts::mojom::Page> page_;
+
   // Triggered by some outside event
   void OnBakingDonutsFinished(uint32_t num_donuts);
 

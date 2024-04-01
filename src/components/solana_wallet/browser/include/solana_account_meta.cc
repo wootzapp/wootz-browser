@@ -2,19 +2,18 @@
 
 namespace solana_wallet {
 
- mojom::SolanaAccountMetaPtr SolanaAccountMeta::ToMojomSolanaAccountMeta()
+mojom::SolanaAccountMetaPtr SolanaAccountMeta::ToMojomSolanaAccountMeta()
     const {
-    mojom::OptionalUint8Ptr index = nullptr;
-    if (address_table_lookup_index) {
+  mojom::OptionalUint8Ptr index = nullptr;
+  if (address_table_lookup_index) {
     index = mojom::OptionalUint8::New(*address_table_lookup_index);
-    }
-    return mojom::SolanaAccountMeta::New(pubkey, std::move(index), is_signer,
-                                       is_writable);
   }
+  return mojom::SolanaAccountMeta::New(pubkey, std::move(index), is_signer,
+                                       is_writable);
+}
 
-
-  // static
- void SolanaAccountMeta::FromMojomSolanaAccountMetas(
+// static
+void SolanaAccountMeta::FromMojomSolanaAccountMetas(
     const std::vector<mojom::SolanaAccountMetaPtr>& mojom_account_metas,
     std::vector<SolanaAccountMeta>* account_metas) {
   if (!account_metas) {
@@ -33,4 +32,4 @@ namespace solana_wallet {
   }
 }
 
-}
+}  // namespace solana_wallet

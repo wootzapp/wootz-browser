@@ -14,9 +14,8 @@ class Profile;
 class HelloWalletPageHandler;
 
 // The WebUI controller for chrome://segmentation-internals.
-class HelloWalletUI
-    : public ui::MojoWebUIController,
-      public solana_wallet::mojom::PageHandlerFactory {
+class HelloWalletUI : public ui::MojoWebUIController,
+                      public solana_wallet::mojom::PageHandlerFactory {
  public:
   explicit HelloWalletUI(content::WebUI* web_ui);
   ~HelloWalletUI() override;
@@ -25,19 +24,17 @@ class HelloWalletUI
   HelloWalletUI& operator=(const HelloWalletUI&) = delete;
 
   void BindInterface(
-      mojo::PendingReceiver<solana_wallet::mojom::PageHandlerFactory>
-          receiver);
+      mojo::PendingReceiver<solana_wallet::mojom::PageHandlerFactory> receiver);
 
  private:
   // solana_wallet::mojom::PageHandlerFactory impls.
   void CreatePageHandler(
       mojo::PendingRemote<solana_wallet::mojom::Page> page,
-      mojo::PendingReceiver<solana_wallet::mojom::PageHandler>
-          receiver) override;
+      mojo::PendingReceiver<solana_wallet::mojom::PageHandler> receiver)
+      override;
 
   raw_ptr<Profile> profile_;
-  std::unique_ptr<HelloWalletPageHandler>
-      hello_wallet_page_handler_;
+  std::unique_ptr<HelloWalletPageHandler> hello_wallet_page_handler_;
   mojo::Receiver<solana_wallet::mojom::PageHandlerFactory>
       solana_wallet_page_factory_receiver_{this};
 

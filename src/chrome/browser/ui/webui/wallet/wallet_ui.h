@@ -9,14 +9,14 @@
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
 
-
 class WalletUIConfig : public WebUIConfig {
-public:
-  WalletUIConfig() : WebUIConfig(content::kChromeUIScheme, kChromeUIWalletHost) {}
+ public:
+  WalletUIConfig()
+      : WebUIConfig(content::kChromeUIScheme, kChromeUIWalletHost) {}
   ~WalletUIConfig() override = default;
 
-  std::unique_ptr<content::WebUIController> CreateWebUIController(content::WebUI* web_ui) override {
+  std::unique_ptr<content::WebUIController> CreateWebUIController(
+      content::WebUI* web_ui) override {
     return std::make_unique<WalletUI>(web_ui);
   }
 };
-
