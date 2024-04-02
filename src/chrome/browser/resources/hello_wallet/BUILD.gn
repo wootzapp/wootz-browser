@@ -7,16 +7,14 @@ import("//ui/webui/resources/tools/build_webui.gni")
 build_webui("build") {
   grd_prefix = "hello_wallet"
   static_files = [ "hello_wallet.html" ]
-  non_web_component_files = [
-    "hello_wallet.ts",
-    "hello_wallet_browser_proxy.ts",
-  ]
+  non_web_component_files = [ "hello_wallet.ts" ]
   mojo_files_deps =
-      [ "//chrome/browser/ui/webui/hello_wallet:mojo_bindings_ts__generator" ]
-  mojo_files = [ "$root_gen_dir/chrome/browser/ui/webui/hello_wallet/hello_wallet.mojom-webui.ts" ]
+      [ "//components/demo_wallet/common:mojo_bindings_ts__generator" ]
+  mojo_files = [
+    "$root_gen_dir/components/demo_wallet/common/solana_wallet.mojom-webui.ts",
+  ]
   ts_deps = [
     "//ui/webui/resources/js:build_ts",
     "//ui/webui/resources/mojo:build_ts",
   ]
-  webui_context_type = "trusted"
 }

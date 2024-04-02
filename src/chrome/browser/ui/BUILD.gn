@@ -46,6 +46,8 @@ static_library("ui") {
     "accelerator_utils.h",
     "app_list/app_list_util.cc",
     "app_list/app_list_util.h",
+    "webui/hello_wallet/hello_wallet_page_handler.cc",
+    "webui/hello_wallet/hello_wallet_page_handler.h",
     "webui/hello_wallet/hello_wallet_ui.cc",
     "webui/hello_wallet/hello_wallet_ui.h",
 
@@ -504,6 +506,7 @@ static_library("ui") {
     "//components/crash/core/browser",
     "//components/crx_file",
     "//components/custom_handlers",
+    "//components/demo_wallet/common:mojo_bindings",
     "//components/device_event_log",
     "//components/device_reauth",
     "//components/dom_distiller/content/browser",
