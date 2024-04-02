@@ -1,3 +1,8 @@
+// Copyright (c) 2021 The Brave Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// you can obtain one at http://mozilla.org/MPL/2.0/.
+
 module solana_wallet.mojom;
 
 import "mojo/public/mojom/base/time.mojom";
@@ -16,12 +21,6 @@ interface EventsListener {
   AccountsChangedEvent(array<string> accounts);
 
   // Fired when there is a message from eth_subscribe
-  /**
-   * Represents a message event in the Solana Wallet.
-   *
-   * @param subscription_id - The ID of the subscription.
-   * @param result - The result of the message event.
-   */
   MessageEvent(string subscription_id, mojo_base.mojom.Value result);
 };
 
@@ -222,11 +221,6 @@ interface SolanaProvider {
   // It takes a byte array and an optional display encoding for
   // users and returns an object as
   // { publicKey: <base58 encoded string>,
-  /**
-   * Represents a Solana wallet.
-   *
-   * @signature <base58 encoded string>
-   */
   //   signature:  <base58 encoded string>
   // }
   SignMessage(array<uint8> blob_msg, string? display_encoding)
@@ -238,6 +232,15 @@ interface SolanaProvider {
   Request(mojo_base.mojom.DictionaryValue arg)
     => (SolanaProviderError error, string error_message,
         mojo_base.mojom.DictionaryValue result);
+};
+
+struct SolanaAccountMeta {
+  // Account's address or lookup table address.
+  string pubkey;
+  // Index of the account address in the address lookup table.
+  OptionalUint8? addr_table_lookup_index;
+  bool is_signer;
+  bool is_writable;
 };
 
 enum WalletPinServiceErrorCode {
@@ -375,25 +378,7 @@ interface PanelHandlerFactory {
 interface PageHandlerFactory {
   // The WebUI calls this method when the page is first initialized.
   CreatePageHandler(pending_remote<Page> page,
-                    pending_receiver<PageHandler> page_handler,
-                    pending_receiver<WalletHandler> wallet_handler,
-                    pending_receiver<JsonRpcService> json_rpc_service,
-                    pending_receiver<BitcoinWalletService> bitcoin_wallet_service,
-                    pending_receiver<ZCashWalletService> zcash_wallet_service,
-                    pending_receiver<SwapService> swap_service,
-                    pending_receiver<AssetRatioService> asset_ratio_service,
-                    pending_receiver<KeyringService> keyring_service,
-                    pending_receiver<BlockchainRegistry> blockchain_registry,
-                    pending_receiver<TxService> tx_service,
-                    pending_receiver<EthTxManagerProxy> eth_tx_manager_proxy,
-                    pending_receiver<SolanaTxManagerProxy> solana_tx_manager_proxy,
-                    pending_receiver<FilTxManagerProxy> fil_tx_manager_proxy,
-                    pending_receiver<BraveWalletService> brave_wallet_service,
-                    pending_receiver<BraveWalletP3A> brave_wallet_p3a,
-                    pending_receiver<WalletPinService> brave_wallet_pin_service,
-                    pending_receiver<WalletAutoPinService>
-                        brave_wallet_auto_pin_service,
-                    pending_receiver<IpfsService> brave_wallet_ipfs_service);
+                    pending_receiver<PageHandler> page_handler);
 };
 
 // Lifetime option in sync with CreatePermissionLifetimeOptions()
@@ -2239,15 +2224,6 @@ struct EncryptionKeyRequest {
 
 struct OptionalUint8 {
   uint8 val;
-};
-
-struct SolanaAccountMeta {
-  // Account's address or lookup table address.
-  string pubkey;
-  // Index of the account address in the address lookup table.
-  OptionalUint8? addr_table_lookup_index;
-  bool is_signer;
-  bool is_writable;
 };
 
 // https://docs.rs/solana-program/latest/solana_program/system_instruction/enum.SystemInstruction.html

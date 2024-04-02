@@ -40,6 +40,7 @@
 #include "chrome/browser/ui/web_applications/draggable_region_host_impl.h"
 #include "chrome/browser/ui/webui/browsing_topics/browsing_topics_internals_ui.h"
 #include "chrome/browser/ui/webui/engagement/site_engagement_ui.h"
+#include "chrome/browser/ui/webui/hello_wallet/hello_wallet_ui.h"
 #include "chrome/browser/ui/webui/internals/internals_ui.h"
 #include "chrome/browser/ui/webui/location_internals/location_internals.mojom.h"
 #include "chrome/browser/ui/webui/location_internals/location_internals_ui.h"
@@ -1119,6 +1120,9 @@ void PopulateChromeWebUIFrameBinders(
   RegisterWebUIControllerInterfaceBinder<
       segmentation_internals::mojom::PageHandlerFactory,
       SegmentationInternalsUI>(map);
+
+  RegisterWebUIControllerInterfaceBinder<
+      solana_wallet::mojom::PageHandlerFactory, HelloWalletUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
       commerce::mojom::CommerceInternalsHandlerFactory,

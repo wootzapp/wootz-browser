@@ -1,0 +1,8 @@
+import("//chrome/build/config.gni")
+
+static_library("browser") {
+  sources = [
+    "solana_account_meta.cc",
+    "solana_account_meta.h",
+  ]
+}
