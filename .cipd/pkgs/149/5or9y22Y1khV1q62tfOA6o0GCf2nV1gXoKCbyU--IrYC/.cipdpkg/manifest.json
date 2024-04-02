@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_pcollections_pcollections",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "pcollections-3.1.4.jar",
+      "size": 38864,
+      "hash": "NPV5ugdcjaLIoP7dDwTiHqwvtsZg2Q0Pq7Vz6LTcaRgC"
+    }
+  ]
+}

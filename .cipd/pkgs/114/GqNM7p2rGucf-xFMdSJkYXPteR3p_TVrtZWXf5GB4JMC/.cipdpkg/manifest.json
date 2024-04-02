@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_grpc_grpc_core",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "grpc-core-1.49.0.jar",
+      "size": 723193,
+      "hash": "011gid18jXQuXJeRbz2rXvedKZhQvpQ1aqXmA_4TbvYC"
+    }
+  ]
+}

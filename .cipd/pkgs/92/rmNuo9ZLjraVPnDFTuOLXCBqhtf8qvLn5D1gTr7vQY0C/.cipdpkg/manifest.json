@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_firebase_firebase_installations_interop",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "firebase-installations-interop-16.0.1.aar",
+      "size": 6106,
+      "hash": "t5LlItkSpeukjRthhbVIarjEtaHVong9yR4nMz0f_DwC"
+    }
+  ]
+}

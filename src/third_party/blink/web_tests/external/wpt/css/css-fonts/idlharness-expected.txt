@@ -1,0 +1,48 @@
+This is a testharness.js-based test.
+Found 22 FAIL, 0 TIMEOUT, 0 NOTRUN.
+[FAIL] CSSFontFeatureValuesRule interface: existence and properties of interface object
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface object length
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface object name
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: existence and properties of interface prototype object
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: existence and properties of interface prototype object's "constructor" property
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: existence and properties of interface prototype object's @@unscopables property
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute fontFamily
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute annotation
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute ornaments
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute stylistic
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute swash
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute characterVariant
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute styleset
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesRule interface: attribute historicalForms
+  assert_own_property: self does not have own property "CSSFontFeatureValuesRule" expected property "CSSFontFeatureValuesRule" missing
+[FAIL] CSSFontFeatureValuesMap interface: existence and properties of interface object
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface object length
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface object name
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface: existence and properties of interface prototype object
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface: existence and properties of interface prototype object's "constructor" property
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface: existence and properties of interface prototype object's @@unscopables property
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+[FAIL] CSSFontFeatureValuesMap interface: maplike<CSSOMString, [object Object]>
+  Cannot read properties of undefined (reading 'prototype')
+[FAIL] CSSFontFeatureValuesMap interface: operation set(CSSOMString, (unsigned long or sequence<unsigned long>))
+  assert_own_property: self does not have own property "CSSFontFeatureValuesMap" expected property "CSSFontFeatureValuesMap" missing
+Harness: the test ran to completion.
+

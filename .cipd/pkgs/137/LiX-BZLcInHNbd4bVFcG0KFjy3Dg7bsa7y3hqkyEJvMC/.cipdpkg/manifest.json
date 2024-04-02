@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_jetbrains_kotlinx_kotlinx_coroutines_guava",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "kotlinx-coroutines-guava-1.6.4.jar",
+      "size": 19447,
+      "hash": "lN7u4HLg92Koo8zGaxdixdltVeyhPKtAAfW3WIu3Q5AC"
+    }
+  ]
+}

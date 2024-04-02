@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/android_arch_core_runtime",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "runtime-1.1.1.aar",
+      "size": 5124,
+      "hash": "wyFapYczEbP4im9OSjwlrYmXG8En3ow-EpHFf5OgXDkC"
+    }
+  ]
+}

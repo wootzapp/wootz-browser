@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_ccil_cowan_tagsoup_tagsoup",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "tagsoup-1.2.1.jar",
+      "size": 90722,
+      "hash": "rJf3tLHY6TN-36DjQET40O_nIj9q2POoXVTMEBjqLgQC"
+    }
+  ]
+}

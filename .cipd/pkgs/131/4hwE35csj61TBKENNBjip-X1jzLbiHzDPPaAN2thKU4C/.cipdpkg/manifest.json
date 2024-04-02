@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_conscrypt_conscrypt_openjdk_uber",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "conscrypt-openjdk-uber-2.5.2.jar",
+      "size": 4534256,
+      "hash": "6vU32Y4DPQ8EUc0bjMdOAte1XsiC2mPIgGDYBrqJw0gC"
+    }
+  ]
+}

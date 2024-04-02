@@ -1,0 +1,4 @@
+{
+  "subdir": "src/buildtools/reclient",
+  "package_name": "infra/rbe/client/linux-amd64"
+}

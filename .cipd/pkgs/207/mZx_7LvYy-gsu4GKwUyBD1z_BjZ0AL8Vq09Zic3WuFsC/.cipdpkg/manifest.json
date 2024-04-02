@@ -1,0 +1,19 @@
+{
+  "format_version": "1.1",
+  "package_name": "infra/tools/result_adapter/linux-amd64",
+  "version_file": ".versions/result_adapter.cipd_version",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "result_adapter",
+      "size": 19568393,
+      "executable": true,
+      "hash": "y2S8TqplseqVauwzxxLUgP2dEJRxUtymKpkpWufsiMEC"
+    },
+    {
+      "name": ".versions/result_adapter.cipd_version",
+      "size": 127,
+      "hash": "rtoeujpcZOPyZ0QmRLcGX7WmtZhaKGcyFBw9KEQcFl0C"
+    }
+  ]
+}

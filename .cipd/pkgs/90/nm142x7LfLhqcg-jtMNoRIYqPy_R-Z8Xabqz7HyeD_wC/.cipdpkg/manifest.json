@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_firebase_firebase_iid_interop",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "firebase-iid-interop-17.0.0.aar",
+      "size": 6775,
+      "hash": "tvStWB60iTcL4784pL2r_G6j1OcWI0xiWg9CUWxTUjwC"
+    }
+  ]
+}

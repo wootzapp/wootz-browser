@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_checkerframework_dataflow_errorprone",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "dataflow-errorprone-3.15.0.jar",
+      "size": 1057695,
+      "hash": "Rtkb0y3_q55oU0IrN7JXDaPu69giWK8I7n3otZ7eivEC"
+    }
+  ]
+}
