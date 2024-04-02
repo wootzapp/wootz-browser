@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_localbroadcastmanager",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "localbroadcastmanager-28.0.0.aar",
+      "size": 6905,
+      "hash": "0ofII69f3ecsCZ_PxfYw7-loevepFDQ65v2S3jLIqAYC"
+    }
+  ]
+}

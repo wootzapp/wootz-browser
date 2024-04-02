@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_documentfile",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "documentfile-28.0.0.aar",
+      "size": 11266,
+      "hash": "R83NPpMCt7Bkkj8FSHpcA7q72bvaRya3Hpd5H6tdR3kC"
+    }
+  ]
+}

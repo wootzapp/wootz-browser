@@ -1,0 +1,4 @@
+{
+  "subdir": "src/third_party/android_build_tools/aapt2",
+  "package_name": "chromium/third_party/android_build_tools/aapt2"
+}

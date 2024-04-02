@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/android_arch_lifecycle_viewmodel",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "viewmodel-1.1.1.aar",
+      "size": 7217,
+      "hash": "feKc-rp31rXVviNMV_aBLQFQ0IfmOUGvIrodH44ryWoC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_ow2_asm_asm",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "asm-9.6.jar",
+      "size": 123598,
+      "hash": "PG-sJCTbPUqFO2afTj0dnDxVIjXhmjGWc_iHCDwjA6EC"
+    }
+  ]
+}
