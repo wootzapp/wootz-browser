@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/webui/solana_wallet/solana_wallet_ui.h"
+#include "chrome/browser/ui/webui/hello_wallet/hello_wallet_ui.h"
 
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/hello_wallet/hello_wallet_page_handler.h"
 #include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/hello_wallet_resources.h"
+#include "chrome/grit/hello_wallet_resources_map.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
 

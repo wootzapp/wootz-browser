@@ -6,7 +6,7 @@
 #define CHROME_BROWSER_UI_WEBUI_HELLO_WALLET_HELLO_WALLET_UI_H_
 
 #include "base/memory/raw_ptr.h"
-#include "components/solana_wallet/common/solana_wallet.mojom.h"
+#include "components/demo_wallet/common/solana_wallet.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/webui/mojo_web_ui_controller.h"
 
@@ -36,7 +36,7 @@ class HelloWalletUI : public ui::MojoWebUIController,
   raw_ptr<Profile> profile_;
   std::unique_ptr<HelloWalletPageHandler> hello_wallet_page_handler_;
   mojo::Receiver<solana_wallet::mojom::PageHandlerFactory>
-      solana_wallet_page_factory_receiver_{this};
+      hello_wallet_page_factory_receiver_{this};
 
   WEB_UI_CONTROLLER_TYPE_DECL();
 };

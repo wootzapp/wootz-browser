@@ -11,9 +11,13 @@ export class HelloWalletBrowserProxy {
     factory.createPageHandler(
         this.callbackRouter.$.bindNewPipeAndPassRemote(),
         this.handler.$.bindNewPipeAndPassReceiver());
+  } 
+  static getInstance(): HelloWalletBrowserProxy {
+    return instance || (instance = new HelloWalletBrowserProxy());
   }
-
-  
+  static setInstance(obj: HelloWalletBrowserProxy) {
+    instance = obj;
+  }
 }
 
 let instance: HelloWalletBrowserProxy|null = null;
