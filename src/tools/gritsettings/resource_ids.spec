@@ -379,6 +379,10 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [3660],
   },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttling/resources.grd": {
+    "META": {"sizes": {"includes": [10]}},
+    "includes": [3665],
+  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/side_panel/bookmarks/resources.grd": {
     "META": {"sizes": {"includes": [45],}},
     "includes": [3680],
@@ -577,7 +581,6 @@
     "META": {"sizes": {"includes": [5]}},
     "includes": [4570],
   },
-  
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/invalidations/resources.grd": {
     "META": {"sizes": {"includes": [10],}},
     "includes": [4580],
