@@ -379,10 +379,6 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [3660],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttle/resources.grd": {
-    "META": {"sizes": {"includes": [10]}},
-    "includes": [3665],
-  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/side_panel/bookmarks/resources.grd": {
     "META": {"sizes": {"includes": [45],}},
     "includes": [3680],
@@ -592,6 +588,10 @@
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/net_internals/resources.grd": {
     "META": {"sizes": {"includes": [20]}},
     "includes": [4620],
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttle/resources.grd": {
+    "META": {"sizes": {"includes": [20]}},
+    "includes": [4630],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/omnibox/resources.grd": {
     "META": {"sizes": {"includes": [30]}},

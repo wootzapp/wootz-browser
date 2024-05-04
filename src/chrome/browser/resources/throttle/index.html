@@ -23,72 +23,36 @@
 </head>
 <body>
     <h1>Network Throttling Configuration</h1>
-    <form id="throttleForm">
+    <form id="throttle-form">
         <label>Offline:
-            <select id="offline">
+            <select id="throttle-offline-select">
                 <option value="false" selected>No</option>
                 <option value="true">Yes</option>
             </select>
         </label><br>
         <label>Latency (ms):
-            <input type="number" id="latency" value="0">
+            <input type="number" id="throttle-latency-input" value="0">
         </label><br>
         <label>Download Throughput (bytes/sec):
-            <input type="number" id="downloadThroughput" value="0">
+            <input type="number" id="throttle-download-throughput-input" value="0">
         </label><br>
         <label>Upload Throughput (bytes/sec):
-            <input type="number" id="uploadThroughput" value="0">
+            <input type="number" id="throttle-upload-throughput-input" value="0">
         </label><br>
-        <label>Connection Type:
-            <select id="connectionType">
-                <option value="">None</option>
-                <option value="wifi">WiFi</option>
-                <option value="cellular">Cellular</option>
-                <option value="ethernet">Ethernet</option>
-                <option value="none">None</option>
-            </select>
-        </label><br>
+        
         <label>Packet Loss (%):
-            <input type="number" id="packetLoss" placeholder="0.0" step="0.01" min="0" max="100">
+            <input type="number" id="throttle-packet-loss-input" placeholder="0.0" step="0.01" min="0" max="100">
         </label><br>
         <label>Packet Queue Length:
-            <input type="number" id="packetQueueLength" min="0">
+            <input type="number" id="throttle-packet-queue-length-input" min="0">
         </label><br>
         <label>Packet Reordering:
-            <select id="packetReordering">
+            <select id="throttle-packet-reordering-select">
                 <option value="false" selected>No</option>
                 <option value="true">Yes</option>
             </select>
         </label><br>
-        <button type="button" onclick="submitThrottleSettings()">Apply Settings</button>
+        <button type="submit" id="throttle-submit">Apply Settings</button>
     </form>
-
-    <script>
-        function submitThrottleSettings() {
-            const form = document.getElementById('throttleForm');
-            const offline = document.getElementById('offline').value === 'true';
-            const latency = parseFloat(document.getElementById('latency').value);
-            const downloadThroughput = parseFloat(document.getElementById('downloadThroughput').value);
-            const uploadThroughput = parseFloat(document.getElementById('uploadThroughput').value);
-            const connectionType = document.getElementById('connectionType').value || undefined;
-            const packetLoss = parseFloat(document.getElementById('packetLoss').value) || undefined;
-            const packetQueueLength = parseInt(document.getElementById('packetQueueLength').value, 10) || undefined;
-            const packetReordering = document.getElementById('packetReordering').value === 'true' ? true : undefined;
-
-            console.log('Settings:', {
-                offline,
-                latency,
-                downloadThroughput,
-                uploadThroughput,
-                connectionType,
-                packetLoss,
-                packetQueueLength,
-                packetReordering
-            });
-            
-            // Assume a function to send these settings to the backend
-            // This will typically involve calling a browser API or sending a message to a backend process handling network conditions.
-        }
-    </script>
 </body>
 </html>

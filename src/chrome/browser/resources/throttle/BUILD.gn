@@ -1,0 +1,44 @@
+import("//chrome/common/features.gni")
+import("//tools/grit/grit_rule.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+import("//ui/webui/resources/tools/generate_grd.gni")
+
+preprocess_folder = "preprocessed"
+preprocess_manifest = "preprocessed_manifest.json"
+
+grit("resources") {
+  defines = chrome_grit_defines
+
+  enable_input_discovery_for_gn_analyze = false
+  source = "$target_gen_dir/resources.grd"
+  deps = [ ":build_grd" ]
+  outputs = [
+    "grit/throttle_resources.h",
+    "grit/throttle_resources_map.h",
+    "grit/throttle_resources_map.cc",
+    "throttle_resources.pak",
+  ]
+  output_dir = "$root_gen_dir/chrome"
+}
+
+generate_grd("build_grd") {
+  grd_prefix = "throttle"
+  out_grd = "$target_gen_dir/resources.grd"
+  input_files = [
+    "browser_bridge.js",
+    "index.js",
+    "main.css",
+    "throttle_view.js",
+  ]
+  input_files_base_dir = rebase_path(".", "//")
+  deps = [ ":preprocess" ]
+  manifest_files = [ "$target_gen_dir/$preprocess_manifest" ]
+}
+
+preprocess_if_expr("preprocess") {
+  out_folder = "$target_gen_dir/$preprocess_folder"
+  out_manifest = "$target_gen_dir/$preprocess_manifest"
+  in_files = [
+    "index.html",
+  ]
+}

@@ -38,7 +38,7 @@ export class ThrottleView extends DivView {
     const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || undefined;
     const packetReordering = this.packetReorderingSelect_.value === 'true';
 
-    this.browserBridge_.sendThrottleSettings({
+    this.browserBridge_.sendSetNetworkThrottling({
       offline,
       latency,
       downloadThroughput,
@@ -77,3 +77,4 @@ ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID = 'throttle-upload-throughput-input';
 ThrottleView.PACKET_LOSS_INPUT_ID = 'throttle-packet-loss-input';
 ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID = 'throttle-packet-queue-length-input';
 ThrottleView.PACKET_REORDERING_SELECT_ID = 'throttle-packet-reordering-select';
+ThrottleView.SUBMIT_ID = 'throttle-submit';

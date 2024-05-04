@@ -103,22 +103,30 @@ namespace {
         double latency = args[1].GetDouble();
         double download_throughput = args[2].GetDouble();
         double upload_throughput = args[3].GetDouble();
-        auto connection_type = static_cast<network::mojom::ConnectionType>(args[4].GetInt());
-        double packet_loss = args[5].GetDouble();
-        int packet_queue_length = args[6].GetInt();
+        double packet_loss = args[4].GetDouble();
+        int packet_queue_length = args[5].GetInt();
 
-        auto* network_context = GetNetworkContext();
         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
         conditions->offline = offline;
         conditions->latency = base::Milliseconds(latency);
         conditions->download_throughput = download_throughput;
         conditions->upload_throughput = upload_throughput;
-        conditions->connection_type = connection_type;
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
 
-        network_context->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
     }
+
+    network::mojom::NetworkContext*
+    ThrottleMessageHandler::GetNetworkContext() {
+   
+    return web_ui_->GetWebContents()
+      ->GetBrowserContext()
+      ->GetDefaultStoragePartition()
+      ->GetNetworkContext();
+}
+
+} // namespace
 
 
 // ThrottleUI
@@ -131,4 +139,3 @@ namespace {
         // Set up the chrome://net-internals/ source.
         CreateAndAddThrottleHTMLSource(Profile::FromWebUI(web_ui));
     }
-}
