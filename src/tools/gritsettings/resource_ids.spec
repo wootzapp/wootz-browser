@@ -379,7 +379,7 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [3660],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttling/resources.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttle/resources.grd": {
     "META": {"sizes": {"includes": [10]}},
     "includes": [3665],
   },
