@@ -29,6 +29,8 @@ generate_grd("build_grd") {
     "index.js",
     "main.css",
     "throttle_view.js",
+    "util.js",
+    "view.js",
   ]
   input_files_base_dir = rebase_path(".", "//")
   deps = [ ":preprocess" ]
@@ -40,5 +42,6 @@ preprocess_if_expr("preprocess") {
   out_manifest = "$target_gen_dir/$preprocess_manifest"
   in_files = [
     "index.html",
+    "main.js",
   ]
 }
