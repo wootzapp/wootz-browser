@@ -48,18 +48,6 @@ export class ThrottleView extends DivView {
       packetReordering
     });
 
-    // Reset form inputs after submission if needed
-    // this.resetFormInputs();
-  }
-
-  resetFormInputs() {
-    this.offlineSelect_.value = 'false';
-    this.latencyInput_.value = '';
-    this.downloadThroughputInput_.value = '';
-    this.uploadThroughputInput_.value = '';
-    this.packetLossInput_.value = '';
-    this.packetQueueLengthInput_.value = '';
-    this.packetReorderingSelect_.value = 'false';
   }
 
   static getInstance() {

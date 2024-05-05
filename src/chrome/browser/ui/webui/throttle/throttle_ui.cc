@@ -97,7 +97,7 @@ namespace {
 
     void ThrottleMessageHandler::OnSetNetworkThrottling(
         const base::Value::List& args) {
-        DCHECK(args.size() == 7) << "Expected 7 arguments for network throttling settings";
+        DCHECK(args.size() == 6) << "Expected 6 arguments for network throttling settings";
 
         bool offline = args[0].GetBool();
         double latency = args[1].GetDouble();

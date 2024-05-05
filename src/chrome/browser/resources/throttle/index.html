@@ -8,16 +8,43 @@
     <style>
         body {
             padding: 20px;
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f4f9;
+        }
+        h1, h2 {
+            color: #333;
         }
         label {
-            margin-top: 10px;
+            display: block;
+            margin-top: 20px;
+            color: #666;
+            font-size: 16px;
         }
-        input, select {
-            margin-top: 5px;
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
         }
         button {
-            margin-top: 20px;
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #003d7a;
+        }
+        #bandwidth-sharing-box {
+            margin-top: 30px;
+            border: none;
+            padding: 15px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -29,30 +56,34 @@
                 <option value="false" selected>No</option>
                 <option value="true">Yes</option>
             </select>
-        </label><br>
+        </label>
         <label>Latency (ms):
             <input type="number" id="throttle-latency-input" value="0">
-        </label><br>
+        </label>
         <label>Download Throughput (bytes/sec):
             <input type="number" id="throttle-download-throughput-input" value="0">
-        </label><br>
+        </label>
         <label>Upload Throughput (bytes/sec):
             <input type="number" id="throttle-upload-throughput-input" value="0">
-        </label><br>
-        
+        </label>
         <label>Packet Loss (%):
             <input type="number" id="throttle-packet-loss-input" placeholder="0.0" step="0.01" min="0" max="100">
-        </label><br>
+        </label>
         <label>Packet Queue Length:
             <input type="number" id="throttle-packet-queue-length-input" min="0">
-        </label><br>
+        </label>
         <label>Packet Reordering:
             <select id="throttle-packet-reordering-select">
                 <option value="false" selected>No</option>
                 <option value="true">Yes</option>
             </select>
-        </label><br>
+        </label>
         <button type="submit" id="throttle-submit">Apply Settings</button>
     </form>
+
+    <h2>Bandwidth Sharing</h2>
+    <div id="bandwidth-sharing-box">
+        To be added...
+    </div>
 </body>
 </html>
