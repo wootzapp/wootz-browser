@@ -146,9 +146,11 @@ const char kChromeUINaClHost[] = "nacl";
 const char kChromeUINetExportHost[] = "net-export";
 const char kChromeUINetExportURL[] = "chrome://net-export";
 const char kChromeUINetInternalsHost[] = "net-internals";
-const char kChromeUINetInternalsURL[] = "chrome://net-internals/";
+
+const char kChromeUINetInternalsURL[] = "wootzapp://net-internals/";
 const char kChromeUIThrottleHost[] = "throttle";
-const char kChromeUIThrottleURL[] = "chrome://throttle/";
+const char kChromeUIThrottleURL[] = "wootzapp://throttle/";
+
 const char kChromeUINewTabHost[] = "newtab";
 const char kChromeUINewTabPageHost[] = "new-tab-page";
 const char kChromeUINewTabPageURL[] = "chrome://new-tab-page/";
