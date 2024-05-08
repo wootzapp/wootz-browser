@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- This file contains definitions of strings that are specific to
-Google Chrome. These strings will be translated for each locale that Google
+Wootzapp. These strings will be translated for each locale that Google
 Chrome supports. If you update this file, be sure also to update
 chromium_strings.grd. -->
 
@@ -279,23 +279,23 @@ chromium_strings.grd. -->
       </if>
 
       <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
-        Google Chrome
+        Wootzapp
       </message>
       <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name" translateable="false">
         Chrome
       </message>
       <if expr="is_win">
         <message name="IDS_SXS_SHORTCUT_NAME" desc="The Chrome shortcut name for canary channel">
-          Google Chrome Canary
+          Wootzapp Canary
         </message>
         <message name="IDS_SHORTCUT_NAME_BETA" desc="The Chrome shortcut name for beta channel">
-          Google Chrome Beta
+          Wootzapp Beta
         </message>
         <message name="IDS_SHORTCUT_NAME_DEV" desc="The Chrome shortcut name for dev channel">
-          Google Chrome Dev
+          Wootzapp Dev
         </message>
         <message name="IDS_PRODUCT_DESCRIPTION" desc="Browser description">
-          Google Chrome is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Google Chrome.
+          Wootzapp is a web browser that runs webpages and applications with lightning speed. It's fast, stable, and easy to use. Browse the web more safely with malware and phishing protection built into Wootzapp.
         </message>
         <message name="IDS_WELCOME_TO_CHROME" desc="Welcoming text announced via screen readers the first time Chrome is launched at the conclusion of installation.">
           Welcome to Chrome; new browser window opened
@@ -303,13 +303,13 @@ chromium_strings.grd. -->
       </if>
       <if expr="is_macosx or is_linux">
         <message name="IDS_FIRST_RUN_DIALOG_WINDOW_TITLE" desc="Window title of First Run dialog on Mac and Linux, displayed in title bar">
-          Welcome to Google Chrome
+          Welcome to Wootzapp
         </message>
       </if>
       <if expr="chromeos_ash">
         <if expr="reven">
           <message name="IDS_PRODUCT_OS_NAME" desc="The ChromeOS Flex application name">
-            Google ChromeOS Flex
+            WootzappOS Flex
           </message>
           <message name="IDS_SHORT_PRODUCT_OS_NAME" desc="The ChromeOS Flex application short name">
             ChromeOS Flex
@@ -320,7 +320,7 @@ chromium_strings.grd. -->
         </if>
         <if expr="not reven">
           <message name="IDS_PRODUCT_OS_NAME" desc="The ChromeOS application name">
-            Google ChromeOS
+            WootzappOS
           </message>
           <message name="IDS_SHORT_PRODUCT_OS_NAME" desc="The ChromeOS application short name">
             ChromeOS
@@ -345,16 +345,16 @@ chromium_strings.grd. -->
       </if>
       <if expr="not is_macosx and not chromeos_ash">
         <message name="IDS_TASK_MANAGER_TITLE" desc="The title of the Task Manager window">
-          Task Manager - Google Chrome
+          Task Manager - Wootzapp
         </message>
       </if>
       <message name="IDS_SESSION_CRASHED_VIEW_UMA_OPTIN" desc="Text besides the checkbox to let users optin to UMA in the restore from previous crash bubble.">
-        Help make Google Chrome better by sending crash reports and <ph name="UMA_LINK">$1<ex>usage statistics</ex></ph> to Google
+        Help make Wootzapp better by sending crash reports and <ph name="UMA_LINK">$1<ex>usage statistics</ex></ph> to Google
       </message>
       <if expr="not chromeos_ash">
         <!-- Browser Window Title Format -->
         <message name="IDS_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for titles displayed in tabs and popup windows">
-          <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Google Chrome
+          <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Wootzapp
         </message>
       </if>
       <if expr="chromeos_ash">
@@ -384,16 +384,16 @@ chromium_strings.grd. -->
       <!-- Accessible window title format - includes the channel, and the same
            on all browser platforms rather than different on ChromeOS. -->
       <message name="IDS_ACCESSIBLE_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window">
-        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Google Chrome
+        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Wootzapp
       </message>
       <message name="IDS_ACCESSIBLE_BETA_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window for the beta channel version of the browser">
-        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Google Chrome Beta
+        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Wootzapp Beta
       </message>
       <message name="IDS_ACCESSIBLE_DEV_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window for the developer (dev) channel version of the browser">
-        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Google Chrome Dev
+        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Wootzapp Dev
       </message>
       <message name="IDS_ACCESSIBLE_CANARY_BROWSER_WINDOW_TITLE_FORMAT" desc="The format for the accessible name of a tabbed browser window for the canary (nightly build) channel version of the browser">
-        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Google Chrome Canary
+        <ph name="PAGE_TITLE">$1<ex>Google</ex></ph> - Wootzapp Canary
       </message>
       <message name="IDS_ABOUT_VERSION_COMPANY_NAME" desc="Company name on the about pages">
         Google LLC
@@ -427,32 +427,32 @@ chromium_strings.grd. -->
       </message>
       <if expr="is_macosx">
         <message name="IDS_MACOS_OBSOLETE" desc="A message displayed on an at-launch infobar and About (Help) page warning the user that the OS version they are using will soon be or is already unsupported.">
-          To get future Google Chrome updates, you'll need macOS 11 or later. This computer is using macOS 10.15.
+          To get future Wootzapp updates, you'll need macOS 11 or later. This computer is using macOS 10.15.
         </message>
       </if>
       <if expr="is_win">
         <message name="IDS_WIN_XP_VISTA_OBSOLETE" desc="A message displayed on an at-launch infobar and about:help warning the user that the computer they are using is no longer supported.">
-          This computer will no longer receive Google Chrome updates because Windows XP and Windows Vista are no longer supported
+          This computer will no longer receive Wootzapp updates because Windows XP and Windows Vista are no longer supported
         </message>
       </if>
       <if expr="is_win">
         <message name="IDS_WIN_7_OBSOLETE" desc="A message displayed on an at-launch infobar and about:help warning the user that the computer they are using will soon be or is already unsupported.">
-                    To get future Google Chrome updates, you'll need Windows 10 or later. This computer is using Windows 7.
+                    To get future Wootzapp updates, you'll need Windows 10 or later. This computer is using Windows 7.
         </message>
       </if>
       <if expr="is_win">
         <message name="IDS_WIN_8_OBSOLETE" desc="A message displayed on an at-launch infobar and about:help warning the user that the computer they are using will soon be or is already unsupported.">
-                    To get future Google Chrome updates, you'll need Windows 10 or later. This computer is using Windows 8.
+                    To get future Wootzapp updates, you'll need Windows 10 or later. This computer is using Windows 8.
         </message>
       </if>
       <if expr="is_win">
         <message name="IDS_WIN_8_1_OBSOLETE" desc="A message displayed on an at-launch infobar and about:help warning the user that the computer they are using will soon be or is already unsupported.">
-                    To get future Google Chrome updates, you'll need Windows 10 or later. This computer is using Windows 8.1.
+                    To get future Wootzapp updates, you'll need Windows 10 or later. This computer is using Windows 8.1.
         </message>
       </if>
       <if expr="is_linux">
         <message name="IDS_LINUX_OBSOLETE" desc="A message displayed on an at-launch infobar and about:help warning the user that the OS version they are using is no longer supported.">
-          Google Chrome may not function correctly because it is no longer supported on this Linux distribution
+          Wootzapp may not function correctly because it is no longer supported on this Linux distribution
         </message>
       </if>
       <message name="IDS_ACCNAME_APP" desc="The accessible name for the app menu." translateable="false">
@@ -461,7 +461,7 @@ chromium_strings.grd. -->
       <!-- Hung Browser Detector -->
       <if expr="is_win">
         <message name="IDS_BROWSER_HUNGBROWSER_MESSAGE" desc="Content of the dialog box shown when the browser is hung">
-          Google Chrome is unresponsive. Relaunch now?
+          Wootzapp is unresponsive. Relaunch now?
         </message>
       </if>
       <!-- Sharing messages -->
@@ -477,30 +477,30 @@ chromium_strings.grd. -->
       <!-- Uninstall messages -->
       <if expr="is_win">
         <message name="IDS_UNINSTALL_CLOSE_APP" desc="Message to user when uninstall detects other app instance running">
-          Please close all Google Chrome windows and try again.
+          Please close all Wootzapp windows and try again.
         </message>
         <message name="IDS_UNINSTALL_VERIFY" desc="Message to confirm user wants to uninstall">
-          Are you sure you want to uninstall Google Chrome?
+          Are you sure you want to uninstall Wootzapp?
         </message>
-        <message name="IDS_UNINSTALL_CHROME" desc="The title of the Google Chrome uninstall dialog.">
-          Uninstall Google Chrome
+        <message name="IDS_UNINSTALL_CHROME" desc="The title of the Wootzapp uninstall dialog.">
+          Uninstall Wootzapp
         </message>
       </if>
       <message name="IDS_FR_CUSTOMIZE_DEFAULT_BROWSER" desc="Default browser checkbox label">
-        Make Google Chrome the default browser
+        Make Wootzapp the default browser
       </message>
       <if expr="use_titlecase">
         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND" desc="In Title Case: The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
-          Let Google Chrome Run in the Background
+          Let Wootzapp Run in the Background
         </message>
       </if>
       <if expr="not use_titlecase">
         <message name="IDS_STATUS_TRAY_KEEP_CHROME_RUNNING_IN_BACKGROUND" desc="The checkbox in the status tray context menu that controls whether chrome keeps running in the background after the last window is closed">
-          Let Google Chrome run in the background
+          Let Wootzapp run in the background
         </message>
       </if>
       <message name="IDS_CANT_WRITE_USER_DIRECTORY_SUMMARY" desc="Summary of problem displayed in dialog when we can't create a directory for this user.">
-Google Chrome cannot read and write to its data directory:
+Wootzapp cannot read and write to its data directory:
 
 <ph name="USER_DATA_DIRECTORY">$1<ex>C:\Documents and Settings\devint\Local Settings\Application Data\Google\Chrome</ex></ph>
       </message>
@@ -517,7 +517,7 @@ Google Chrome cannot read and write to its data directory:
         </if>
       </if>
       <message name="IDS_PROFILE_TOO_NEW_ERROR" desc="Error displayed on startup when the profile is from a newer version of the product and can not be read">
-Your profile can not be used because it is from a newer version of Google Chrome.
+Your profile can not be used because it is from a newer version of Wootzapp.
 
 Some features may be unavailable. Please specify a different profile directory or use a newer version of Chrome.
       </message>
@@ -529,7 +529,7 @@ Some features may be unavailable and changes to preferences won't be saved.
       <message name="IDS_PREFERENCES_CORRUPT_ERROR" desc="Error displayed on startup when user preferences file can not be read">
 Your preferences file is corrupt or invalid.
 
-Google Chrome is unable to recover your settings.
+Wootzapp is unable to recover your settings.
       </message>
       <!-- Add account dialog -->
       <if expr="chromeos_ash">
@@ -541,11 +541,11 @@ Permissions you've already given to websites and apps may apply to this account.
       </if>
       <!-- Crash Recovery Dialog -->
       <message name="IDS_CRASH_RECOVERY_TITLE" desc="Title of dialog shown when the browser crashes." translateable="false">
-        Google Chrome
+        Wootzapp
       </message>
       <if expr="is_win">
         <message name="IDS_CRASH_RECOVERY_CONTENT" desc="Text content telling the user the browser has crashed.">
-          Whoa! Google Chrome has crashed. Relaunch now?
+          Whoa! Wootzapp has crashed. Relaunch now?
         </message>
       </if>
       <!-- Password generation strings -->
@@ -557,7 +557,7 @@ Permissions you've already given to websites and apps may apply to this account.
         Chrome lets you know if your passwords are ever compromised
       </message>
       <message name="IDS_PASSWORD_MANAGER_TITLE_BRAND" desc="The product name used in the title of the password bubble." translateable="false">
-        Google Chrome
+        Wootzapp
       </message>
       <message name="IDS_PASSWORD_BUBBLES_PASSWORD_MANAGER_LINK_TEXT_SAVING_ON_DEVICE" desc="The text of the Google Password Manager links displayed on Password Manager bubbles footer when the credentials are stored only locally.">
         Google Password Manager
@@ -570,65 +570,65 @@ Permissions you've already given to websites and apps may apply to this account.
       </message>
       <if expr="is_macosx">
         <message name="IDS_PASSWORDS_AUTHENTICATION_PROMPT_PREFIX" desc="Text shown in the beginning of the OS-level user authentication prompt before performing a seneitive operation such as show passwords in plain text.">
-          Google Chrome is trying to <ph name="AUTHENTICATION_PURPOSE">$1<ex>show passwords</ex></ph>
+          Wootzapp is trying to <ph name="AUTHENTICATION_PURPOSE">$1<ex>show passwords</ex></ph>
         </message>
       </if>
       <if expr="is_win">
         <message name="IDS_PASSWORDS_PAGE_AUTHENTICATION_PROMPT" desc="Text for the dialog box that prompts the user for their OS account password before revealing plaintext passwords on the password page.">
-          Google Chrome is trying to show passwords. Type your Windows password to allow this.
+          Wootzapp is trying to show passwords. Type your Windows password to allow this.
         </message>
         <message name="IDS_PASSWORDS_PAGE_COPY_AUTHENTICATION_PROMPT" desc="Text for the dialog box that prompts the user for their OS account password before copying plaintext passwords into the clipbord.">
-          Google Chrome is trying to copy passwords. Type your Windows password to allow this.
+          Wootzapp is trying to copy passwords. Type your Windows password to allow this.
         </message>
         <message name="IDS_PASSWORDS_PAGE_EDIT_AUTHENTICATION_PROMPT" desc="Text for the dialog box that prompts the user for their OS account password before editing plaintext passwords on the password page.">
-          Google Chrome is trying to edit passwords. Type your Windows password to allow this.
+          Wootzapp is trying to edit passwords. Type your Windows password to allow this.
         </message>
         <message name="IDS_PASSWORDS_PAGE_EXPORT_AUTHENTICATION_PROMPT" desc="Text for the dialog box that prompts the user for their OS account password before exporting passwords to a file.">
-          Google Chrome wants to export your passwords. Type your Windows password to allow this.
+          Wootzapp wants to export your passwords. Type your Windows password to allow this.
         </message>
         <message name="IDS_PASSWORDS_PAGE_IMPORT_AUTHENTICATION_PROMPT" desc="Text for the dialog box that prompts the user for their OS account password before overriding passwords during Import.">
-          Google Chrome is trying to replace existing passwords. Type your Windows password to allow this.
+          Wootzapp is trying to replace existing passwords. Type your Windows password to allow this.
         </message>
         <message name="IDS_INSTALL_HIGHER_VERSION" desc="Error displayed when higher version already exists.">
-          This computer already has a more recent version of Google Chrome. If the software is not working, please uninstall Google Chrome and try again.
+          This computer already has a more recent version of Wootzapp. If the software is not working, please uninstall Wootzapp and try again.
         </message>
         <message name="IDS_INSTALL_FAILED" desc="Error displayed if installation fails due to some unknown error.">
-          Installation failed due to unspecified error. If Google Chrome is currently running, please close it and try again.
+          Installation failed due to unspecified error. If Wootzapp is currently running, please close it and try again.
         </message>
         <message name="IDS_SAME_VERSION_REPAIR_FAILED" desc="Error displayed if installation fails due to Chrome running.">
-          Can not install the same Google Chrome version that is currently running. Please close Google Chrome and try again.
+          Can not install the same Wootzapp version that is currently running. Please close Wootzapp and try again.
         </message>
         <message name="IDS_SETUP_PATCH_FAILED" desc="Error message when setup.exe fails to patch itself.">
-          Installation failed due to unspecified error. Please download Google Chrome again.
+          Installation failed due to unspecified error. Please download Wootzapp again.
         </message>
         <message name="IDS_INSTALL_OS_NOT_SUPPORTED" desc="Error displayed if OS is not supported">
-          Google Chrome requires Windows 10 or higher.
+          Wootzapp requires Windows 10 or higher.
         </message>
         <message name="IDS_INSTALL_OS_ERROR" desc="Error displayed when any Windows API call fails and we do not have more specific information.">
-          An operating system error occurred during installation. Please download Google Chrome again.
+          An operating system error occurred during installation. Please download Wootzapp again.
         </message>
         <message name="IDS_INSTALL_SINGLETON_ACQUISITION_FAILED" desc="Error displayed when the installer cannot run because another installer is already running.">
-          Another operation on Google Chrome is in progress. Please try again later.
+          Another operation on Wootzapp is in progress. Please try again later.
         </message>
         <message name="IDS_INSTALL_TEMP_DIR_FAILED" desc="Error displayed when we fail to create temporary directory during installation.">
           The installer couldn't create a temporary directory. Please check for free disk space and permission to install software.
         </message>
         <message name="IDS_INSTALL_UNCOMPRESSION_FAILED" desc="Error when when we can not uncompress installation archive.">
-          The installer failed to uncompress archive. Please download Google Chrome again.
+          The installer failed to uncompress archive. Please download Wootzapp again.
         </message>
         <message name="IDS_INSTALL_INVALID_ARCHIVE" desc="Error displayed when we can not open the installation archive.">
-          The installer archive is corrupted or invalid. Please download Google Chrome again.
+          The installer archive is corrupted or invalid. Please download Wootzapp again.
         </message>
         <message name="IDS_INSTALL_INSUFFICIENT_RIGHTS" desc="Error displayed when a non admin user tries to attempt system level install/uninstall.">
           You do not have appropriate rights for system-level install. Try running the installer again as Administrator.
         </message>
         <message name="IDS_INSTALL_EXISTING_VERSION_LAUNCHED" desc="A message shown to users who try to install Chrome in their user profile directory when their computer already has Chrome installed for all users. In this case, the installer silently launches the existing version of Chrome for all users rather than installing a second version of Chrome.">
-          Google Chrome is already installed for all users on your computer.
+          Wootzapp is already installed for all users on your computer.
         </message>
       </if>
       <!-- Options Dialog -->
       <if expr="is_win">
-        <message name="IDS_SHORTCUT_TOOLTIP" desc="Text for the hover-on tooltip for the Google Chrome shortcuts.">
+        <message name="IDS_SHORTCUT_TOOLTIP" desc="Text for the hover-on tooltip for the Wootzapp shortcuts.">
           Access the Internet
         </message>
         <message name="IDS_UNINSTALL_DELETE_PROFILE" desc="Text to show user to ask whether to delete all the profile data also during uninstallation.">
@@ -641,28 +641,28 @@ Permissions you've already given to websites and apps may apply to this account.
           Uninstall
         </message>
       </if>
-      <message name="IDS_DEFAULT_BROWSER_INFOBAR_TEXT" desc="Text to show in an infobar when Google Chrome is not the current default browser.">
-        Google Chrome isn't your default browser
+      <message name="IDS_DEFAULT_BROWSER_INFOBAR_TEXT" desc="Text to show in an infobar when Wootzapp is not the current default browser.">
+        Wootzapp isn't your default browser
       </message>
-      <message name="IDS_DEFAULT_BROWSER_INFOBAR_REFRESH_TEXT" desc="Text to show in an infobar when Google Chrome is not the current default browser.">
+      <message name="IDS_DEFAULT_BROWSER_INFOBAR_REFRESH_TEXT" desc="Text to show in an infobar when Wootzapp is not the current default browser.">
         Google recommends setting Chrome as default
       </message>
       <if expr="is_win">
         <!-- Try Chrome Toast Dialog -->
         <message name="IDS_TRY_TOAST_HEADING" desc="Top line of the try-chrome-again dialog">
-          There is a new version of Google Chrome available.
+          There is a new version of Wootzapp available.
         </message>
         <message name="IDS_TRY_TOAST_HEADING2" desc="Top line of the try-chrome-again dialog">
-          There's a new version of Google Chrome available, and it's faster than ever.
+          There's a new version of Wootzapp available, and it's faster than ever.
         </message>
         <message name="IDS_TRY_TOAST_HEADING3" desc="Top line of the try-chrome-again dialog">
-          There's a new, safer version of Google Chrome available.
+          There's a new, safer version of Wootzapp available.
         </message>
         <message name="IDS_TRY_TOAST_HEADING4" desc="Top line of the try-chrome-again dialog">
-          Google Chrome has been updated, but you haven't used it for at least 30 days.
+          Wootzapp has been updated, but you haven't used it for at least 30 days.
         </message>
         <message name="IDS_TRY_TOAST_HEADING_SKYPE" desc="Top line of the try-chrome-again dialog">
-          Google Chrome lets you click a phone number on the web and call it with Skype!
+          Wootzapp lets you click a phone number on the web and call it with Skype!
         </message>
       </if>
 
@@ -759,13 +759,13 @@ Permissions you've already given to websites and apps may apply to this account.
       <!-- Quit all apps confirmation dialog -->
       <if expr="is_macosx">
         <message name="IDS_QUIT_WITH_APPS_TITLE" desc="Title for a notification explaining that Chrome is running in the background.">
-          Google Chrome is in background mode.
+          Wootzapp is in background mode.
         </message>
       </if>
 
       <!-- Google API keys info bar -->
       <message name="IDS_MISSING_GOOGLE_API_KEYS" desc="Message shown when Google API keys are missing. This message is followed by a 'Learn more' link.">
-        Google API keys are missing. Some functionality of Google Chrome will be disabled.
+        Google API keys are missing. Some functionality of Wootzapp will be disabled.
       </message>
 
       <!-- Extension/App install prompt -->
@@ -808,7 +808,7 @@ Permissions you've already given to websites and apps may apply to this account.
         Allow extension to show access requests in the Chrome toolbar
       </message>
       <message name="IDS_EXTENSIONS_INCOGNITO_WARNING" desc="Warns the user that Chrome cannot prevent extensions from recording history in Incognito mode. Displayed in extensions management UI after an extension is selected to be run in Incognito mode.">
-        Warning: Google Chrome cannot prevent extensions from recording your browsing history. To disable this extension in Incognito mode, unselect this option.
+        Warning: Wootzapp cannot prevent extensions from recording your browsing history. To disable this extension in Incognito mode, unselect this option.
       </message>
       <message name="IDS_EXTENSIONS_UNINSTALL" desc="The link for uninstalling extensions.">
         Remove from Chrome
@@ -828,15 +828,15 @@ Permissions you've already given to websites and apps may apply to this account.
 
       <!-- App menu -->
       <message name="IDS_APPMENU_TOOLTIP" desc="The tooltip to show for the browser menu">
-        Customize and control Google Chrome
+        Customize and control Wootzapp
       </message>
 
       <message name="IDS_APPMENU_TOOLTIP_UPDATE_AVAILABLE" desc="The tooltip to show for the browser menu when an update is available">
-        Customize and control Google Chrome. Update is available.
+        Customize and control Wootzapp. Update is available.
       </message>
 
       <message name="IDS_APPMENU_TOOLTIP_ALERT" desc="The tooltip to show for the browser menu when a non-update alert is displayed">
-        Customize and control Google Chrome. Something needs your attention - click for details.
+        Customize and control Wootzapp. Something needs your attention - click for details.
       </message>
 
       <message name="IDS_OPEN_IN_CHROME" desc="The text label of the Open in Chrome menu item for the Hosted App app menu">
@@ -845,7 +845,7 @@ Permissions you've already given to websites and apps may apply to this account.
 
       <if expr="use_titlecase and not chromeos_ash">
         <message name="IDS_ABOUT" desc="In Title Case: The text label of the About Chrome menu item">
-          About &amp;Google Chrome
+          About &amp;Wootzapp
         </message>
         <message name="IDS_RELAUNCH_TO_UPDATE" desc="In Title Case: The text label of the relaunch to update Chrome menu item">
           Relaunch to Update &amp;Chrome
@@ -853,7 +853,7 @@ Permissions you've already given to websites and apps may apply to this account.
       </if>
       <if expr="not use_titlecase and not chromeos_ash">
         <message name="IDS_ABOUT" desc="The text label of the About Chrome menu item">
-          About &amp;Google Chrome
+          About &amp;Wootzapp
         </message>
         <message name="IDS_RELAUNCH_TO_UPDATE" desc="The text label of the relaunch to update Chrome menu item">
           Relaunch to update &amp;Chrome
@@ -861,7 +861,7 @@ Permissions you've already given to websites and apps may apply to this account.
       </if>
       <if expr="chromeos_ash">
         <message name="IDS_ABOUT" desc="The text label of the About Chrome menu item">
-          About &amp;Google Chrome
+          About &amp;Wootzapp
         </message>
         <if expr="reven">
           <message name="IDS_RELAUNCH_TO_UPDATE" desc="The text label of the relaunch to update ChromeOS Flex menu item">
@@ -889,13 +889,13 @@ Permissions you've already given to websites and apps may apply to this account.
       </if>
 
       <if expr="is_macosx">
-        <message name="IDS_APP_MENU_PRODUCT_NAME" desc="The application's short name, used for the Mac's application menu, activity monitor, etc. This should be less than 16 characters. Example: Chrome, not Google Chrome." translateable="false">
+        <message name="IDS_APP_MENU_PRODUCT_NAME" desc="The application's short name, used for the Mac's application menu, activity monitor, etc. This should be less than 16 characters. Example: Chrome, not Wootzapp." translateable="false">
           Chrome
         </message>
-        <message name="IDS_HELPER_NAME" desc="The helper application's name.  Should contain the Chrome application name (IDS_PRODUCT_NAME). Example: Google Chrome Helper.">
-          Google Chrome Helper
+        <message name="IDS_HELPER_NAME" desc="The helper application's name.  Should contain the Chrome application name (IDS_PRODUCT_NAME). Example: Wootzapp Helper.">
+          Wootzapp Helper
         </message>
-        <message name="IDS_SHORT_HELPER_NAME" desc="The helper application's short name, used for the Mac's application menu, activity monitor, etc. Example: Chrome Helper, not Google Chrome Helper.">
+        <message name="IDS_SHORT_HELPER_NAME" desc="The helper application's short name, used for the Mac's application menu, activity monitor, etc. Example: Chrome Helper, not Wootzapp Helper.">
           Chrome Helper
         </message>
       </if>
@@ -930,10 +930,10 @@ Permissions you've already given to websites and apps may apply to this account.
           Link your Chrome data to this account?
         </message>
         <message name="IDS_ENTERPRISE_SIGNIN_EXPLANATION_WITHOUT_PROFILE_CREATION" desc="The warning message displayed to an enterprise user about to link their profile to their Google account. This message is followed by a 'Learn more' link.">
-          You are signing in with a managed account and giving its administrator control over your Google Chrome profile. Your Chrome data, such as your apps, bookmarks, history, passwords, and other settings will become permanently tied to <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>. You will be able to delete this data via the Google Accounts Dashboard, but you will not be able to associate this data with another account. <ph name="LEARN_MORE">$2<ex>Learn more</ex></ph>
+          You are signing in with a managed account and giving its administrator control over your Wootzapp profile. Your Chrome data, such as your apps, bookmarks, history, passwords, and other settings will become permanently tied to <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>. You will be able to delete this data via the Google Accounts Dashboard, but you will not be able to associate this data with another account. <ph name="LEARN_MORE">$2<ex>Learn more</ex></ph>
         </message>
         <message name="IDS_ENTERPRISE_SIGNIN_EXPLANATION_WITH_PROFILE_CREATION" desc="The warning message displayed to an enterprise user about to link their profile to their Google account. Additionally notifies the user that they can create a new profile instead. This message is followed by a 'Learn more' link.">
-          You are signing in with a managed account and giving its administrator control over your Google Chrome profile. Your Chrome data, such as your apps, bookmarks, history, passwords, and other settings will become permanently tied to <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>. You will be able to delete this data via the Google Accounts Dashboard, but you will not be able to associate this data with another account. You can optionally create a new profile to keep your existing Chrome data separate. <ph name="LEARN_MORE">$2<ex>Learn more</ex></ph>
+          You are signing in with a managed account and giving its administrator control over your Wootzapp profile. Your Chrome data, such as your apps, bookmarks, history, passwords, and other settings will become permanently tied to <ph name="USER_NAME">$1<ex>pat@example.com</ex></ph>. You will be able to delete this data via the Google Accounts Dashboard, but you will not be able to associate this data with another account. You can optionally create a new profile to keep your existing Chrome data separate. <ph name="LEARN_MORE">$2<ex>Learn more</ex></ph>
         </message>
         <message name="IDS_ENTERPRISE_SIGNIN_WORK_PROFILE_TITLE" desc="The title of the dialog to confirm adding a new work profile with the signed-in enterprise account">
           Add Work Profile to this browser
@@ -959,10 +959,10 @@ Permissions you've already given to websites and apps may apply to this account.
       <!-- about:browser-switch strings -->
       <if expr="toolkit_views and not chromeos_lacros and not chromeos_ash">
         <message name="IDS_ABOUT_BROWSER_SWITCH_DESCRIPTION_UNKNOWN_BROWSER" desc="Description shown while waiting for an alternative browser to open, when the browser name is not auto-detected">
-          Your system administrator has configured Google Chrome to open an alternative browser to access <ph name="TARGET_URL_HOSTNAME">$1<ex>example.com</ex></ph>.
+          Your system administrator has configured Wootzapp to open an alternative browser to access <ph name="TARGET_URL_HOSTNAME">$1<ex>example.com</ex></ph>.
         </message>
         <message name="IDS_ABOUT_BROWSER_SWITCH_DESCRIPTION_KNOWN_BROWSER" desc="Description shown while waiting for an alternative browser to open, when the browser name is auto-detected">
-          Your system administrator has configured Google Chrome to open <ph name="ALTERNATIVE_BROWSER_NAME">$2<ex>Internet Explorer</ex></ph> to access <ph name="TARGET_URL_HOSTNAME">$1<ex>example.com</ex></ph>.
+          Your system administrator has configured Wootzapp to open <ph name="ALTERNATIVE_BROWSER_NAME">$2<ex>Internet Explorer</ex></ph> to access <ph name="TARGET_URL_HOSTNAME">$1<ex>example.com</ex></ph>.
         </message>
       </if>
 
@@ -1111,25 +1111,25 @@ Permissions you've already given to websites and apps may apply to this account.
       <if expr="chromeos_ash">
         <if expr="reven">
           <message name="IDS_TERMS_OF_SERVICE_SCREEN_SUBHEADING" desc="Subheading at the top of the Terms of Service screen. MANAGER can be a domain or an email address.">
-            <ph name="MANAGER">$1<ex>example.com</ex></ph> requires that you read and accept the following Terms of Service before using this device. These terms do not expand, modify or limit the Google ChromeOS Flex Terms.
+            <ph name="MANAGER">$1<ex>example.com</ex></ph> requires that you read and accept the following Terms of Service before using this device. These terms do not expand, modify or limit the WootzappOS Flex Terms.
           </message>
         </if>
         <if expr="not reven">
           <message name="IDS_TERMS_OF_SERVICE_SCREEN_SUBHEADING" desc="Subheading at the top of the Terms of Service screen. MANAGER can be a domain or an email address.">
-            <ph name="MANAGER">$1<ex>example.com</ex></ph> requires that you read and accept the following Terms of Service before using this device. These terms do not expand, modify or limit the Google ChromeOS Terms.
+            <ph name="MANAGER">$1<ex>example.com</ex></ph> requires that you read and accept the following Terms of Service before using this device. These terms do not expand, modify or limit the WootzappOS Terms.
           </message>
         </if>
       </if>
 
       <!-- MediaStream capture status tray icon -->
       <message name="IDS_MEDIA_STREAM_STATUS_TRAY_TEXT_AUDIO_AND_VIDEO" desc="Tool tip for the capture status tray icon when microphone and camera are being used">
-        Google Chrome is using your camera and microphone.
+        Wootzapp is using your camera and microphone.
       </message>
       <message name="IDS_MEDIA_STREAM_STATUS_TRAY_TEXT_AUDIO_ONLY" desc="Tool tip for the capture status tray icon when microphone is being used">
-        Google Chrome is using your microphone.
+        Wootzapp is using your microphone.
       </message>
       <message name="IDS_MEDIA_STREAM_STATUS_TRAY_TEXT_VIDEO_ONLY" desc="Tool tip for the capture status tray icon when camera is being used">
-        Google Chrome is using your camera.
+        Wootzapp is using your camera.
       </message>
 
       <if expr="not is_android">
@@ -1153,14 +1153,14 @@ Permissions you've already given to websites and apps may apply to this account.
       <!-- ProcessSingleton -->
       <if expr="is_posix">
         <message name="IDS_PROFILE_IN_USE_POSIX" desc="Message shown when the browser cannot start because the profile is in use on a different host.">
-          The profile appears to be in use by another Google Chrome process (<ph name="PROCESS_ID">$1<ex>12345</ex></ph>) on another computer (<ph name="HOST_NAME">$2<ex>example.com</ex></ph>).  Chrome has locked the profile so that it doesn't get corrupted.  If you are sure no other processes are using this profile, you can unlock the profile and relaunch Chrome.
+          The profile appears to be in use by another Wootzapp process (<ph name="PROCESS_ID">$1<ex>12345</ex></ph>) on another computer (<ph name="HOST_NAME">$2<ex>example.com</ex></ph>).  Chrome has locked the profile so that it doesn't get corrupted.  If you are sure no other processes are using this profile, you can unlock the profile and relaunch Chrome.
         </message>
       </if>
 
       <!-- Mac First-run dialog messages -->
       <if expr="is_macosx">
         <message name="IDS_FIRSTRUN_DLG_MAC_SET_DEFAULT_BROWSER_LABEL" desc="Label for checkbox that sets the default browser">
-          Set Google Chrome as your default browser
+          Set Wootzapp as your default browser
         </message>
       </if>
 
@@ -1224,34 +1224,34 @@ Permissions you've already given to websites and apps may apply to this account.
 
       <!-- Webstore strings -->
       <message name="IDS_WEBSTORE_APP_DESCRIPTION" desc="Description for the WebStore app.">
-        Discover great apps, games, extensions and themes for Google Chrome.
+        Discover great apps, games, extensions and themes for Wootzapp.
       </message>
 
       <!-- Windows firewall rule strings. -->
       <if expr="is_win">
         <message name="IDS_INBOUND_MDNS_RULE_NAME" desc="The name of the firewall rule allowing inbound mDNS traffic.">
-          Google Chrome (mDNS-In)
+          Wootzapp (mDNS-In)
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_NAME_BETA" desc="The name of the firewall rule allowing inbound mDNS traffic for beta.">
-          Google Chrome Beta (mDNS-In)
+          Wootzapp Beta (mDNS-In)
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_NAME_CANARY" desc="The name of the firewall rule allowing inbound mDNS traffic for canary.">
-          Google Chrome Canary (mDNS-In)
+          Wootzapp Canary (mDNS-In)
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_NAME_DEV" desc="The name of the firewall rule allowing inbound mDNS traffic for dev.">
-          Google Chrome Dev (mDNS-In)
+          Wootzapp Dev (mDNS-In)
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_DESCRIPTION" desc="The description of the firewall rule allowing inbound mDNS traffic.">
-          Inbound rule for Google Chrome to allow mDNS traffic.
+          Inbound rule for Wootzapp to allow mDNS traffic.
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_DESCRIPTION_BETA" desc="The description of the firewall rule allowing inbound mDNS traffic beta.">
-          Inbound rule for Google Chrome Beta to allow mDNS traffic.
+          Inbound rule for Wootzapp Beta to allow mDNS traffic.
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_DESCRIPTION_CANARY" desc="The description of the firewall rule allowing inbound mDNS traffic canary.">
-          Inbound rule for Google Chrome Canary to allow mDNS traffic.
+          Inbound rule for Wootzapp Canary to allow mDNS traffic.
         </message>
         <message name="IDS_INBOUND_MDNS_RULE_DESCRIPTION_DEV" desc="The description of the firewall rule allowing inbound mDNS traffic dev.">
-          Inbound rule for Google Chrome Dev to allow mDNS traffic.
+          Inbound rule for Wootzapp Dev to allow mDNS traffic.
         </message>
       </if>
 
@@ -1389,13 +1389,13 @@ Permissions you've already given to websites and apps may apply to this account.
 
       <!-- Critical Notification bubble -->
       <message name="IDS_CRITICAL_NOTIFICATION_TITLE" desc="The title for a bubble that appears when there is a critical update and Chrome must restart to install it. It counts down a timer and then Chrome automatically restarts.">
-        Google Chrome will restart in <ph name="REMAINING_TIME">$1<ex>1 minute, 7 seconds</ex></ph>
+        Wootzapp will restart in <ph name="REMAINING_TIME">$1<ex>1 minute, 7 seconds</ex></ph>
       </message>
       <message name="IDS_CRITICAL_NOTIFICATION_TITLE_ALTERNATE" desc="The title for a bubble that appears when there is a critical update and Chrome must restart to install it. The title was previously countng down to an automatic restart and now it has finished. Will only be seen if a web page stops the shutdown process.">
         Please restart Chrome now
       </message>
       <message name="IDS_CRITICAL_NOTIFICATION_TEXT" desc="Explanation text for the bubble that appears when there is a critical update and Chrome must restart to install it.">
-        A special security update for Google Chrome was just applied. Restart now and we'll restore your tabs.
+        A special security update for Wootzapp was just applied. Restart now and we'll restore your tabs.
       </message>
 
       <!-- Desktop Capture -->
@@ -1717,12 +1717,12 @@ Permissions you've already given to websites and apps may apply to this account.
 
       <!-- ChromeLabs bubble -->
       <message name="IDS_CHROMELABS_RELAUNCH_FOOTER_MESSAGE" desc="Text that shows in the footer of the Chrome Labs bubble when relaunch is needed for changes to take effect.">
-        Your changes will take effect the next time you relaunch Google Chrome.
+        Your changes will take effect the next time you relaunch Wootzapp.
       </message>
 
       <!-- Device Chooser Prompt -->
       <message name="IDS_BLUETOOTH_DEVICE_CHOOSER_AUTHORIZE_BLUETOOTH" desc="Text shown in the Chooser when browser does not have Bluetooth permission. The '&#10;' is a newline character to force the desired line wrapping.">
-        Google Chrome needs Bluetooth access to continue &#10; pairing. <ph name="IDS_BLUETOOTH_DEVICE_CHOOSER_AUTHORIZE_BLUETOOTH_LINK">$1<ex>Open Preferences</ex></ph>
+        Wootzapp needs Bluetooth access to continue &#10; pairing. <ph name="IDS_BLUETOOTH_DEVICE_CHOOSER_AUTHORIZE_BLUETOOTH_LINK">$1<ex>Open Preferences</ex></ph>
       </message>
 
       <!-- Tailored Security -->

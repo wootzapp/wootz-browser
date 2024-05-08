@@ -2540,7 +2540,7 @@ if (current_toolchain == default_toolchain) {
 
   chrome_public_apk_or_module_tmpl("chrome_public_apk") {
     target_type = "android_apk"
-    apk_name = "ChromePublic"
+    apk_name = "WootzApp"
     art_profile_path = "//chrome/android/baseline_profiles/profile.txt"
     if (android_64bit_target_cpu) {
       # Ensure 64-bit chrome does not depend on 32-bit things.
@@ -2551,7 +2551,7 @@ if (current_toolchain == default_toolchain) {
   }
 
   chrome_public_bundle("chrome_public_bundle") {
-    bundle_name = "ChromePublic"
+    bundle_name = "WootzApp"
   }
 
   android_library("monochrome_java") {
@@ -3012,7 +3012,7 @@ if (current_toolchain == default_toolchain) {
     android_test_apk = ":chrome_smoke_test_apk"
     additional_apks = [ "//net/android:net_test_support_apk" ]
     if (!is_java_debug) {
-      proguard_mapping_path = "$root_build_dir/apks/ChromePublic.apk.mapping"
+      proguard_mapping_path = "$root_build_dir/apks/WootzApp.apk.mapping"
     }
 
     extra_args = _common_smoke_test_args
@@ -3224,7 +3224,7 @@ if (current_toolchain == default_toolchain) {
       "print-reftest",
       "--zero-tests-executed-ok",
       "--browser-apk",
-      "@WrappedPath(apks/ChromePublic.apk)",
+      "@WrappedPath(apks/WootzApp.apk)",
     ]
     data = [
       "//third_party/blink/web_tests/platform/android/",
