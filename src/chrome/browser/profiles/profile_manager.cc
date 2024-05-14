@@ -1101,6 +1101,10 @@ void ProfileManager::InitProfileUserPrefs(Profile* profile) {
   TRACE_EVENT0("browser", "ProfileManager::InitProfileUserPrefs");
   ProfileAttributesStorage& storage = GetProfileAttributesStorage();
 
+  if (profile->GetPrefs()->GetBoolean(prefs::kNetworkThrottleEnabled)) {
+        // ApplyNetworkConditionsFromPrefs(profile);
+  }
+  
   if (!IsAllowedProfilePath(profile->GetPath())) {
     LOG(WARNING) << "Failed to initialize prefs for a profile at invalid path: "
                  << profile->GetPath().AsUTF8Unsafe();
