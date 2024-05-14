@@ -1374,6 +1374,14 @@ inline constexpr char kAccessibilityImageLabelsEnabledAndroid[] =
 // while on Wi-Fi, or if it can use mobile data. Exposed only to mobile Android.
 inline constexpr char kAccessibilityImageLabelsOnlyOnWifi[] =
     "settings.a11y.enable_accessibility_image_labels_only_on_wifi";
+
+inline constexpr char kNetworkThrottleOffline[] = "settings.network_throttle.offline";
+inline constexpr char kNetworkThrottleLatency[] = "settings.network_throttle.latency";
+inline constexpr char kNetworkThrottleDownloadThroughput[] = "settings.network_throttle.download_throughput";
+inline constexpr char kNetworkThrottleUploadThroughput[] = "settings.network_throttle.upload_throughput";
+inline constexpr char kNetworkThrottlePacketLoss[] = "settings.network_throttle.packet_loss";
+inline constexpr char kNetworkThrottlePacketQueueLength[] = "settings.network_throttle.packet_queue_length";
+inline constexpr char kNetworkThrottleEnabled[] = "settings.network_throttle.enabled";
 #endif
 
 #if !BUILDFLAG(IS_CHROMEOS_ASH)
