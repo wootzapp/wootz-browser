@@ -1,4 +1,0 @@
-include_rules = [
-  "+third_party/securemessage",
-  "+third_party/boringssl/src/pki",
-]
