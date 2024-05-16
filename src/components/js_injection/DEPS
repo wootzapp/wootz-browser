@@ -1,6 +1,0 @@
-include_rules = [
-  "+content/public",
-  "+mojo/public",
-  "+net",
-  "+third_party/blink/public",
-]

@@ -1,2 +1,0 @@
-# BUG? The expected result is 'title peanuts popcorn apple jacks'
-image name='peanuts popcorn apple jacks' nameFrom=relatedElement
