@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_errorprone_javac_shaded",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "javac-shaded-9-dev-r4023-3.jar",
+      "size": 2838187,
+      "hash": "Zb_M9gmGxH-8F8nrqwvmJq_EF0HgpuxxCeB2iBejbzAC"
+    }
+  ]
+}

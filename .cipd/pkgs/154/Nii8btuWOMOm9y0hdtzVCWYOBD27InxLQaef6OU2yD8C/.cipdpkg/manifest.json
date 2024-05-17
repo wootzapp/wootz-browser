@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_robolectric_plugins_maven_dependency_resolver",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "plugins-maven-dependency-resolver-4.12.1.jar",
+      "size": 15219,
+      "hash": "wBXhANqlE0qoybIPKn6fPL95Xdfayjgd-JEi_zMzmNIC"
+    }
+  ]
+}

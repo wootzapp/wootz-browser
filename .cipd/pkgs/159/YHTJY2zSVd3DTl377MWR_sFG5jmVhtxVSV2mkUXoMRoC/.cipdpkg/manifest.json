@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_robolectric_shadows_versioning",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "shadows-versioning-4.12.1.jar",
+      "size": 21539,
+      "hash": "bgjx-z99ypYrCTKaKaOeU3LD6G3WAvyn5xEk9Ahd8HwC"
+    }
+  ]
+}

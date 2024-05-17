@@ -1,0 +1,38 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/sqlite4java",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "lib/linux-x86/libsqlite4java.so",
+      "size": 732637,
+      "hash": "ODaCQqACcnxZAcwPWSOXBM0KgYqs3sdxUtTFIYUVEHoC"
+    },
+    {
+      "name": "lib/linux-x86_64/libsqlite4java.so",
+      "size": 790986,
+      "hash": "DONDZnoBR4me8atUCND5ijBrXboeuNuDhYob8SaM6scC"
+    },
+    {
+      "name": "lib/mac-x86_64/libsqlite4java.jnilib",
+      "size": 1433640,
+      "hash": "D5vvXKPINbiee0EFxMQDNOKG2EMzirXkql0qtG4DX-UC"
+    },
+    {
+      "name": "lib/sqlite4java.jar",
+      "size": 129381,
+      "hash": "nh2N2DymAD-EHjr4eM4tx8Ikl0k6e7bRti7BsNCoPAUC"
+    },
+    {
+      "name": "lib/windows-x86/sqlite4java.dll",
+      "size": 462848,
+      "hash": "-VTYvwrGZ0rOVIdF7jEEAYiycshu7v7dg-5gMBPVzbwC"
+    },
+    {
+      "name": "lib/windows-x86_64/sqlite4java.dll",
+      "size": 622080,
+      "hash": "pE5Dri9ROWt3403Ahr2bv47p1NW9awj2zJ5lBALt21kC"
+    }
+  ]
+}

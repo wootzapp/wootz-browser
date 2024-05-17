@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_mockito_mockito_android",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "mockito-android-5.11.0.jar",
+      "size": 7658,
+      "hash": "yMR78c7qb6Pgo3HyVSI3lidiYH2TCfnIscOymvXgNmIC"
+    }
+  ]
+}

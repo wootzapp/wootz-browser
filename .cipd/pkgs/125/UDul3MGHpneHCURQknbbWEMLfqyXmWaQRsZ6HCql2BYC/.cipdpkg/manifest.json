@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_codehaus_mojo_animal_sniffer_annotations",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "animal-sniffer-annotations-1.21.jar",
+      "size": 3348,
+      "hash": "LyWEHJN-JJWaV7Yw4sS4Uls9D1NvLlEcmyvtMLFlHVQC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_android_support_support_annotations",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "support-annotations-28.0.0.jar",
+      "size": 27865,
+      "hash": "XVuUFPAtP6DudSa41d2uDaZ8jsyMTWP_ps-RSIqTuScC"
+    }
+  ]
+}

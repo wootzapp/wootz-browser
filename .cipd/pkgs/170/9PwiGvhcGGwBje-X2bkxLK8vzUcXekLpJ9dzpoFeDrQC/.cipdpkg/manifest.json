@@ -1,0 +1,2552 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/androidx",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "BUILD.gn",
+      "size": 88913,
+      "hash": "ITH0w-XSPnQd5NJk4mbHGI1SeJWT91klKOpQiEp8VTgC"
+    },
+    {
+      "name": "VERSION.txt",
+      "size": 12,
+      "hash": "-HbyCg7QyLIuV-gQlG5PWoFciDo-MCjU4MA7ObBWNp8C"
+    },
+    {
+      "name": "additional_readme_paths.json",
+      "size": 6080,
+      "hash": "z00cBNbdnxeKM4yNr3glt1iEN6MfnZGBP2Cwt9Cf2y8C"
+    },
+    {
+      "name": "build.gradle",
+      "size": 61952,
+      "hash": "OTXr-mkk6CAiT9wMKGr809hJUVbhaB7UnGsH7A8jOS0C"
+    },
+    {
+      "name": "libs/androidx_activity_activity/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_activity_activity/README.chromium",
+      "size": 405,
+      "hash": "6nv8_2AlZ33j1fhAG-gjAZQAzqPv_4fAUsHWVigTZUYC"
+    },
+    {
+      "name": "libs/androidx_activity_activity/activity-1.10.0-SNAPSHOT.aar",
+      "size": 213277,
+      "hash": "TdqY76Gd7bNqLiv-4EoYbcM7h--bOH0oKuMhufWGLyMC"
+    },
+    {
+      "name": "libs/androidx_activity_activity/androidx_activity_activity.info",
+      "size": 382,
+      "hash": "SVmnYpiE5bMXXVdZ76ETSceMFbanBDgHxA_6Hohmi_AC"
+    },
+    {
+      "name": "libs/androidx_activity_activity_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_activity_activity_ktx/README.chromium",
+      "size": 370,
+      "hash": "YoSrI7JjagluF6IakJFOGPbT4YgdOdUdReFqo2mS2pQC"
+    },
+    {
+      "name": "libs/androidx_activity_activity_ktx/activity-ktx-1.10.0-SNAPSHOT.aar",
+      "size": 1335,
+      "hash": "kSPlY8ipE3dGk7Ue_MDkVC9LpWShhC6JDEJeaUiNZw4C"
+    },
+    {
+      "name": "libs/androidx_activity_activity_ktx/androidx_activity_activity_ktx.info",
+      "size": 387,
+      "hash": "doyI7WqDnV_V-WL4iqC9_6uMQEc2AXUGpcVJ6n97KQwC"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_experimental/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_experimental/README.chromium",
+      "size": 547,
+      "hash": "Kre6aGxO7rQe6saEyiqwHG7StZoCxNxDO4j_w7V4e84C"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_experimental/androidx_annotation_annotation_experimental.info",
+      "size": 398,
+      "hash": "E5Bx3je3qh-a0mk_ACl1RCKAoJHSun7W0J2goisJxz8C"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_experimental/annotation-experimental-1.4.0-SNAPSHOT.aar",
+      "size": 39119,
+      "hash": "jUgs6ep4eifj2FOrQ98hLNSEoWBJPPfQqImvfnEuu_AC"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_jvm/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_jvm/README.chromium",
+      "size": 371,
+      "hash": "1J71oQyvuCPyFmwozTFo8l5sJCIjWbErY17fSEZ9LigC"
+    },
+    {
+      "name": "libs/androidx_annotation_annotation_jvm/annotation-jvm-1.9.0-SNAPSHOT.jar",
+      "size": 56126,
+      "hash": "mqsybZSSgAmRhUNgrCSPSTzn98MYNRkwm3is6eJA9vYC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat/README.chromium",
+      "size": 436,
+      "hash": "FxmwTAv2lruwbrXYY0M-gRzgZLksMlxAbYbR7iwiHkMC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat/androidx_appcompat_appcompat.info",
+      "size": 21691,
+      "hash": "DEQeiGzjlnukVlKv5q5VCUDdB41vyBP8wWmb3QTijlkC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat/appcompat-1.7.0-SNAPSHOT.aar",
+      "size": 1148970,
+      "hash": "6fbrp7c2TNzLhlpyOqeRl5-Ms8zpTjCIEiPyos2XF1wC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat_resources/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat_resources/README.chromium",
+      "size": 454,
+      "hash": "PAy_BfFVklTDTvCLYGZT7mZpVcR37w8sPaglX9Ki_6wC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat_resources/androidx_appcompat_appcompat_resources.info",
+      "size": 431,
+      "hash": "cQZRaHhETueUNBJTBzMR_2GVBpJTmukrxpKuN9_JhjUC"
+    },
+    {
+      "name": "libs/androidx_appcompat_appcompat_resources/appcompat-resources-1.7.0-SNAPSHOT.aar",
+      "size": 64004,
+      "hash": "JjdpxdhuHWDxKjpg4enzPXs2UgSK4HHE37vjq3yd9uIC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch/README.chromium",
+      "size": 341,
+      "hash": "MQDXwhYZ9mDMyaM7VuvEEmCOOcp7pP_bSEkMGUsBFKsC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch/androidx_appsearch_appsearch.info",
+      "size": 383,
+      "hash": "YWfPPH1LHQInTxEkDSvXLgrM7N3eNyenU2PR6__E66AC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch/appsearch-1.1.0-SNAPSHOT.aar",
+      "size": 185706,
+      "hash": "39GKC2kR3DOpsnq7iOE2nN-66BNZxDgyO5LJ396QMJQC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch_platform_storage/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch_platform_storage/README.chromium",
+      "size": 426,
+      "hash": "TB5-cOk5-zryU6fYmp62z817EI3UCtR6wYf5SyO3gAcC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch_platform_storage/androidx_appsearch_appsearch_platform_storage.info",
+      "size": 400,
+      "hash": "id5rDETjhQuaO6aAAV4YUXn-4NHsBYBCQE0AQpodTfUC"
+    },
+    {
+      "name": "libs/androidx_appsearch_appsearch_platform_storage/appsearch-platform-storage-1.1.0-SNAPSHOT.aar",
+      "size": 57105,
+      "hash": "-1_CnF8AvlZeOQv5uEcrcp_sTVYZUrHjffXxp6G5HpwC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_common/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_common/README.chromium",
+      "size": 331,
+      "hash": "LR-vg9ZWwUToAbOQ0DSdae1d_w0b-WKdteeQK4YyLyoC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_common/core-common-2.3.0-SNAPSHOT.jar",
+      "size": 11673,
+      "hash": "QI3Hw4t-td3a3rFGA7oJFbCLh8iRl1zw-zqnQdLleasC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_runtime/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_runtime/README.chromium",
+      "size": 334,
+      "hash": "MDSCBOC0Wu_VYJRHDmfua36LarFiaa6ooxazXneYTWwC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_runtime/androidx_arch_core_core_runtime.info",
+      "size": 384,
+      "hash": "xGXcQ2mTQ8QA91IlN1h5XAKCjyvZvQ9LcZWvELtDSpoC"
+    },
+    {
+      "name": "libs/androidx_arch_core_core_runtime/core-runtime-2.3.0-SNAPSHOT.aar",
+      "size": 6753,
+      "hash": "ZQ-FCaZPVC3EuIOH9yFOTkQI5zQSES1teFJ496qRhOoC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater/README.chromium",
+      "size": 395,
+      "hash": "wpAHAlso9FXoablYi_e82crk4ntbX_lfGqi7uM2_arMC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater/androidx_asynclayoutinflater_asynclayoutinflater.info",
+      "size": 394,
+      "hash": "f3ZixkzxDlq_JetbKaDUiSqrogckVZQt6yzQBsrMQGIC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater/asynclayoutinflater-1.1.0-SNAPSHOT.aar",
+      "size": 8305,
+      "hash": "NOOVihtJOxyOyhkhB8-f8QXzWaNzTOz9G1TeKKCg5roC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater_appcompat/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater_appcompat/README.chromium",
+      "size": 465,
+      "hash": "zvcuybubgFHHPHtiwB7sKk7QzqSw8Rxzj458Al1oyTQC"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater_appcompat/androidx_asynclayoutinflater_asynclayoutinflater_appcompat.info",
+      "size": 411,
+      "hash": "vMOc8OIaS00dgWDyu5VwAOxz7tDvxBNyAMBZ8HDiiQ0C"
+    },
+    {
+      "name": "libs/androidx_asynclayoutinflater_asynclayoutinflater_appcompat/asynclayoutinflater-appcompat-1.1.0-SNAPSHOT.aar",
+      "size": 3063,
+      "hash": "EfDF3RgThwpJWRQfBrBJom7Qf2SxJg6L0hRLatW-maIC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_common/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_common/README.chromium",
+      "size": 348,
+      "hash": "aPDkWGnH8VFKQsz9Zzish4uwsB6qdYk4_zeAz6NaG3oC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_common/androidx_benchmark_benchmark_common.info",
+      "size": 743,
+      "hash": "M2dvzEqXhsJ_bridOocTXDbN2eog2dcSu9oiPiHK5D0C"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_common/benchmark-common-1.3.0-SNAPSHOT.aar",
+      "size": 4338879,
+      "hash": "AQGxrjZ3zKozfQmDT6xVLi8qiJyTKAdbTWUp7_zWyz0C"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_junit4/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_junit4/README.chromium",
+      "size": 348,
+      "hash": "vaq5QSbutHiiYIPhmDshw-QAXVwlTbAyb00B9m5kb34C"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_junit4/androidx_benchmark_benchmark_junit4.info",
+      "size": 390,
+      "hash": "iemkRxXM9NQBEZyO7LFo6POP2fbVi8zzjCgeqQrGQQQC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_junit4/benchmark-junit4-1.3.0-SNAPSHOT.aar",
+      "size": 26749,
+      "hash": "gciQv5802Pjw8Si2rTGro1yIFjxQVVkdl_ek6RfxPuAC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro/README.chromium",
+      "size": 363,
+      "hash": "yOgFAsY-5ou2WA7vfBfl81b75M2TkKA95yP_622Bg_cC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro/androidx_benchmark_benchmark_macro.info",
+      "size": 590,
+      "hash": "4thbfaS_8Y5rWzAMreuDxZgEtpbYOYTcxDX8YFT3WIUC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro/benchmark-macro-1.3.0-SNAPSHOT.aar",
+      "size": 13390087,
+      "hash": "MjMXyNUF7NElofsR2oA_FPxJGiS7vA5eAamYTyjvodUC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro_junit4/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro_junit4/README.chromium",
+      "size": 384,
+      "hash": "lZR4Z4S0swVPnzvk5E62h_fDf6_w6MoQlZN8TdMI0ekC"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro_junit4/androidx_benchmark_benchmark_macro_junit4.info",
+      "size": 397,
+      "hash": "0XfZVJ3aR6R5M60k3ZLYNwcCR8-SReY1E8VUYP9j150C"
+    },
+    {
+      "name": "libs/androidx_benchmark_benchmark_macro_junit4/benchmark-macro-junit4-1.3.0-SNAPSHOT.aar",
+      "size": 15163,
+      "hash": "ioHGyBPAXGHq9XdCJ7KqJOu2XSasEaug0XkU3dnoK5gC"
+    },
+    {
+      "name": "libs/androidx_biometric_biometric/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_biometric_biometric/README.chromium",
+      "size": 551,
+      "hash": "xx0he9oxlEMm17S8NkkY9hrwUPukFFW-3yDgb_XWVpwC"
+    },
+    {
+      "name": "libs/androidx_biometric_biometric/androidx_biometric_biometric.info",
+      "size": 3832,
+      "hash": "kBG7VZqrc9z3AGKPsI_72jP8F6cktjUO8SmhdXhO4d4C"
+    },
+    {
+      "name": "libs/androidx_biometric_biometric/biometric-1.2.0-SNAPSHOT.aar",
+      "size": 228910,
+      "hash": "V_QiHNd9yXZ8u47bC32-JuxcHw-bmdfBfwibcd8UNOMC"
+    },
+    {
+      "name": "libs/androidx_browser_browser/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_browser_browser/README.chromium",
+      "size": 355,
+      "hash": "iy1d9tjMJMUHJFiAglci7FwBOznYYeLgNRHsUR3fa48C"
+    },
+    {
+      "name": "libs/androidx_browser_browser/androidx_browser_browser.info",
+      "size": 3442,
+      "hash": "VxFjSHBv9mLU2c0DrJy8mqiLM5lQgP20TohY0GFLDNYC"
+    },
+    {
+      "name": "libs/androidx_browser_browser/browser-1.9.0-SNAPSHOT.aar",
+      "size": 230367,
+      "hash": "RhQWZpBfpljmdKJK1WrQ0qR0uB4hNwkFQcPTNvOkq2EC"
+    },
+    {
+      "name": "libs/androidx_cardview_cardview/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_cardview_cardview/README.chromium",
+      "size": 329,
+      "hash": "SAZY617o0m0b3lrSaG9Mp6iv7QDrV6cWaIIhYbk474sC"
+    },
+    {
+      "name": "libs/androidx_cardview_cardview/androidx_cardview_cardview.info",
+      "size": 417,
+      "hash": "btjihAzJ_43tSoO4r9F2Xx9KzaVLAb350fr2BJZYXaIC"
+    },
+    {
+      "name": "libs/androidx_cardview_cardview/cardview-1.1.0-SNAPSHOT.aar",
+      "size": 20525,
+      "hash": "qepSi1E6lZBt98Cvf8TR9I2HUsG4w_L7JUN7MgiwrS8C"
+    },
+    {
+      "name": "libs/androidx_collection_collection_jvm/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_collection_collection_jvm/README.chromium",
+      "size": 349,
+      "hash": "IpKtgHQVHjaOs8zqWTnlLgyBYPf_p-YJPLEcWjMuRJkC"
+    },
+    {
+      "name": "libs/androidx_collection_collection_jvm/collection-jvm-1.5.0-SNAPSHOT.jar",
+      "size": 785152,
+      "hash": "UIbKql1AkVtKpEEYUxND4cpAH0JusE1Nc5Zpin0CYCcC"
+    },
+    {
+      "name": "libs/androidx_collection_collection_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_collection_collection_ktx/README.chromium",
+      "size": 377,
+      "hash": "bChJZyn_23iN7xqCYiWbNZFtIcHcaCNR0SdmEjZvNJsC"
+    },
+    {
+      "name": "libs/androidx_collection_collection_ktx/collection-ktx-1.5.0-SNAPSHOT.jar",
+      "size": 261,
+      "hash": "xt6tovrFO46mUj29p3WXsSgAZnRhbxQPBN8jJkxtGqMC"
+    },
+    {
+      "name": "libs/androidx_concurrent_concurrent_futures/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_concurrent_concurrent_futures/README.chromium",
+      "size": 367,
+      "hash": "SwlS28z34YTkZMt-HjKVL_g_dS5SdgJk18UkDMWXMZwC"
+    },
+    {
+      "name": "libs/androidx_concurrent_concurrent_futures/concurrent-futures-1.2.0-SNAPSHOT.jar",
+      "size": 26311,
+      "hash": "SBAxWnmGkLXTu0DJK81BwEX9LDa7_FCyfLrD1qDtoZAC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout/README.chromium",
+      "size": 409,
+      "hash": "IikKWTE1K173fqKK9S2RYwHnH_ETcl7VoU9S5osKWNkC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout/androidx_constraintlayout_constraintlayout.info",
+      "size": 397,
+      "hash": "j2XTqWA4zT-U9ooKnZZ7LSPU6MNPWzXAbKTfpYR8bkkC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout/constraintlayout-2.2.0-SNAPSHOT.aar",
+      "size": 478576,
+      "hash": "tD79PPDjNbVILUJyoXX9Jm62VsGyXi0EqN1wTtq3tEUC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout_core/README.chromium",
+      "size": 479,
+      "hash": "MwPq0ooEr8PWgJCLPeiYY2pgT_C8qewxuC3QlUJT3d0C"
+    },
+    {
+      "name": "libs/androidx_constraintlayout_constraintlayout_core/constraintlayout-core-1.1.0-SNAPSHOT.jar",
+      "size": 581175,
+      "hash": "1YL_mNCjeison0dRDmiNa3VrVVe6sDKOS7I7KEjSiRAC"
+    },
+    {
+      "name": "libs/androidx_coordinatorlayout_coordinatorlayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_coordinatorlayout_coordinatorlayout/README.chromium",
+      "size": 601,
+      "hash": "FK9PnKjTpYbYb1-DUtmpXrDqakA7W0U9hnqDM_O9-CYC"
+    },
+    {
+      "name": "libs/androidx_coordinatorlayout_coordinatorlayout/androidx_coordinatorlayout_coordinatorlayout.info",
+      "size": 390,
+      "hash": "5G5h8-noAlDBlQ1s2pzvOd8H1iLKRAt-90_JfTKDUdMC"
+    },
+    {
+      "name": "libs/androidx_coordinatorlayout_coordinatorlayout/coordinatorlayout-1.3.0-SNAPSHOT.aar",
+      "size": 45268,
+      "hash": "e9RN48kk_T2TgcfwCEFzC6Jy8JQNwFK1okFBQ197cV8C"
+    },
+    {
+      "name": "libs/androidx_core_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_core_core/README.chromium",
+      "size": 378,
+      "hash": "MfiCkpMBo0KtCFuOh8wJh32uoZYwvofeUZzQwDe4rAUC"
+    },
+    {
+      "name": "libs/androidx_core_core/androidx_core_core.info",
+      "size": 5293,
+      "hash": "xTb_SwqD_p2uz1Y9aZctoierIGyioWxLX_8xyssPkC0C"
+    },
+    {
+      "name": "libs/androidx_core_core/core-1.14.0-SNAPSHOT.aar",
+      "size": 1244809,
+      "hash": "uaU2qj9PMUDEfv_WSdVzT4s9DmNPXTX0a5hADu23pioC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation/README.chromium",
+      "size": 408,
+      "hash": "U67PLOq4POHPAVZx6nnePlrSWyTkA4edJl0C5ZlDVYAC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation/androidx_core_core_animation.info",
+      "size": 389,
+      "hash": "EUPLN3BLdnYq6U-YkXTLw20fQKKfTnpxab0QyS5YOVEC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation/core-animation-1.0.0-SNAPSHOT.aar",
+      "size": 121872,
+      "hash": "qqaE2ausmwEqYmA6px0oX5ydj5VO2j_wAJQvPCziCXoC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation_testing/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation_testing/README.chromium",
+      "size": 404,
+      "hash": "O7M-Df97pngMooC3sR8hLBRbHBcO9twRd7IvHE1li2MC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation_testing/androidx_core_core_animation_testing.info",
+      "size": 397,
+      "hash": "h92yJaQ6r8C5p3Tkdw0aT1aqzEE6_AUx_kpUFawdvakC"
+    },
+    {
+      "name": "libs/androidx_core_core_animation_testing/core-animation-testing-1.0.0-SNAPSHOT.aar",
+      "size": 4031,
+      "hash": "si7MOcG273RFBC4HPchLYGuaJTEeieDqNK_-a-bZYb4C"
+    },
+    {
+      "name": "libs/androidx_core_core_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_core_core_ktx/README.chromium",
+      "size": 354,
+      "hash": "Jfnmd3AYJw5B_e_SVuPFNSAGDytd2wwWBZIZnMdpUsoC"
+    },
+    {
+      "name": "libs/androidx_core_core_ktx/androidx_core_core_ktx.info",
+      "size": 383,
+      "hash": "XGBPhFB_IAqRbrGQflQQLJJlbBqpY7BzFkhbNBDpVHcC"
+    },
+    {
+      "name": "libs/androidx_core_core_ktx/core-ktx-1.14.0-SNAPSHOT.aar",
+      "size": 170841,
+      "hash": "btfeZSLgLQgFkYd2PDzm86OOSonZg1q4JMOUiVJNvbgC"
+    },
+    {
+      "name": "libs/androidx_cursoradapter_cursoradapter/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_cursoradapter_cursoradapter/README.chromium",
+      "size": 589,
+      "hash": "-n7TGZecyl6hGwT8YMAL2gfFnk3JdGupJTvKJaYw1S4C"
+    },
+    {
+      "name": "libs/androidx_cursoradapter_cursoradapter/androidx_cursoradapter_cursoradapter.info",
+      "size": 388,
+      "hash": "9yQwbnLNeFai3RFgqap6l99On1vSunHDZcbItSpueY0C"
+    },
+    {
+      "name": "libs/androidx_cursoradapter_cursoradapter/cursoradapter-1.1.0-SNAPSHOT.aar",
+      "size": 11659,
+      "hash": "E0p5NcXLI_ORT9srHem5MKhStgl-yk6uY9aL19ZSV2UC"
+    },
+    {
+      "name": "libs/androidx_customview_customview/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_customview_customview/README.chromium",
+      "size": 580,
+      "hash": "puio6XdzHdBrWjV_cUUGGJ98sHd5GALVTHPSuMeGm0sC"
+    },
+    {
+      "name": "libs/androidx_customview_customview/androidx_customview_customview.info",
+      "size": 385,
+      "hash": "RobYXHzJwf9E5JnnYwxWNBSEvbi7N-fUY45eQimcBBsC"
+    },
+    {
+      "name": "libs/androidx_customview_customview/customview-1.2.0-SNAPSHOT.aar",
+      "size": 33494,
+      "hash": "YgiiaF85mj9VVo3Dw42OZxXIJPOxwOhTUN6UcrMbaJQC"
+    },
+    {
+      "name": "libs/androidx_customview_customview_poolingcontainer/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_customview_customview_poolingcontainer/README.chromium",
+      "size": 463,
+      "hash": "u69ZvK0wkxzvOgVRTSVF41zlL_5X2W0ypUZcNQ_2OYEC"
+    },
+    {
+      "name": "libs/androidx_customview_customview_poolingcontainer/androidx_customview_customview_poolingcontainer.info",
+      "size": 401,
+      "hash": "IhcxRXWPGXaN1KCBnufJta5yDwO8u13bAsYO53qmKl4C"
+    },
+    {
+      "name": "libs/androidx_customview_customview_poolingcontainer/customview-poolingcontainer-1.1.0-SNAPSHOT.aar",
+      "size": 5933,
+      "hash": "AyfogjvP1EmfCPfMXPQxJA8JfprFtkOlyc0CRMPCbZ4C"
+    },
+    {
+      "name": "libs/androidx_documentfile_documentfile/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_documentfile_documentfile/README.chromium",
+      "size": 586,
+      "hash": "EFyIq6ZjLE4zPRNQy3GHyYj206unjHpm--6ueVq8H20C"
+    },
+    {
+      "name": "libs/androidx_documentfile_documentfile/androidx_documentfile_documentfile.info",
+      "size": 387,
+      "hash": "L2K2vaCsm8_wjQkOyL4LOug4ipTseeZ6NnH5ffKyyN0C"
+    },
+    {
+      "name": "libs/androidx_documentfile_documentfile/documentfile-1.1.0-SNAPSHOT.aar",
+      "size": 12019,
+      "hash": "2kVAYBcE2umgsCSCZgY67TlU5fUT0_EdwducGs-qUaQC"
+    },
+    {
+      "name": "libs/androidx_drawerlayout_drawerlayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_drawerlayout_drawerlayout/README.chromium",
+      "size": 586,
+      "hash": "xsAszdxh2EQQtmFG2o7nEtMv6Nfu0NBC5YOCrZ5060MC"
+    },
+    {
+      "name": "libs/androidx_drawerlayout_drawerlayout/androidx_drawerlayout_drawerlayout.info",
+      "size": 386,
+      "hash": "ChI9-eMLeRm1125lWOvAgqeTxqpxmycqrOBIKDaIIKwC"
+    },
+    {
+      "name": "libs/androidx_drawerlayout_drawerlayout/drawerlayout-1.3.0-SNAPSHOT.aar",
+      "size": 33320,
+      "hash": "6467MdbhQa_7o4sHSSTiV6a6UC1uUxdgI6TXrBs6IOcC"
+    },
+    {
+      "name": "libs/androidx_dynamicanimation_dynamicanimation/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_dynamicanimation_dynamicanimation/README.chromium",
+      "size": 500,
+      "hash": "_7sEbiiYkgKBE8nGLJdYSvPpNGDElGJqG1CthCB1U8YC"
+    },
+    {
+      "name": "libs/androidx_dynamicanimation_dynamicanimation/androidx_dynamicanimation_dynamicanimation.info",
+      "size": 391,
+      "hash": "3ggbaQLcXt0pwkEMBminqJR1p-0wqLEo6IGjA1t7tvAC"
+    },
+    {
+      "name": "libs/androidx_dynamicanimation_dynamicanimation/dynamicanimation-1.1.0-SNAPSHOT.aar",
+      "size": 33445,
+      "hash": "iVoOyxDCuGO9ftxhMpe6M4P0ml_mEU8olNotW1yWCbwC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2/README.chromium",
+      "size": 406,
+      "hash": "7z3GhRnhhuU5lhj4pQ0O6TrK-GQeoC5SJz214CmOs34C"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2/androidx_emoji2_emoji2.info",
+      "size": 460,
+      "hash": "-XmOV8uLULcuH1WyyQDsIr-80B-dZHI2BnageAot8vIC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2/emoji2-1.5.0-SNAPSHOT.aar",
+      "size": 141014,
+      "hash": "rcJJF07RKLxiGlmQetdlI1ljuKf0ZoZzlsyecaqJksMC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2_views_helper/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2_views_helper/README.chromium",
+      "size": 365,
+      "hash": "ziNGl6JNJHFVp4i_xDoey_WBDYCNa7LMMy-DjWmIF8cC"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2_views_helper/androidx_emoji2_emoji2_views_helper.info",
+      "size": 398,
+      "hash": "o9xfxL0CY8_z05uIGmvae9BQGwFtJAshKUr4INLz5S4C"
+    },
+    {
+      "name": "libs/androidx_emoji2_emoji2_views_helper/emoji2-views-helper-1.5.0-SNAPSHOT.aar",
+      "size": 19748,
+      "hash": "0gwtPF4kSqOhEuq2ZpJsxw6aaYM8dGDiU69O0TfnEAQC"
+    },
+    {
+      "name": "libs/androidx_emoji_emoji/LICENSE",
+      "size": 18075,
+      "hash": "CkJ1gNPIkPBUOYdZCwTFbbehW_s5lSfUfLLOQZkRfpYC"
+    },
+    {
+      "name": "libs/androidx_emoji_emoji/README.chromium",
+      "size": 462,
+      "hash": "pPb10vgJBjr6qcgDX6DA5hoAjvl1VJtrrfrFxV77f8cC"
+    },
+    {
+      "name": "libs/androidx_emoji_emoji/androidx_emoji_emoji.info",
+      "size": 503,
+      "hash": "fkpy_9VZ5vJ3FuVFc7wmxVEBOzeIs_frx9GXGT-o3vIC"
+    },
+    {
+      "name": "libs/androidx_emoji_emoji/emoji-1.2.0-SNAPSHOT.aar",
+      "size": 140848,
+      "hash": "_1FUBr3aN9aoefWTZgTKRr9L5QqwIU50Ka7C-jVfTfwC"
+    },
+    {
+      "name": "libs/androidx_exifinterface_exifinterface/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_exifinterface_exifinterface/README.chromium",
+      "size": 349,
+      "hash": "1Fc22jiTqLjv957r72JjUjfqe6bKE1vl4u7sY41Zjp8C"
+    },
+    {
+      "name": "libs/androidx_exifinterface_exifinterface/androidx_exifinterface_exifinterface.info",
+      "size": 388,
+      "hash": "maEtokb4nV1_Kk0AG62Q6UeRbfek5Su7kXOj7Fa99DkC"
+    },
+    {
+      "name": "libs/androidx_exifinterface_exifinterface/exifinterface-1.4.0-SNAPSHOT.aar",
+      "size": 67008,
+      "hash": "Yyx1i3Sbu1IULn7xGZo_2xck-ZcrqVxpYsMYe73ZbdAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment/README.chromium",
+      "size": 573,
+      "hash": "_dmut3QeFUyoemeE7zVKEJl5h73RONtEjptskVOPgq8C"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment/androidx_fragment_fragment.info",
+      "size": 686,
+      "hash": "xJOFqL-lyJf0E5TqTYkALr1cRpwVI711pTIZggw6w4AC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment/fragment-1.8.0-SNAPSHOT.aar",
+      "size": 380705,
+      "hash": "zNK9iJfIV1AdxegZQN7nwrve0nZxX-YMsgxfE1WeajEC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_ktx/README.chromium",
+      "size": 368,
+      "hash": "u52zbeuuUg_tXTK1yI8crNvzh4se1_eGrlD1FYmUrHoC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_ktx/androidx_fragment_fragment_ktx.info",
+      "size": 387,
+      "hash": "npS1NuhyORNAksa9F8YG5ZBR1DkJ9cFgiyyYf7KO_V4C"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_ktx/fragment-ktx-1.8.0-SNAPSHOT.aar",
+      "size": 27618,
+      "hash": "PUdo4ukPSTKv9C7NV1ChhZuffh75MMxNQubL_9Yh0jwC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing/README.chromium",
+      "size": 372,
+      "hash": "kN3R46JjKMA6loKZILFp1GKcHXXCXJB5ulElG09U9zAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing/androidx_fragment_fragment_testing.info",
+      "size": 391,
+      "hash": "ivmOiGuUkdRepMVQW6K0BGvN0gZprzJkzSCah8rxytwC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing/fragment-testing-1.8.0-SNAPSHOT.aar",
+      "size": 26204,
+      "hash": "KqT8IWDCj8bOe1L6gBNNq1uFhw7oHn3wOC61AO4o02EC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing_manifest/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing_manifest/README.chromium",
+      "size": 506,
+      "hash": "PRJklo6wK02kwLmuVMzR14pbT1i9OI-GvaMArbx-954C"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing_manifest/androidx_fragment_fragment_testing_manifest.info",
+      "size": 400,
+      "hash": "r0ksUhkmGLQB-lWFPHAMEo2pjU82Mj3JMgeFVPD5Nx8C"
+    },
+    {
+      "name": "libs/androidx_fragment_fragment_testing_manifest/fragment-testing-manifest-1.8.0-SNAPSHOT.aar",
+      "size": 17425,
+      "hash": "DyVJPc5OkfYmj6a0eeUdoQbcG7bxG19tSLZpZntoICcC"
+    },
+    {
+      "name": "libs/androidx_gridlayout_gridlayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_gridlayout_gridlayout/README.chromium",
+      "size": 339,
+      "hash": "kKheqDpDDE64UmOX_virbtXfo7xuCGQtLb9_WQL-aXMC"
+    },
+    {
+      "name": "libs/androidx_gridlayout_gridlayout/androidx_gridlayout_gridlayout.info",
+      "size": 384,
+      "hash": "1HFWZ-1NBER7TGJva61q_r1284tJjXS8NOaGysKeG-QC"
+    },
+    {
+      "name": "libs/androidx_gridlayout_gridlayout/gridlayout-1.1.0-SNAPSHOT.aar",
+      "size": 40364,
+      "hash": "emcX-GP4WqiZI6hSO4KbP7Vy87zW0iYk5E8B0tkN4psC"
+    },
+    {
+      "name": "libs/androidx_interpolator_interpolator/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_interpolator_interpolator/README.chromium",
+      "size": 586,
+      "hash": "JZWMQV8ZUv04M1gnGlbX_NhspIHhXWgKt0Mo7gdXWCgC"
+    },
+    {
+      "name": "libs/androidx_interpolator_interpolator/androidx_interpolator_interpolator.info",
+      "size": 387,
+      "hash": "-NMWsdF83kBRA0ZYPkKclWNAQXj8K2iN1Ddvty3nkl4C"
+    },
+    {
+      "name": "libs/androidx_interpolator_interpolator/interpolator-1.1.0-SNAPSHOT.aar",
+      "size": 10285,
+      "hash": "ukEhKkRH9fLLzn-KkS9-8oYr85ptpdwm7USLoBRm3YMC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback/README.chromium",
+      "size": 333,
+      "hash": "S30H0FKQWegj_dUMzHc5OXWMO1klcFeoeaifNGlWPfEC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback/androidx_leanback_leanback.info",
+      "size": 12213,
+      "hash": "2CTtOO_sYzJHI9k6D5kw--hqroqmVHwbRHdfSnv3SX8C"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback/leanback-1.2.0-SNAPSHOT.aar",
+      "size": 1284491,
+      "hash": "0724HNf06SrXy_Wmpg_qRgF7Zc4R_2OwOi3Dcr9I3UYC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_grid/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_grid/README.chromium",
+      "size": 370,
+      "hash": "cAd09bsrPSrLhbA4KRoLkUrIx-x_DJ-Fz2zkl6iIBRIC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_grid/androidx_leanback_leanback_grid.info",
+      "size": 389,
+      "hash": "6FFQJB7md7mWlyNweUuMU2UXufGOlVRR8LWfH7FzCEAC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_grid/leanback-grid-1.0.0-SNAPSHOT.aar",
+      "size": 93571,
+      "hash": "i0QEhZQjfFapl8C8g7irrGpsTKphe6Qkmcs3c7Ji3PoC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_preference/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_preference/README.chromium",
+      "size": 355,
+      "hash": "-4-qA9tdKvvAcZ3tZPcL7VgKcs0tU7Ctnk_NOV-CK-sC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_preference/androidx_leanback_leanback_preference.info",
+      "size": 1420,
+      "hash": "t2CvtYCgTBE3WzAMucKJPd_1Ds7SEkbBHkvZbQwW-iUC"
+    },
+    {
+      "name": "libs/androidx_leanback_leanback_preference/leanback-preference-1.2.0-SNAPSHOT.aar",
+      "size": 61459,
+      "hash": "ox7na5mREbFxIzXcoE6qR0bcT4HQiCYQQbqn0V1jSAAC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_ui/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_ui/README.chromium",
+      "size": 584,
+      "hash": "_u9udWlMVlpdpwMtOQvP41GKMwoKxruphlf5B-Sb72UC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_ui/androidx_legacy_legacy_support_core_ui.info",
+      "size": 360,
+      "hash": "2tYJFdsjcvivO3K8-lKaPV416wScZkamLeuJ5XD5inEC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_ui/legacy-support-core-ui-1.0.0.aar",
+      "size": 11309,
+      "hash": "DRJgxufmozf4dd9xtRaTHnA_cW6QiJgXzTog-lrD2UcC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_utils/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_utils/README.chromium",
+      "size": 590,
+      "hash": "vnTqLEb4nQgWBpJ0JR0okYCoQ8tZSHgXbTtUdBjUdLgC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_utils/androidx_legacy_legacy_support_core_utils.info",
+      "size": 363,
+      "hash": "Ef1XHJOEvhanKmuCB6s4mx3Ufw8vf9vmJAqaQXl-hh8C"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_core_utils/legacy-support-core-utils-1.0.0.aar",
+      "size": 4104,
+      "hash": "p-3PAdW1KzA0BzAnvEd1t4pHZLtiAruR1hyCmt2N0ccC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_v4/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_v4/README.chromium",
+      "size": 574,
+      "hash": "22xnAE1Q0QCl-SA3VLxnEk0HKwrG4XjBSVlDAOXt-2EC"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_v4/androidx_legacy_legacy_support_v4.info",
+      "size": 356,
+      "hash": "zsPiwnzFzyf36pTNFPTEFX3cgrlNtvrqzzkJ0MHHn20C"
+    },
+    {
+      "name": "libs/androidx_legacy_legacy_support_v4/legacy-support-v4-1.0.0.aar",
+      "size": 2844,
+      "hash": "eP7BSF8POIpHSQIt1RQWhXEnzSVErhw_0LFliQVUgLAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_java8/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_java8/README.chromium",
+      "size": 383,
+      "hash": "5FjItBMIjoVVGpR2MAzkB8RQZEe-CrXsi_ZmtMo7GdAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_java8/lifecycle-common-java8-2.9.0-SNAPSHOT.jar",
+      "size": 261,
+      "hash": "xt6tovrFO46mUj29p3WXsSgAZnRhbxQPBN8jJkxtGqMC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_jvm/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_jvm/README.chromium",
+      "size": 350,
+      "hash": "wLuk_EO1YNNzAs4EDluVbFuexvt1NPwOE64-Ey0hyokC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_common_jvm/lifecycle-common-jvm-2.9.0-SNAPSHOT.jar",
+      "size": 57238,
+      "hash": "YchzpzJ8lG7AM8MQu5jz-S7qvO3g4aUgCrihiWSDx78C"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata/README.chromium",
+      "size": 352,
+      "hash": "9Pfm3mI6iqvHUDdTDmd3bdLhK_MzkcjA8HxgIPI1p7YC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata/androidx_lifecycle_lifecycle_livedata.info",
+      "size": 393,
+      "hash": "4n_mmZNAy_OQvAD_H28savP-8OaOJ2Ui0AdPfTVMKYIC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata/lifecycle-livedata-2.9.0-SNAPSHOT.aar",
+      "size": 55856,
+      "hash": "p_513jO7hthDCEzyK2-VK8v3wZVr5Ob9cmdBOrDTzWsC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core/README.chromium",
+      "size": 367,
+      "hash": "E22182NiFLDa1-tWG0V71xP_n7wRYKgm0TXE1vLXmWEC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core/androidx_lifecycle_lifecycle_livedata_core.info",
+      "size": 398,
+      "hash": "EoOFWFgVFsSCLKSdiF2P9pFDnJrkF2JQghJJhSfe_pkC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core/lifecycle-livedata-core-2.9.0-SNAPSHOT.aar",
+      "size": 30713,
+      "hash": "O7JuVt4WIHxt5AIVRu__FE6oOZaf-MDV9Xr3_gROPGsC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core_ktx/README.chromium",
+      "size": 394,
+      "hash": "6P4osI3dinJGB4z1UIGDG9e88c7w9go9BRwPR7JwGcYC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core_ktx/androidx_lifecycle_lifecycle_livedata_core_ktx.info",
+      "size": 402,
+      "hash": "so0k-SaKfZLClV1u-2yhrKjZSJE5qNJGjlNjn7hlkLcC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_livedata_core_ktx/lifecycle-livedata-core-ktx-2.9.0-SNAPSHOT.aar",
+      "size": 1358,
+      "hash": "D0d7dLIK_JjwHUnlS6WnYCSTkrv5YZ7wbwXuHRoOmBoC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_process/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_process/README.chromium",
+      "size": 349,
+      "hash": "5amPZXvxExxd5bXwHB7usI9R68Nxiv7gk0mJ9iOODCsC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_process/androidx_lifecycle_lifecycle_process.info",
+      "size": 392,
+      "hash": "cIqGiuBXNgsCA6ZcTtY3pFTdXop04JE1F3ZY7UWLBJkC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_process/lifecycle-process-2.9.0-SNAPSHOT.aar",
+      "size": 15250,
+      "hash": "NqFKojjHAjh2F-yGa_TKKZNUH-HmYWuHIjCQJj60eo0C"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_android/README.chromium",
+      "size": 357,
+      "hash": "V5IThef3fF9_0N-8WSba5dsFUb9_O3JqzmsjZPJRWqEC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_android/androidx_lifecycle_lifecycle_runtime_android.info",
+      "size": 390,
+      "hash": "0uCavkTAJTjyvau917yyhcasx77UP1JcmUm1coP-NnIC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_android/lifecycle-runtime-android-2.9.0-SNAPSHOT.aar",
+      "size": 82082,
+      "hash": "45BdeYrGwVIDmp6I5s6576eXGSawc2Zh37UXcXX7hGQC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_ktx_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_ktx_android/README.chromium",
+      "size": 388,
+      "hash": "du-URceOtdrZMSR3HXTfXnzNaSo1-fDmO1GZfNt1k-MC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_ktx_android/androidx_lifecycle_lifecycle_runtime_ktx_android.info",
+      "size": 388,
+      "hash": "-vY8wIsLe2bgqaiM1A0TIxVuHGEK2BZZgJ28ziwgrSkC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_runtime_ktx_android/lifecycle-runtime-ktx-android-2.9.0-SNAPSHOT.aar",
+      "size": 1343,
+      "hash": "skVQSFK7q9y-9K-mO_ty9Pla1NuQhPzYPP3wc1dMhJAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_service/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_service/README.chromium",
+      "size": 349,
+      "hash": "2DpSLOJfrBUnan6UJHd449ReGPvGuHWJHw1rvNFRzgQC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_service/androidx_lifecycle_lifecycle_service.info",
+      "size": 392,
+      "hash": "IdpJzFahJZOW_4Mo7P582KK-67cINAf3MoGXLhmAedoC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_service/lifecycle-service-2.9.0-SNAPSHOT.aar",
+      "size": 5307,
+      "hash": "iyGokfqqsRTjWe4B-2JqCwbZ_A68ig1iGvGCt9Lq-ksC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_android/README.chromium",
+      "size": 363,
+      "hash": "_U_gFkzqX08XiQpn4vGrGFqQp-ZPem2lyEZosCDVOcEC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_android/androidx_lifecycle_lifecycle_viewmodel_android.info",
+      "size": 392,
+      "hash": "JNIvbKjRK6sEb_w_vrlSKaNSpHjqNoQAk3jYRf5s3twC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_android/lifecycle-viewmodel-android-2.9.0-SNAPSHOT.aar",
+      "size": 56328,
+      "hash": "Jhm-n7BcEwMu0dHfxnNR_fDDR5iu5WBUUuns3RXFqLAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_ktx/README.chromium",
+      "size": 392,
+      "hash": "Kx1GUf-n42VlM-NMUpH-dCiIc8TlAiltVOw-x9g3BusC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_ktx/androidx_lifecycle_lifecycle_viewmodel_ktx.info",
+      "size": 398,
+      "hash": "xGjHIP0CQqb9qzjMv0nX7mcl0NrXSpRTk1bUc6ypa4MC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_ktx/lifecycle-viewmodel-ktx-2.9.0-SNAPSHOT.aar",
+      "size": 1352,
+      "hash": "PpPnB1O5talcdMoVtX83vg7b5HrtwygEdvyQVmHfJTIC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_savedstate/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_savedstate/README.chromium",
+      "size": 382,
+      "hash": "U7uxzZfywzRjniZD9kH7WOIgIr2Bc08mho4nVNuERiUC"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_savedstate/androidx_lifecycle_lifecycle_viewmodel_savedstate.info",
+      "size": 404,
+      "hash": "iMsHr719OVml7nPYjuy-gOdKvgFg1J6njVyiA9whvP0C"
+    },
+    {
+      "name": "libs/androidx_lifecycle_lifecycle_viewmodel_savedstate/lifecycle-viewmodel-savedstate-2.9.0-SNAPSHOT.aar",
+      "size": 37828,
+      "hash": "jph0lqAeagXpokj1H8S8KYtI61adH_KdetMXCmnS2gAC"
+    },
+    {
+      "name": "libs/androidx_loader_loader/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_loader_loader/README.chromium",
+      "size": 567,
+      "hash": "aE0r0i5k8excwrTB9B3qaKeqGdz4TWuyzmrWhRpR8k4C"
+    },
+    {
+      "name": "libs/androidx_loader_loader/androidx_loader_loader.info",
+      "size": 381,
+      "hash": "TnTbedtxCd148D7F8Jooge8qeNFb4wuCvLzRizsRVJgC"
+    },
+    {
+      "name": "libs/androidx_loader_loader/loader-1.2.0-SNAPSHOT.aar",
+      "size": 29568,
+      "hash": "Ss6BT_JOPLuzhRa7_tRwKtsNBwPelQQtpIpyxP8kF5wC"
+    },
+    {
+      "name": "libs/androidx_localbroadcastmanager_localbroadcastmanager/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_localbroadcastmanager_localbroadcastmanager/README.chromium",
+      "size": 599,
+      "hash": "3lR6Bf4VRlDawO-EWL9zX9eu08QIjl9iLSu2XzV6Vm0C"
+    },
+    {
+      "name": "libs/androidx_localbroadcastmanager_localbroadcastmanager/androidx_localbroadcastmanager_localbroadcastmanager.info",
+      "size": 369,
+      "hash": "UUN_lfrl-TapifoDGTqvZQXAlNrHsWthSf4BMdAswmAC"
+    },
+    {
+      "name": "libs/androidx_localbroadcastmanager_localbroadcastmanager/localbroadcastmanager-1.0.0.aar",
+      "size": 6808,
+      "hash": "5xwyjO71xKfXby2G3xtl1l_irPhosaTv2Eo_NDNhhtgC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_common/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_common/README.chromium",
+      "size": 254,
+      "hash": "Cu-RemsRyvv6ulilKVlS4TwJnr75_vn9B4qF-pmCJEoC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_common/androidx_media3_media3_common.info",
+      "size": 361,
+      "hash": "GP6cJwemdVv9I1STMd5-K3gyDAXeOCuPjbFkVTpFyvYC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_common/media3-common-1.2.0.aar",
+      "size": 471866,
+      "hash": "C331wmlUDe9QxGhcYhJ-XlUsHdtwEF2TuPfKNKjj6NIC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_container/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_container/README.chromium",
+      "size": 263,
+      "hash": "M7xMA6Kb_NeYitVhWQMDW_7Oxf_swTFORe5tx-ZxnPoC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_container/androidx_media3_media3_container.info",
+      "size": 364,
+      "hash": "1Ye5oK6ALPK9v8i9yBrT2uU50cJJ6-bTyQyMxqSR2akC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_container/media3-container-1.2.0.aar",
+      "size": 23287,
+      "hash": "-2DaEoGOkUwEAfwHWbqM9glMMk-FkOWpFaf8iSGGd3cC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_database/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_database/README.chromium",
+      "size": 260,
+      "hash": "Iwbos7VB2Me_DOM7fGIwj4HHfoIiPNTUUgsFMmva9ssC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_database/androidx_media3_media3_database.info",
+      "size": 363,
+      "hash": "IPsp_8uW54end9CLfdNgD_NniLrZnRKmw9RZsMyVaB0C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_database/media3-database-1.2.0.aar",
+      "size": 7550,
+      "hash": "cLPGTQVKRidvbqtPyW9C4KJW2wAAn70eH45NC2-k49QC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_datasource/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_datasource/README.chromium",
+      "size": 266,
+      "hash": "HYNoS_uuRMIP26uTHoFWeTe30oCJAT043JFYejDx6R0C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_datasource/androidx_media3_media3_datasource.info",
+      "size": 364,
+      "hash": "JIjjnKj5SkyVGhfeCv2qQxAtZGPRAWXuqeMIXa9e2FMC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_datasource/media3-datasource-1.2.0.aar",
+      "size": 144210,
+      "hash": "WV-4cY3jjJxn4wcgrz5i55WxRprBgtnuSWcih-yRKu0C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_decoder/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_decoder/README.chromium",
+      "size": 257,
+      "hash": "PKD78Np0MB5NR_DFRx8lrXvjKBQNGTxCyo1facWOVLIC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_decoder/androidx_media3_media3_decoder.info",
+      "size": 362,
+      "hash": "iTBHegd6AczSgrsrKeCZCxawy-p-eEpL003FalivuEMC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_decoder/media3-decoder-1.2.0.aar",
+      "size": 17910,
+      "hash": "2OM8Yd0ea-iUmWRS1JEX5QHIgpPz5Xwz-350hRnupiMC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_exoplayer/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_exoplayer/README.chromium",
+      "size": 263,
+      "hash": "YyqRftJGyKqaNHqd0a0Yfz9m-u5PjvMElJC1Pm1TWggC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_exoplayer/androidx_media3_media3_exoplayer.info",
+      "size": 3116,
+      "hash": "499B9wU6zC7bzzYifwEuNhsxj2y_ErLg0sGF6ftSlT8C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_exoplayer/media3-exoplayer-1.2.0.aar",
+      "size": 1333721,
+      "hash": "fnUNKibEIhNk73PZdy0j9ZG4mQCIZoSs2stFIM01Ls4C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_extractor/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_extractor/README.chromium",
+      "size": 263,
+      "hash": "LWLV3wUdVgMKuE0xpJFOE-KwTqoz9AULofgKqtP7WJAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_extractor/androidx_media3_media3_extractor.info",
+      "size": 363,
+      "hash": "upBka79d5i_oCVajarzk6X1b2DPGtXCjy0VyIt2Kjk8C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_extractor/media3-extractor-1.2.0.aar",
+      "size": 734664,
+      "hash": "lDFK7OLVmF5F7B4stuV6t1R-Ec3F2tdNMp3MPuGV82oC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_session/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_session/README.chromium",
+      "size": 257,
+      "hash": "R8aIysLNkkFyi7zP6ALFgFl0lDwwCbgsZ3fD5RTb8fMC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_session/androidx_media3_media3_session.info",
+      "size": 3724,
+      "hash": "ADHtb7pxGqn1gog1sXaGQugK6g5JpUavqgJDyVhRa94C"
+    },
+    {
+      "name": "libs/androidx_media3_media3_session/media3-session-1.2.0.aar",
+      "size": 507243,
+      "hash": "dnn5wZRA_-a_Ln2kP33FMQQJRblz9dafP2a-Ag_grIYC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_ui/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_ui/README.chromium",
+      "size": 242,
+      "hash": "ftO8IE9qJgBiv8YtkZG_XvpG6w9hgiUR7xqZU2TnzqoC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_ui/androidx_media3_media3_ui.info",
+      "size": 15671,
+      "hash": "zIZb1oGPVKB8FWnul6qDAEFDluZzepmuPW3D3-N45WIC"
+    },
+    {
+      "name": "libs/androidx_media3_media3_ui/media3-ui-1.2.0.aar",
+      "size": 432599,
+      "hash": "_uOe2_YV-UMvU68cybIN1XBr-8Xb1_5YElOlnu3ZFIIC"
+    },
+    {
+      "name": "libs/androidx_media_media/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_media_media/README.chromium",
+      "size": 564,
+      "hash": "w5AS5INgeNfUtihdQeR26auoG8rIHuT_My89Q2UlXx8C"
+    },
+    {
+      "name": "libs/androidx_media_media/androidx_media_media.info",
+      "size": 1320,
+      "hash": "apKGiBNI5--nDZ0woC8VsIC55bKt267fnFGd96A1XkwC"
+    },
+    {
+      "name": "libs/androidx_media_media/media-1.7.0-SNAPSHOT.aar",
+      "size": 342383,
+      "hash": "EmwdER9ZRoLIB8tyVwZ361np0Q4Nw3zdHwmJXBxZ__YC"
+    },
+    {
+      "name": "libs/androidx_mediarouter_mediarouter/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_mediarouter_mediarouter/README.chromium",
+      "size": 349,
+      "hash": "qXDQFtA_2tYTDkkTkTo7LO7Mbs599DWwSm2X_qYCDf4C"
+    },
+    {
+      "name": "libs/androidx_mediarouter_mediarouter/androidx_mediarouter_mediarouter.info",
+      "size": 28321,
+      "hash": "ZRZF9-6jTmS_WxYX4n4IswAJ9-hh9GM8ykAAobvbTasC"
+    },
+    {
+      "name": "libs/androidx_mediarouter_mediarouter/mediarouter-1.7.0-SNAPSHOT.aar",
+      "size": 769059,
+      "hash": "ZucIhJtWd8C7n7H6HKwsmec1FIYwG4DD8K2LX_c6-MwC"
+    },
+    {
+      "name": "libs/androidx_multidex_multidex/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_multidex_multidex/README.chromium",
+      "size": 346,
+      "hash": "P2epnW6fZO3WWRiED2aL4z5i0HHbtF6zBtUO45X6fpQC"
+    },
+    {
+      "name": "libs/androidx_multidex_multidex/androidx_multidex_multidex.info",
+      "size": 356,
+      "hash": "lxgRsk72ts06MxLd_8v4I4lADFIxsgcVurQYKaaB3wkC"
+    },
+    {
+      "name": "libs/androidx_multidex_multidex/multidex-2.0.0.aar",
+      "size": 26501,
+      "hash": "wBcACRBy4P9djsLQDqxrj5bqGGRggEJenOPGp7X2bjMC"
+    },
+    {
+      "name": "libs/androidx_palette_palette/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_palette_palette/README.chromium",
+      "size": 325,
+      "hash": "00oZmjdIazUSHULPVjHj1JODdAncqGRn0ZIu5NRkjBQC"
+    },
+    {
+      "name": "libs/androidx_palette_palette/androidx_palette_palette.info",
+      "size": 382,
+      "hash": "PeZ6m0upmIE5d-GDg_2GZR-YxmqKVkb7vLgrdX75KewC"
+    },
+    {
+      "name": "libs/androidx_palette_palette/palette-1.1.0-SNAPSHOT.aar",
+      "size": 22330,
+      "hash": "GABTzoXBNslTTZsUMK5Avcax2ZqbW5Q6xJihZSCAxA8C"
+    },
+    {
+      "name": "libs/androidx_preference_preference/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_preference_preference/README.chromium",
+      "size": 330,
+      "hash": "WnJl9A_DAX_WjTSJGf_tuYDIlJ8o3nrM5mp-2U9tIa0C"
+    },
+    {
+      "name": "libs/androidx_preference_preference/androidx_preference_preference.info",
+      "size": 4279,
+      "hash": "aPsWj-iZIRXi1o4QUo8bCPrCNc0eirPu58YO8Zd-EUUC"
+    },
+    {
+      "name": "libs/androidx_preference_preference/preference-1.3.0-SNAPSHOT.aar",
+      "size": 247355,
+      "hash": "di1krzUwM91P4wIf5Kbxuyj69JS68escucgNcramRaAC"
+    },
+    {
+      "name": "libs/androidx_print_print/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_print_print/README.chromium",
+      "size": 564,
+      "hash": "6wDYHRFZx6N-s-AlIt3YQuCmMvdeaXDWogHHBG4VbW8C"
+    },
+    {
+      "name": "libs/androidx_print_print/androidx_print_print.info",
+      "size": 380,
+      "hash": "KJpFH9tFJAZR8PtD6SUKJ_Nv_X1UHbXsdkyavlj8m98C"
+    },
+    {
+      "name": "libs/androidx_print_print/print-1.1.0-SNAPSHOT.aar",
+      "size": 17479,
+      "hash": "cxtzkjtJUaiV01RmdfLvn667cFx_Y9q1CImR9u32SUwC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices/README.chromium",
+      "size": 452,
+      "hash": "vRfqNchm3ZWGQ8szzNHQrGfFMWl-JlGgpRVnzSLD7UIC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices/ads-adservices-1.1.0-SNAPSHOT.aar",
+      "size": 202882,
+      "hash": "zl_PyV7GdNYqFdHc53_19G0gZwbaudUFY5KsbQSmkR8C"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices/androidx_privacysandbox_ads_ads_adservices.info",
+      "size": 404,
+      "hash": "6pWjuGujiRSqw9uCs5kctMUXaTgWWzvbW-unDvu2NsAC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices_java/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices_java/README.chromium",
+      "size": 397,
+      "hash": "A7NXcy3vnAndw3fl204Ou_Gs28XlBQeOsqisTU6rRPkC"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices_java/ads-adservices-java-1.1.0-SNAPSHOT.aar",
+      "size": 63023,
+      "hash": "O6jQCJG9amA7lrnScWM243OYwxrVAB3XjxPeOGdf1R8C"
+    },
+    {
+      "name": "libs/androidx_privacysandbox_ads_ads_adservices_java/androidx_privacysandbox_ads_ads_adservices_java.info",
+      "size": 409,
+      "hash": "is0Rb0Vhjz055PFiKouebd1zWRsk0JsxFFjXSeU2UZ0C"
+    },
+    {
+      "name": "libs/androidx_profileinstaller_profileinstaller/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_profileinstaller_profileinstaller/README.chromium",
+      "size": 412,
+      "hash": "oz3W0uBN2FN2w_82K7ku48a9y5jfupY2AmQW4QKgpdoC"
+    },
+    {
+      "name": "libs/androidx_profileinstaller_profileinstaller/androidx_profileinstaller_profileinstaller.info",
+      "size": 392,
+      "hash": "hzjja7KTY_0G8VhlQ_X5-b85N8RzX6AUQb4MaDMx1t4C"
+    },
+    {
+      "name": "libs/androidx_profileinstaller_profileinstaller/profileinstaller-1.4.0-SNAPSHOT.aar",
+      "size": 47436,
+      "hash": "Y2dKSATcGU20Shgm4LumE0cJQm-MfJ1Xjeml-_X-xfcC"
+    },
+    {
+      "name": "libs/androidx_recyclerview_recyclerview/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_recyclerview_recyclerview/README.chromium",
+      "size": 345,
+      "hash": "iTn8dZhgsdKCStPegNlg1tS7b1JJSRGiAZYROA5F99kC"
+    },
+    {
+      "name": "libs/androidx_recyclerview_recyclerview/androidx_recyclerview_recyclerview.info",
+      "size": 385,
+      "hash": "nlne963eIjLsl2A6h-9kw_4rS14P4OruapFFg6g6PT4C"
+    },
+    {
+      "name": "libs/androidx_recyclerview_recyclerview/recyclerview-1.4.0-SNAPSHOT.aar",
+      "size": 416149,
+      "hash": "6m4rZFaR6fyMrq10FqO7N7R50et9gybgU9osrCidsL0C"
+    },
+    {
+      "name": "libs/androidx_remotecallback_remotecallback/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_remotecallback_remotecallback/README.chromium",
+      "size": 400,
+      "hash": "0HDd1DW3uwREoPUeKNjRxtB-_JMmJ8u_DnjeRzUjRuoC"
+    },
+    {
+      "name": "libs/androidx_remotecallback_remotecallback/androidx_remotecallback_remotecallback.info",
+      "size": 390,
+      "hash": "ev1dFAGjmS5t7lUG4EjhlHC9R_iklRspUsji84FC5tAC"
+    },
+    {
+      "name": "libs/androidx_remotecallback_remotecallback/remotecallback-1.0.0-SNAPSHOT.aar",
+      "size": 17454,
+      "hash": "6EfboKd8vjLiMlR1LAKE7XFPDXSbWta6gDvKDGccVJAC"
+    },
+    {
+      "name": "libs/androidx_resourceinspection_resourceinspection_annotation/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_resourceinspection_resourceinspection_annotation/README.chromium",
+      "size": 425,
+      "hash": "6-cT4HLwpDXU-O3wx7hrKeq786WKbt8yb4Wzpkw605kC"
+    },
+    {
+      "name": "libs/androidx_resourceinspection_resourceinspection_annotation/resourceinspection-annotation-1.1.0-SNAPSHOT.jar",
+      "size": 2333,
+      "hash": "iHGSXf5NltMMn-Jx1NBMOCAlGmkEwGJIiZeIGCFOxwcC"
+    },
+    {
+      "name": "libs/androidx_room_room_common_jvm/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_room_room_common_jvm/README.chromium",
+      "size": 330,
+      "hash": "7Qfp9k65PRSaIsLnzvTv4sozgQPQJqiVCyEflvFDJHMC"
+    },
+    {
+      "name": "libs/androidx_room_room_common_jvm/room-common-jvm-2.7.0-SNAPSHOT.jar",
+      "size": 61554,
+      "hash": "E9MjLRI6woUIzTGgIuRh9_PZIlDxackErB8gJXtKVPoC"
+    },
+    {
+      "name": "libs/androidx_room_room_guava/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_room_room_guava/README.chromium",
+      "size": 323,
+      "hash": "YeuayRArXi1BuPcSBPa-fbq2y6v9xUUWcNhSF5ImWeYC"
+    },
+    {
+      "name": "libs/androidx_room_room_guava/androidx_room_room_guava.info",
+      "size": 385,
+      "hash": "LIte9Y62248ioN52lHqjFNJ6HE68rjtmQWwamZewC10C"
+    },
+    {
+      "name": "libs/androidx_room_room_guava/room-guava-2.7.0-SNAPSHOT.aar",
+      "size": 6149,
+      "hash": "OoO6D5wUE-yr-R3bJD07WXq9U7VjOuVsBBG1wQgjkrQC"
+    },
+    {
+      "name": "libs/androidx_room_room_runtime_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_room_room_runtime_android/README.chromium",
+      "size": 337,
+      "hash": "oddTi-NP9iEksOX8lJZNIEs84RGvH6fExCdO_bF_D4IC"
+    },
+    {
+      "name": "libs/androidx_room_room_runtime_android/androidx_room_room_runtime_android.info",
+      "size": 379,
+      "hash": "3Gdh5TG6DLHKNWgScs0DRjSZn1JWlZ9jyBsQJcDjjisC"
+    },
+    {
+      "name": "libs/androidx_room_room_runtime_android/room-runtime-android-2.7.0-SNAPSHOT.aar",
+      "size": 525182,
+      "hash": "qfJ-iYrdI8Bv1cuQyiw22BbgQ65l1Heg3rdfHtxPVLAC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_android/README.chromium",
+      "size": 349,
+      "hash": "FPL6CW1mMhG76elcETE8DI-LPDbGKqri1tQCNKZTm2MC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_android/androidx_savedstate_savedstate_android.info",
+      "size": 383,
+      "hash": "slIbpposq0gxXg1x5Grt-nVmkKs1nkg7XY_G9ZDrcA4C"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_android/savedstate-android-1.3.0-SNAPSHOT.aar",
+      "size": 20217,
+      "hash": "iSY0ou4hRY8vrdD9gpfH1qzGa3D9BkpLgFyci60Q8DEC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_ktx/README.chromium",
+      "size": 376,
+      "hash": "-oVRdWoVKmHCsrZnCu1IBpaXztujUMRblp10TezQEXgC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_ktx/androidx_savedstate_savedstate_ktx.info",
+      "size": 389,
+      "hash": "rdL9_CwrbfrarjxH2k68glWeTBm_hmAfOoniTfBv2hQC"
+    },
+    {
+      "name": "libs/androidx_savedstate_savedstate_ktx/savedstate-ktx-1.3.0-SNAPSHOT.aar",
+      "size": 1335,
+      "hash": "FchUUzfatc6e1bBVYQXxbynBCkgKH23SKbRqYrfIjkwC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_builders/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_builders/README.chromium",
+      "size": 376,
+      "hash": "m3rClSlrTNm9TrZUhgcyC0QmAi1pV7prRkj6EeQR6Z4C"
+    },
+    {
+      "name": "libs/androidx_slice_slice_builders/androidx_slice_slice_builders.info",
+      "size": 389,
+      "hash": "wU_5SC0Zkhb3TZ9zADU5wgYzQi5ULUB29PpCj5D5g60C"
+    },
+    {
+      "name": "libs/androidx_slice_slice_builders/slice-builders-1.1.0-SNAPSHOT.aar",
+      "size": 67174,
+      "hash": "ezmleCm2K_uwXpxwkkgEZ2tng4V_XatYznIb4XSFFOwC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_core/README.chromium",
+      "size": 391,
+      "hash": "64r7RHKxl9UPIWlvgFEbGuiTijEtB7e27iaHGbhgftgC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_core/androidx_slice_slice_core.info",
+      "size": 3432,
+      "hash": "Q1toN0nem7briLX3VajCUVksXqGGfQNbgYOatjmjmEcC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_core/slice-core-1.1.0-SNAPSHOT.aar",
+      "size": 147574,
+      "hash": "1l6IhXUhDl3dHwMjzoc_EugliKuQ0kxAKyzosD2QH3cC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_view/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_view/README.chromium",
+      "size": 381,
+      "hash": "ZayVPeRx0sg13q7JuHbuBh14WT3YhXKq6KgO7l97hKgC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_view/androidx_slice_slice_view.info",
+      "size": 4326,
+      "hash": "DAPEKccEr6jcwfrSwy4JBaDB1CBPqFBv1PCNfPJAWCYC"
+    },
+    {
+      "name": "libs/androidx_slice_slice_view/slice-view-1.1.0-SNAPSHOT.aar",
+      "size": 272629,
+      "hash": "wws8cqVbXNtONOut94wnc4i6YSAb-lOxr39mIaCtdGYC"
+    },
+    {
+      "name": "libs/androidx_slidingpanelayout_slidingpanelayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_slidingpanelayout_slidingpanelayout/README.chromium",
+      "size": 503,
+      "hash": "5PAIczhLKeAJU2009vpQkF_-8l0SkWqUnZacBa2GZNEC"
+    },
+    {
+      "name": "libs/androidx_slidingpanelayout_slidingpanelayout/androidx_slidingpanelayout_slidingpanelayout.info",
+      "size": 439,
+      "hash": "UHCrrIJIL0DGd2Xr66H-0cXxmKjN3jAZtIR991eJClwC"
+    },
+    {
+      "name": "libs/androidx_slidingpanelayout_slidingpanelayout/slidingpanelayout-1.3.0-SNAPSHOT.aar",
+      "size": 66478,
+      "hash": "DUuHjdbVfN9xHx2goRrmY4sj6HM3jEvyQEKcMO_K1V4C"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_android/README.chromium",
+      "size": 317,
+      "hash": "PbYRSrKI5vYNYN4ta_iSqeWqrCKFQ9z3jB8IMOtUmaIC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_android/androidx_sqlite_sqlite_android.info",
+      "size": 384,
+      "hash": "X6c8OjU_ejXR4nBZzmPPYo1h8UIW2McCXi8Qb998Rx8C"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_android/sqlite-android-2.5.0-SNAPSHOT.aar",
+      "size": 31130,
+      "hash": "HVzAU6VogrBl83as3_Jl-Efze3uiqjxEGjJa_b1qPZoC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_framework_android/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_framework_android/README.chromium",
+      "size": 401,
+      "hash": "HBfZJBypVlTFpMsxsk36nUI9-rVsulS-dAh83KO9ZtQC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_framework_android/androidx_sqlite_sqlite_framework_android.info",
+      "size": 394,
+      "hash": "3HXCDWeiSZrczD_7hB9mDjs_1jf8GIut-_M3oFJma5IC"
+    },
+    {
+      "name": "libs/androidx_sqlite_sqlite_framework_android/sqlite-framework-android-2.5.0-SNAPSHOT.aar",
+      "size": 47848,
+      "hash": "n_dmgMyPzPQq4Foc_ISRlQZzCC92JTCsvYsRkJXGW0IC"
+    },
+    {
+      "name": "libs/androidx_startup_startup_runtime/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_startup_startup_runtime/README.chromium",
+      "size": 345,
+      "hash": "stGj7ne9SMUTOxmF-PdD2KkeyCu2VTMFQF7r_pTvQOcC"
+    },
+    {
+      "name": "libs/androidx_startup_startup_runtime/androidx_startup_startup_runtime.info",
+      "size": 381,
+      "hash": "C2YBQshrzkkZP-bq_-ULCZns7FJSSK13spx4VqqB1hgC"
+    },
+    {
+      "name": "libs/androidx_startup_startup_runtime/startup-runtime-1.2.0-SNAPSHOT.aar",
+      "size": 19554,
+      "hash": "ey3nTHx9flt8K05NT0_E2gGqnBRYgDvKl-URUM4N7msC"
+    },
+    {
+      "name": "libs/androidx_swiperefreshlayout_swiperefreshlayout/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_swiperefreshlayout_swiperefreshlayout/README.chromium",
+      "size": 605,
+      "hash": "UKPLpFkJwj7W1gjhbyrMAxhxALlQEzCN9xnVrpv4xT0C"
+    },
+    {
+      "name": "libs/androidx_swiperefreshlayout_swiperefreshlayout/androidx_swiperefreshlayout_swiperefreshlayout.info",
+      "size": 392,
+      "hash": "xLN_3hDmpsZo4y52n_JGb2Bzco-bPR0WbzvrOCCA2AsC"
+    },
+    {
+      "name": "libs/androidx_swiperefreshlayout_swiperefreshlayout/swiperefreshlayout-1.2.0-SNAPSHOT.aar",
+      "size": 36145,
+      "hash": "SxODax6vlvIVCe0HpwCWrRPUzOF4Sugc_ZaExd741acC"
+    },
+    {
+      "name": "libs/androidx_test_annotation/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_annotation/README.chromium",
+      "size": 349,
+      "hash": "4DyhwRaSaqdbrARbVeqDENsmcyUpTZqQnQomKCaOWKsC"
+    },
+    {
+      "name": "libs/androidx_test_annotation/androidx_test_annotation.info",
+      "size": 363,
+      "hash": "Oy3qAHiOXlabAnTavFf6DBwWM4oAbeWhfC1K_6p0eUQC"
+    },
+    {
+      "name": "libs/androidx_test_annotation/annotation-1.0.1.aar",
+      "size": 1503,
+      "hash": "wHVJKO_-GWjDqae1XR38fOseHnyfPwn5iv1CQx9xJJIC"
+    },
+    {
+      "name": "libs/androidx_test_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_core/README.chromium",
+      "size": 343,
+      "hash": "oOboIXpNSB4mmlTj3A2GzAyaq7h_dqOzvuK_1yyzMMsC"
+    },
+    {
+      "name": "libs/androidx_test_core/androidx_test_core.info",
+      "size": 477,
+      "hash": "65rNVZsxaw1VhVNNCwT3pmUC_DOignLZ6flAPm-R32sC"
+    },
+    {
+      "name": "libs/androidx_test_core/core-1.5.0.aar",
+      "size": 69426,
+      "hash": "LAZxXA0IQ87iFDq4uzIrs_NNUkdjBAL8jBtqDq-hW58C"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_contrib/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_contrib/README.chromium",
+      "size": 355,
+      "hash": "lsrjdebB1YLYovcKsl4NXHxJYQzX9mXcWMkd5C-X7rQC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_contrib/androidx_test_espresso_espresso_contrib.info",
+      "size": 395,
+      "hash": "h9KKMqImVM6AYFSpslm95yoDo1-1vysi-FwG0_Ju3dwC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_contrib/espresso-contrib-3.5.1.aar",
+      "size": 62684,
+      "hash": "qb28KBaUOIZSn9YNpKtl15AoE2SCOhSbFZ-mhEy-27QC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_core/README.chromium",
+      "size": 352,
+      "hash": "4E3pnjgosDKsxBXNUJOHDgd88bcuTqcLQoK6orJNotcC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_core/androidx_test_espresso_espresso_core.info",
+      "size": 364,
+      "hash": "Q9KGsWjRfzPQDlxKf_rAu2q6_kQcHnS6jaPGinzDuoYC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_core/espresso-core-3.5.1.aar",
+      "size": 633902,
+      "hash": "NLBJP04ALyBdlh5WKt0MDDG7CsxlfonYnUsYisE_JCwC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_idling_resource/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_idling_resource/README.chromium",
+      "size": 363,
+      "hash": "dXOZEfnbEMerHiwtUCEwwtUXbAljsyJxZWS0WKjNzWcC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_idling_resource/androidx_test_espresso_espresso_idling_resource.info",
+      "size": 377,
+      "hash": "4AoSvMlS2-iPG8gBL_wNuZeoGbe5JdM99MBX4wuds4kC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_idling_resource/espresso-idling-resource-3.5.1.aar",
+      "size": 5186,
+      "hash": "hPuOL17ak3dxvuKFgvXSz6YbDpQ40CBBymG4Hj2sPIcC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_intents/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_intents/README.chromium",
+      "size": 355,
+      "hash": "0fR4udVJ9NMut6pMRn_zyM5FLcugkMerHR-9Jg72pZUC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_intents/androidx_test_espresso_espresso_intents.info",
+      "size": 367,
+      "hash": "oqE2PYUmoWrJL0aJXuXX3DRKWNxWXn6x8ilV43SyeD8C"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_intents/espresso-intents-3.5.1.aar",
+      "size": 51606,
+      "hash": "Y5F7zguQUBZode24pgkEMHQYwHMcwuAJ_reqjay9I2YC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_web/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_web/README.chromium",
+      "size": 351,
+      "hash": "Ep1vMJZpJ66Nxff8NQ9aFhhbJqufysTZk3iycOcVBNIC"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_web/androidx_test_espresso_espresso_web.info",
+      "size": 364,
+      "hash": "NHhCodJBo57QJkkdUZGrD_gL8v4Epf0z5SM1JZ58Zn8C"
+    },
+    {
+      "name": "libs/androidx_test_espresso_espresso_web/espresso-web-3.5.1.aar",
+      "size": 463725,
+      "hash": "m9P9fIil4F1RWZXSwsZJYB6zanIG51Hk8iAYpSYh5TUC"
+    },
+    {
+      "name": "libs/androidx_test_ext_junit/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_ext_junit/README.chromium",
+      "size": 344,
+      "hash": "pBonXmltA3JUSmXgxZZHDBwGXH008EmevYhoAvS8Dv0C"
+    },
+    {
+      "name": "libs/androidx_test_ext_junit/androidx_test_ext_junit.info",
+      "size": 362,
+      "hash": "DQQzNMSIC-39k_CQ_yIYSuWHfyCfTZLDyYiDQO5YA8UC"
+    },
+    {
+      "name": "libs/androidx_test_ext_junit/junit-1.1.1.aar",
+      "size": 5056,
+      "hash": "RJ30GNKRag-G_n2vse2wlID6-26ZXVx1HH0NGXDUrnIC"
+    },
+    {
+      "name": "libs/androidx_test_monitor/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_monitor/README.chromium",
+      "size": 346,
+      "hash": "VD2-dC01LWLNeO4fuNlUgB8qLgY7yuZ4hppXPKdSdu4C"
+    },
+    {
+      "name": "libs/androidx_test_monitor/androidx_test_monitor.info",
+      "size": 359,
+      "hash": "E8lsSfbFwqo8DSFKNxMsug9om9nywucTy35is1m_-wQC"
+    },
+    {
+      "name": "libs/androidx_test_monitor/monitor-1.6.1.aar",
+      "size": 100803,
+      "hash": "KYXOhVaYm698hDQuf2h3E8A3o5qSLmFNGj3fHKN3cHkC"
+    },
+    {
+      "name": "libs/androidx_test_rules/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_rules/README.chromium",
+      "size": 344,
+      "hash": "mF3G9tAyVdtXtSrZCElVBhlDLJBDS7A4JJUGeP9z59AC"
+    },
+    {
+      "name": "libs/androidx_test_rules/androidx_test_rules.info",
+      "size": 357,
+      "hash": "0mVaWF5CXtfKNlIKxujPWJb36zSIC47AZSGQwi7IJZwC"
+    },
+    {
+      "name": "libs/androidx_test_rules/rules-1.5.0.aar",
+      "size": 47559,
+      "hash": "3WRZKcY-JPQb6Ob1e7BvMF07Au0bKn2WFkcCeuHZ4X8C"
+    },
+    {
+      "name": "libs/androidx_test_runner/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_runner/README.chromium",
+      "size": 345,
+      "hash": "pOBPjN1liY2i1T2-poh5PyPDStJAbnGiR2fx1oxnCU4C"
+    },
+    {
+      "name": "libs/androidx_test_runner/androidx_test_runner.info",
+      "size": 359,
+      "hash": "oNj_9iYS8fthRLnQhTLr-6CroFnQrisuLlk0m6ltFUIC"
+    },
+    {
+      "name": "libs/androidx_test_runner/runner-1.5.2.aar",
+      "size": 284830,
+      "hash": "Ns1ryHbaofGDzNEfmJjglMcfBpYP3oWjc0IpWWE6RNYC"
+    },
+    {
+      "name": "libs/androidx_test_services_storage/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_services_storage/README.chromium",
+      "size": 346,
+      "hash": "HoDvdCODyNVZAUx4U0ekh_biLNzqaMhi1NPR-PJaEm4C"
+    },
+    {
+      "name": "libs/androidx_test_services_storage/androidx_test_services_storage.info",
+      "size": 369,
+      "hash": "Hnq-XEBlPs1b0nVigEmAJpEA-SpHlT4pH0qPLDn9I-wC"
+    },
+    {
+      "name": "libs/androidx_test_services_storage/storage-1.4.2.aar",
+      "size": 15836,
+      "hash": "s0hh8M2SDLEInwjD8n5YZbf5IChMxF9O0S741pgNrEgC"
+    },
+    {
+      "name": "libs/androidx_test_uiautomator_uiautomator/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_test_uiautomator_uiautomator/README.chromium",
+      "size": 382,
+      "hash": "hbeJhRkiRckzYk4365Ai1yrHBE5yfIH1Uy0AO0bbpIsC"
+    },
+    {
+      "name": "libs/androidx_test_uiautomator_uiautomator/androidx_test_uiautomator_uiautomator.info",
+      "size": 391,
+      "hash": "RYQE82O10j4e2NXWCOFlNcmXW7q428E6bBndjliy6DAC"
+    },
+    {
+      "name": "libs/androidx_test_uiautomator_uiautomator/uiautomator-2.4.0-SNAPSHOT.aar",
+      "size": 126172,
+      "hash": "RMe2PGsq_Uql96PYDCHq_pbPcXUo6_hs6_8rCB2F8AsC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing/README.chromium",
+      "size": 317,
+      "hash": "ap_BsFzUZx8mcreVVz5BaDrzCSTvtbSDwqY7tg7J5QQC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing/androidx_tracing_tracing.info",
+      "size": 382,
+      "hash": "9f1SSJxZTFiLWdYL6Gy8vF6oMPTQvJBHa6TN0ZvjJo8C"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing/tracing-1.3.0-SNAPSHOT.aar",
+      "size": 4798,
+      "hash": "UQNJFGrxVpnrabAJkVCluV8Du4IB7p4LfEubYm67jC8C"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_ktx/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_ktx/README.chromium",
+      "size": 337,
+      "hash": "KFdEW86kbu37n8uxlctCLsfiho7UdijoU4GvnSsWt0QC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_ktx/androidx_tracing_tracing_ktx.info",
+      "size": 386,
+      "hash": "ok7EIp7u3N7ewYmGuLXwtJngnW7i8TT0XYgXQYnWUokC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_ktx/tracing-ktx-1.3.0-SNAPSHOT.aar",
+      "size": 5131,
+      "hash": "UV1cz-x3-Rci7oTM0WzrpWrQBo2PneIc4WJ9izhFjeEC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto/README.chromium",
+      "size": 348,
+      "hash": "GqDeycktjr3YLfkqYMM5zK2HWgqiVSBg6af7-wuTjLMC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto/androidx_tracing_tracing_perfetto.info",
+      "size": 391,
+      "hash": "cLUv_nML2swku37b7_IwLw5fUTtnCwkEMlzh4GLJhwAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto/tracing-perfetto-1.0.0-SNAPSHOT.aar",
+      "size": 35144,
+      "hash": "ii_VtplQWJ8v85tUVBtoVOiplWD7aZ5axJN01hNurMkC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_binary/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_binary/README.chromium",
+      "size": 455,
+      "hash": "jMG6GdRmodrRbnckwnFf4FsGLUVV9ekeD98v5Pm0M-YC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_binary/androidx_tracing_tracing_perfetto_binary.info",
+      "size": 580,
+      "hash": "qjIZtQ8p7C6WTXmKJ2A2I26TocqtGXzfjU4pUZRZwFEC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_binary/tracing-perfetto-binary-1.0.0-SNAPSHOT.aar",
+      "size": 4339402,
+      "hash": "dDrXiRv8uXqmnnOUzqlA9pY_M8nVkzFKwCzMZn8xnmYC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_handshake/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_handshake/README.chromium",
+      "size": 374,
+      "hash": "hGH-Rb8LTnOTeoOt4Co7GRXAkVFEUIAi1H1y3f-u8-oC"
+    },
+    {
+      "name": "libs/androidx_tracing_tracing_perfetto_handshake/tracing-perfetto-handshake-1.0.0-SNAPSHOT.jar",
+      "size": 25877,
+      "hash": "Ly7lxYVh1yyr6SB8Q2af6S1sE4b4wcJiRInmqzZ7Eh4C"
+    },
+    {
+      "name": "libs/androidx_transition_transition/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_transition_transition/README.chromium",
+      "size": 345,
+      "hash": "gxJTSGnY4pW38TClXGCT5bzYaQq2sQ_X466QT4prt8AC"
+    },
+    {
+      "name": "libs/androidx_transition_transition/androidx_transition_transition.info",
+      "size": 383,
+      "hash": "Vbi7nZWSr0mZMO2kyoY0mhrgk2hOVkfbhKX8zjweZIIC"
+    },
+    {
+      "name": "libs/androidx_transition_transition/transition-1.5.0-SNAPSHOT.aar",
+      "size": 181380,
+      "hash": "PVjIzBeIzMxrS8x_V7sqR3oYKsvNLRGXExENDO9wdNMC"
+    },
+    {
+      "name": "libs/androidx_tvprovider_tvprovider/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_tvprovider_tvprovider/README.chromium",
+      "size": 351,
+      "hash": "PjDyv02L1p6hX7ptASBdR8m2X36FESlNqqEIc_5etAEC"
+    },
+    {
+      "name": "libs/androidx_tvprovider_tvprovider/androidx_tvprovider_tvprovider.info",
+      "size": 386,
+      "hash": "GXKrNXcNC2tQLgDvTpHG7ccJlvG8wOv3ALdcZO27f_wC"
+    },
+    {
+      "name": "libs/androidx_tvprovider_tvprovider/tvprovider-1.1.0-SNAPSHOT.aar",
+      "size": 71590,
+      "hash": "9Lw0tUkuPdozNaOOEHC_Er9q7R5EPZIxDfmA1NcGxhkC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable/README.chromium",
+      "size": 353,
+      "hash": "BUgH8tYSh7U20nZ-0lEMYLnKhYic44PWdkt6F9iMNx0C"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable/androidx_vectordrawable_vectordrawable.info",
+      "size": 389,
+      "hash": "cjXz4J80eYDtQDrqW644hO0UjmAOzixGvpm87n9uSTEC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable/vectordrawable-1.2.0-SNAPSHOT.aar",
+      "size": 32578,
+      "hash": "heNkfLygkJ6OYHWk1DvTFWElNoF3Y6PITzfoUurVwggC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable_animated/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable_animated/README.chromium",
+      "size": 378,
+      "hash": "bWOe2mRLztuPMlT6JkwTr89DBsZlf_nf8x1_qJVF5x0C"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable_animated/androidx_vectordrawable_vectordrawable_animated.info",
+      "size": 397,
+      "hash": "1kESgubwBi9Byuc-S6Qn0UIapJwbf36-qzmsIBYMs_UC"
+    },
+    {
+      "name": "libs/androidx_vectordrawable_vectordrawable_animated/vectordrawable-animated-1.2.0-SNAPSHOT.aar",
+      "size": 34297,
+      "hash": "hCsABAAX1WkJDiTdXBiRSUJayV4s3ReKzwyP5nYMJi8C"
+    },
+    {
+      "name": "libs/androidx_versionedparcelable_versionedparcelable/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_versionedparcelable_versionedparcelable/README.chromium",
+      "size": 463,
+      "hash": "TNUB3RucFSu9GpxQHiy36rbJAUJ0KG2_8ECyClO6Ap0C"
+    },
+    {
+      "name": "libs/androidx_versionedparcelable_versionedparcelable/androidx_versionedparcelable_versionedparcelable.info",
+      "size": 448,
+      "hash": "Y9NhyJbLz9QtpoR3oEAIzCF6fV6hG2zhf_HJLlIsnGgC"
+    },
+    {
+      "name": "libs/androidx_versionedparcelable_versionedparcelable/versionedparcelable-1.2.0-SNAPSHOT.aar",
+      "size": 34587,
+      "hash": "pYX7PodOwCI9uIoDqE_C2aqHixJrySIDziMuIE176GYC"
+    },
+    {
+      "name": "libs/androidx_viewpager2_viewpager2/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_viewpager2_viewpager2/README.chromium",
+      "size": 337,
+      "hash": "KgZs_GwLvMCSdPvRfhKrclKRp6-37TWBEhskeiCUFAYC"
+    },
+    {
+      "name": "libs/androidx_viewpager2_viewpager2/androidx_viewpager2_viewpager2.info",
+      "size": 384,
+      "hash": "kV6Q1Qgvt5zmQZ1HkCyvXMpnqfqMM4LqHShecFQ3xfUC"
+    },
+    {
+      "name": "libs/androidx_viewpager2_viewpager2/viewpager2-1.2.0-SNAPSHOT.aar",
+      "size": 66660,
+      "hash": "_DP03UCwTGDoYam0CZaSwPBuY97D4g988zs3vlCmYxUC"
+    },
+    {
+      "name": "libs/androidx_viewpager_viewpager/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_viewpager_viewpager/README.chromium",
+      "size": 576,
+      "hash": "PBmLgSrS2Be1JgGhSN7xcR71YfnwsUdRxdG6PvxFTFUC"
+    },
+    {
+      "name": "libs/androidx_viewpager_viewpager/androidx_viewpager_viewpager.info",
+      "size": 384,
+      "hash": "Ha_yj1Z6Pb4IbVFsGQkDU114TotvcjLNS9mfUbs-k3UC"
+    },
+    {
+      "name": "libs/androidx_viewpager_viewpager/viewpager-1.1.0-SNAPSHOT.aar",
+      "size": 54142,
+      "hash": "zkAgSrtBrJHp_IoVg645tChwwlR18RPpofUTidSlDYsC"
+    },
+    {
+      "name": "libs/androidx_webkit_webkit/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_webkit_webkit/README.chromium",
+      "size": 475,
+      "hash": "Mg5_PXXrEJuBT1uelA1818J79aStzVRHfyhQ6mb2ZEQC"
+    },
+    {
+      "name": "libs/androidx_webkit_webkit/androidx_webkit_webkit.info",
+      "size": 380,
+      "hash": "gxZkvIdOnsFSjtu7wLgsqkHERrrjhaDLCSRKHVadl70C"
+    },
+    {
+      "name": "libs/androidx_webkit_webkit/webkit-1.12.0-SNAPSHOT.aar",
+      "size": 161948,
+      "hash": "VerQOogjvFkavRye7X9LuR3xIT0GD3fbowK8_AtoKvcC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_core_core/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_core_core/README.chromium",
+      "size": 387,
+      "hash": "uSxSNnPbAjC2_xom9BvTBQ-uds696JN2IdupYSujjMoC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_core_core/androidx_window_extensions_core_core.info",
+      "size": 396,
+      "hash": "6GpGBukIC8KMjMOt5XCWLpw_JtMVJFYKvzQ1u4qGQ0UC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_core_core/core-1.1.0-SNAPSHOT.aar",
+      "size": 2949,
+      "hash": "gc3NF2Vmg7XrHGQYwx2quNZsSC8O2aVFDZxSrmgHlE0C"
+    },
+    {
+      "name": "libs/androidx_window_extensions_extensions/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_extensions/README.chromium",
+      "size": 564,
+      "hash": "MKQXeXKDJegqs3QfOzffAzh1mt8z2KMWHfZyApbKhh0C"
+    },
+    {
+      "name": "libs/androidx_window_extensions_extensions/androidx_window_extensions_extensions.info",
+      "size": 392,
+      "hash": "mQaRs_n7FdmElFi3AnQSAI6hTs7NzymrhKgACK4Z9BwC"
+    },
+    {
+      "name": "libs/androidx_window_extensions_extensions/extensions-1.3.0-SNAPSHOT.aar",
+      "size": 37309,
+      "hash": "OJSrn-bNP_ojfDVbheRg4VR0a7uSEwRG3l84bjQKdysC"
+    },
+    {
+      "name": "libs/androidx_window_sidecar_sidecar/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_window_sidecar_sidecar/README.chromium",
+      "size": 427,
+      "hash": "9YsKLK1B96tvHhsLdsfqD_p2QYU0_K6awBN1MUJ22kEC"
+    },
+    {
+      "name": "libs/androidx_window_sidecar_sidecar/androidx_window_sidecar_sidecar.info",
+      "size": 389,
+      "hash": "mdKOzs9plGznZ1m3-V8nIrB-Y3OkEjy8I1QEKuwioboC"
+    },
+    {
+      "name": "libs/androidx_window_sidecar_sidecar/sidecar-1.0.0-SNAPSHOT.aar",
+      "size": 4904,
+      "hash": "_ipj2pl4rQtkalL3BHEqVO18qCH6v5_LcZe5j1aYvywC"
+    },
+    {
+      "name": "libs/androidx_window_window_java/LICENSE",
+      "size": 11358,
+      "hash": "z8d0m5b2O9McPEK1xHG_dWgUBT6EfBDz6wA0F7xSPTAC"
+    },
+    {
+      "name": "libs/androidx_window_window_java/README.chromium",
+      "size": 342,
+      "hash": "YzlGHHGt1UrnpFfH-3drpPwYskh0uSjD_yUOcxf3cjMC"
+    },
+    {
+      "name": "libs/androidx_window_window_java/androidx_window_window_java.info",
+      "size": 386,
+      "hash": "1yPkaelgCLItu8Dooh-PK64oIkIy89_0_FOYDty2FrYC"
+    },
+    {
+      "name": "libs/androidx_window_window_java/window-java-1.3.0-SNAPSHOT.aar",
+      "size": 10801,
+      "hash": "dQfcs8xqjxK1srJsJjOtTdwntY2-vuX7LMDrCvMgIi0C"
+    }
+  ]
+}

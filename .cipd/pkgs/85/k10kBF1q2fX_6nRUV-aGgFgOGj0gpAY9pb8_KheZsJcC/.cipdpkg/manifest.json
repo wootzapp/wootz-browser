@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_firebase_firebase_encoders_json",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "firebase-encoders-json-17.1.0.aar",
+      "size": 9451,
+      "hash": "gpXHVbytyHoqruW55Wjyf9E4_UX_EVmo7nR89MOjjYUC"
+    }
+  ]
+}

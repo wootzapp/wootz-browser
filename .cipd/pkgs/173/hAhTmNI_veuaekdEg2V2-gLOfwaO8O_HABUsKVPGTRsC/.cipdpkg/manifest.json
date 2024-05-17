@@ -1,0 +1,205 @@
+{
+  "format_version": "1.1",
+  "package_name": "infra/3pp/tools/httpd-php/linux-amd64",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "LICENSE",
+      "size": 84491,
+      "hash": "Tal30gGoQYyE4Fs1eWIovG9iMMexfjbFepNwLPDrK5kC"
+    },
+    {
+      "name": "bin/httpd",
+      "size": 880616,
+      "executable": true,
+      "hash": "nfzW7FdglVn3YxLokiYu6oCaMaqJ8SdKizvocy2vmxQC"
+    },
+    {
+      "name": "bin/openssl",
+      "size": 752488,
+      "executable": true,
+      "hash": "w6wBt6ACh7yMiU3LfziXkV9BQA647aaZFKmtQ6V00gMC"
+    },
+    {
+      "name": "lib/libapr-1.so.0",
+      "size": 311624,
+      "executable": true,
+      "hash": "brvrUgN4RC0HCTTJXUjeidBcrMQWByPo2hD76Q2gewIC"
+    },
+    {
+      "name": "lib/libaprutil-1.so.0",
+      "size": 257688,
+      "executable": true,
+      "hash": "oIMIRbQv3CfepQpWuShHn_OFW9UC46y9Vq4AVcTJFUMC"
+    },
+    {
+      "name": "lib/libcrypt.so.2",
+      "size": 202592,
+      "executable": true,
+      "hash": "TNbSLRz4-nKIBoM6xZ5jzYAaLeB0ZdofTBTY_W2flwcC"
+    },
+    {
+      "name": "lib/libcrypto.so.1.1",
+      "size": 2875440,
+      "executable": true,
+      "hash": "FgnVGhoQe98umdW5q5D-Pgb_BykAXwQ2ZCQM8dULUskC"
+    },
+    {
+      "name": "lib/libexpat.so.1",
+      "size": 718256,
+      "executable": true,
+      "hash": "9Q_Q5H4fPNHIYpdK5GleHtt_A4j5IByd_iKZNYCOQmAC"
+    },
+    {
+      "name": "lib/libpcre.so.1",
+      "size": 531824,
+      "executable": true,
+      "hash": "4bNtQNHHGrMTSe3_JOTi2bvCuCAbbzoSy7IakonbBfcC"
+    },
+    {
+      "name": "lib/libpcrecpp.so.0",
+      "size": 50512,
+      "executable": true,
+      "hash": "fJYv4QlOm1fdTWs36IPKPVJUmbSe9eFUogBTdPEak4sC"
+    },
+    {
+      "name": "lib/libpcreposix.so.0",
+      "size": 27256,
+      "executable": true,
+      "hash": "Y_eQVz3OaFOLLKuV4UWOvh6EWZFjevSJlJd9VtRIqi0C"
+    },
+    {
+      "name": "lib/libssl.so.1.1",
+      "size": 685432,
+      "executable": true,
+      "hash": "V9MVinj4gF06_zbODmN89oZOeMBdVCpDo2t8471KQ9AC"
+    },
+    {
+      "name": "lib/libxml2.so.2",
+      "size": 6654928,
+      "executable": true,
+      "hash": "4_33SZ0FYdWjTORwTuWzTFh-q4F38O5I4Bvzeaz66vcC"
+    },
+    {
+      "name": "lib/libz.so.1",
+      "size": 125648,
+      "executable": true,
+      "hash": "yrwC4RCEBu3ohWr8KPGQT8tkU-QphU0liHhiXiZssP8C"
+    },
+    {
+      "name": "libexec/apache2/libphp7.so",
+      "size": 45610272,
+      "executable": true,
+      "hash": "N6BUIY0jMYDG0yI_-xyTQvbutgkDn4hOGEMG54jS1ooC"
+    },
+    {
+      "name": "libexec/apache2/mod_access_compat.so",
+      "size": 17448,
+      "executable": true,
+      "hash": "M9lzFJyE4E3p-E2Qhmjfox4zURqSbGufc2wPhZ7twW4C"
+    },
+    {
+      "name": "libexec/apache2/mod_actions.so",
+      "size": 17152,
+      "executable": true,
+      "hash": "OhA6tG61uDdx5b8owUutNZY65ZcJCETll5L3SgXmQJkC"
+    },
+    {
+      "name": "libexec/apache2/mod_alias.so",
+      "size": 26584,
+      "executable": true,
+      "hash": "KzTMWeQKEUBEA73KZOGlC1x885QUM90hdWhrpfvQnRUC"
+    },
+    {
+      "name": "libexec/apache2/mod_asis.so",
+      "size": 16880,
+      "executable": true,
+      "hash": "Nb2XHt6L5oeFcROXf4K2o_YLisFy5eEFlSrYIh8B02oC"
+    },
+    {
+      "name": "libexec/apache2/mod_authz_core.so",
+      "size": 36176,
+      "executable": true,
+      "hash": "KYMbQxjujRrEGK5AITDkXfli6I1Gta0REQVkEZcCGB4C"
+    },
+    {
+      "name": "libexec/apache2/mod_authz_host.so",
+      "size": 22192,
+      "executable": true,
+      "hash": "DypZ1g64TNPLjoQ9Yy74SrlJ0Ow2ua60e55teKyHSOwC"
+    },
+    {
+      "name": "libexec/apache2/mod_autoindex.so",
+      "size": 49760,
+      "executable": true,
+      "hash": "JWoKoBh7X2rEdKXKDfxfj4XO4MjAqTVF2KIe3A-3JzAC"
+    },
+    {
+      "name": "libexec/apache2/mod_cgi.so",
+      "size": 38128,
+      "executable": true,
+      "hash": "WOwNgI6mwZ1J26JQpKaM-gDDy1n-c2galKaDSOHJaB8C"
+    },
+    {
+      "name": "libexec/apache2/mod_env.so",
+      "size": 17184,
+      "executable": true,
+      "hash": "E5ZTR7THEL-cKkmiByl27bFhzVkJTM_YUDyd6BZUaPQC"
+    },
+    {
+      "name": "libexec/apache2/mod_headers.so",
+      "size": 32800,
+      "executable": true,
+      "hash": "u3vUvvOTPLH47VtmlWvPBBPB1312ogln42XeXCmSFLsC"
+    },
+    {
+      "name": "libexec/apache2/mod_imagemap.so",
+      "size": 26480,
+      "executable": true,
+      "hash": "-0ftuqrv89X7rNMJR6q53eTf7rBrbHD4qOCNRbJnI2EC"
+    },
+    {
+      "name": "libexec/apache2/mod_include.so",
+      "size": 75528,
+      "executable": true,
+      "hash": "ZoIjtX5gFMwZAhLvqfx9aD33mKErk3KW0JlLrlOmAFYC"
+    },
+    {
+      "name": "libexec/apache2/mod_log_config.so",
+      "size": 47368,
+      "executable": true,
+      "hash": "v4rkwr7G5mTsu-wIbbRmiSBVEjZW8LLQej_zTS2jz_oC"
+    },
+    {
+      "name": "libexec/apache2/mod_mime.so",
+      "size": 35240,
+      "executable": true,
+      "hash": "eGGiw5-l0lNUcgIkJp9OMSxUNGi2uOWt2LI3BW7GkBgC"
+    },
+    {
+      "name": "libexec/apache2/mod_negotiation.so",
+      "size": 50512,
+      "executable": true,
+      "hash": "h7DFhxc2Q26KA7l_E0rMzxdfI7UWqsM2_Q-PNBynQWsC"
+    },
+    {
+      "name": "libexec/apache2/mod_rewrite.so",
+      "size": 100168,
+      "executable": true,
+      "hash": "ixdbz8kJqypkuqEY-TnagaulpySAmKhKDwnxJGMN_QUC"
+    },
+    {
+      "name": "libexec/apache2/mod_ssl.so",
+      "size": 353592,
+      "executable": true,
+      "hash": "if5OaxYKVxWNu-G7757qWvH9g1vOGdj7hEDKGFRm34oC"
+    },
+    {
+      "name": "libexec/apache2/mod_unixd.so",
+      "size": 22056,
+      "executable": true,
+      "hash": "OLnXDgl4ctqsv-ncJ2T56EDVyLiYW0WBBCrK_gAdQxIC"
+    }
+  ]
+}

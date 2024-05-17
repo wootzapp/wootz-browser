@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_grpc_grpc_protobuf_lite",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "grpc-protobuf-lite-1.49.0.jar",
+      "size": 7555,
+      "hash": "wbhtAgz01pV3MiQeka646cyV-SZhl0A3M70uiSlrmpYC"
+    }
+  ]
+}
