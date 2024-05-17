@@ -1,0 +1,3 @@
+*.cipd
+*.gclient_entries
+*.gcs_entries
