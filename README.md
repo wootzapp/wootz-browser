@@ -1,4 +1,4 @@
-# ![Logo](src/chrome/app/theme/chromium/product_logo_64.png) WootzApp
+# <img src="https://www.wootzapp.com/image/logo2.png" alt="Logo" width="200" height="150"> WootzApp
 
 ## WootzApp
 
@@ -20,16 +20,18 @@ export PATH="$PATH:/path/to/depot_tools"
 #### Get the code
 Clone the github repo:
 ```bash
-git clone https://github.com/wootzapp/wootz-browser.git
+git clone --depth 1 https://github.com/wootzapp/wootz-browser.git
 ```
-Now move to src directory `cd src`, then execute these steps:
+Then execute these steps:
 ```bash
-gclient sync
+cd wootz-browser
+fetch --nohooks --no-history android
 ```
 
 #### Install additional build dependencies
 Now run:
 ```bash
+cd src
 build/install-build-deps.sh --android
 ```
 
@@ -49,10 +51,19 @@ target_os = "android"
 target_cpu = "arm64"
 ```
 #### Build WootzApp
+Apply the patch file
+```bash
+cd ..
+mv wootzapp_changes.patch ./src
+cd src
+git apply wootzapp_changes.patch
+```
 Build WootzApp with Ninja using the command:
 ```bash
+cd src
 autoninja -C out/Default chrome_public_apk
 ```
+
 And deploy it to your Android device:
 ```bash
 out/Default/bin/chrome_public_apk install
