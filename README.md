@@ -1,4 +1,4 @@
-# ![Logo](src/chrome/app/theme/chromium/product_logo_64.png) WootzApp
+# <img src="https://www.wootzapp.com/image/logo2.png" alt="Logo" width="200" height="150"> WootzApp
 
 ## WootzApp
 
