@@ -1,5 +1,0 @@
-include_rules = [
-  "+gpu/ipc/client/client_shared_image_interface.h",
-  "+mojo/public/cpp/bindings",
-  "+services/viz/public/mojom/compositing",
-]

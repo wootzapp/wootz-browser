@@ -1,6 +1,0 @@
-monorail: {
-  component: "Platform>Apps>API>Windows"
-}
-buganizer_public: {
-  component_id: 1457117
-}
