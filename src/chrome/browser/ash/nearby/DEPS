@@ -1,5 +1,0 @@
-include_rules = [
-  "+chrome/services/sharing/nearby/test_support",
-  "+components/cross_device/logging",
-  "+components/push_notification",
-]
