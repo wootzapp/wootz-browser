@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_squareup_moshi_moshi",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "moshi-1.15.0.jar",
+      "size": 162258,
+      "hash": "NQ1Iw030qO9PFHWqZe8OVMTYMCpx78n2wJ0OmP1MY8YC"
+    }
+  ]
+}

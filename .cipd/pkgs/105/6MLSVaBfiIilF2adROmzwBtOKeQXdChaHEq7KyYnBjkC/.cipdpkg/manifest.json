@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/io_github_java_diff_utils_java_diff_utils",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "java-diff-utils-4.0.jar",
+      "size": 45911,
+      "hash": "gQIyN052qVSUnw4hhc19lRWt25GM89o0gfd-B8NWtJoC"
+    }
+  ]
+}

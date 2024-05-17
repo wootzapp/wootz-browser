@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_bouncycastle_bcprov_jdk18on",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "bcprov-jdk18on-1.77.jar",
+      "size": 8372360,
+      "hash": "2ruYwk1yybn1hWM9HfnFzVjZrTc9DNaBNn5qYDpJXVgC"
+    }
+  ]
+}

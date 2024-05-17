@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/com_google_errorprone_error_prone_annotations",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "error_prone_annotations-2.23.0.jar",
+      "size": 16829,
+      "hash": "7G858Gi2_5rDI8aOKLkpn4wKgMpRLcyx1KcPQKw-wFQC"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format_version": "1.1",
+  "package_name": "infra/tools/wpr/linux_x86_64",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "bin/linux/x86_64/wpr",
+      "size": 12069166,
+      "executable": true,
+      "hash": "d_i8m1CMxszuVFoikyAB88tF5PIRxg5cdBOUoXwv4hQC"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format_version": "1.1",
+  "package_name": "chromium/third_party/android_deps/libs/org_ow2_asm_asm_analysis",
+  "install_mode": "copy",
+  "actual_install_mode": "copy",
+  "files": [
+    {
+      "name": "asm-analysis-9.7.jar",
+      "size": 34776,
+      "hash": "e8a8vCE3mUigyMRn-w-GQgbluBj2vAtUaHL1yflBVW8C"
+    }
+  ]
+}
