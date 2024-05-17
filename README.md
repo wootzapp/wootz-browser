@@ -58,9 +58,8 @@ mv wootzapp_changes.patch ./src
 cd src
 git apply wootzapp_changes.patch
 ```
-Build WootzApp with Ninja using the command:
+Build WootzApp with Ninja using the command (in src):
 ```bash
-cd src
 autoninja -C out/Default chrome_public_apk
 ```
 
