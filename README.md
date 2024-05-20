@@ -14,7 +14,7 @@ Building the Android client on Windows or Mac is not supported and doesn't work.
 
 ### Installation Steps (building chromium):
 <hr/>
-First build the [chromium browser](https://chromium.googlesource.com/chromium/src/+/main/docs/android_build_instructions.md)
+
 #### Install depot_tools
 Clone the depot_tools repository:
 ```bash
