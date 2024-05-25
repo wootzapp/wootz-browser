@@ -109,6 +109,14 @@ inline constexpr char kImportantSitesDialogHistory[] = "important_sites_dialog";
 // This is the profile creation time.
 inline constexpr char kProfileCreationTime[] = "profile.creation_time";
 
+inline constexpr char kNetworkThrottleOffline[] = "settings.network_throttle.offline";
+inline constexpr char kNetworkThrottleLatency[] = "settings.network_throttle.latency";
+inline constexpr char kNetworkThrottleDownloadThroughput[] = "settings.network_throttle.download_throughput";
+inline constexpr char kNetworkThrottleUploadThroughput[] = "settings.network_throttle.upload_throughput";
+inline constexpr char kNetworkThrottlePacketLoss[] = "settings.network_throttle.packet_loss";
+inline constexpr char kNetworkThrottlePacketQueueLength[] = "settings.network_throttle.packet_queue_length";
+inline constexpr char kNetworkThrottleEnabled[] = "settings.network_throttle.enabled";
+
 #if BUILDFLAG(IS_WIN)
 // This is a timestamp of the last time this profile was reset by a third party
 // tool. On Windows, a third party tool may set a registry value that will be

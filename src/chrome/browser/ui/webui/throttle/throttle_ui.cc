@@ -19,10 +19,13 @@
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/webui_util.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/throttle_resources.h"
 #include "chrome/grit/throttle_resources_map.h"
 #include "components/prefs/pref_member.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -76,8 +79,10 @@ namespace {
             const base::UnguessableToken devtools_token;
 
             void OnSetNetworkThrottling(const base::Value::List& list);
+            void ApplySavedNetworkConditions();
 
             raw_ptr<content::WebUI> web_ui_;
+            raw_ptr<profile> profile_;
             base::WeakPtrFactory<ThrottleMessageHandler> weak_factory_{this};
     };
 
@@ -89,6 +94,7 @@ namespace {
             "setNetworkThrottling",
             base::BindRepeating(&ThrottleMessageHandler::OnSetNetworkThrottling,
                                 base::Unretained(this)));
+            ApplySavedNetworkConditions();         
     }
 
     void ThrottleMessageHandler::OnJavascriptDisallowed() {
@@ -99,22 +105,31 @@ namespace {
         const base::Value::List& args) {
         DCHECK(args.size() == 6) << "Expected 6 arguments for network throttling settings";
 
-        bool offline = args[0].GetBool();
-        double latency = args[1].GetDouble();
-        double download_throughput = args[2].GetDouble();
-        double upload_throughput = args[3].GetDouble();
-        double packet_loss = args[4].GetDouble();
-        int packet_queue_length = args[5].GetInt();
+        auto* prefs = profile_->GetPrefs();
+        prefs->SetBoolean(prefs::kNetworkThrottleOffline, args[0].GetBool());
+        prefs->SetDouble(prefs::kNetworkThrottleLatency, args[1].GetDouble());
+        prefs->SetDouble(prefs::kNetworkThrottleDownloadThroughput, args[2].GetDouble());
+        prefs->SetDouble(prefs::kNetworkThrottleUploadThroughput, args[3].GetDouble());
+        prefs->SetDouble(prefs::kNetworkThrottlePacketLoss, args[4].GetDouble());
+        prefs->SetInteger(prefs::kNetworkThrottlePacketQueueLength, args[5].GetInt());
 
         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
-        conditions->offline = offline;
-        conditions->latency = base::Milliseconds(latency);
-        conditions->download_throughput = download_throughput;
-        conditions->upload_throughput = upload_throughput;
-        conditions->packet_loss = packet_loss;
-        conditions->packet_queue_length = packet_queue_length;
+         conditions->offline = prefs->GetBoolean(prefs::kNetworkThrottleOffline);
+        conditions->latency = base::Milliseconds(prefs->GetDouble(prefs::kNetworkThrottleLatency));
+        conditions->download_throughput = prefs->GetDouble(prefs::kNetworkThrottleDownloadThroughput);
+        conditions->upload_throughput = prefs->GetDouble(prefs::kNetworkThrottleUploadThroughput);
+        conditions->packet_loss = prefs->GetDouble(prefs::kNetworkThrottlePacketLoss);
+        conditions->packet_queue_length = prefs->GetInteger(prefs::kNetworkThrottlePacketQueueLength);
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        auto* network_context = profile_->GetDefaultStoragePartition()->GetNetworkContext();
+        network_context->SetNetworkConditions(base::UnguessableToken::Create(), std::move(conditions));
+    }
+
+    void ApplySavedNetworkConditions() {
+        auto* prefs = profile_->GetPrefs();
+        if (prefs->HasPrefPath(prefs::kNetworkThrottleOffline)) {  // Check if settings exist
+            ApplyNetworkConditionsFromPrefs(prefs);
+        }
     }
 
     network::mojom::NetworkContext*
