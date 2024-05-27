@@ -51,11 +51,30 @@ gclient runhooks
 ```bash
 gn args out/Default
 ```
+#### Build Options:
+
+##### Option 1: Generate the default Chromium APK
 Edit the args.gn file to contain the following arguments:
+
 ```bash
 target_os = "android"
 target_cpu = "arm64"
 ```
+##### Option 2: Generate an optimized APK (approximately 131 MB)
+Edit the args.gn file to contain the following arguments:
+
+```bash
+target_os = "android"
+target_cpu = "arm"
+is_official_build = true
+is_debug = false
+symbol_level = 0
+enable_nacl = false
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+remove_webcore_debug_symbols = true
+```
+
 #### Build Chromium
 Build Chromium with Ninja using the command:
 ```
