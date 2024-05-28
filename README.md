@@ -14,7 +14,7 @@ Building the Android client on Windows or Mac is not supported and doesn't work.
 
 ### Installation Steps (building chromium):
 <hr/>
-
+First build the [chromium browser](https://chromium.googlesource.com/chromium/src/+/main/docs/android_build_instructions.md)
 #### Install depot_tools
 Clone the depot_tools repository:
 ```bash
@@ -31,6 +31,7 @@ Create a chromium directory for the checkout and change to it (you can call this
 mkdir ~/chromium && cd ~/chromium
 fetch --nohooks --no-history android
 ```
+
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
 cd src
@@ -51,11 +52,31 @@ gclient runhooks
 ```bash
 gn args out/Default
 ```
+#### Build Options:
+
+##### Option 1: Generate the default Chromium APK
 Edit the args.gn file to contain the following arguments:
+
 ```bash
 target_os = "android"
 target_cpu = "arm64"
 ```
+
+##### Option 2: Generate an optimized APK (approximately 131 MB)
+Edit the args.gn file to contain the following arguments:
+
+```bash
+target_os = "android"
+target_cpu = "arm"
+is_official_build = true
+is_debug = false
+symbol_level = 0
+enable_nacl = false
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+remove_webcore_debug_symbols = true
+```
+
 #### Build Chromium
 Build Chromium with Ninja using the command:
 ```
