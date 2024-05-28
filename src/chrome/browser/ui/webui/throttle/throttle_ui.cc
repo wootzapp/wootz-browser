@@ -77,6 +77,7 @@ namespace {
         const base::UnguessableToken devtools_token;
 
         void OnSetNetworkThrottling(const base::Value::List& list);
+        void HandleGetNetworkThrottlingSettings(const base::Value::List& args);
         void LoadNetworkThrottlingSettings();
 
         raw_ptr<content::WebUI> web_ui_;
@@ -93,6 +94,10 @@ namespace {
             "setNetworkThrottling",
             base::BindRepeating(&ThrottleMessageHandler::OnSetNetworkThrottling,
                                 base::Unretained(this)));
+         web_ui_->RegisterMessageCallback(
+            "getNetworkThrottlingSettings",
+            base::BindRepeating(&ThrottleMessageHandler::HandleGetNetworkThrottlingSettings,
+                            base::Unretained(this)));                        
     }
 
     void ThrottleMessageHandler::OnJavascriptDisallowed() {
@@ -129,7 +134,39 @@ namespace {
         conditions->packet_queue_length = packet_queue_length;
 
         GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+
+        // Notify frontend about the updated settings
+        base::Value::List settings;
+        settings.Append(offline);
+        settings.Append(latency);
+        settings.Append(download_throughput);
+        settings.Append(upload_throughput);
+        settings.Append(packet_loss);
+        settings.Append(packet_queue_length);
+        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
     }
+    
+    void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    PrefService* prefs = profile->GetPrefs();
+
+    bool offline = prefs->GetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline);
+    double latency = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingLatency);
+    double download_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput);
+    double upload_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput);
+    double packet_loss = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss);
+    int packet_queue_length = prefs->GetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength);
+
+    base::Value::List settings;
+    settings.Append(offline);
+    settings.Append(latency);
+    settings.Append(download_throughput);
+    settings.Append(upload_throughput);
+    settings.Append(packet_loss);
+    settings.Append(packet_queue_length);
+
+    web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+}
 
     void ThrottleMessageHandler::LoadNetworkThrottlingSettings() {
         Profile* profile = Profile::FromWebUI(web_ui_);
