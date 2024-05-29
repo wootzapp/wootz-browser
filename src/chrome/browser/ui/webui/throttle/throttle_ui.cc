@@ -78,18 +78,21 @@ namespace {
 
         void OnSetNetworkThrottling(const base::Value::List& list);
         void HandleGetNetworkThrottlingSettings(const base::Value::List& args);
-        void LoadNetworkThrottlingSettings();
 
         raw_ptr<content::WebUI> web_ui_;
         base::WeakPtrFactory<ThrottleMessageHandler> weak_factory_{this};
+
+        void LoadNetworkThrottlingSettings();
     };
 
+    // This class receives javascript messages from the renderer.
+    // Note that the WebUI infrastructure runs on the UI thread, therefore all of
+    // this class's methods are expected to run on the UI thread.
     ThrottleMessageHandler::ThrottleMessageHandler(content::WebUI* web_ui)
-        : web_ui_(web_ui) {
-        LoadNetworkThrottlingSettings();
-    }
+        : web_ui_(web_ui) {}
 
     void ThrottleMessageHandler::RegisterMessages() {
+        DCHECK_CURRENTLY_ON(BrowserThread::UI);
         web_ui_->RegisterMessageCallback(
             "setNetworkThrottling",
             base::BindRepeating(&ThrottleMessageHandler::OnSetNetworkThrottling,
@@ -118,6 +121,7 @@ namespace {
         Profile* profile = Profile::FromWebUI(web_ui_);
         PrefService* prefs = profile->GetPrefs();
 
+        if(prefs){
         prefs->SetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline, offline);
         prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingLatency, latency);
         prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput, download_throughput);
@@ -125,6 +129,8 @@ namespace {
         prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss, packet_loss);
         prefs->SetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength, packet_queue_length);
 
+        }
+       
         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
         conditions->offline = offline;
         conditions->latency = base::Milliseconds(latency);
@@ -143,6 +149,8 @@ namespace {
         settings.Append(upload_throughput);
         settings.Append(packet_loss);
         settings.Append(packet_queue_length);
+
+        AllowJavascript();
         web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
     }
     
@@ -165,6 +173,7 @@ namespace {
     settings.Append(packet_loss);
     settings.Append(packet_queue_length);
 
+    AllowJavascript();
     web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
 }
 
