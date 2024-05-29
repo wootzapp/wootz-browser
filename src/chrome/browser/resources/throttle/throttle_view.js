@@ -33,7 +33,8 @@ export class ThrottleView extends DivView {
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
 
-    this.fetchSavedSettings_();
+    // Fetch and display the saved network throttling settings on load
+    this.browserBridge_.getNetworkThrottlingSettings().then(this.displaySavedSettings_.bind(this));
   }
 
   onSubmit_(event) {
@@ -65,18 +66,10 @@ export class ThrottleView extends DivView {
       packetLoss,
       packetQueueLength
     });
-
-    fetchSavedSettings_(){
-      this.browserBridge_.getNetworkThrottlingSettings().then(settings => {
-        this.displaySavedSettings_(settings);
-      });
-    };
-  
-
   }
 
   displaySavedSettings_(settings) {
-    this.savedOffline_.textContent = 'Offline: ' + (settings.offline ? 'Yes' : 'No');
+    this.savedOffline_.textContent = 'Offline:' + (settings.offline ? 'Yes' : 'No');
     this.savedLatency_.textContent = 'Latency: ' + settings.latency + ' ms';
     this.savedDownloadThroughput_.textContent = 'Download Throughput: ' + settings.downloadThroughput + ' bytes/sec';
     this.savedUploadThroughput_.textContent = 'Upload Throughput: ' + settings.uploadThroughput + ' bytes/sec';
