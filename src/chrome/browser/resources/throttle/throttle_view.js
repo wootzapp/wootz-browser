@@ -1,5 +1,6 @@
 import {$} from 'chrome://resources/js/util.js';
 import {BrowserBridge} from './browser_bridge.js';
+import {addNode, addNodeWithText} from './util.js';
 import {DivView} from './view.js';
 
 /** @type {?ThrottleView} */
@@ -22,6 +23,7 @@ export class ThrottleView extends DivView {
     this.packetLossInput_ = $(ThrottleView.PACKET_LOSS_INPUT_ID);
     this.packetQueueLengthInput_ = $(ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID);
     this.packetReorderingSelect_ = $(ThrottleView.PACKET_REORDERING_SELECT_ID);
+
 
     this.savedOffline_ = $(ThrottleView.SAVED_OFFLINE_ID);
     this.savedLatency_ = $(ThrottleView.SAVED_LATENCY_ID);
@@ -57,6 +59,7 @@ export class ThrottleView extends DivView {
       packetReordering
     });
 
+
     // Update the displayed saved settings
     this.displaySavedSettings_({
       offline,
@@ -75,6 +78,7 @@ export class ThrottleView extends DivView {
     this.savedUploadThroughput_.textContent = 'Upload Throughput: ' + settings.uploadThroughput + ' bytes/sec';
     this.savedPacketLoss_.textContent = 'Packet Loss: ' + settings.packetLoss + ' %';
     this.savedPacketQueueLength_.textContent = 'Packet Queue Length: ' + settings.packetQueueLength;
+
   }
 
   static getInstance() {
@@ -92,6 +96,7 @@ ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID = 'throttle-upload-throughput-input';
 ThrottleView.PACKET_LOSS_INPUT_ID = 'throttle-packet-loss-input';
 ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID = 'throttle-packet-queue-length-input';
 ThrottleView.PACKET_REORDERING_SELECT_ID = 'throttle-packet-reordering-select';
+
 ThrottleView.SUBMIT_ID = 'throttle-submit';
 
 ThrottleView.SAVED_OFFLINE_ID = 'saved-offline';
