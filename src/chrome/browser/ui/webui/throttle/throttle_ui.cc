@@ -155,6 +155,7 @@ namespace {
     }
     
     void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
+    AllowJavascript();
     Profile* profile = Profile::FromWebUI(web_ui_);
     PrefService* prefs = profile->GetPrefs();
 
@@ -173,7 +174,6 @@ namespace {
     settings.Append(packet_loss);
     settings.Append(packet_queue_length);
 
-    AllowJavascript();
     web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
 }
 
