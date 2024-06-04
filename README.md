@@ -4,6 +4,8 @@
 
 Check out the official website: https://www.wootzapp.com/
 
+Please join our [discord](https://discord.gg/n9dqrRzJ8V)
+
 ### System requirements
 A 64-bit Intel machine running Linux with at least 8GB of RAM. More than 16GB is highly recommended.
 At least 100GB of free disk space.
@@ -14,8 +16,10 @@ Building the Android client on Windows or Mac is not supported and doesn't work.
 
 ### Installation Steps (building chromium):
 <hr/>
+
 #### Install depot_tools
 Clone the depot_tools repository:
+
 ```bash
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
@@ -28,7 +32,7 @@ export PATH="$PATH:/path/to/depot_tools"
 Create a chromium directory for the checkout and change to it (you can call this whatever you like and put it wherever you like, as long as the full path has no spaces):
 ```bash
 mkdir ~/chromium && cd ~/chromium
-fetch --nohooks android
+fetch --nohooks --no-history android
 ```
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
@@ -83,7 +87,7 @@ autoninja -C out/Default chrome_public_apk
 change path to root directory or parent directory of your chromium build.
 ```
 cd ..
-git clone --depth 1 https://github.com/Aankirz/wootz-browser.git
+git clone --depth 1 https://github.com/wootzapp/wootz-browser.git
 ```
 Final Step
 ```
