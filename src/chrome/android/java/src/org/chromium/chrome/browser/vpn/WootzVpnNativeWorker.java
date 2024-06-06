@@ -8,30 +8,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 @JNINamespace("chrome::android")
-public class WootzAppVpnNativeWorker {
-    private long mNativeWootzAppVpnNativeWorker;
+public class WootzVpnNativeWorker {
+    private long mNativeWootzVpnNativeWorker;
     private static final Object sLock = new Object();
-    private static WootzAppVpnNativeWorker sInstance;
+    private static WootzVpnNativeWorker sInstance;
 
-    private List<WootzAppVpnObserver> mObservers;
+    private List<WootzVpnObserver> mObservers;
 
-    public static WootzAppVpnNativeWorker getInstance() {
+    public static WootzVpnNativeWorker getInstance() {
         synchronized (sLock) {
             if (sInstance == null) {
-                sInstance = new WootzAppVpnNativeWorker();
+                sInstance = new WootzVpnNativeWorker();
                 sInstance.init();
             }
         }
         return sInstance;
     }
 
-    private WootzAppVpnNativeWorker() {
-        mObservers = new ArrayList<WootzAppVpnObserver>();
+    private WootzVpnNativeWorker() {
+        mObservers = new ArrayList<WootzVpnObserver>();
     }
 
     private void init() {
-        if (mNativeWootzAppVpnNativeWorker == 0) {
-            WootzAppVpnNativeWorkerJni.get().init(this);
+        if (mNativeWootzVpnNativeWorker == 0) {
+            WootzVpnNativeWorkerJni.get().init(this);
         }
     }
 
@@ -41,19 +41,19 @@ public class WootzAppVpnNativeWorker {
     }
 
     private void destroy() {
-        if (mNativeWootzAppVpnNativeWorker != 0) {
-            WootzAppVpnNativeWorkerJni.get().destroy(mNativeWootzAppVpnNativeWorker, this);
-            mNativeWootzAppVpnNativeWorker = 0;
+        if (mNativeWootzVpnNativeWorker != 0) {
+            WootzVpnNativeWorkerJni.get().destroy(mNativeWootzVpnNativeWorker, this);
+            mNativeWootzVpnNativeWorker = 0;
         }
     }
 
-    public void addObserver(WootzAppVpnObserver observer) {
+    public void addObserver(WootzVpnObserver observer) {
         synchronized (sLock) {
             mObservers.add(observer);
         }
     }
 
-    public void removeObserver(WootzAppVpnObserver observer) {
+    public void removeObserver(WootzVpnObserver observer) {
         synchronized (sLock) {
             mObservers.remove(observer);
         }
@@ -61,27 +61,27 @@ public class WootzAppVpnNativeWorker {
 
     @CalledByNative
     private void setNativePtr(long nativePtr) {
-        assert mNativeWootzAppVpnNativeWorker == 0;
-        mNativeWootzAppVpnNativeWorker = nativePtr;
+        assert mNativeWootzVpnNativeWorker == 0;
+        mNativeWootzVpnNativeWorker = nativePtr;
     }
 
     @CalledByNative
     public void onGetAllServerRegions(String jsonServerRegions, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onGetAllServerRegions(jsonServerRegions, isSuccess);
         }
     }
 
     @CalledByNative
     public void onGetTimezonesForRegions(String jsonTimezones, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onGetTimezonesForRegions(jsonTimezones, isSuccess);
         }
     }
 
     @CalledByNative
     public void onGetHostnamesForRegion(String jsonHostnames, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onGetHostnamesForRegion(jsonHostnames, isSuccess);
         }
     }
@@ -89,28 +89,28 @@ public class WootzAppVpnNativeWorker {
     @CalledByNative
     public void onGetWireguardProfileCredentials(
             String jsonWireguardProfileCredentials, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onGetWireguardProfileCredentials(jsonWireguardProfileCredentials, isSuccess);
         }
     }
 
     @CalledByNative
     public void onVerifyCredentials(String jsonVerifyCredentials, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onVerifyCredentials(jsonVerifyCredentials, isSuccess);
         }
     }
 
     @CalledByNative
     public void onInvalidateCredentials(String jsonInvalidateCredentials, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onInvalidateCredentials(jsonInvalidateCredentials, isSuccess);
         }
     }
 
     @CalledByNative
     public void onGetSubscriberCredential(String subscriberCredential, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onGetSubscriberCredential(subscriberCredential, isSuccess);
         }
     }
@@ -118,98 +118,98 @@ public class WootzAppVpnNativeWorker {
     @CalledByNative
     public void onVerifyPurchaseToken(
             String jsonResponse, String purchaseToken, String productId, boolean isSuccess) {
-        for (WootzAppVpnObserver observer : mObservers) {
+        for (WootzVpnObserver observer : mObservers) {
             observer.onVerifyPurchaseToken(jsonResponse, purchaseToken, productId, isSuccess);
         }
     }
 
     public void getAllServerRegions() {
-        WootzAppVpnNativeWorkerJni.get().getAllServerRegions(mNativeWootzAppVpnNativeWorker);
+        WootzVpnNativeWorkerJni.get().getAllServerRegions(mNativeWootzVpnNativeWorker);
     }
 
     public void getTimezonesForRegions() {
-        WootzAppVpnNativeWorkerJni.get().getTimezonesForRegions(mNativeWootzAppVpnNativeWorker);
+        WootzVpnNativeWorkerJni.get().getTimezonesForRegions(mNativeWootzVpnNativeWorker);
     }
 
     public void getHostnamesForRegion(String region) {
-        WootzAppVpnNativeWorkerJni.get().getHostnamesForRegion(mNativeWootzAppVpnNativeWorker, region);
+        WootzVpnNativeWorkerJni.get().getHostnamesForRegion(mNativeWootzVpnNativeWorker, region);
     }
 
     public void getWireguardProfileCredentials(
             String subscriberCredential, String publicKey, String hostname) {
-        WootzAppVpnNativeWorkerJni.get().getWireguardProfileCredentials(
-                mNativeWootzAppVpnNativeWorker, subscriberCredential, publicKey, hostname);
+        WootzVpnNativeWorkerJni.get().getWireguardProfileCredentials(
+                mNativeWootzVpnNativeWorker, subscriberCredential, publicKey, hostname);
     }
 
     public void verifyCredentials(
             String hostname, String clientId, String subscriberCredential, String apiAuthToken) {
-        WootzAppVpnNativeWorkerJni.get().verifyCredentials(mNativeWootzAppVpnNativeWorker, hostname,
+        WootzVpnNativeWorkerJni.get().verifyCredentials(mNativeWootzVpnNativeWorker, hostname,
                 clientId, subscriberCredential, apiAuthToken);
     }
 
     public void invalidateCredentials(
             String hostname, String clientId, String subscriberCredential, String apiAuthToken) {
-        WootzAppVpnNativeWorkerJni.get().invalidateCredentials(mNativeWootzAppVpnNativeWorker, hostname,
+        WootzVpnNativeWorkerJni.get().invalidateCredentials(mNativeWootzVpnNativeWorker, hostname,
                 clientId, subscriberCredential, apiAuthToken);
     }
 
     public void getSubscriberCredential(String productType, String productId,
             String validationMethod, String purchaseToken, String packageName) {
-        WootzAppVpnNativeWorkerJni.get().getSubscriberCredential(mNativeWootzAppVpnNativeWorker,
+        WootzVpnNativeWorkerJni.get().getSubscriberCredential(mNativeWootzVpnNativeWorker,
                 productType, productId, validationMethod, purchaseToken, packageName);
     }
 
     public void verifyPurchaseToken(
             String purchaseToken, String productId, String productType, String packageName) {
-        WootzAppVpnNativeWorkerJni.get().verifyPurchaseToken(
-                mNativeWootzAppVpnNativeWorker, purchaseToken, productId, productType, packageName);
+        WootzVpnNativeWorkerJni.get().verifyPurchaseToken(
+                mNativeWootzVpnNativeWorker, purchaseToken, productId, productType, packageName);
     }
 
     // Desktop purchase methods
     public void reloadPurchasedState() {
-        WootzAppVpnNativeWorkerJni.get().reloadPurchasedState(mNativeWootzAppVpnNativeWorker);
+        WootzVpnNativeWorkerJni.get().reloadPurchasedState(mNativeWootzVpnNativeWorker);
     }
 
     public boolean isPurchasedUser() {
-        return WootzAppVpnNativeWorkerJni.get().isPurchasedUser(mNativeWootzAppVpnNativeWorker);
+        return WootzVpnNativeWorkerJni.get().isPurchasedUser(mNativeWootzVpnNativeWorker);
     }
 
     public void getSubscriberCredentialV12() {
-        WootzAppVpnNativeWorkerJni.get().getSubscriberCredentialV12(mNativeWootzAppVpnNativeWorker);
+        WootzVpnNativeWorkerJni.get().getSubscriberCredentialV12(mNativeWootzVpnNativeWorker);
     }
 
     public void reportBackgroundP3A(long sessionStartTimeMs, long sessionEndTimeMs) {
-        WootzAppVpnNativeWorkerJni.get().reportBackgroundP3A(
-                mNativeWootzAppVpnNativeWorker, sessionStartTimeMs, sessionEndTimeMs);
+        WootzVpnNativeWorkerJni.get().reportBackgroundP3A(
+                mNativeWootzVpnNativeWorker, sessionStartTimeMs, sessionEndTimeMs);
     }
 
     public void reportForegroundP3A() {
-        WootzAppVpnNativeWorkerJni.get().reportForegroundP3A(mNativeWootzAppVpnNativeWorker);
+        WootzVpnNativeWorkerJni.get().reportForegroundP3A(mNativeWootzVpnNativeWorker);
     }
 
     @NativeMethods
     interface Natives {
-        void init(WootzAppVpnNativeWorker caller);
-        void destroy(long nativeWootzAppVpnNativeWorker, WootzAppVpnNativeWorker caller);
-        void getAllServerRegions(long nativeWootzAppVpnNativeWorker);
-        void getTimezonesForRegions(long nativeWootzAppVpnNativeWorker);
-        void getHostnamesForRegion(long nativeWootzAppVpnNativeWorker, String region);
-        void getWireguardProfileCredentials(long nativeWootzAppVpnNativeWorker,
+        void init(WootzVpnNativeWorker caller);
+        void destroy(long nativeWootzVpnNativeWorker, WootzVpnNativeWorker caller);
+        void getAllServerRegions(long nativeWootzVpnNativeWorker);
+        void getTimezonesForRegions(long nativeWootzVpnNativeWorker);
+        void getHostnamesForRegion(long nativeWootzVpnNativeWorker, String region);
+        void getWireguardProfileCredentials(long nativeWootzVpnNativeWorker,
                 String subscriberCredential, String publicKey, String hostname);
-        void verifyCredentials(long nativeWootzAppVpnNativeWorker, String hostname, String clientId,
+        void verifyCredentials(long nativeWootzVpnNativeWorker, String hostname, String clientId,
                 String subscriberCredential, String apiAuthToken);
-        void invalidateCredentials(long nativeWootzAppVpnNativeWorker, String hostname,
+        void invalidateCredentials(long nativeWootzVpnNativeWorker, String hostname,
                 String clientId, String subscriberCredential, String apiAuthToken);
-        void getSubscriberCredential(long nativeWootzAppVpnNativeWorker, String productType,
+        void getSubscriberCredential(long nativeWootzVpnNativeWorker, String productType,
                 String productId, String validationMethod, String purchaseToken,
                 String packageName);
-        void verifyPurchaseToken(long nativeWootzAppVpnNativeWorker, String purchaseToken,
+        void verifyPurchaseToken(long nativeWootzVpnNativeWorker, String purchaseToken,
                 String productId, String productType, String packageName);
-        void reloadPurchasedState(long nativeWootzAppVpnNativeWorker);
-        boolean isPurchasedUser(long nativeWootzAppVpnNativeWorker);
-        void getSubscriberCredentialV12(long nativeWootzAppVpnNativeWorker);
+        void reloadPurchasedState(long nativeWootzVpnNativeWorker);
+        boolean isPurchasedUser(long nativeWootzVpnNativeWorker);
+        void getSubscriberCredentialV12(long nativeWootzVpnNativeWorker);
         void reportBackgroundP3A(
-                long nativeWootzAppVpnNativeWorker, long sessionStartTimeMs, long sessionEndTimeMs);
-        void reportForegroundP3A(long nativeWootzAppVpnNativeWorker);
+                long nativeWootzVpnNativeWorker, long sessionStartTimeMs, long sessionEndTimeMs);
+        void reportForegroundP3A(long nativeWootzVpnNativeWorker);
     }
 }
