@@ -2041,6 +2041,7 @@ static_library("browser") {
     "//chrome/common",
     "//chrome/common:buildflags",
     "//chrome/common:constants",
+    "//chrome/browser/ui",
     "//chrome/services/file_util/public/mojom",
     "//components/account_id",
     "//components/autofill/core/browser",
