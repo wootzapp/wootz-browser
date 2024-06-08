@@ -29,7 +29,7 @@ export PATH="$PATH:/path/to/depot_tools"
 Create a chromium directory for the checkout and change to it (you can call this whatever you like and put it wherever you like, as long as the full path has no spaces):
 ```bash
 mkdir ~/chromium && cd ~/chromium
-fetch --nohooks android
+fetch --nohooks --no-history android
 ```
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
@@ -48,20 +48,29 @@ gclient runhooks
 ```
 
 #### Setting up the build
-```bash
-gn args out/Default
-```
+
 #### Build Options:
 
 ##### Option 1: Generate the default Chromium APK
-Edit the args.gn file to contain the following arguments:
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+ and add following arguments:
 
 ```bash
 target_os = "android"
 target_cpu = "arm64"
 ```
 ##### Option 2: Generate an optimized APK (approximately 131 MB)
-Edit the args.gn file to contain the following arguments:
+
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+ and add following arguments:
+
+
 
 ```bash
 target_os = "android"
