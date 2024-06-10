@@ -117,6 +117,8 @@ namespace {
         double upload_throughput = args[3].GetDouble();
         double packet_loss = args[4].GetDouble();
         int packet_queue_length = args[5].GetInt();
+	
+	    LOG(ERROR) << "offline: " << offline << " latency: " << latency;
 
         Profile* profile = Profile::FromWebUI(web_ui_);
         PrefService* prefs = profile->GetPrefs();
@@ -130,6 +132,7 @@ namespace {
         prefs->SetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength, packet_queue_length);
 
         }
+
        
         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
         conditions->offline = offline;
@@ -138,8 +141,11 @@ namespace {
         conditions->upload_throughput = upload_throughput;
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
+        // conditions->packet_reordering = false; // I think its not neccessary
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
+
+	    LOG(ERROR) << "After SetNetworkConditions";
 
         // Notify frontend about the updated settings
         base::Value::List settings;
@@ -150,8 +156,9 @@ namespace {
         settings.Append(packet_loss);
         settings.Append(packet_queue_length);
 
+
         AllowJavascript();
-        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings); // TODO: Handle this listener in UI.
     }
     
     void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
@@ -195,8 +202,9 @@ namespace {
         conditions->upload_throughput = upload_throughput;
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
+        // conditions->packet_reordering = false;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
     }
 
     network::mojom::NetworkContext* ThrottleMessageHandler::GetNetworkContext() {

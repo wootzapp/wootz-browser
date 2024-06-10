@@ -74,6 +74,7 @@ found in the LICENSE file.
     <color name="media_viewer_bg">#000000</color>
     <color name="image_viewer_bg">#0E0E0E</color>
     <color name="thumbnail_placeholder_on_primary_bg" tools:ignore="UnusedResources">@color/default_bg_color_secondary</color>
+    <color name="vpn_timer_text_color">#0D0F14</color>
     <macro name="tab_layout_selected_tab_color">@macro/default_text_color_accent1</macro>
 
 </resources>
