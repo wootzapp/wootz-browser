@@ -118,6 +118,8 @@ namespace {
         double packet_loss = args[4].GetDouble();
         int packet_queue_length = args[5].GetInt();
 
+        LOG(ERROR)<<"offline"<<offline<<"latency"<<latency<<download_throughput;
+
         Profile* profile = Profile::FromWebUI(web_ui_);
         PrefService* prefs = profile->GetPrefs();
 
@@ -139,7 +141,8 @@ namespace {
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
+        LOG(ERROR)<<"After setnetworkconditions";
 
         // Notify frontend about the updated settings
         base::Value::List settings;
@@ -196,7 +199,7 @@ namespace {
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
     }
 
     network::mojom::NetworkContext* ThrottleMessageHandler::GetNetworkContext() {
