@@ -1,6 +1,6 @@
 #include <memory>
 
-#include "chrome/components/wootzapp_vpn/common/mojom/wootzapp_vpn.mojom.h"
+#include "chrome/components/wootz_vpn/common/mojom/wootz_vpn.mojom.h"
 #include "build/build_config.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
@@ -11,30 +11,30 @@ template <typename T>
 class NoDestructor;
 }  // namespace base
 
-namespace wootzapp_vpn {
+namespace wootz_vpn {
 
-class WootzAppVpnService;
+class WootzVpnService;
 
-class WootzAppVpnServiceFactory : public BrowserContextKeyedServiceFactory {
+class WootzVpnServiceFactory : public BrowserContextKeyedServiceFactory {
  public:
-  static WootzAppVpnService* GetForProfile(Profile* profile);
-  static WootzAppVpnServiceFactory* GetInstance();
+  static WootzVpnService* GetForProfile(Profile* profile);
+  static WootzVpnServiceFactory* GetInstance();
 
-  WootzAppVpnServiceFactory(const WootzAppVpnServiceFactory&) = delete;
-  WootzAppVpnServiceFactory& operator=(const WootzAppVpnServiceFactory&) = delete;
+  WootzVpnServiceFactory(const WootzVpnServiceFactory&) = delete;
+  WootzVpnServiceFactory& operator=(const WootzVpnServiceFactory&) = delete;
 
   static void BindForContext(
       content::BrowserContext* context,
-      mojo::PendingReceiver<wootzapp_vpn::mojom::ServiceHandler> receiver);
+      mojo::PendingReceiver<wootz_vpn::mojom::ServiceHandler> receiver);
 
   // Returns the default factory, useful in tests.
   static TestingFactory GetDefaultFactory();
 
  private:
-  friend base::NoDestructor<WootzAppVpnServiceFactory>;
+  friend base::NoDestructor<WootzVpnServiceFactory>;
 
-  WootzAppVpnServiceFactory();
-  ~WootzAppVpnServiceFactory() override;
+  WootzVpnServiceFactory();
+  ~WootzVpnServiceFactory() override;
 
   // BrowserContextKeyedServiceFactory overrides:
   std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
@@ -43,6 +43,6 @@ class WootzAppVpnServiceFactory : public BrowserContextKeyedServiceFactory {
       user_prefs::PrefRegistrySyncable* registry) override;
 };
 
-}  // namespace wootzapp_vpn
+}  // namespace wootz_vpn
 
 #endif  // WOOTZ_BROWSER_WOOTZ_VPN_WOOTZ_VPN_SERVICE_FACTORY_H_

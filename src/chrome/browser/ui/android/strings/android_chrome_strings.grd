@@ -4870,10 +4870,135 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
       <message name="IDS_TWA_CLEAR_DATA_DIALOG_KEEP_DATA" desc="Text on the negative button of the clear data dialog">
         Keep Data
       </message>
+       <message name="IDS_OTHER_ISSUES" desc="Wootz Vpn support text">
+        Select Issue
+      </message>
+       <message name="IDS_CANNOT_CONNECT_TO_VPN" desc="Wootz Vpn support text">
+       Cannot connect to the VPN (Other error)
+       </message>
+        <message name="IDS_DISABLE_WOOTZ_VPN" desc="Wootz VPN timer bottom sheet title">
+          Disable Wootz VPN
+        </message>
+      <message name="IDS_NO_INTERNET" desc="Wootz Vpn support text">
+        No internet when connected
+      </message>
+      <message name="IDS_SLOW_CONNECTION" desc="Wootz Vpn support text">
+        Slow connection
+      </message>
+      <message name="IDS_WEBSITE_DOESNT_WORK" desc="Wootz Vpn support text">
+        Website doesn't work
+      </message>
+      <message name="IDS_OTHER" desc="Wootz Vpn support text">
+        Other
+      </message>
+     <message name="IDS_SOME_CONTEXT" desc="Wootz VPN profile text">
+       Some context...
+     </message>
+     <message name="IDS_SOME_CONTEXT_TEXT" desc="Wootz VPN profile text">
+      Your previous VPN connection was disconnected. To reconnect to VPN, you'll need to accept the connection request.
+
+      If you don't accept this request, VPN will not reconnect and your internet connection will not be secured.
+     </message>
+      <message name="IDS_RESET_VPN_CONFIG_DIALOG_TITLE" desc="Wootz Vpn reset configuration dialog title">
+        Reset VPN configuration
+      </message>
+      <message name="IDS_RESET_VPN_CONFIG_DIALOG_MESSAGE" desc="Wootz Vpn reset configuration dialog message">
+         Are you sure you want to reset VPN configuration?
+      </message>
+      <message name="IDS_AUTOMATIC" desc="Wootz Vpn default server location text">
+         Automatic
+      </message>
+      <message name="IDS_VPN_CONNECT_TEXT" desc="Wootz Vpn loading text">
+         Connecting to your server. Should only take a moment...
+      </message>
+       <message name="IDS_PAUSE_FOR_15_MINUTES" desc="Wootz VPN timer action text">
+         Pause for 15 minutes
+       </message>
+      <message name="IDS_PAUSE_FOR_1_HOUR" desc="Wootz VPN timer action text">
+       Pause for 1 hour
+      </message>
+      <message name="IDS_WOOTZ_VPN_PROFILE_TITLE" desc="Wootz VPN plan text">
+       Wootz will now install a VPN profile.
+      </message>
+      <message name="IDS_WOOTZ_CANCEL" desc="Set default browser modal button text">
+        Cancel
+      </message>
+      <message name="IDS_PERMISSION_WAS_CANCELLED" desc="Vpn user consent text">
+       You've stopped the installation of the VPN profile.
+      </message>
+      <message name="IDS_CONNECTED_TO_HOST" desc="Wootz Vpn notification statistics text">
+      Connected to <ph name="VALUE">%1$s</ph>
+    </message>
+    <message name="IDS_TRANSFER_BYTES" desc="Wootz Vpn notification statistics text" translateable="false">
+      <ph name="VALUE">%1$s<ex>0.0</ex></ph> B
+    </message>
+    <message name="IDS_TRANSFER_GIBIBYTES" desc="Wootz Vpn notification statistics text" translateable="false">
+      <ph name="VALUE">%1$s<ex>0.0</ex></ph> GB
+    </message>
+    <message name="IDS_TRANSFER_KIBIBYTES" desc="Wootz Vpn notification statistics text" translateable="false">
+      <ph name="VALUE">%1$s<ex>0.0</ex></ph> KB
+    </message>
+    <message name="IDS_TRANSFER_MIBIBYTES" desc="Wootz Vpn notification statistics text" translateable="false">
+      <ph name="VALUE">%1$s<ex>0.0</ex></ph> MB
+    </message>
+    <message name="IDS_TRANSFER_RX_TX" desc="Wootz Vpn notification statistics text" translateable="false">
+      \u2193<ph name="RX">%1$s</ph>, \u2191<ph name="TX">%2$s</ph>
+    </message>
+    <message name="IDS_TRANSFER_TIBIBYTES" desc="Wootz Vpn notification statistics text" translateable="false">
+      <ph name="VALUE">%1$s<ex>0.0</ex></ph> TB
+    </message>
+      <message name="IDS_ACCEPT_CONNECTION_REQUEST" desc="Wootz VPN profile text">
+        Accept connection request
+      </message>
+      <message name="IDS_VPN_PROFILE_CREATION_FAILED" desc="Wootz VPN profile text">
+       Vpn profile creation failed. Please try again.
+      </message>
+
+       <message name="IDS_ALWAYS_ON_VPN" desc="Vpn setting title for always on">
+         Always-on VPN
+       </message>
+        <message name="IDS_WOOTZ_VPN_SUPPORT_SUBJECT_NO_INTERNET" desc="VPN support: subject: no internet when connected">
+          No internet when connected
+       </message>
+    <message name="IDS_EXCLUDED_APPS" desc="Vpn splittunnel, Excluded apps title text">
+      Excluded Apps
+    </message>
+    <message name="IDS_ALLOWED_REGULAR_APPS" desc="Vpn splittunnel, Allowed regular apps title text">
+      Allowed Regular Apps
+    </message>
+    <message name="IDS_ALLOWED_SYSTEM_APPS" desc="Vpn splittunnel, Allowed system apps title text">
+      Allowed System Apps
+    </message>
+    <message name="IDS_SHOW_SYSTEM_APPS" desc="Vpn splittunnel, Show system apps button text">
+      Show System Apps
+    </message>
+    <message name="IDS_SPLIT_TUNNEL_DESC" desc="Empty excluded apps list text">
+      Add apps to be excluded from the VPN traffic.
+    </message>
+    <message name="IDS_SPLIT_TUNNELING" desc="Vpn splittunnel text">
+      Split Tunneling
+    </message>
+       <message name="IDS_HOW_TO_TURN_ON" desc="Vpn kill swicth tutorial text">
+         How to turn on:
+       </message>
+       <message name="IDS_KILL_SWITCH_TUTORIAL_TEXT_1" desc="Vpn kill swicth tutorial text">
+         1. Open your device's settings from your app drawer or tapping the button below.
+       </message>
+       <message name="IDS_KILL_SWITCH_TUTORIAL_TEXT_2" desc="Vpn kill swicth tutorial text">
+         2. Find Wootz VPN and tap on the settings icon to the right.
+       </message>
+       <message name="IDS_KILL_SWITCH_TUTORIAL_TEXT_3" desc="Vpn kill swicth tutorial text">
+         3. Toggle <ph name="ALWAYS_ON_TUTORIAL_START">&lt;always_on_tutorial&gt;</ph>Always-on VPN<ph name="ALWAYS_ON_TUTORIAL_END">&lt;/always_on_tutorial&gt;</ph> to enable it.
+       </message>
+       <message name="IDS_KILL_SWITCH_ACTION_TEXT" desc="Vpn kill swicth tutorial action text">
+         Open Android settings
+       </message>
+       <message name="IDS_COULDNT_GET_MATCHING_TIMEZONE" desc="Wootz vpn error message">
+        Couldn't get matching timezone for : <ph name="VALUE">%1$s</ph>
+      </message>
       <message name="IDS_TWA_CLEAR_DATA_SITE_SELECTION_TITLE" desc="Title of screen showing the sites linked to TWA, allowing the user to clean data in any of them.">
         Linked sites
       </message>
-
       <message name="IDS_WEBAPP_TAP_TO_COPY_URL" desc="Message on the notification that indicates that taping it will copy a Web App's URL into the clipboard.">
         Tap to copy the URL for this app
       </message>

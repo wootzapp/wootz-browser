@@ -61,6 +61,50 @@ found in the LICENSE file.
     <!-- Scrollbar colors -->
     <color name="default_scroll_thumb">@color/modern_grey_800_alpha_38</color>
 
+
+    <color name="onboarding_timer_color">#4f30ab</color>
+    <color name="onboarding_text_color">@color/onboarding_black</color>
+    <color name="onboarding_bg_color">@android:color/white</color>
+
+     <color name="onboarding_radio_button_active">#f0f1ff</color>
+
+    <color name="onboarding_timer_color">#4f30ab</color>
+
+    <color name="onboarding_text_color">@color/onboarding_black</color>
+    <color name="onboarding_bg_color">@android:color/white</color>
+
+    <color name="onboarding_progressbar_secondary_bg">#ced4da</color>
+    <color name="onboarding_progress_start_color">#FA7250</color>
+    <color name="onboarding_progress_mid_color">#FF1893</color>
+    <color name="onboarding_progress_end_color">#4F30AB</color>
+    <color name="onboarding_indicator_selected_color">#FF7654</color>
+    <color name="onboarding_indicator_default_color">#C2C4CF</color>
+
+    <color name="onboarding_welcome_text_color">#F0F2FF</color>
+    <color name="onboarding_card_bg_color">@android:color/white</color>
+    <color name="onboarding_card_text_color">#212529</color>
+    <color name="onboarding_negative_button_color">#4C54D2</color>
+    <color name="onboarding_search_highlight_color">#737ADE</color>
+    <color name="onboarding_arrow_color">#4D54D3</color>
+
+    <color name="scan_qr_code_text_color">#212529</color>
+    <color name="scan_qr_code_bg_color">@android:color/white</color>
+
+    <!-- Set Default Browser colors -->
+    <color name="set_default_bottom_sheet_bg_color">@android:color/white</color>
+    <color name="set_default_text_color">#212529</color>
+    <color name="set_default_bottom_sheet_button_disable_color">#DADCE8</color>
+
+    <color name="text_primary">#0D1214</color>
+    <color name="text_secondary">#3f4e55</color>
+    <color name="text_tertiary">#62757e</color>
+    <color name="primary_20">#d5dcff</color>
+    <color name="button_background">#3F39E8</color>
+    <color name="primitive_primary_20">#d5dcff</color>
+    <color name="primitive_primary_30">#b7c6ff</color>
+    <color name="primitive_primary_70">#3b08c2</color>
+    <color name="primitive_primary_80">#2a118e</color>
+
     <!-- Offline indicator v2 colors -->
     <color name="offline_indicator_offline_color">@android:color/black</color>
 
@@ -70,11 +114,15 @@ found in the LICENSE file.
     <!-- Tab strip button hover background color -->
     <color name="tab_strip_button_hover_bg_color">@color/baseline_neutral_90</color>
 
+    <color name="wootz_white">@android:color/white</color>
+
     <!-- Other colors -->
     <color name="media_viewer_bg">#000000</color>
     <color name="image_viewer_bg">#0E0E0E</color>
     <color name="thumbnail_placeholder_on_primary_bg" tools:ignore="UnusedResources">@color/default_bg_color_secondary</color>
+    <color name="vpn_timer_bg_color">#F6F7F8</color>
     <color name="vpn_timer_text_color">#0D0F14</color>
+    <color name="vpn_timer_icon_color">#687485</color>
     <macro name="tab_layout_selected_tab_color">@macro/default_text_color_accent1</macro>
 
 </resources>

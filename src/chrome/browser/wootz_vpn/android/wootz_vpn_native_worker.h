@@ -35,7 +35,6 @@ class WootzVpnNativeWorker {
 
   void GetWireguardProfileCredentials(
       JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& subscriber_credential,
       const base::android::JavaParamRef<jstring>& public_key,
       const base::android::JavaParamRef<jstring>& hostname);
 
@@ -47,7 +46,6 @@ class WootzVpnNativeWorker {
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& hostname,
       const base::android::JavaParamRef<jstring>& client_id,
-      const base::android::JavaParamRef<jstring>& subscriber_credential,
       const base::android::JavaParamRef<jstring>& api_auth_token);
 
   void OnVerifyCredentials(const std::string& verify_credentials_json,
@@ -56,40 +54,10 @@ class WootzVpnNativeWorker {
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& hostname,
       const base::android::JavaParamRef<jstring>& client_id,
-      const base::android::JavaParamRef<jstring>& subscriber_credential,
       const base::android::JavaParamRef<jstring>& api_auth_token);
 
   void OnInvalidateCredentials(const std::string& invalidate_credentials_json,
                                bool success);
-
-  void GetSubscriberCredential(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& product_type,
-      const base::android::JavaParamRef<jstring>& product_id,
-      const base::android::JavaParamRef<jstring>& validation_method,
-      const base::android::JavaParamRef<jstring>& purchase_token,
-      const base::android::JavaParamRef<jstring>& bundle_id);
-
-  void GetSubscriberCredentialV12(JNIEnv* env);
-
-  void OnGetSubscriberCredential(const std::string& subscriber_credential,
-                                 bool success);
-
-  void VerifyPurchaseToken(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& purchase_token,
-      const base::android::JavaParamRef<jstring>& product_id,
-      const base::android::JavaParamRef<jstring>& product_type,
-      const base::android::JavaParamRef<jstring>& bundle_id);
-
-  void OnVerifyPurchaseToken(const std::string& purchase_token,
-                             const std::string& product_id,
-                             const std::string& json_response,
-                             bool success);
-
-  void ReloadPurchasedState(JNIEnv* env);
-
-  jboolean IsPurchasedUser(JNIEnv* env);
 
   void ReportForegroundP3A(JNIEnv* env);
   void ReportBackgroundP3A(JNIEnv* env,

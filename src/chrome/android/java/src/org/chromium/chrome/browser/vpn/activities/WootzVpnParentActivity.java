@@ -15,8 +15,6 @@ import com.wireguard.crypto.KeyPair;
 import org.chromium.base.Log;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.billing.InAppPurchaseWrapper;
-import org.chromium.chrome.browser.billing.PurchaseModel;
 import org.chromium.chrome.browser.init.ActivityProfileProvider;
 import org.chromium.chrome.browser.init.AsyncInitializationActivity;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
@@ -72,83 +70,6 @@ public abstract class WootzVpnParentActivity
         super.onDestroy();
     }
 
-    protected void verifySubscription() {
-        mWootzVpnPrefModel = new WootzVpnPrefModel();
-        MutableLiveData<PurchaseModel> _activePurchases = new MutableLiveData();
-        LiveData<PurchaseModel> activePurchases = _activePurchases;
-        InAppPurchaseWrapper.getInstance()
-                .queryPurchases(_activePurchases, InAppPurchaseWrapper.SubscriptionProduct.VPN);
-        LiveDataUtil.observeOnce(
-                activePurchases,
-                activePurchaseModel -> {
-                    if (activePurchaseModel != null) {
-                        mWootzVpnPrefModel.setPurchaseToken(activePurchaseModel.getPurchaseToken());
-                        mWootzVpnPrefModel.setProductId(activePurchaseModel.getProductId());
-                        WootzVpnNativeWorker.getInstance()
-                                .verifyPurchaseToken(
-                                        mWootzVpnPrefModel.getPurchaseToken(),
-                                        mWootzVpnPrefModel.getProductId(),
-                                        WootzVpnUtils.SUBSCRIPTION_PARAM_TEXT,
-                                        getPackageName());
-                    } else {
-                        if (!mIsVerification) {
-                            WootzVpnApiResponseUtils.queryPurchaseFailed(
-                                    WootzVpnParentActivity.this);
-                            mIsServerLocationChanged = false;
-                        } else {
-                            showRestoreMenu(false);
-                        }
-                        WootzVpnUtils.dismissProgressDialog();
-                    }
-                });
-    }
-
-    @Override
-    public void onVerifyPurchaseToken(
-            String jsonResponse, String purchaseToken, String productId, boolean isSuccess) {
-        if (isSuccess && mWootzVpnPrefModel != null) {
-            Long purchaseExpiry = WootzVpnUtils.getPurchaseExpiryDate(jsonResponse);
-            int paymentState = WootzVpnUtils.getPaymentState(jsonResponse);
-            if (purchaseExpiry > 0 && purchaseExpiry >= System.currentTimeMillis()) {
-                WootzVpnPrefUtils.setPurchaseToken(purchaseToken);
-                WootzVpnPrefUtils.setProductId(productId);
-                WootzVpnPrefUtils.setPurchaseExpiry(purchaseExpiry);
-                WootzVpnPrefUtils.setSubscriptionPurchase(true);
-                WootzVpnPrefUtils.setPaymentState(paymentState);
-                if (!mIsVerification || WootzVpnPrefUtils.isResetConfiguration()) {
-                    WootzVpnNativeWorker.getInstance().getSubscriberCredential(
-                            WootzVpnUtils.SUBSCRIPTION_PARAM_TEXT,
-                            mWootzVpnPrefModel.getProductId(), WootzVpnUtils.IAP_ANDROID_PARAM_TEXT,
-                            mWootzVpnPrefModel.getPurchaseToken(), getPackageName());
-                } else {
-                    mIsVerification = false;
-                    showRestoreMenu(true);
-                    WootzVpnUtils.showToast(getResources().getString(R.string.already_subscribed));
-                    WootzVpnUtils.dismissProgressDialog();
-                }
-            } else {
-                WootzVpnApiResponseUtils.queryPurchaseFailed(WootzVpnParentActivity.this);
-                mIsServerLocationChanged = false;
-                if (mIsVerification) {
-                    mIsVerification = false;
-                    showRestoreMenu(false);
-                    WootzVpnUtils.dismissProgressDialog();
-                } else {
-                    WootzVpnUtils.openWootzVpnPlansActivity(WootzVpnParentActivity.this);
-                }
-            }
-        } else {
-            WootzVpnUtils.dismissProgressDialog();
-        }
-    };
-
-    @Override
-    public void onGetSubscriberCredential(String subscriberCredential, boolean isSuccess) {
-        mWootzVpnPrefModel.setSubscriberCredential(subscriberCredential);
-        WootzVpnApiResponseUtils.handleOnGetSubscriberCredential(
-                WootzVpnParentActivity.this, isSuccess);
-    };
-
     @Override
     public void onGetTimezonesForRegions(String jsonTimezones, boolean isSuccess) {
         WootzVpnApiResponseUtils.handleOnGetTimezonesForRegions(
@@ -182,7 +103,6 @@ public abstract class WootzVpnParentActivity
                             .invalidateCredentials(
                                     WootzVpnPrefUtils.getHostname(),
                                     WootzVpnPrefUtils.getClientId(),
-                                    WootzVpnPrefUtils.getSubscriberCredential(),
                                     WootzVpnPrefUtils.getApiAuthToken());
                 } catch (Exception ex) {
                     Log.e(TAG, ex.getMessage());

@@ -39,6 +39,12 @@ if (!limit_android_deps) {
       "//third_party/androidx:androidx_test_espresso_espresso_web_java",
     ]
   }
+  
+  group("android_deps") {
+  public_deps = [
+    ":com_wireguard_android_java",
+   ]
+  }
 
   java_group("guava_android_java") {
     preferred_dep = true
@@ -709,7 +715,16 @@ if (!limit_android_deps) {
     supports_android = true
     enable_bytecode_checks = false
   }
-
+  android_aar_prebuilt("com_wireguard_android_java") {
+   aar_path = "libs/com_wireguard_android/tunnel-1.0.20230321.aar"
+   info_path = "libs/com_wireguard_android/com_wireguard_android.info"
+   deps = [
+    "//third_party/androidx:androidx_annotation_annotation_java",
+    "//third_party/androidx:androidx_collection_collection_java",
+   ]
+   extract_native_libraries = true
+   ignore_manifest = true
+    }
   # This is generated, do not edit. Update BuildConfigGenerator.groovy instead.
   android_aar_prebuilt("com_android_support_support_compat_java") {
     aar_path =
