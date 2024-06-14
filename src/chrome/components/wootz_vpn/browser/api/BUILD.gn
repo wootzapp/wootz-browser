@@ -1,11 +1,6 @@
-# Copyright (c) 2023 The Brave Authors. All rights reserved.
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at https://mozilla.org/MPL/2.0/.
+import("//chrome/components/wootz_vpn/common/buildflags/buildflags.gni")
 
-import("//brave/components/brave_vpn/common/buildflags/buildflags.gni")
-
-assert(enable_brave_vpn)
+assert(enable_wootz_vpn)
 assert(!is_android)
 
 source_set("ikev2") {
@@ -15,11 +10,11 @@ source_set("ikev2") {
   ]
   deps = [
     "//base",
-    "//brave/components/brave_vpn/browser/api",
-    "//brave/components/brave_vpn/browser/connection:api",
-    "//brave/components/brave_vpn/browser/connection:common",
-    "//brave/components/brave_vpn/common",
-    "//brave/components/brave_vpn/common/mojom",
+    "//chrome/components/wootz_vpn/browser/api",
+    "//chrome/components/wootz_vpn/browser/connection:api",
+    "//chrome/components/wootz_vpn/browser/connection:common",
+    "//chrome/components/wootz_vpn/common",
+    "//chrome/components/wootz_vpn/common/mojom",
     "//components/prefs",
   ]
 
@@ -35,30 +30,11 @@ source_set("sim") {
 
   deps = [
     "//base",
-    "//brave//components/brave_vpn/browser/connection/ikev2",
-    "//brave/components/brave_vpn/browser/connection:api",
-    "//brave/components/brave_vpn/browser/connection:common",
-    "//brave/components/brave_vpn/common",
+    "//chrome//components/wootz_vpn/browser/connection/ikev2",
+    "//chrome/components/wootz_vpn/browser/connection:api",
+    "//chrome/components/wootz_vpn/browser/connection:common",
+    "//chrome/components/wootz_vpn/common",
     "//components/version_info:channel",
     "//third_party/icu",
-  ]
-}
-
-source_set("unit_tests") {
-  testonly = true
-
-  sources = [ "system_vpn_connection_api_unittest.cc" ]
-
-  deps = [
-    ":sim",
-    "//brave/components/brave_vpn/browser",
-    "//brave/components/brave_vpn/browser/connection:api",
-    "//brave/components/brave_vpn/browser/connection:common",
-    "//brave/components/brave_vpn/common",
-    "//brave/components/brave_vpn/common/mojom",
-    "//components/sync_preferences:test_support",
-    "//content/test:test_support",
-    "//services/network:test_support",
-    "//testing/gtest",
   ]
 }

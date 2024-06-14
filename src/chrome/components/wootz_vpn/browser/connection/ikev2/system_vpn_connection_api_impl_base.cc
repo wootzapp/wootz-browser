@@ -1,9 +1,4 @@
-/* Copyright (c) 2024 The Brave Authors. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at https://mozilla.org/MPL/2.0/. */
-
-#include "brave/components/brave_vpn/browser/connection/ikev2/system_vpn_connection_api_impl_base.h"
+#include "chrome/components/wootz_vpn/browser/connection/ikev2/system_vpn_connection_api_impl_base.h"
 
 #include <optional>
 #include <utility>
@@ -11,13 +6,13 @@
 #include "base/check_is_test.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
-#include "brave/components/brave_vpn/browser/api/brave_vpn_api_request.h"
-#include "brave/components/brave_vpn/browser/connection/brave_vpn_connection_manager.h"
-#include "brave/components/brave_vpn/browser/connection/brave_vpn_region_data_manager.h"
-#include "brave/components/brave_vpn/common/brave_vpn_data_types.h"
-#include "brave/components/brave_vpn/common/brave_vpn_utils.h"
+#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_request.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_manager.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_region_data_manager.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_data_types.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_utils.h"
 
-namespace brave_vpn {
+namespace wootz_vpn {
 
 using ConnectionState = mojom::ConnectionState;
 
@@ -25,7 +20,6 @@ SystemVPNConnectionAPIImplBase::~SystemVPNConnectionAPIImplBase() = default;
 
 void SystemVPNConnectionAPIImplBase::SetSelectedRegion(
     const std::string& name) {
-  // TODO(simonhong): Can remove this when UI block region changes while
   // operation is in-progress.
   // Don't allow region change while operation is in-progress.
   auto connection_state = GetConnectionState();
@@ -291,8 +285,7 @@ void SystemVPNConnectionAPIImplBase::UpdateAndNotifyConnectionStateChange(
 void SystemVPNConnectionAPIImplBase::FetchProfileCredentials() {
   GetAPIRequest()->GetProfileCredentials(
       base::BindOnce(&SystemVPNConnectionAPIImplBase::OnGetProfileCredentials,
-                     base::Unretained(this)),
-      GetSubscriberCredential(manager_->local_prefs()), GetHostname());
+                     base::Unretained(this)), GetHostname());
 }
 
 void SystemVPNConnectionAPIImplBase::OnGetProfileCredentials(
@@ -334,4 +327,4 @@ void SystemVPNConnectionAPIImplBase::OnGetProfileCredentials(
   UpdateAndNotifyConnectionStateChange(ConnectionState::CONNECT_FAILED);
 }
 
-}  // namespace brave_vpn
+}  // namespace wootz_vpn

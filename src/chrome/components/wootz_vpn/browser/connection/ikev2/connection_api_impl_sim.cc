@@ -1,9 +1,4 @@
-/* Copyright (c) 2024 The Brave Authors. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at https://mozilla.org/MPL/2.0/. */
-
-#include "brave/components/brave_vpn/browser/connection/ikev2/connection_api_impl_sim.h"
+#include "chrome/components/wootz_vpn/browser/connection/ikev2/connection_api_impl_sim.h"
 
 #include <memory>
 
@@ -11,20 +6,20 @@
 #include "base/rand_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "brave/components/brave_vpn/browser/connection/brave_vpn_connection_manager.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_manager.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
-namespace brave_vpn {
+namespace wootz_vpn {
 
 ConnectionAPIImplSim::ConnectionAPIImplSim(
-    BraveVPNConnectionManager* manager,
+    WootzVPNConnectionManager* manager,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
     : SystemVPNConnectionAPIImplBase(manager, url_loader_factory) {}
 
 ConnectionAPIImplSim::~ConnectionAPIImplSim() = default;
 
 void ConnectionAPIImplSim::CreateVPNConnectionImpl(
-    const BraveVPNConnectionInfo& info) {
+    const WootzVPNConnectionInfo& info) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE,
       base::BindOnce(&ConnectionAPIImplSim::OnCreated,
@@ -150,4 +145,4 @@ ConnectionAPIImpl::Type ConnectionAPIImplSim::type() const {
   return Type::IKEV2;
 }
 
-}  // namespace brave_vpn
+}  // namespace wootz_vpn
