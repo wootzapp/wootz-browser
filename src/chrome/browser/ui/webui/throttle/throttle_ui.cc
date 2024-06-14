@@ -118,7 +118,7 @@ namespace {
         double packet_loss = args[4].GetDouble();
         int packet_queue_length = args[5].GetInt();
 
-        LOG(ERROR)<<"offline"<<offline<<"latency"<<latency<<download_throughput;
+        LOG(ERROR)<<"offline "<<offline<<"latency "<<latency << download_throughput;
 
         Profile* profile = Profile::FromWebUI(web_ui_);
         PrefService* prefs = profile->GetPrefs();
@@ -152,6 +152,8 @@ namespace {
         settings.Append(upload_throughput);
         settings.Append(packet_loss);
         settings.Append(packet_queue_length);
+
+        LOG(ERROR)<< offline <<" "<< latency<< " "<< download_throughput<<" "<<upload_throughput<< " " << packet_loss << " " << packet_queue_length;
 
         AllowJavascript();
         web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
