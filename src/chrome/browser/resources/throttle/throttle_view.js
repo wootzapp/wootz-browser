@@ -25,11 +25,16 @@ export class ThrottleView extends DivView {
 
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
+    // form.addEventListener('submit', this.loadAndDisplaySavedSettings_(), false);
+
+    // form.addEventListener("displaySavedSettings", (event) => {
+
+    window.addEventListener("displaySavedSettings", function_to_execute);
 
     console.log('Setting network throttling conditions: HELLO')
 
     // Fetch and display the saved network throttling settings on load
-    this.loadAndDisplaySavedSettings_();
+    
   }
 
   async onSubmit_(event) {
@@ -71,6 +76,8 @@ export class ThrottleView extends DivView {
     `;
 
   }
+
+  
 
   static getInstance() {
     return instance || (instance = new ThrottleView());
