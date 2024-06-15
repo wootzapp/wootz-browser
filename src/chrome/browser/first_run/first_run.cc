@@ -164,6 +164,20 @@ void ImportFromFile(Profile* profile,
 void ImportSettings(Profile* profile,
                     std::unique_ptr<ImporterList> importer_list,
                     uint16_t items_to_import) {
+  
+
+      // Profile* profile = Profile::FromWebUI(web_ui_);
+  //     PrefService* prefs = profile->GetPrefs();
+
+  //     bool offline = prefs->GetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline);
+  //     double latency = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingLatency);
+  //     double download_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput);
+  //     double upload_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput);
+  //     double packet_loss = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss);
+  //     int packet_queue_length = prefs->GetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength);
+
+  // // GetNetworkConxtext()->Set(offline, latency, download_throughput, upload_throughput, packet_loss, packet_queue_length);
+        
   DCHECK(items_to_import);
   const importer::SourceProfile& source_profile =
       importer_list->GetSourceProfileAt(0);
