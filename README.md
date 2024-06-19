@@ -51,20 +51,30 @@ gclient runhooks
 ```
 
 #### Setting up the build
-```bash
-gn args out/Default
-```
+
 #### Build Options:
 
 ##### Option 1: Generate the default Chromium APK
-Edit the args.gn file to contain the following arguments:
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+
+and add following arguments:
+
 
 ```bash
 target_os = "android"
 target_cpu = "arm64"
 ```
 ##### Option 2: Generate an optimized APK (approximately 131 MB)
-Edit the args.gn file to contain the following arguments:
+
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+ and add following arguments:
+
 
 ```bash
 target_os = "android"
