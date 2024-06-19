@@ -11,7 +11,7 @@
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="24dp"
         android:layout_marginBottom="8dp"
-        android:text="@string/disable_brave_vpn"
+        android:text="@string/disable_wootz_vpn"
         android:textColor="@color/vpn_timer_text_color"
         android:textSize="16sp" />
 

@@ -31,12 +31,6 @@ WootzVPNConnectionManager::WootzVPNConnectionManager(
   DCHECK(url_loader_factory_);
   install_system_service_callback_ = std::move(service_installer);
 
-#if BUILDFLAG(ENABLE_chrome_VPN_WIREGUARD)
-  wireguard_enabled_.Init(
-      prefs::kWootzVPNWireguardEnabled, local_prefs_,
-      base::BindRepeating(&WootzVPNConnectionManager::UpdateConnectionAPIImpl,
-                          weak_factory_.GetWeakPtr()));
-#endif
   // Safe to use Unretained here because |region_data_manager_| is owned
   // instance.
   region_data_manager_.set_selected_region_changed_callback(base::BindRepeating(
@@ -82,44 +76,12 @@ void WootzVPNConnectionManager::UpdateConnectionAPIImpl() {
 
   // This could be called multiple times, so don't reset current connection
   // if prefs is matched with current |connection_api_impl_|.
-  const bool wireguard_enabled =
-#if BUILDFLAG(ENABLE_WOOTZ_VPN_WIREGUARD)
-      wireguard_enabled_.GetValue();
-#else
-      false;
-#endif
 
   if (!connection_api_impl_) {
     // Create new connection api impl.
-    VLOG(2) << __func__
-            << " : Create new connection api impl based on current prefs - "
-               "wireguard_enabled("
-            << wireguard_enabled << ">";
-    connection_api_impl_ = connection_api_impl_getter_.Run(
-        this, url_loader_factory_, wireguard_enabled);
     return;
   }
 
-#if BUILDFLAG(ENABLE_WOOTZ_VPN_WIREGUARD)
-  if (wireguard_enabled &&
-      connection_api_impl_->type() == ConnectionAPIImpl::Type::WIREGUARD) {
-    VLOG(2) << __func__ << " : Already have wireguard connection api impl.";
-    return;
-  }
-
-  if (!wireguard_enabled &&
-      connection_api_impl_->type() == ConnectionAPIImpl::Type::IKEV2) {
-    VLOG(2) << __func__ << " : Already have ikev2 connection api impl.";
-    return;
-  }
-#endif
-
-  VLOG(2) << __func__
-          << " : Create new connection api impl based on current prefs - "
-             "wireguard_enabled("
-          << wireguard_enabled << ">";
-  connection_api_impl_ = connection_api_impl_getter_.Run(
-      this, url_loader_factory_, wireguard_enabled);
 }
 
 mojom::ConnectionState WootzVPNConnectionManager::GetConnectionState() const {
@@ -231,11 +193,6 @@ void WootzVPNConnectionManager::MaybeInstallSystemServices() {
 void WootzVPNConnectionManager::OnInstallSystemServicesCompleted(bool success) {
   VLOG(1) << "OnInstallSystemServicesCompleted: success=" << success;
   if (success) {
-#if BUILDFLAG(IS_WIN)
-    // Update prefs first before signaling the event because the event could
-    // check the prefs.
-    EnableWireguardIfPossible(local_prefs_);
-#endif
     system_service_installed_event_.Signal();
   } else {
     // On success, UpdateConnectionAPIImpl() will be called by prefs changing

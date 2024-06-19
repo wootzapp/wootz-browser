@@ -86,13 +86,14 @@ public class WootzVpnNativeWorker {
         }
     }
 
-    @CalledByNative
-    public void onGetWireguardProfileCredentials(
-            String jsonWireguardProfileCredentials, boolean isSuccess) {
-        for (WootzVpnObserver observer : mObservers) {
-            observer.onGetWireguardProfileCredentials(jsonWireguardProfileCredentials, isSuccess);
-        }
-    }
+    // @CalledByNative
+    // public void onGetWireguardProfileCredentials(
+    //         String jsonWireguardProfileCredentials, boolean isSuccess) {
+    //     for (WootzVpnObserver observer : mObservers) {
+    //         observer.onGetWireguardProfileCredentials(jsonWireguardProfileCredentials,
+    // isSuccess);
+    //     }
+    // }
 
     @CalledByNative
     public void onVerifyCredentials(String jsonVerifyCredentials, boolean isSuccess) {
@@ -135,11 +136,11 @@ public class WootzVpnNativeWorker {
         WootzVpnNativeWorkerJni.get().getHostnamesForRegion(mNativeWootzVpnNativeWorker, region);
     }
 
-    public void getWireguardProfileCredentials(
-            String subscriberCredential, String publicKey, String hostname) {
-        WootzVpnNativeWorkerJni.get().getWireguardProfileCredentials(
-                mNativeWootzVpnNativeWorker, subscriberCredential, publicKey, hostname);
-    }
+    // public void getWireguardProfileCredentials(
+    //         String subscriberCredential, String publicKey, String hostname) {
+    //     WootzVpnNativeWorkerJni.get().getWireguardProfileCredentials(
+    //             mNativeWootzVpnNativeWorker, subscriberCredential, publicKey, hostname);
+    // }
 
     public void verifyCredentials(
             String hostname, String clientId, String subscriberCredential, String apiAuthToken) {
@@ -190,26 +191,55 @@ public class WootzVpnNativeWorker {
     @NativeMethods
     interface Natives {
         void init(WootzVpnNativeWorker caller);
+
         void destroy(long nativeWootzVpnNativeWorker, WootzVpnNativeWorker caller);
+
         void getAllServerRegions(long nativeWootzVpnNativeWorker);
+
         void getTimezonesForRegions(long nativeWootzVpnNativeWorker);
+
         void getHostnamesForRegion(long nativeWootzVpnNativeWorker, String region);
-        void getWireguardProfileCredentials(long nativeWootzVpnNativeWorker,
-                String subscriberCredential, String publicKey, String hostname);
-        void verifyCredentials(long nativeWootzVpnNativeWorker, String hostname, String clientId,
-                String subscriberCredential, String apiAuthToken);
-        void invalidateCredentials(long nativeWootzVpnNativeWorker, String hostname,
-                String clientId, String subscriberCredential, String apiAuthToken);
-        void getSubscriberCredential(long nativeWootzVpnNativeWorker, String productType,
-                String productId, String validationMethod, String purchaseToken,
+
+        // void getWireguardProfileCredentials(long nativeWootzVpnNativeWorker,
+        //         String subscriberCredential, String publicKey, String hostname);
+        void verifyCredentials(
+                long nativeWootzVpnNativeWorker,
+                String hostname,
+                String clientId,
+                String subscriberCredential,
+                String apiAuthToken);
+
+        void invalidateCredentials(
+                long nativeWootzVpnNativeWorker,
+                String hostname,
+                String clientId,
+                String subscriberCredential,
+                String apiAuthToken);
+
+        void getSubscriberCredential(
+                long nativeWootzVpnNativeWorker,
+                String productType,
+                String productId,
+                String validationMethod,
+                String purchaseToken,
                 String packageName);
-        void verifyPurchaseToken(long nativeWootzVpnNativeWorker, String purchaseToken,
-                String productId, String productType, String packageName);
+
+        void verifyPurchaseToken(
+                long nativeWootzVpnNativeWorker,
+                String purchaseToken,
+                String productId,
+                String productType,
+                String packageName);
+
         void reloadPurchasedState(long nativeWootzVpnNativeWorker);
+
         boolean isPurchasedUser(long nativeWootzVpnNativeWorker);
+
         void getSubscriberCredentialV12(long nativeWootzVpnNativeWorker);
+
         void reportBackgroundP3A(
                 long nativeWootzVpnNativeWorker, long sessionStartTimeMs, long sessionEndTimeMs);
+
         void reportForegroundP3A(long nativeWootzVpnNativeWorker);
     }
 }

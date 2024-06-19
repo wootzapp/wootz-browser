@@ -4,10 +4,10 @@
 
 #include "base/debug/dump_without_crashing.h"
 #include "base/json/json_writer.h"
-#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_helper.h"
-#include "chrome/components/wootz_vpn/browser/api/vpn_response_parser.h"
-#include "chrome/components/wootz_vpn/common/wootz_vpn_constants.h"
 #include "chrome/components/skus/browser/skus_utils.h"
+#include "chrome/components/wootz_vpn/browser/api/vpn_response_parser.h"
+#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_helper.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_constants.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "url/gurl.h"
@@ -92,9 +92,8 @@ void WootzVpnAPIRequest::GetHostnamesForRegion(ResponseCallback callback,
   OAuthRequest(base_url, "POST", request_body, std::move(internal_callback));
 }
 
-void WootzVpnAPIRequest::GetProfileCredentials(
-    ResponseCallback callback,
-    const std::string& hostname) {
+void WootzVpnAPIRequest::GetProfileCredentials(ResponseCallback callback,
+                                               const std::string& hostname) {
   auto internal_callback =
       base::BindOnce(&WootzVpnAPIRequest::OnGetResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
@@ -104,26 +103,10 @@ void WootzVpnAPIRequest::GetProfileCredentials(
   OAuthRequest(base_url, "POST", request_body, std::move(internal_callback));
 }
 
-void WootzVpnAPIRequest::GetWireguardProfileCredentials(
-    ResponseCallback callback,
-    const std::string& public_key,
-    const std::string& hostname) {
-  auto internal_callback =
-      base::BindOnce(&WootzVpnAPIRequest::OnGetResponse,
-                     weak_ptr_factory_.GetWeakPtr(), std::move(callback));
-  GURL base_url = GetURLWithPath(hostname, kCredential);
-  base::Value::Dict dict;
-  dict.Set("public-key", public_key);
-  dict.Set("transport-protocol", "wireguard");
-  std::string request_body = CreateJSONRequestBody(dict);
-  OAuthRequest(base_url, "POST", request_body, std::move(internal_callback));
-}
-
-void WootzVpnAPIRequest::VerifyCredentials(
-    ResponseCallback callback,
-    const std::string& hostname,
-    const std::string& client_id,
-    const std::string& api_auth_token) {
+void WootzVpnAPIRequest::VerifyCredentials(ResponseCallback callback,
+                                           const std::string& hostname,
+                                           const std::string& client_id,
+                                           const std::string& api_auth_token) {
   auto internal_callback =
       base::BindOnce(&WootzVpnAPIRequest::OnGetResponse,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
@@ -188,20 +171,18 @@ void WootzVpnAPIRequest::GetSubscriberCredentialV12(
                {{"Wootz-Payments-Environment", environment}});
 }
 
-void WootzVpnAPIRequest::CreateSupportTicket(
-    ResponseCallback callback,
-    const std::string& email,
-    const std::string& subject,
-    const std::string& body) {
+void WootzVpnAPIRequest::CreateSupportTicket(ResponseCallback callback,
+                                             const std::string& email,
+                                             const std::string& subject,
+                                             const std::string& body) {
   auto internal_callback =
       base::BindOnce(&WootzVpnAPIRequest::OnCreateSupportTicket,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
 
-  OAuthRequest(
-      GetURLWithPath(kVpnHost, kCreateSupportTicket), "POST",
-      CreateJSONRequestBody(GetValueWithTicketInfos(
-          email, subject, body, GetTimeZoneName())),
-      std::move(internal_callback));
+  OAuthRequest(GetURLWithPath(kVpnHost, kCreateSupportTicket), "POST",
+               CreateJSONRequestBody(GetValueWithTicketInfos(
+                   email, subject, body, GetTimeZoneName())),
+               std::move(internal_callback));
 }
 
 void WootzVpnAPIRequest::OAuthRequest(

@@ -12,8 +12,9 @@ WootzVPNServiceObserver::WootzVPNServiceObserver() = default;
 WootzVPNServiceObserver::~WootzVPNServiceObserver() = default;
 
 void WootzVPNServiceObserver::Observe(WootzVpnService* service) {
-  if (!service)
+  if (!service) {
     return;
+  }
 
   if (service->IsWootzVPNEnabled()) {
     mojo::PendingRemote<mojom::ServiceObserver> listener;

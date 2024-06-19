@@ -3,8 +3,8 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_info.h"
 #include "chrome/components/wootz_vpn/browser/connection/ikev2/system_vpn_connection_api_impl_base.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_info.h"
 
 namespace wootz_vpn {
 

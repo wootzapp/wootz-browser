@@ -1,11 +1,3 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at https://mozilla.org/MPL/2.0/. */
-
-#ifndef BRAVE_COMPONENTS_BRAVE_VPN_BROWSER_BRAVE_VPN_SERVICE_H_
-#define BRAVE_COMPONENTS_BRAVE_VPN_BROWSER_BRAVE_VPN_SERVICE_H_
-
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,13 +11,13 @@
 #include "base/sequence_checker.h"
 #include "base/timer/timer.h"
 #include "base/values.h"
-#include "brave/components/brave_vpn/browser/api/brave_vpn_api_request.h"
-#include "brave/components/brave_vpn/browser/brave_vpn_service_delegate.h"
-#include "brave/components/brave_vpn/browser/connection/brave_vpn_connection_manager.h"
-#include "brave/components/brave_vpn/common/brave_vpn_data_types.h"
-#include "brave/components/brave_vpn/common/mojom/brave_vpn.mojom.h"
-#include "brave/components/skus/browser/skus_utils.h"
-#include "brave/components/skus/common/skus_sdk.mojom.h"
+#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_request.h"
+#include "chrome/components/wootz_vpn/browser/wootz_vpn_service_delegate.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_manager.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_data_types.h"
+#include "chrome/components/wootz_vpn/common/mojom/wootz_vpn.mojom.h"
+#include "chrome/components/skus/browser/skus_utils.h"
+#include "chrome/components/skus/common/skus_sdk.mojom.h"
 #include "build/build_config.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -42,50 +34,47 @@ class SharedURLLoaderFactory;
 class PrefService;
 
 #if !BUILDFLAG(IS_ANDROID)
-class BraveAppMenuBrowserTest;
-class BraveAppMenuModelBrowserTest;
-class BraveBrowserCommandControllerTest;
+class WootzAppMenuBrowserTest;
+class WootzAppMenuModelBrowserTest;
+class WootzBrowserCommandControllerTest;
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-namespace brave_vpn {
+namespace wootz_vpn {
 
-class BraveVPNServiceDelegate;
+class WootzVPNServiceDelegate;
 
 inline constexpr char kNewUserReturningHistogramName[] =
-    "Brave.VPN.NewUserReturning";
+    "Wootz.VPN.NewUserReturning";
 inline constexpr char kDaysInMonthUsedHistogramName[] =
-    "Brave.VPN.DaysInMonthUsed";
-inline constexpr char kLastUsageTimeHistogramName[] = "Brave.VPN.LastUsageTime";
+    "Wootz.VPN.DaysInMonthUsed";
+inline constexpr char kLastUsageTimeHistogramName[] = "Wootz.VPN.LastUsageTime";
 
 // This class is used by desktop and android.
 // However, it includes desktop specific impls and it's hidden
 // by IS_ANDROID ifdef.
-class BraveVpnService :
+class WootzVpnService :
 #if !BUILDFLAG(IS_ANDROID)
-    public BraveVPNConnectionManager::Observer,
+    public WootzVPNConnectionManager::Observer,
 #endif
     public mojom::ServiceHandler,
     public KeyedService {
  public:
-  BraveVpnService(
-      BraveVPNConnectionManager* connection_manager,
+  WootzVpnService(
+      WootzVPNConnectionManager* connection_manager,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       PrefService* local_prefs,
       PrefService* profile_prefs,
       base::RepeatingCallback<mojo::PendingRemote<skus::mojom::SkusService>()>
           skus_service_getter);
-  ~BraveVpnService() override;
+  ~WootzVpnService() override;
 
-  BraveVpnService(const BraveVpnService&) = delete;
-  BraveVpnService& operator=(const BraveVpnService&) = delete;
+  WootzVpnService(const WootzVpnService&) = delete;
+  WootzVpnService& operator=(const WootzVpnService&) = delete;
 
   std::string GetCurrentEnvironment() const;
-  bool is_purchased_user() const {
-    return GetPurchasedInfoSync().state == mojom::PurchasedState::PURCHASED;
-  }
+  
   void BindInterface(mojo::PendingReceiver<mojom::ServiceHandler> receiver);
-  void ReloadPurchasedState();
-  bool IsBraveVPNEnabled() const;
+  bool IsWootzVPNEnabled() const;
 #if !BUILDFLAG(IS_ANDROID)
   void ToggleConnection();
   mojom::ConnectionState GetConnectionState() const;
@@ -109,7 +98,6 @@ class BraveVpnService :
   void GetOnDemandState(GetOnDemandStateCallback callback) override;
 #else
   // mojom::vpn::ServiceHandler
-  void GetPurchaseToken(GetPurchaseTokenCallback callback) override;
 #endif  // !BUILDFLAG(IS_ANDROID)
 
   using ResponseCallback =
@@ -118,44 +106,23 @@ class BraveVpnService :
   // mojom::vpn::ServiceHandler
   void AddObserver(
       mojo::PendingRemote<mojom::ServiceObserver> observer) override;
-  void GetPurchasedState(GetPurchasedStateCallback callback) override;
-  void LoadPurchasedState(const std::string& domain) override;
 
   void GetAllServerRegions(ResponseCallback callback);
   void GetTimezonesForRegions(ResponseCallback callback);
   void GetHostnamesForRegion(ResponseCallback callback,
                              const std::string& region);
   void GetProfileCredentials(ResponseCallback callback,
-                             const std::string& subscriber_credential,
                              const std::string& hostname);
-  void GetWireguardProfileCredentials(ResponseCallback callback,
-                                      const std::string& subscriber_credential,
-                                      const std::string& public_key,
-                                      const std::string& hostname);
   void VerifyCredentials(ResponseCallback callback,
                          const std::string& hostname,
                          const std::string& client_id,
-                         const std::string& subscriber_credential,
                          const std::string& api_auth_token);
   void InvalidateCredentials(ResponseCallback callback,
                              const std::string& hostname,
                              const std::string& client_id,
-                             const std::string& subscriber_credential,
                              const std::string& api_auth_token);
-  void GetSubscriberCredential(ResponseCallback callback,
-                               const std::string& product_type,
-                               const std::string& product_id,
-                               const std::string& validation_method,
-                               const std::string& purchase_token,
-                               const std::string& bundle_id);
-  void VerifyPurchaseToken(ResponseCallback callback,
-                           const std::string& purchase_token,
-                           const std::string& product_id,
-                           const std::string& product_type,
-                           const std::string& bundle_id);
-  void GetSubscriberCredentialV12(ResponseCallback callback);
 
-  void set_delegate(std::unique_ptr<BraveVPNServiceDelegate> delegate) {
+  void set_delegate(std::unique_ptr<WootzVPNServiceDelegate> delegate) {
     delegate_ = std::move(delegate);
   }
 
@@ -168,15 +135,15 @@ class BraveVpnService :
 #endif
 
  private:
-  friend class BraveVPNServiceTest;
-  friend class BraveVpnButtonUnitTest;
+  friend class WootzVPNServiceTest;
+  friend class WootzVpnButtonUnitTest;
 
 #if !BUILDFLAG(IS_ANDROID)
-  friend class ::BraveAppMenuBrowserTest;
-  friend class ::BraveAppMenuModelBrowserTest;
-  friend class ::BraveBrowserCommandControllerTest;
+  friend class ::WootzAppMenuBrowserTest;
+  friend class ::WootzAppMenuModelBrowserTest;
+  friend class ::WootzBrowserCommandControllerTest;
 
-  // BraveVPNConnectionManager::Observer overrides:
+  // WootzVPNConnectionManager::Observer overrides:
   void OnConnectionStateChanged(mojom::ConnectionState state) override;
   void OnRegionDataReady(bool success) override;
   void OnSelectedRegionChanged(const std::string& region_name) override;
@@ -187,7 +154,6 @@ class BraveVpnService :
 
   void OnPreferenceChanged(const std::string& pref_name);
 
-  void UpdatePurchasedStateForSessionExpired(const std::string& env);
 #endif  // !BUILDFLAG(IS_ANDROID)
 
   // KeyedService overrides:
@@ -196,11 +162,6 @@ class BraveVpnService :
   void InitP3A();
   void OnP3AInterval();
 
-  mojom::PurchasedInfo GetPurchasedInfoSync() const;
-  void SetPurchasedState(
-      const std::string& env,
-      mojom::PurchasedState state,
-      const std::optional<std::string>& description = std::nullopt);
   void SetCurrentEnvironment(const std::string& env);
   void EnsureMojoConnected();
   void OnMojoConnectionError();
@@ -210,21 +171,13 @@ class BraveVpnService :
   void OnPrepareCredentialsPresentation(
       const std::string& domain,
       const std::string& credential_as_cookie);
-  void OnGetSubscriberCredentialV12(const base::Time& expiration_time,
-                                    const std::string& subscriber_credential,
-                                    bool success);
-  void ScheduleSubscriberCredentialRefresh();
-  void RefreshSubscriberCredential();
-
-  // Check initial purchased/connected state.
-  void CheckInitialState();
-
+  
 #if !BUILDFLAG(IS_ANDROID)
-  base::ScopedObservation<BraveVPNConnectionManager,
-                          BraveVPNConnectionManager::Observer>
+  base::ScopedObservation<WootzVPNConnectionManager,
+                          WootzVPNConnectionManager::Observer>
       observed_{this};
   bool wait_region_data_ready_ = false;
-  raw_ptr<BraveVPNConnectionManager> connection_manager_ = nullptr;
+  raw_ptr<WootzVPNConnectionManager> connection_manager_ = nullptr;
 
   PrefChangeRegistrar policy_pref_change_registrar_;
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -237,15 +190,11 @@ class BraveVpnService :
   base::RepeatingCallback<mojo::PendingRemote<skus::mojom::SkusService>()>
       skus_service_getter_;
   mojo::Remote<skus::mojom::SkusService> skus_service_;
-  std::optional<mojom::PurchasedInfo> purchased_state_;
   mojo::RemoteSet<mojom::ServiceObserver> observers_;
-  std::unique_ptr<BraveVpnAPIRequest> api_request_;
-  std::unique_ptr<BraveVPNServiceDelegate> delegate_;
+  std::unique_ptr<WootzVpnAPIRequest> api_request_;
+  std::unique_ptr<WootzVPNServiceDelegate> delegate_;
   base::RepeatingTimer p3a_timer_;
-  base::OneShotTimer subs_cred_refresh_timer_;
-  base::WeakPtrFactory<BraveVpnService> weak_ptr_factory_{this};
+  base::WeakPtrFactory<WootzVpnService> weak_ptr_factory_{this};
 };
 
-}  // namespace brave_vpn
-
-#endif  // BRAVE_COMPONENTS_BRAVE_VPN_BROWSER_BRAVE_VPN_SERVICE_H_
+}  // namespace wootz_vpn

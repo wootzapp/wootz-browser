@@ -15,5 +15,3 @@ class WootzVPNServiceDelegate {
 };
 
 }  // namespace wootz_vpn
-
-#endif  // BRAVE_COMPONENTS_BRAVE_VPN_BROWSER_BRAVE_VPN_SERVICE_DELEGATE_H_

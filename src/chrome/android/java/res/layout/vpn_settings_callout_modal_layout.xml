@@ -40,7 +40,7 @@
                         android:textSize="20sp"
                         android:textStyle="bold"
                         android:layout_marginBottom="8dp"
-                        android:text="@string/brave_vpn"
+                        android:text="@string/wootz_vpn"
                         android:textColor="@android:color/white"/>
 
                 <TextView

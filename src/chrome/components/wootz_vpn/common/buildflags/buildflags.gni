@@ -1,0 +1,3 @@
+declare_args() {
+  enable_wootz_vpn = is_android
+}

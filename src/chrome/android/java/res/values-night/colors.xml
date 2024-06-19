@@ -16,6 +16,8 @@ found in the LICENSE file.
     <color name="onboarding_bg_color">#1E2029</color>
     <color name="onboarding_timer_color">#478AFF</color>
 
+    <color name="wootz_plan_bg">#27155E</color>
+
     <!-- History Navigation UI colors -->
     <color name="navigation_bubble_arrow">@android:color/white</color>
 

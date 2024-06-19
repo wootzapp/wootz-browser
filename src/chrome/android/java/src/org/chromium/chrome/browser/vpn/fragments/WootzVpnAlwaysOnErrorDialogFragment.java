@@ -16,7 +16,7 @@ public class WootzVpnAlwaysOnErrorDialogFragment
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         return inflater.inflate(
-                R.layout.fragment_brave_vpn_always_on_error_dialog, container, false);
+                R.layout.fragment_wootz_vpn_always_on_error_dialog, container, false);
     }
 
     @Override

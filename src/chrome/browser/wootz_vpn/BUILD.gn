@@ -1,0 +1,21 @@
+import("//chrome/components/wootz_vpn/common/buildflags/buildflags.gni")
+
+assert(enable_wootz_vpn)
+
+source_set("wootz_vpn") {
+  sources = [
+    "vpn_utils.cc",
+    "vpn_utils.h",
+  ]
+
+  deps = [
+    "//chrome/browser/profiles",
+    "//chrome/components/wootz_vpn/browser/connection:api",
+    "//chrome/components/wootz_vpn/common",
+    "//chrome/components/wootz_vpn/common/buildflags",
+    "//chrome/common:channel_info",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//services/network/public/cpp",
+  ]
+}

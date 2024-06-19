@@ -44,5 +44,3 @@ class WootzVpnServiceFactory : public BrowserContextKeyedServiceFactory {
 };
 
 }  // namespace wootz_vpn
-
-#endif  // WOOTZ_BROWSER_WOOTZ_VPN_WOOTZ_VPN_SERVICE_FACTORY_H_

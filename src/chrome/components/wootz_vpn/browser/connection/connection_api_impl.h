@@ -20,10 +20,7 @@ struct Hostname;
 class ConnectionAPIImpl
     : public net::NetworkChangeNotifier::NetworkChangeObserver {
  public:
-  enum class Type {
-    IKEV2,
-    WIREGUARD,
-  };
+  enum class Type { IKEV2 };
 
   ConnectionAPIImpl(
       WootzVPNConnectionManager* manager,
@@ -84,8 +81,6 @@ class ConnectionAPIImpl
                            CreateOSVPNEntryWithValidInfoWhenConnectTest);
   FRIEND_TEST_ALL_PREFIXES(SystemVPNConnectionAPIUnitTest,
                            CreateOSVPNEntryWithInvalidInfoTest);
-  FRIEND_TEST_ALL_PREFIXES(WootzVPNWireguardConnectionAPIUnitTest,
-                           SetSelectedRegion);
 
   void SetConnectionStateForTesting(mojom::ConnectionState state);
 

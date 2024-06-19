@@ -12,15 +12,15 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_helper.h"
-#include "chrome/components/wootz_vpn/browser/wootz_vpn_service_helper.h"
-#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_region_data_manager.h"
-#include "chrome/components/wootz_vpn/common/wootz_vpn_constants.h"
-#include "chrome/components/wootz_vpn/common/wootz_vpn_utils.h"
-#include "chrome/components/wootz_vpn/common/pref_names.h"
 #include "chrome/components/p3a_utils/feature_usage.h"
 #include "chrome/components/skus/browser/skus_utils.h"
 #include "chrome/components/version_info/version_info.h"
+#include "chrome/components/wootz_vpn/browser/api/wootz_vpn_api_helper.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_region_data_manager.h"
+#include "chrome/components/wootz_vpn/browser/wootz_vpn_service_helper.h"
+#include "chrome/components/wootz_vpn/common/pref_names.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_constants.h"
+#include "chrome/components/wootz_vpn/common/wootz_vpn_utils.h"
 #include "components/grit/wootz_components_strings.h"
 #include "components/prefs/pref_service.h"
 #include "components/version_info/version_info.h"
@@ -33,7 +33,6 @@
 namespace wootz_vpn {
 
 using ConnectionState = mojom::ConnectionState;
-using PurchasedState = mojom::PurchasedState;
 
 WootzVpnService::WootzVpnService(
     WootzVPNConnectionManager* connection_manager,
@@ -84,11 +83,7 @@ void WootzVpnService::BindInterface(
 void WootzVpnService::OnConnectionStateChanged(mojom::ConnectionState state) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   VLOG(2) << __func__ << " " << state;
-#if BUILDFLAG(IS_WIN)
-  if (delegate_) {
-    delegate_->WriteConnectionState(state);
-  }
-#endif
+
   // Ignore connection state change request for non purchased user.
   // This can be happened when user controls vpn via os settings.
 
@@ -99,18 +94,13 @@ void WootzVpnService::OnConnectionStateChanged(mojom::ConnectionState state) {
       connection_manager_->Disconnect();
       return;
     }
-#if BUILDFLAG(IS_WIN)
-    // Run tray process each time we establish connection. System tray icon
-    // manages self state to be visible/hidden due to settings.
-    if (delegate_) {
-      delegate_->ShowWootzVpnStatusTrayIcon();
-    }
-#endif
+
     RecordP3A(true);
   }
 
-  for (const auto& obs : observers_)
+  for (const auto& obs : observers_) {
     obs->OnConnectionStateChanged(state);
+  }
 }
 
 void WootzVpnService::OnRegionDataReady(bool success) {
@@ -137,19 +127,11 @@ mojom::ConnectionState WootzVpnService::GetConnectionState() const {
 }
 
 bool WootzVpnService::IsConnected() const {
-  if (!is_purchased_user()) {
-    return false;
-  }
-
   return GetConnectionState() == ConnectionState::CONNECTED;
 }
 
 void WootzVpnService::Connect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (!is_purchased_user()) {
-    return;
-  }
 
   connection_manager_->Connect();
 }
@@ -157,19 +139,11 @@ void WootzVpnService::Connect() {
 void WootzVpnService::Disconnect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!is_purchased_user()) {
-    return;
-  }
-
   connection_manager_->Disconnect();
 }
 
 void WootzVpnService::ToggleConnection() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  if (!is_purchased_user()) {
-    return;
-  }
 
   connection_manager_->ToggleConnection();
 }
@@ -222,9 +196,8 @@ void WootzVpnService::CreateSupportTicket(
   auto internal_callback =
       base::BindOnce(&WootzVpnService::OnCreateSupportTicket,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
-  api_request_->CreateSupportTicket(
-      std::move(internal_callback), email, subject, body,
-      ::wootz_vpn::GetSubscriberCredential(local_prefs_));
+  api_request_->CreateSupportTicket(std::move(internal_callback), email,
+                                    subject, body);
 }
 
 void WootzVpnService::GetSupportData(GetSupportDataCallback callback) {
@@ -238,21 +211,6 @@ void WootzVpnService::GetSupportData(GetSupportDataCallback callback) {
 
 void WootzVpnService::ResetConnectionState() {
   connection_manager_->ResetConnectionState();
-}
-
-void WootzVpnService::EnableOnDemand(bool enable) {
-#if BUILDFLAG(IS_MAC)
-  local_prefs_->SetBoolean(prefs::kWootzVPNOnDemandEnabled, enable);
-
-  // If not connected, do nothing because on-demand bit will
-  // be applied when new connection starts. Whenever new connection starts,
-  // we create os vpn entry.
-  if (IsConnected()) {
-    VLOG(2) << __func__ << " : reconnect to apply on-demand config(" << enable
-            << "> to current connection";
-    Connect();
-  }
-#endif
 }
 
 void WootzVpnService::GetOnDemandState(GetOnDemandStateCallback callback) {
@@ -282,88 +240,7 @@ void WootzVpnService::OnPreferenceChanged(const std::string& pref_name) {
     return;
   }
 }
-
-void WootzVpnService::UpdatePurchasedStateForSessionExpired(
-    const std::string& env) {
-  // Double check that we don't set session expired state for fresh user.
-  if (!connection_manager_->GetRegionDataManager().IsRegionDataReady()) {
-    VLOG(1) << __func__ << " : Treat it as not purchased state for fresh user.";
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
-    return;
-  }
-
-  const auto session_expired_time =
-      local_prefs_->GetTime(prefs::kWootzVPNSessionExpiredDate);
-  // If it's not cached, it means this session expiration is first time since
-  // last purchase because this cache is cleared when we get valid credential
-  // summary.
-  if (session_expired_time.is_null()) {
-    local_prefs_->SetTime(prefs::kWootzVPNSessionExpiredDate,
-                          base::Time::Now());
-    SetPurchasedState(env, PurchasedState::SESSION_EXPIRED);
-    return;
-  }
-
-  // Weird state. Maybe we don't see this condition.
-  // Just checking for safe.
-  if (session_expired_time > base::Time::Now()) {
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
-    return;
-  }
-
-  // Keep session expired state 30 days at most.
-  constexpr int kSessionExpiredCheckingDurationInDays = 30;
-  if ((base::Time::Now() - session_expired_time).InDays() >
-      kSessionExpiredCheckingDurationInDays) {
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
-    return;
-  }
-
-  SetPurchasedState(env, PurchasedState::SESSION_EXPIRED);
-}
 #endif  // !BUILDFLAG(IS_ANDROID)
-
-#if BUILDFLAG(IS_ANDROID)
-void WootzVpnService::GetPurchaseToken(GetPurchaseTokenCallback callback) {
-  std::string purchase_token_string = "";
-  std::string package_string = "com.wootz.browser";
-  std::string product_id_string = "wootz-firewall-vpn-premium";
-
-  // Get the Android purchase token (for Google Play Store).
-  // The value for this is validated on the account.wootz.com side
-  auto* purchase_token =
-      profile_prefs_->FindPreference(prefs::kWootzVPNPurchaseTokenAndroid);
-  if (purchase_token && !purchase_token->IsDefaultValue()) {
-    purchase_token_string =
-        profile_prefs_->GetString(prefs::kWootzVPNPurchaseTokenAndroid);
-  }
-
-  // Package name is important; for real users, it'll be the Release package.
-  // For testing we do have the ability to use the Nightly package.
-  auto* package =
-      profile_prefs_->FindPreference(prefs::kWootzVPNPackageAndroid);
-  if (package && !package->IsDefaultValue()) {
-    package_string = profile_prefs_->GetString(prefs::kWootzVPNPackageAndroid);
-  }
-
-  auto* product_id =
-      profile_prefs_->FindPreference(prefs::kWootzVPNProductIdAndroid);
-  if (product_id && !product_id->IsDefaultValue()) {
-    product_id_string =
-        profile_prefs_->GetString(prefs::kWootzVPNProductIdAndroid);
-  }
-
-  base::Value::Dict response;
-  response.Set("type", "android");
-  response.Set("raw_receipt", purchase_token_string);
-  response.Set("package", package_string);
-  response.Set("subscription_id", product_id_string);
-
-  std::string response_json;
-  base::JSONWriter::Write(response, &response_json);
-  std::move(callback).Run(base::Base64Encode(response_json));
-}
-#endif  // BUILDFLAG(IS_ANDROID)
 
 void WootzVpnService::AddObserver(
     mojo::PendingRemote<mojom::ServiceObserver> observer) {
@@ -371,80 +248,8 @@ void WootzVpnService::AddObserver(
   observers_.Add(std::move(observer));
 }
 
-mojom::PurchasedInfo WootzVpnService::GetPurchasedInfoSync() const {
-  return purchased_state_.value_or(
-      mojom::PurchasedInfo(mojom::PurchasedState::NOT_PURCHASED, std::nullopt));
-}
-
-void WootzVpnService::GetPurchasedState(GetPurchasedStateCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::move(callback).Run(GetPurchasedInfoSync().Clone());
-}
-
-void WootzVpnService::LoadPurchasedState(const std::string& domain) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!skus::DomainIsForProduct(domain, "vpn")) {
-    VLOG(2) << __func__ << ": LoadPurchasedState called for non-vpn product";
-    return;
-  }
-
-  auto requested_env = skus::GetEnvironmentForDomain(domain);
-  if (GetCurrentEnvironment() == requested_env &&
-      GetPurchasedInfoSync().state == PurchasedState::LOADING) {
-    VLOG(2) << __func__ << ": Loading in-progress";
-    return;
-  }
-
-  SetPurchasedState(requested_env, PurchasedState::LOADING);
-
-  if (HasValidSubscriberCredential(local_prefs_)) {
-#if BUILDFLAG(IS_ANDROID)
-    SetPurchasedState(requested_env, PurchasedState::PURCHASED);
-#else
-    if (connection_manager_->GetRegionDataManager().IsRegionDataReady()) {
-      VLOG(2) << __func__
-              << ": Set as a purchased user as we have valid subscriber "
-                 "credentials & region data";
-      SetPurchasedState(requested_env, PurchasedState::PURCHASED);
-    } else {
-      VLOG(2) << __func__ << ": Wait till we get valid region data.";
-      // TODO(simonhong): Make purchases state independent from region data.
-      wait_region_data_ready_ = true;
-    }
-    connection_manager_->GetRegionDataManager().FetchRegionDataIfNeeded();
-#endif
-    return;
-  }
-
-  if (HasValidSkusCredential(local_prefs_)) {
-    // We can reach here if we fail to get subscriber credential from guardian.
-    VLOG(2) << __func__
-            << " Try to get subscriber credential with valid cached skus "
-               "credential.";
-
-    if (GetCurrentEnvironment() != requested_env) {
-      SetCurrentEnvironment(requested_env);
-    }
-
-    api_request_->GetSubscriberCredentialV12(
-        base::BindOnce(&WootzVpnService::OnGetSubscriberCredentialV12,
-                       base::Unretained(this),
-                       GetExpirationTimeForSkusCredential(local_prefs_)),
-        GetSkusCredential(local_prefs_),
-        GetWootzVPNPaymentsEnv(GetCurrentEnvironment()));
-    return;
-  }
-
-  VLOG(2) << __func__
-          << ": Checking purchased state as we doesn't have valid skus or "
-             "subscriber credentials";
-
-  RequestCredentialSummary(domain);
-}
-
 void WootzVpnService::RequestCredentialSummary(const std::string& domain) {
   // As we request new credential, clear cached value.
-  ClearSubscriberCredential(local_prefs_);
 
   EnsureMojoConnected();
   skus_service_->CredentialSummary(
@@ -466,7 +271,6 @@ void WootzVpnService::OnCredentialSummary(const std::string& domain,
   if (summary_string_trimmed.length() == 0) {
     // no credential found; person needs to login
     VLOG(1) << __func__ << " : No credential found; user needs to login!";
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
     return;
   }
 
@@ -476,13 +280,11 @@ void WootzVpnService::OnCredentialSummary(const std::string& domain,
   // Early return when summary is invalid or it's empty dict.
   if (!records_v || !records_v->is_dict()) {
     VLOG(1) << __func__ << " : Got invalid credential summary!";
-    SetPurchasedState(env, PurchasedState::FAILED);
     return;
   }
 
   // Empty dict - clean user.
   if (records_v->GetDict().empty()) {
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
     return;
   }
 
@@ -501,17 +303,14 @@ void WootzVpnService::OnCredentialSummary(const std::string& domain,
   } else if (IsValidCredentialSummaryButNeedActivation(*records_v)) {
     // Need to activate from account. Treat as not purchased till activated.
     VLOG(1) << __func__ << " : Need to activate vpn from account.";
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
   } else {
     // When reaches here, remained_credential is zero. We can treat it as
     // user's current purchase is expired.
     VLOG(1) << __func__ << " : don't have remained credential.";
 #if BUILDFLAG(IS_ANDROID)
     VLOG(1) << __func__ << " : Treat it as not purchased state in android.";
-    SetPurchasedState(env, PurchasedState::NOT_PURCHASED);
 #else
     VLOG(1) << __func__ << " : Treat it as session expired state in desktop.";
-    UpdatePurchasedStateForSessionExpired(env);
 #endif
   }
 }
@@ -606,34 +405,8 @@ void WootzVpnService::OnP3AInterval() {
   RecordP3A(false);
 }
 
-void WootzVpnService::SetPurchasedState(
-    const std::string& env,
-    PurchasedState state,
-    const std::optional<std::string>& description) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (GetPurchasedInfoSync().state == state || env != GetCurrentEnvironment()) {
-    return;
-  }
-
-  VLOG(2) << __func__ << " : " << state;
-  purchased_state_ = mojom::PurchasedInfo(state, description);
-
-  for (const auto& obs : observers_)
-    obs->OnPurchasedStateChanged(state, description);
-
-#if !BUILDFLAG(IS_ANDROID)
-  if (state == PurchasedState::PURCHASED) {
-    connection_manager_->CheckConnection();
-
-    // Some platform needs to install services to run vpn.
-    connection_manager_->MaybeInstallSystemServices();
-  }
-#endif
-}
-
 void WootzVpnService::SetCurrentEnvironment(const std::string& env) {
   local_prefs_->SetString(prefs::kWootzVPNEnvironment, env);
-  purchased_state_.reset();
 }
 
 void WootzVpnService::EnsureMojoConnected() {
@@ -678,35 +451,24 @@ void WootzVpnService::GetHostnamesForRegion(ResponseCallback callback,
   api_request_->GetHostnamesForRegion(std::move(callback), region);
 }
 
-void WootzVpnService::GetProfileCredentials(
-    ResponseCallback callback,
-    const std::string& hostname) {
-  api_request_->GetProfileCredentials(std::move(callback),
-                                       hostname);
+void WootzVpnService::GetProfileCredentials(ResponseCallback callback,
+                                            const std::string& hostname) {
+  api_request_->GetProfileCredentials(std::move(callback), hostname);
 }
 
-void WootzVpnService::GetWireguardProfileCredentials(
-    ResponseCallback callback,
-    const std::string& public_key,
-    const std::string& hostname) {
-  api_request_->GetWireguardProfileCredentials(
-      std::move(callback),  public_key, hostname);
-}
-
-void WootzVpnService::VerifyCredentials(
-    ResponseCallback callback,
-    const std::string& hostname,
-    const std::string& client_id,
-    const std::string& api_auth_token) {
+void WootzVpnService::VerifyCredentials(ResponseCallback callback,
+                                        const std::string& hostname,
+                                        const std::string& client_id,
+                                        const std::string& api_auth_token) {
   api_request_->VerifyCredentials(std::move(callback), hostname, client_id,
-                                   api_auth_token);
+                                  api_auth_token);
 }
 
-void WootzVpnService::InvalidateCredentials(
-    ResponseCallback callback,
-    const std::string& hostname,
-    const std::string& client_id,
-    const std::string& api_auth_token) {
-  api_request_->InvalidateCredentials(std::move(callback), hostname, client_id, api_auth_token);
+void WootzVpnService::InvalidateCredentials(ResponseCallback callback,
+                                            const std::string& hostname,
+                                            const std::string& client_id,
+                                            const std::string& api_auth_token) {
+  api_request_->InvalidateCredentials(std::move(callback), hostname, client_id,
+                                      api_auth_token);
 }
 }  // namespace wootz_vpn

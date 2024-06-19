@@ -6,51 +6,32 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.util.Pair;
 
 import androidx.appcompat.app.AlertDialog;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
 import androidx.preference.Preference;
-import androidx.preference.PreferenceCategory;
 
-import com.wireguard.android.backend.GoBackend;
-import com.wireguard.crypto.KeyPair;
-
-import org.chromium.base.BraveFeatureList;
-import org.chromium.base.Log;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.InternetConnection;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.settings.BravePreferenceFragment;
-import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.util.TabUtils;
-import org.chromium.chrome.browser.vpn.BraveVpnNativeWorker;
-import org.chromium.chrome.browser.vpn.BraveVpnObserver;
-import org.chromium.chrome.browser.vpn.models.BraveVpnPrefModel;
-import org.chromium.chrome.browser.vpn.models.BraveVpnWireguardProfileCredentials;
+import org.chromium.chrome.browser.settings.WootzPreferenceFragment;
+import org.chromium.chrome.browser.vpn.WootzVpnNativeWorker;
+import org.chromium.chrome.browser.vpn.WootzVpnObserver;
+import org.chromium.chrome.browser.vpn.models.WootzVpnPrefModel;
 import org.chromium.chrome.browser.vpn.timer.TimerDialogFragment;
-import org.chromium.chrome.browser.vpn.utils.BraveVpnApiResponseUtils;
-import org.chromium.chrome.browser.vpn.utils.BraveVpnPrefUtils;
-import org.chromium.chrome.browser.vpn.utils.BraveVpnProfileUtils;
-import org.chromium.chrome.browser.vpn.utils.BraveVpnUtils;
-import org.chromium.chrome.browser.vpn.wireguard.WireguardConfigUtils;
+import org.chromium.chrome.browser.vpn.utils.WootzVpnApiResponseUtils;
+import org.chromium.chrome.browser.vpn.utils.WootzVpnPrefUtils;
+import org.chromium.chrome.browser.vpn.utils.WootzVpnProfileUtils;
+import org.chromium.chrome.browser.vpn.utils.WootzVpnUtils;
 import org.chromium.components.browser_ui.settings.ChromeBasePreference;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.ui.widget.Toast;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
-public class BraveVpnPreferences extends BravePreferenceFragment implements BraveVpnObserver {
-    private static final String TAG = "BraveVPN";
+public class WootzVpnPreferences extends WootzPreferenceFragment implements WootzVpnObserver {
+    private static final String TAG = "WootzVPN";
     public static final String PREF_VPN_SWITCH = "vpn_switch";
     public static final String PREF_SERVER_HOST = "server_host";
     public static final String PREF_SERVER_CHANGE_LOCATION = "server_change_location";
@@ -63,64 +44,69 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
     private static final int INVALIDATE_CREDENTIAL_TIMER_COUNT = 5000;
 
     private static final String VPN_SUPPORT_PAGE =
-            "https://support.brave.com/hc/en-us/articles/4410838268429";
+            "https://support.wootz.com/hc/en-us/articles/4410838268429";
 
     private static final String DATE_FORMAT = "dd/MM/yyyy";
 
     private ChromeSwitchPreference mVpnSwitch;
     private ChromeBasePreference mServerHost;
-    private BraveVpnPrefModel mBraveVpnPrefModel;
+    private WootzVpnPrefModel mWootzVpnPrefModel;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-        getActivity().setTitle(R.string.brave_firewall_vpn);
-        SettingsUtils.addPreferencesFromResource(this, R.xml.brave_vpn_preferences);
+        getActivity().setTitle(R.string.wootz_firewall_vpn);
+        SettingsUtils.addPreferencesFromResource(this, R.xml.wootz_vpn_preferences);
 
         mVpnSwitch = (ChromeSwitchPreference) findPreference(PREF_VPN_SWITCH);
         mVpnSwitch.setChecked(
-                BraveVpnProfileUtils.getInstance().isBraveVPNConnected(getActivity()));
-        mVpnSwitch.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-            @Override
-            public boolean onPreferenceClick(Preference preference) {
-                if (mVpnSwitch != null) {
-                    mVpnSwitch.setChecked(
-                            BraveVpnProfileUtils.getInstance().isBraveVPNConnected(getActivity()));
-                }
-                if (BraveVpnProfileUtils.getInstance().isBraveVPNConnected(getActivity())) {
-                    TimerDialogFragment timerDialogFragment = new TimerDialogFragment();
-                    timerDialogFragment.show(
-                            getActivity().getSupportFragmentManager(), TimerDialogFragment.TAG);
-                } else {
-                        if (WireguardConfigUtils.isConfigExist(getActivity())) {
-                            BraveVpnProfileUtils.getInstance().startVpn(getActivity());
-                        } else {
-                            BraveVpnUtils.openBraveVpnProfileActivity(getActivity());
+                WootzVpnProfileUtils.getInstance().isWootzVPNConnected(getActivity()));
+        mVpnSwitch.setOnPreferenceClickListener(
+                new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        if (mVpnSwitch != null) {
+                            mVpnSwitch.setChecked(
+                                    WootzVpnProfileUtils.getInstance()
+                                            .isWootzVPNConnected(getActivity()));
                         }
-                    
-                }
-                return false;
-            }
-        });
+                        if (WootzVpnProfileUtils.getInstance().isWootzVPNConnected(getActivity())) {
+                            TimerDialogFragment timerDialogFragment = new TimerDialogFragment();
+                            timerDialogFragment.show(
+                                    getActivity().getSupportFragmentManager(),
+                                    TimerDialogFragment.TAG);
+                        } else {
+                            // if (WireguardConfigUtils.isConfigExist(getActivity())) {
+                            //     WootzVpnProfileUtils.getInstance().startVpn(getActivity());
+                            // } else {
+                            WootzVpnUtils.openWootzVpnProfileActivity(getActivity());
+                            // }
+
+                        }
+                        return false;
+                    }
+                });
 
         mServerHost = (ChromeBasePreference) findPreference(PREF_SERVER_HOST);
 
         findPreference(PREF_SUPPORT_TECHNICAL)
-                .setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        BraveVpnUtils.openBraveVpnSupportActivity(getActivity());
-                        return true;
-                    }
-                });
+                .setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(Preference preference) {
+                                WootzVpnUtils.openWootzVpnSupportActivity(getActivity());
+                                return true;
+                            }
+                        });
 
         findPreference(PREF_SUPPORT_VPN)
-                .setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        CustomTabActivity.showInfoPage(getActivity(), VPN_SUPPORT_PAGE);
-                        return true;
-                    }
-                });
+                .setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(Preference preference) {
+                                CustomTabActivity.showInfoPage(getActivity(), VPN_SUPPORT_PAGE);
+                                return true;
+                            }
+                        });
 
         findPreference(PREF_SERVER_RESET_CONFIGURATION)
                 .setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
@@ -136,7 +122,7 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
                         new Preference.OnPreferenceClickListener() {
                             @Override
                             public boolean onPreferenceClick(Preference preference) {
-                                BraveVpnUtils.openSplitTunnelActivity(getActivity());
+                                WootzVpnUtils.openSplitTunnelActivity(getActivity());
                                 return true;
                             }
                         });
@@ -145,18 +131,19 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
                         new Preference.OnPreferenceClickListener() {
                             @Override
                             public boolean onPreferenceClick(Preference preference) {
-                                BraveVpnUtils.openAlwaysOnActivity(getActivity());
+                                WootzVpnUtils.openAlwaysOnActivity(getActivity());
                                 return true;
                             }
                         });
         findPreference(PREF_SERVER_CHANGE_LOCATION)
-                .setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        BraveVpnUtils.openVpnServerSelectionActivity(getActivity());
-                        return true;
-                    }
-                });
+                .setOnPreferenceClickListener(
+                        new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(Preference preference) {
+                                WootzVpnUtils.openVpnServerSelectionActivity(getActivity());
+                                return true;
+                            }
+                        });
     }
 
     @Override
@@ -181,13 +168,13 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
     @Override
     public void onResume() {
         super.onResume();
-        if (BraveVpnUtils.mUpdateProfileAfterSplitTunnel) {
-            BraveVpnUtils.mUpdateProfileAfterSplitTunnel = false;
-            BraveVpnUtils.showProgressDialog(
+        if (WootzVpnUtils.mUpdateProfileAfterSplitTunnel) {
+            WootzVpnUtils.mUpdateProfileAfterSplitTunnel = false;
+            WootzVpnUtils.showProgressDialog(
                     getActivity(), getResources().getString(R.string.updating_vpn_profile));
-            BraveVpnUtils.updateProfileConfiguration(getActivity());
+            WootzVpnUtils.updateProfileConfiguration(getActivity());
         } else {
-            BraveVpnUtils.dismissProgressDialog();
+            WootzVpnUtils.dismissProgressDialog();
         }
         new Handler().post(() -> updateSummaries());
     }
@@ -201,12 +188,12 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
         if (getActivity() == null) {
             return;
         }
-        updateSummary(PREF_SERVER_HOST, BraveVpnPrefUtils.getHostnameDisplay());
-        updateSummary(PREF_SERVER_CHANGE_LOCATION, BraveVpnPrefUtils.getServerNamePretty());
+        updateSummary(PREF_SERVER_HOST, WootzVpnPrefUtils.getHostnameDisplay());
+        updateSummary(PREF_SERVER_CHANGE_LOCATION, WootzVpnPrefUtils.getServerNamePretty());
 
         if (mVpnSwitch != null) {
             mVpnSwitch.setChecked(
-                    BraveVpnProfileUtils.getInstance().isBraveVPNConnected(getActivity()));
+                    WootzVpnProfileUtils.getInstance().isWootzVPNConnected(getActivity()));
         }
         new Thread() {
             @Override
@@ -219,45 +206,46 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
                                         public void run() {
                                             findPreference(PREF_SERVER_CHANGE_LOCATION)
                                                     .setEnabled(true);
-                                            findPreference(PREF_SPLIT_TUNNELING)
-                                                    .setEnabled(true);
-                                            findPreference(PREF_ALWAYS_ON)
-                                                    .setEnabled(true);
-                                            findPreference(PREF_SUPPORT_TECHNICAL)
-                                                    .setEnabled(true);
+                                            findPreference(PREF_SPLIT_TUNNELING).setEnabled(true);
+                                            findPreference(PREF_ALWAYS_ON).setEnabled(true);
+                                            findPreference(PREF_SUPPORT_TECHNICAL).setEnabled(true);
                                         }
                                     });
                 }
             }
         }.start();
-        BraveVpnUtils.dismissProgressDialog();
+        WootzVpnUtils.dismissProgressDialog();
     }
 
     private final ConnectivityManager.NetworkCallback mNetworkCallback =
             new ConnectivityManager.NetworkCallback() {
                 @Override
                 public void onAvailable(Network network) {
-                    BraveVpnUtils.dismissProgressDialog();
+                    WootzVpnUtils.dismissProgressDialog();
                     if (getActivity() != null) {
-                        getActivity().runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                new Handler().post(() -> updateSummaries());
-                            }
-                        });
+                        getActivity()
+                                .runOnUiThread(
+                                        new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                new Handler().post(() -> updateSummaries());
+                                            }
+                                        });
                     }
                 }
 
                 @Override
                 public void onLost(Network network) {
-                    BraveVpnUtils.dismissProgressDialog();
+                    WootzVpnUtils.dismissProgressDialog();
                     if (getActivity() != null) {
-                        getActivity().runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                new Handler().post(() -> updateSummaries());
-                            }
-                        });
+                        getActivity()
+                                .runOnUiThread(
+                                        new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                new Handler().post(() -> updateSummaries());
+                                            }
+                                        });
                     }
                 }
             };
@@ -267,87 +255,91 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
             @Override
             public void run() {
                 Intent intent = GoBackend.VpnService.prepare(getActivity());
-                if (intent != null || !WireguardConfigUtils.isConfigExist(getActivity())) {
-                    BraveVpnUtils.dismissProgressDialog();
-                    BraveVpnUtils.openBraveVpnProfileActivity(getActivity());
-                    return;
-                }
-                BraveVpnProfileUtils.getInstance().startVpn(getActivity());
+                // if (intent != null || !WireguardConfigUtils.isConfigExist(getActivity())) {
+                //     WootzVpnUtils.dismissProgressDialog();
+                //     WootzVpnUtils.openWootzVpnProfileActivity(getActivity());
+                //     return;
+                // }
+                WootzVpnProfileUtils.getInstance().startVpn(getActivity());
             }
         }.start();
     }
 
     @Override
     public void onGetTimezonesForRegions(String jsonTimezones, boolean isSuccess) {
-        BraveVpnApiResponseUtils.handleOnGetTimezonesForRegions(
-                getActivity(), mBraveVpnPrefModel, jsonTimezones, isSuccess);
+        WootzVpnApiResponseUtils.handleOnGetTimezonesForRegions(
+                getActivity(), mWootzVpnPrefModel, jsonTimezones, isSuccess);
     }
 
     @Override
     public void onGetHostnamesForRegion(String jsonHostNames, boolean isSuccess) {
         KeyPair keyPair = new KeyPair();
-        mBraveVpnPrefModel.setClientPrivateKey(keyPair.getPrivateKey().toBase64());
-        mBraveVpnPrefModel.setClientPublicKey(keyPair.getPublicKey().toBase64());
-        Pair<String, String> host = BraveVpnApiResponseUtils.handleOnGetHostnamesForRegion(
-                getActivity(), mBraveVpnPrefModel, jsonHostNames, isSuccess);
-        mBraveVpnPrefModel.setHostname(host.first);
-        mBraveVpnPrefModel.setHostnameDisplay(host.second);
+        mWootzVpnPrefModel.setClientPrivateKey(keyPair.getPrivateKey().toBase64());
+        mWootzVpnPrefModel.setClientPublicKey(keyPair.getPublicKey().toBase64());
+        Pair<String, String> host =
+                WootzVpnApiResponseUtils.handleOnGetHostnamesForRegion(
+                        getActivity(), mWootzVpnPrefModel, jsonHostNames, isSuccess);
+        mWootzVpnPrefModel.setHostname(host.first);
+        mWootzVpnPrefModel.setHostnameDisplay(host.second);
     }
 
-    @Override
-    public void onGetWireguardProfileCredentials(
-            String jsonWireguardProfileCredentials, boolean isSuccess) {
-        if (isSuccess && mBraveVpnPrefModel != null) {
-            BraveVpnWireguardProfileCredentials braveVpnWireguardProfileCredentials =
-                    BraveVpnUtils.getWireguardProfileCredentials(jsonWireguardProfileCredentials);
-            stopStartConnection(braveVpnWireguardProfileCredentials);
-        } else {
-            Toast.makeText(getActivity(), R.string.vpn_profile_creation_failed, Toast.LENGTH_LONG)
-                    .show();
-            BraveVpnUtils.dismissProgressDialog();
-            new Handler().post(() -> updateSummaries());
-        }
-    }
+    // @Override
+    // public void onGetWireguardProfileCredentials(
+    //         String jsonWireguardProfileCredentials, boolean isSuccess) {
+    //     if (isSuccess && mWootzVpnPrefModel != null) {
+    //         WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials =
+    //
+    // WootzVpnUtils.getWireguardProfileCredentials(jsonWireguardProfileCredentials);
+    //         // stopStartConnection(wootzVpnWireguardProfileCredentials);
+    //     } else {
+    //         Toast.makeText(getActivity(), R.string.vpn_profile_creation_failed,
+    // Toast.LENGTH_LONG)
+    //                 .show();
+    //         WootzVpnUtils.dismissProgressDialog();
+    //         new Handler().post(() -> updateSummaries());
+    //     }
+    // }
 
-    private void stopStartConnection(
-            BraveVpnWireguardProfileCredentials braveVpnWireguardProfileCredentials) {
-        new Thread() {
-            @Override
-            public void run() {
-                try {
-                    if (BraveVpnProfileUtils.getInstance().isBraveVPNConnected(getActivity())) {
-                        BraveVpnProfileUtils.getInstance().stopVpn(getActivity());
-                    }
-                    WireguardConfigUtils.deleteConfig(getActivity());
-                    if (!WireguardConfigUtils.isConfigExist(getActivity())) {
-                        WireguardConfigUtils.createConfig(getActivity(),
-                                braveVpnWireguardProfileCredentials.getMappedIpv4Address(),
-                                mBraveVpnPrefModel.getHostname(),
-                                mBraveVpnPrefModel.getClientPrivateKey(),
-                                braveVpnWireguardProfileCredentials.getServerPublicKey());
-                    }
-                    BraveVpnProfileUtils.getInstance().startVpn(getActivity());
-                } catch (Exception e) {
-                    Log.e(TAG, e.getMessage());
-                }
-                mBraveVpnPrefModel.setClientId(braveVpnWireguardProfileCredentials.getClientId());
-                mBraveVpnPrefModel.setApiAuthToken(
-                        braveVpnWireguardProfileCredentials.getApiAuthToken());
-                BraveVpnPrefUtils.setPrefModel(mBraveVpnPrefModel);
-                new Handler(Looper.getMainLooper()).post(() -> updateSummaries());
-            }
-        }.start();
-    }
+    // private void stopStartConnection(
+    //         WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials) {
+    //     new Thread() {
+    //         @Override
+    //         public void run() {
+    //             try {
+    //                 if (WootzVpnProfileUtils.getInstance().isWootzVPNConnected(getActivity())) {
+    //                     WootzVpnProfileUtils.getInstance().stopVpn(getActivity());
+    //                 }
+    //                 // WireguardConfigUtils.deleteConfig(getActivity());
+    //                 // if (!WireguardConfigUtils.isConfigExist(getActivity())) {
+    //                 //     WireguardConfigUtils.createConfig(getActivity(),
+    //                 //             wootzVpnWireguardProfileCredentials.getMappedIpv4Address(),
+    //                 //             mWootzVpnPrefModel.getHostname(),
+    //                 //             mWootzVpnPrefModel.getClientPrivateKey(),
+    //                 //             wootzVpnWireguardProfileCredentials.getServerPublicKey());
+    //                 // }
+    //                 WootzVpnProfileUtils.getInstance().startVpn(getActivity());
+    //             } catch (Exception e) {
+    //                 Log.e(TAG, e.getMessage());
+    //             }
+    //
+    // mWootzVpnPrefModel.setClientId(wootzVpnWireguardProfileCredentials.getClientId());
+    //             // mWootzVpnPrefModel.setApiAuthToken(
+    //             //         wootzVpnWireguardProfileCredentials.getApiAuthToken());
+    //             WootzVpnPrefUtils.setPrefModel(mWootzVpnPrefModel);
+    //             new Handler(Looper.getMainLooper()).post(() -> updateSummaries());
+    //         }
+    //     }.start();
+    // }
 
     @Override
     public void onStart() {
         super.onStart();
-        BraveVpnNativeWorker.getInstance().addObserver(this);
+        WootzVpnNativeWorker.getInstance().addObserver(this);
     }
 
     @Override
     public void onStop() {
-        BraveVpnNativeWorker.getInstance().removeObserver(this);
+        WootzVpnNativeWorker.getInstance().removeObserver(this);
         super.onStop();
     }
 
@@ -368,22 +360,27 @@ public class BraveVpnPreferences extends BravePreferenceFragment implements Brav
     }
 
     private void resetConfiguration() {
-        BraveVpnNativeWorker.getInstance().invalidateCredentials(BraveVpnPrefUtils.getHostname(),
-                BraveVpnPrefUtils.getClientId(),
-                BraveVpnPrefUtils.getApiAuthToken());
-        BraveVpnUtils.showProgressDialog(
+        WootzVpnNativeWorker.getInstance()
+                .invalidateCredentials(
+                        WootzVpnPrefUtils.getHostname(),
+                        WootzVpnPrefUtils.getClientId(),
+                        WootzVpnPrefUtils.getApiAuthToken());
+        WootzVpnUtils.showProgressDialog(
                 getActivity(), getResources().getString(R.string.resetting_config));
-        new Handler().postDelayed(() -> {
-            if (isResumed()) {
-                BraveVpnUtils.resetProfileConfiguration(getActivity());
-                new Handler().post(() -> updateSummaries());
-            }
-        }, INVALIDATE_CREDENTIAL_TIMER_COUNT);
+        new Handler()
+                .postDelayed(
+                        () -> {
+                            if (isResumed()) {
+                                WootzVpnUtils.resetProfileConfiguration(getActivity());
+                                new Handler().post(() -> updateSummaries());
+                            }
+                        },
+                        INVALIDATE_CREDENTIAL_TIMER_COUNT);
     }
 
     @Override
     public void onDestroy() {
-        BraveVpnUtils.dismissProgressDialog();
+        WootzVpnUtils.dismissProgressDialog();
         super.onDestroy();
     }
 }

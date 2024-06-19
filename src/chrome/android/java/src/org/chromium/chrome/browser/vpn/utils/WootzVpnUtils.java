@@ -9,8 +9,6 @@ import android.util.Pair;
 
 import androidx.fragment.app.FragmentActivity;
 
-import com.wireguard.config.Config;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -19,16 +17,14 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.chrome.browser.WootzRewardsNativeWorker;
 import org.chromium.chrome.browser.vpn.WootzVpnNativeWorker;
-import org.chromium.chrome.browser.vpn.activities.WootzVpnProfileActivity;
-import org.chromium.chrome.browser.vpn.activities.WootzVpnSupportActivity;
 import org.chromium.chrome.browser.vpn.activities.VpnAlwaysOnActivity;
 import org.chromium.chrome.browser.vpn.activities.VpnServerSelectionActivity;
+import org.chromium.chrome.browser.vpn.activities.WootzVpnProfileActivity;
+import org.chromium.chrome.browser.vpn.activities.WootzVpnSupportActivity;
 import org.chromium.chrome.browser.vpn.fragments.WootzVpnAlwaysOnErrorDialogFragment;
 import org.chromium.chrome.browser.vpn.fragments.WootzVpnConfirmDialogFragment;
 import org.chromium.chrome.browser.vpn.models.WootzVpnServerRegion;
-import org.chromium.chrome.browser.vpn.models.WootzVpnWireguardProfileCredentials;
 import org.chromium.chrome.browser.vpn.split_tunnel.SplitTunnelActivity;
-import org.chromium.chrome.browser.vpn.wireguard.WireguardConfigUtils;
 import org.chromium.gms.ChromiumPlayServicesAvailability;
 import org.chromium.ui.widget.Toast;
 
@@ -166,24 +162,25 @@ public class WootzVpnUtils {
         return new Pair<String, String>("", "");
     }
 
-    public static WootzVpnWireguardProfileCredentials getWireguardProfileCredentials(
-            String jsonWireguardProfileCredentials) {
-        try {
-            JSONObject wireguardProfileCredentials =
-                    new JSONObject(jsonWireguardProfileCredentials);
-            WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials =
-                    new WootzVpnWireguardProfileCredentials(
-                            wireguardProfileCredentials.getString("api-auth-token"),
-                            wireguardProfileCredentials.getString("client-id"),
-                            wireguardProfileCredentials.getString("mapped-ipv4-address"),
-                            wireguardProfileCredentials.getString("mapped-ipv6-address"),
-                            wireguardProfileCredentials.getString("server-public-key"));
-            return wootzVpnWireguardProfileCredentials;
-        } catch (JSONException e) {
-            Log.e(TAG, "WootzVpnUtils -> getWireguardProfileCredentials JSONException error " + e);
-        }
-        return null;
-    }
+    // public static WootzVpnWireguardProfileCredentials getWireguardProfileCredentials(
+    //         String jsonWireguardProfileCredentials) {
+    //     try {
+    //         JSONObject wireguardProfileCredentials =
+    //                 new JSONObject(jsonWireguardProfileCredentials);
+    //         WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials =
+    //                 new WootzVpnWireguardProfileCredentials(
+    //                         wireguardProfileCredentials.getString("api-auth-token"),
+    //                         wireguardProfileCredentials.getString("client-id"),
+    //                         wireguardProfileCredentials.getString("mapped-ipv4-address"),
+    //                         wireguardProfileCredentials.getString("mapped-ipv6-address"),
+    //                         wireguardProfileCredentials.getString("server-public-key"));
+    //         return wootzVpnWireguardProfileCredentials;
+    //     } catch (JSONException e) {
+    //         Log.e(TAG, "WootzVpnUtils -> getWireguardProfileCredentials JSONException error " +
+    // e);
+    //     }
+    //     return null;
+    // }
 
     public static List<WootzVpnServerRegion> getServerLocations(String jsonServerLocations) {
         List<WootzVpnServerRegion> vpnServerRegions = new ArrayList<>();
@@ -213,7 +210,7 @@ public class WootzVpnUtils {
             WootzVpnProfileUtils.getInstance().stopVpn(activity);
         }
         try {
-            WireguardConfigUtils.deleteConfig(activity);
+            // WireguardConfigUtils.deleteConfig(activity);
         } catch (Exception ex) {
             Log.e(TAG, "resetProfileConfiguration : " + ex.getMessage());
         }
@@ -223,9 +220,9 @@ public class WootzVpnUtils {
 
     public static void updateProfileConfiguration(Activity activity) {
         try {
-            Config existingConfig = WireguardConfigUtils.loadConfig(activity);
-            WireguardConfigUtils.deleteConfig(activity);
-            WireguardConfigUtils.createConfig(activity, existingConfig);
+            // Config existingConfig = WireguardConfigUtils.loadConfig(activity);
+            // WireguardConfigUtils.deleteConfig(activity);
+            // WireguardConfigUtils.createConfig(activity, existingConfig);
         } catch (Exception ex) {
             Log.e(TAG, "updateProfileConfiguration : " + ex.getMessage());
         }

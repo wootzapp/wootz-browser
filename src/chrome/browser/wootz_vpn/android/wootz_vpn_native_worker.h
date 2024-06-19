@@ -33,15 +33,6 @@ class WootzVpnNativeWorker {
 
   void OnGetHostnamesForRegion(const std::string& hostname_json, bool success);
 
-  void GetWireguardProfileCredentials(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& public_key,
-      const base::android::JavaParamRef<jstring>& hostname);
-
-  void OnGetWireguardProfileCredentials(
-      const std::string& wireguard_profile_credentials_json,
-      bool success);
-
   void VerifyCredentials(
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& hostname,

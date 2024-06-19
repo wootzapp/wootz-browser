@@ -1,9 +1,9 @@
 #include <optional>
 #include <string>
 
-#include "wootz/components/wootz_vpn/common/mojom/wootz_vpn.mojom.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/receiver.h"
+#include "wootz/components/wootz_vpn/common/mojom/wootz_vpn.mojom.h"
 
 namespace wootz_vpn {
 
@@ -15,7 +15,6 @@ class WootzVPNServiceObserver : public mojom::ServiceObserver {
   ~WootzVPNServiceObserver() override;
   WootzVPNServiceObserver(const WootzVPNServiceObserver&) = delete;
   WootzVPNServiceObserver& operator=(const WootzVPNServiceObserver&) = delete;
-
 
   void Observe(WootzVpnService* service);
 

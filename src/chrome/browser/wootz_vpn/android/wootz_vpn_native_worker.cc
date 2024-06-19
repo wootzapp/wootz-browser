@@ -6,11 +6,11 @@
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
-#include "chrome/browser/wootz_vpn/wootz_vpn_service_factory.h"
-#include "chrome/build/android/jni_headers/WootzVpnNativeWorker_jni.h" /////////
-#include "chrome/components/wootz_vpn/browser/wootz_vpn_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/wootz_vpn/wootz_vpn_service_factory.h"
+#include "chrome/build/android/jni_headers/WootzVpnNativeWorker_jni.h"
+#include "chrome/components/wootz_vpn/browser/wootz_vpn_service.h"
 
 using wootz_vpn::WootzVpnService;
 
@@ -98,31 +98,6 @@ void WootzVpnNativeWorker::OnGetHostnamesForRegion(
   Java_WootzVpnNativeWorker_onGetHostnamesForRegion(
       env, weak_java_wootz_vpn_native_worker_.get(env),
       base::android::ConvertUTF8ToJavaString(env, hostnames_json), success);
-}
-
-void WootzVpnNativeWorker::GetWireguardProfileCredentials(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& public_key,
-    const base::android::JavaParamRef<jstring>& hostname) {
-  WootzVpnService* wootz_vpn_service = GetWootzVpnService();
-  if (wootz_vpn_service) {
-    wootz_vpn_service->GetWireguardProfileCredentials(
-        base::BindOnce(&WootzVpnNativeWorker::OnGetWireguardProfileCredentials,
-                       weak_factory_.GetWeakPtr()),
-        base::android::ConvertJavaStringToUTF8(env, public_key),
-        base::android::ConvertJavaStringToUTF8(env, hostname));
-  }
-}
-
-void WootzVpnNativeWorker::OnGetWireguardProfileCredentials(
-    const std::string& wireguard_profile_credentials_json,
-    bool success) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_WootzVpnNativeWorker_onGetWireguardProfileCredentials(
-      env, weak_java_wootz_vpn_native_worker_.get(env),
-      base::android::ConvertUTF8ToJavaString(
-          env, wireguard_profile_credentials_json),
-      success);
 }
 
 void WootzVpnNativeWorker::VerifyCredentials(

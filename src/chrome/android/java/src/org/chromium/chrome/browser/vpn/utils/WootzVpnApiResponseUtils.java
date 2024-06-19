@@ -4,11 +4,7 @@ import android.app.Activity;
 import android.text.TextUtils;
 import android.util.Pair;
 
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
-
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.util.LiveDataUtil;
 import org.chromium.chrome.browser.vpn.WootzVpnNativeWorker;
 import org.chromium.chrome.browser.vpn.models.WootzVpnPrefModel;
 import org.chromium.chrome.browser.vpn.models.WootzVpnServerRegion;
@@ -58,8 +54,8 @@ public class WootzVpnApiResponseUtils {
         Pair<String, String> host = new Pair<String, String>("", "");
         if (isSuccess && wootzVpnPrefModel != null) {
             host = WootzVpnUtils.getHostnameForRegion(jsonHostNames);
-            WootzVpnNativeWorker.getInstance().getWireguardProfileCredentials(
-                    wootzVpnPrefModel.getClientPublicKey(), host.first);
+            // WootzVpnNativeWorker.getInstance().getWireguardProfileCredentials(
+            //         wootzVpnPrefModel.getClientPublicKey(), host.first);
         } else {
             WootzVpnUtils.showToast(
                     activity.getResources().getString(R.string.vpn_profile_creation_failed));

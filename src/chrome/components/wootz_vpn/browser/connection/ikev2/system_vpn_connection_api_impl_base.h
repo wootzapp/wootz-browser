@@ -1,7 +1,7 @@
 #include <string>
 
-#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_info.h"
 #include "chrome/components/wootz_vpn/browser/connection/connection_api_impl.h"
+#include "chrome/components/wootz_vpn/browser/connection/wootz_vpn_connection_info.h"
 #include "chrome/components/wootz_vpn/common/mojom/wootz_vpn.mojom.h"
 
 namespace wootz_vpn {

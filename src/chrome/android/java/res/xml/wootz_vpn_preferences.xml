@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--* Copyright (c) 2021 The Brave Authors. All rights reserved.
+<!--* Copyright (c) 2021 The wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
@@ -12,7 +12,7 @@
         android:title="@string/enabled" />
 
     <PreferenceCategory
-        android:key="brave_vpn_server_section"
+        android:key="wootz_vpn_server_section"
         android:title="@string/server">
 
         <org.chromium.components.browser_ui.settings.ChromeBasePreference
@@ -39,7 +39,7 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:key="brave_vpn_support_section"
+        android:key="wootz_vpn_support_section"
         android:title="@string/support">
 
         <org.chromium.components.browser_ui.settings.ChromeBasePreference

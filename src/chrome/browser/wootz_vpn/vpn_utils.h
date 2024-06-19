@@ -12,14 +12,14 @@ class SharedURLLoaderFactory;
 
 class PrefService;
 
-namespace brave_vpn {
+namespace wootz_vpn {
 
-class BraveVPNConnectionManager;
+class WootzVPNConnectionManager;
 
-bool IsBraveVPNEnabled(content::BrowserContext* context);
+bool IsWootzVPNEnabled(content::BrowserContext* context);
 bool IsAllowedForContext(content::BrowserContext* context);
-std::unique_ptr<BraveVPNConnectionManager> CreateBraveVPNConnectionManager(
+std::unique_ptr<WootzVPNConnectionManager> CreateWootzVPNConnectionManager(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     PrefService* local_prefs);
 
-}  // namespace brave_vpn
+}  // namespace wootz_vpn

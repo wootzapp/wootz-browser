@@ -96,10 +96,7 @@ class WootzVPNConnectionManager {
  private:
   friend class WootzVpnButtonUnitTest;
   friend class WootzVPNServiceTest;
-  friend class WootzVPNWireguardConnectionAPIUnitTest;
   friend class SystemVPNConnectionAPIUnitTest;
-  FRIEND_TEST_ALL_PREFIXES(WootzVPNWireguardConnectionAPIUnitTest,
-                           SetSelectedRegion);
 
   void SetConnectionAPIImplForTesting(std::unique_ptr<ConnectionAPIImpl> impl) {
     connection_api_impl_ = std::move(impl);
@@ -124,10 +121,6 @@ class WootzVPNConnectionManager {
   base::RepeatingCallback<bool()> install_system_service_callback_;
 
   ConnectionAPIImplGetter connection_api_impl_getter_;
-
-#if BUILDFLAG(ENABLE_WOOTZ_VPN_WIREGUARD)
-  BooleanPrefMember wireguard_enabled_;
-#endif
 
   raw_ptr<PrefService> local_prefs_ = nullptr;
   std::string target_vpn_entry_name_;

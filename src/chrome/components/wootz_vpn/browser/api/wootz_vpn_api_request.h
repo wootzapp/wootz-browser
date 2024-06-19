@@ -31,9 +31,9 @@ class WootzVpnAPIRequest {
                              const std::string& region);
   void GetProfileCredentials(ResponseCallback callback,
                              const std::string& hostname);
-  void GetWireguardProfileCredentials(ResponseCallback callback,
-                                      const std::string& public_key,
-                                      const std::string& hostname);
+  //   void GetWireguardProfileCredentials(ResponseCallback callback,
+  //                                       const std::string& public_key,
+  //                                       const std::string& hostname);
   void VerifyCredentials(ResponseCallback callback,
                          const std::string& hostname,
                          const std::string& client_id,
@@ -80,5 +80,3 @@ class WootzVpnAPIRequest {
 };
 
 }  // namespace wootz_vpn
-
-#endif  // BRAVE_COMPONENTS_BRAVE_VPN_BROWSER_API_BRAVE_VPN_API_REQUEST_H_

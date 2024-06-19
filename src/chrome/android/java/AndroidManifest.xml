@@ -1341,20 +1341,6 @@ by a child template that "extends" this file.
           android:name="com.google.android.play.core.assetpacks.ExtractionForegroundService"
           tools:node="remove"/>
 
-      <service
-           android:name="org.chromium.chrome.browser.vpn.wireguard.WireguardService"
-           android:foregroundServiceType="dataSync"
-           android:exported="false">
-      </service>   
-      <service
-           android:name="com.wireguard.android.backend.GoBackend$VpnService"
-           android:permission="android.permission.BIND_VPN_SERVICE"
-           android:exported="false">
-        <intent-filter>
-            <action android:name="android.net.VpnService" />
-        </intent-filter>
-      </service>
-
       <!-- Provider for chrome data. -->
       <provider android:name="org.chromium.chrome.browser.provider.ChromeBrowserProvider"
           android:authorities="{{ manifest_package }}.ChromeBrowserProvider;{{ manifest_package }}.browser;{{ manifest_package }}"

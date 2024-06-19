@@ -281,6 +281,13 @@ CHAR_LIMIT guidelines:
         USB
       </message>
 
+      <message name="IDS_WOOTZ_VPN" desc="Title for Wootz vpn settings">
+        Wootz VPN
+      </message>
+
+      <message name="IDS_HOST" desc="Brave VPN settings section text">
+        Host
+      </message>
       <!-- Sign-in, sync and personalization preferences -->
       <message name="IDS_PREFS_SECTION_ACCOUNT_AND_GOOGLE_SERVICES" desc="Title for the group of account-related entries and google services in Settings. [CHAR_LIMIT=32]">
         You and Google
@@ -312,13 +319,40 @@ CHAR_LIMIT guidelines:
       <message name="IDS_SIGN_IN_PERSONALIZE_GOOGLE_SERVICES_TITLE_EEA" desc="This is the title of a setting that directs users to other settings where they can control how Chrome history can be used to personalize other Google services. It appears in Chrome’s Advanced Sync settings and is before the “Control how browsing history is used with your other data across Google services” string. “Linking” refers to the ability to link Google services; this verb should align with the verb for the branded term “linked Google services” in Glossary Manager: https://localization.google.com/glossary/termset?gid=27517723&amp;tsid=517bace2. [CHAR_LIMIT=30]">
         Personalization &amp; Linking
       </message>
+      <message name="IDS_VPN_SETTINGS_CALLOUT_TEXT" desc="Vpn settings callout text">
+        Upgrade to a VPN to protect your connection and block invasive trackers everywhere.
+      </message>
       <message name="IDS_SIGN_IN_PERSONALIZE_GOOGLE_SERVICES_SUMMARY" desc="This is the subtitle of a setting that directs users to other settings where they can control how Chrome history can be used to personalize other Google services. This subtitle appears in Chrome’s Advanced Sync settings, after the “Personalization &amp; linking” or “Personalization“ string.">
         Control how browsing history is used with your other data across Google services
       </message>
       <!-- Personalized Google services preferences-->
       <message name="IDS_PERSONALIZED_GOOGLE_SERVICES_SUMMARY" desc="This is the body text of a setting that helps users find the settings to control how Chrome history can be used to personalize other Google services. This text appears in Chrome’s Advanced Sync settings, on the subpage that links out to Web &amp; App Activity and linked Google services.">
-        To get the most personalized experience, include Chrome in Web &amp; App Activity and linked Google services
+        To get the most personalized experience, include Chrome in Web &amp; App 
+        
+        
+        Activity and linked Google services
       </message>
+      <message name="IDS_DISABLE_WOOTZ_VPN" desc="Wootz VPN timer bottom sheet title">
+      Disable Wootz VPN
+      </message>
+      <message name="IDS_TRY_FOR_FREE" desc="Wootz VPN plan text">
+      Try for FREE
+      </message>
+      <message name="IDS_POWERED_BY" desc="VPN text">
+      Powered by
+      </message>
+       <message name="IDS_RESTORE" desc="Wootz Wallet restore text">
+         Restore
+       </message>
+       <message name="IDS_ENABLED" desc="VPN settings toggle text">
+      Enabled
+    </message>
+     <message name="IDS_SERVER" desc="Wootz VPN settings section title">
+      Server
+    </message>
+      <message name="IDS_VPN_HOST_TEXT" desc="Vpn support email text">
+      \n\nVPN Hostname\n <ph name="VALUE">%1$s</ph>
+    </message>
       <message name="IDS_PERSONALIZED_GOOGLE_SERVICES_WAA_TITLE" desc="This string is found on a link in Chrome’s Advanced Sync settings. When the user taps it, the link takes the user to “Web &amp; App Activity” in the Google Account’s Activity Controls. This text should match the branded term “Web &amp; App Activity” in Glossary Manager: https://localization.google.com/glossary/termset?gid=27517723&amp;tsid=77d3b75.">
         Web &amp; App Activity
       </message>
@@ -332,6 +366,9 @@ CHAR_LIMIT guidelines:
       <message name="IDS_SIGN_OUT_AND_TURN_OFF_SYNC" desc="The text for a preferences row that for signs out the user and turns off sync.">
         Sign out and turn off sync
       </message>
+      <message name="IDS_CHANGE_LOCATION" desc="Wootz VPN settings section text">
+      Location
+    </message>
       <message name="IDS_TURN_OFF_SYNC" desc="The text for a preferences row that turns off sync without signing the user out.">
         Turn off sync
       </message>
@@ -4876,9 +4913,6 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
        <message name="IDS_CANNOT_CONNECT_TO_VPN" desc="Wootz Vpn support text">
        Cannot connect to the VPN (Other error)
        </message>
-        <message name="IDS_DISABLE_WOOTZ_VPN" desc="Wootz VPN timer bottom sheet title">
-          Disable Wootz VPN
-        </message>
       <message name="IDS_NO_INTERNET" desc="Wootz Vpn support text">
         No internet when connected
       </message>
@@ -4896,12 +4930,15 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
      </message>
      <message name="IDS_SOME_CONTEXT_TEXT" desc="Wootz VPN profile text">
       Your previous VPN connection was disconnected. To reconnect to VPN, you'll need to accept the connection request.
-
-      If you don't accept this request, VPN will not reconnect and your internet connection will not be secured.
      </message>
       <message name="IDS_RESET_VPN_CONFIG_DIALOG_TITLE" desc="Wootz Vpn reset configuration dialog title">
         Reset VPN configuration
       </message>
+
+      <message name="IDS_RESET_CONFIGURATION" desc="Wootz VPN settings section text">
+       Reset Configuration
+      </message>
+      
       <message name="IDS_RESET_VPN_CONFIG_DIALOG_MESSAGE" desc="Wootz Vpn reset configuration dialog message">
          Are you sure you want to reset VPN configuration?
       </message>
@@ -4919,6 +4956,40 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
       </message>
       <message name="IDS_WOOTZ_VPN_PROFILE_TITLE" desc="Wootz VPN plan text">
        Wootz will now install a VPN profile.
+      </message>
+      <message name="IDS_INSTALL_VPN_PROFILE" desc="Wootz VPN plan text">
+      Install VPN Profile
+     </message>
+     <message name="IDS_CONTACT_SUPPORT_VPN" desc = "Wootz VPN profile text">
+      Contact Technical Support
+     </message>
+    <message name="IDS_VPN_HOSTNAME" desc="Wootz Vpn support text">
+      VPN Hostname
+     </message>
+     <message name="IDS_APP_VERSION" desc="Wootz Vpn support text">
+      App Version
+     </message>
+     <message name="IDS_APP_RECEIPT" desc="Wootz Vpn support text">
+      App Receipt
+     </message>
+      <message name="IDS_TIMEZONE" desc="Wootz Vpn support text">
+      Timezone
+     </message>
+    <message name="IDS_NETWORK_TYPE" desc="Wootz Vpn support text">
+      Network Type
+     </message>
+    <message name="IDS_CONTINUE_TO_EMAIL" desc="Wootz Vpn support text">
+      Continue to Email
+    </message>
+    <message name="IDS_VPN_SUPPORT_TEXT" desc="Wootz Vpn support text">
+      Support provided with the help of the Guardian team.\n\nPlease select the information you're comfortable sharing with us.\n\nThe more information you initially share with us the easier it will be for our support staff to help you resolve your issue.
+    </message>
+     <message name="IDS_CELLULAR_CARRIER" desc="Wootz Vpn support text">
+      Cellular Carrier
+     </message>
+
+      <message name="IDS_WOOTZ_VPN_PROFILE_TEXT" desc="Wootz VPN plan text">
+      This profile allows the VPN to automatically connect and secure traffic across your device — in every app, all the time. This VPN connection will be encrypted and routed through Guardian's intelligent firewall to block ads and trackers.
       </message>
       <message name="IDS_WOOTZ_CANCEL" desc="Set default browser modal button text">
         Cancel
@@ -4953,7 +5024,15 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
       <message name="IDS_VPN_PROFILE_CREATION_FAILED" desc="Wootz VPN profile text">
        Vpn profile creation failed. Please try again.
       </message>
-
+      <message name="IDS_SUPPORT" desc="Wootz VPN settings section text">
+      Support
+    </message>
+    <message name="IDS_CONTACT_TECHNICAL_SUPPORT" desc="Wootz VPN settings section text">
+      Contact Technical Support
+    </message>
+    <message name="IDS_VPN_SUPPORT" desc="Wootz VPN settings section text">
+      VPN Support
+    </message>
        <message name="IDS_ALWAYS_ON_VPN" desc="Vpn setting title for always on">
          Always-on VPN
        </message>
@@ -4994,7 +5073,7 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
          Open Android settings
        </message>
        <message name="IDS_COULDNT_GET_MATCHING_TIMEZONE" desc="Wootz vpn error message">
-        Couldn't get matching timezone for : <ph name="VALUE">%1$s</ph>
+        Couldn't get matching timezone for
       </message>
       <message name="IDS_TWA_CLEAR_DATA_SITE_SELECTION_TITLE" desc="Title of screen showing the sites linked to TWA, allowing the user to clean data in any of them.">
         Linked sites

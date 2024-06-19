@@ -10,9 +10,9 @@ public interface WootzVpnObserver {
     public default void onGetHostnamesForRegion(String jsonHostnames, boolean isSuccess) {}
     ;
 
-    public default void onGetWireguardProfileCredentials(
-            String jsonWireguardProfileCredentials, boolean isSuccess) {}
-    ;
+    //     public default void onGetWireguardProfileCredentials(
+    //             String jsonWireguardProfileCredentials, boolean isSuccess) {}
+    //     ;
 
     public default void onVerifyCredentials(String jsonVerifyCredentials, boolean isSuccess) {}
     ;

@@ -17,13 +17,13 @@ public class WootzVpnConfirmDialogFragment extends WootzDialogFragment {
     @Override
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_brave_vpn_confirm_dialog, container, false);
+        return inflater.inflate(R.layout.fragment_wootz_vpn_confirm_dialog, container, false);
     }
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         mAnimatedView = view.findViewById(R.id.bg_image);
-        mAnimatedView.setAnimation("brave_vpn_confirm.json");
+        mAnimatedView.setAnimation("wootz_vpn_confirm.json");
         mAnimatedView.addAnimatorListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animation) {}
