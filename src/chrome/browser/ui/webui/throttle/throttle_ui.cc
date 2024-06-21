@@ -156,7 +156,7 @@ namespace {
         LOG(ERROR)<< offline <<" "<< latency<< " "<< download_throughput<<" "<<upload_throughput<< " " << packet_loss << " " << packet_queue_length;
 
         AllowJavascript();
-        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+        FireWebUIListener("displaySavedSettings", settings);
     }
     
     void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
@@ -179,7 +179,7 @@ namespace {
     settings.Append(packet_loss);
     settings.Append(packet_queue_length);
 
-    web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+    FireWebUIListener("displaySavedSettings", settings);
 }
 
     void ThrottleMessageHandler::LoadNetworkThrottlingSettings() {

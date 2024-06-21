@@ -10,7 +10,6 @@ let instance = null;
  * This UI allows a user to set network throttling conditions such as offline status,
  * latency, and throughput, to simulate different network environments.
  */
-
 export class ThrottleView extends DivView {
   constructor() {
     super(ThrottleView.MAIN_BOX_ID);
@@ -22,29 +21,28 @@ export class ThrottleView extends DivView {
     this.uploadThroughputInput_ = $(ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID);
     this.packetLossInput_ = $(ThrottleView.PACKET_LOSS_INPUT_ID);
     this.packetQueueLengthInput_ = $(ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID);
+    this.savedSettingsDiv_ = $(ThrottleView.SAVED_SETTINGS_ID);
 
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
-    // form.addEventListener('submit', this.loadAndDisplaySavedSettings_(), false);
 
-    // form.addEventListener("displaySavedSettings", (event) => {
-
-    window.addEventListener("displaySavedSettings", function_to_execute);
-
-    console.log('Setting network throttling conditions: HELLO')
+    // Set up listener for saved settings
+    window.cr.addWebUiListener("displaySavedSettings", (settings) => {
+      this.displaySavedSettings_(settings);
+    });
 
     // Fetch and display the saved network throttling settings on load
-    
+    this.loadAndDisplaySavedSettings_();
   }
 
   async onSubmit_(event) {
     event.preventDefault();
-    const offline = this.offlineSelect_.value;
+    const offline = this.offlineSelect_.value === 'true';
     const latency = parseFloat(this.latencyInput_.value.trim());
     const downloadThroughput = parseFloat(this.downloadThroughputInput_.value.trim());
     const uploadThroughput = parseFloat(this.uploadThroughputInput_.value.trim());
-    const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || undefined;
-    const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || undefined;
+    const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || 0;
+    const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || 0;
 
     await this.browserBridge_.sendSetNetworkThrottling({
       offline,
@@ -55,7 +53,6 @@ export class ThrottleView extends DivView {
       packetQueueLength,
     });
 
-
     this.loadAndDisplaySavedSettings_();
   }
 
@@ -65,7 +62,7 @@ export class ThrottleView extends DivView {
   }
 
   displaySavedSettings_(settings) {
-    const [offline, latency, downloadThroughput, uploadThroughput, packetLoss, packetQueueLength] = settings;
+    const {offline, latency, downloadThroughput, uploadThroughput, packetLoss, packetQueueLength} = settings;
     this.savedSettingsDiv_.textContent = `
       Offline: ${offline}
       Latency: ${latency} ms
@@ -74,10 +71,7 @@ export class ThrottleView extends DivView {
       Packet Loss: ${packetLoss}%
       Packet Queue Length: ${packetQueueLength}
     `;
-
   }
-
-  
 
   static getInstance() {
     return instance || (instance = new ThrottleView());
