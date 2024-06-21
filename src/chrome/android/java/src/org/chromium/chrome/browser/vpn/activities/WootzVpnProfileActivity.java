@@ -74,11 +74,6 @@ public class WootzVpnProfileActivity extends WootzVpnParentActivity {
     }
 
     @Override
-    public void finishNativeInitialization() {
-        super.finishNativeInitialization();
-    }
-
-    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
             finish();

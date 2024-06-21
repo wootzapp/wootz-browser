@@ -19,9 +19,8 @@ import androidx.preference.Preference;
 import org.chromium.base.ContextUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.preferences.BravePrefServiceBridge;
 
-public class BravePreferenceFragment extends ChromeBaseSettingsFragment {
+public class WootzPreferenceFragment extends ChromeBaseSettingsFragment {
     protected static final int STORAGE_PERMISSION_EXPORT_REQUEST_CODE = 8000;
     protected static final int STORAGE_PERMISSION_IMPORT_REQUEST_CODE = STORAGE_PERMISSION_EXPORT_REQUEST_CODE + 1;
 

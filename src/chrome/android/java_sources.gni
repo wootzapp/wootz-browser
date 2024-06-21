@@ -65,8 +65,11 @@ if (enable_cardboard) {
 
 chrome_java_sources += [
   "java/src/org/chromium/chrome/browser/firstrun/WootzFirstRunFlowSequencer.java",
+  "java/src/org/chromium/chrome/browser/InternetConnection.java",
   "java/src/org/chromium/chrome/browser/WootzDialogFragment.java",
-  "java/src/org/chromium/chrome/browser/vpn/DisconnectVpnBroadcastReceiver.java",
+  "java/src/org/chromium/chrome/browser/settings/WootzPreferenceFragment.java",
+  "java/src/org/chromium/chrome/browser/util/ConfigurationUtils.java",
+"java/src/org/chromium/chrome/browser/vpn/DisconnectVpnBroadcastReceiver.java",
   "java/src/org/chromium/chrome/browser/vpn/WootzVpnNativeWorker.java",
   "java/src/org/chromium/chrome/browser/vpn/WootzVpnObserver.java",
   "java/src/org/chromium/chrome/browser/vpn/activities/VpnAlwaysOnActivity.java",

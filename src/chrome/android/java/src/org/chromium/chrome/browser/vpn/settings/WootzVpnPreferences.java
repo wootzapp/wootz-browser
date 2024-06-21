@@ -254,12 +254,6 @@ public class WootzVpnPreferences extends WootzPreferenceFragment implements Woot
         new Thread() {
             @Override
             public void run() {
-                Intent intent = GoBackend.VpnService.prepare(getActivity());
-                // if (intent != null || !WireguardConfigUtils.isConfigExist(getActivity())) {
-                //     WootzVpnUtils.dismissProgressDialog();
-                //     WootzVpnUtils.openWootzVpnProfileActivity(getActivity());
-                //     return;
-                // }
                 WootzVpnProfileUtils.getInstance().startVpn(getActivity());
             }
         }.start();
@@ -273,63 +267,18 @@ public class WootzVpnPreferences extends WootzPreferenceFragment implements Woot
 
     @Override
     public void onGetHostnamesForRegion(String jsonHostNames, boolean isSuccess) {
-        KeyPair keyPair = new KeyPair();
-        mWootzVpnPrefModel.setClientPrivateKey(keyPair.getPrivateKey().toBase64());
-        mWootzVpnPrefModel.setClientPublicKey(keyPair.getPublicKey().toBase64());
+        String hardCodedPrivateKey = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCAmMwggJfAgEAAoGBALk7B0E6G3O0Qm1JXFLP1vZwoCgEbk2eclz6eZZHQVOTB/Xg9U6+Jsm/IqDtNfx4miHFmRrX8L2AZazQpM8Vs2F2X8gYm1XB2cB+Y6gNEwZkSzsQLi8Rp8Pm8f0LSr/OW+0S6F8v1R7DJEDO9NQQkHj5EzO9oW5u0p9YtIw7j7VVAgMBAAECggEAXZ0AImdHffu4Wn4PiE/MRXCrk9HQ/XZ5x5eK84mOATlD4YO1aMJhHbJAIj63Kq3xt9yzF5PrtsFPOIGW/aEq/V9G73uNNVcVHKMGtZugBoF07FvLQHyQw75MNmOVv9l/8YOY8ZGsbemg4lHdEvEOVF0D1IobTylqu3jRB0FXBm0wJfZyH3UdoqL8YusHvJD3uM7VR5TAcD/R8UXrNfT7E8GzBdLbe/Efnf1EQuBwPQDZT69XsnA16OhWUB0ZGKO5Lds6O7k5/oJq/O5yRXrwFstWs9sewT0mj6dIRnHl1HXJ+DDRe2au+/8Ox4vZBdB4/FTAYJXH8Teh13+CC09FF3sPff/L5YQKBgQDULhrlqNphDJAADeQ5BmENmr1i1h9lfq2ZQGfBS6OtFBlbbjsdKcG0SR/qVxVFr0UmwEzvLy0W20clNPx3Z/C8yT8J7+nqx+mb+24ScZk2GiUEr1GJ5Wldw0W6mv/g9Hb5rISj/WmeIkayELx2CqzEHP3ScY44/8k8m5z2Tk6Y4SpwKBgQDNLb9gXagC2zU+MnxlBbSuvmCfZB1u1Ac6KHimyaeoySBbXw8Zy0l+Gg6nq7LyU6cavfUo1ZdJKgD8D9DxuUVmLppN4nDOHqfFLVpbW+dW+XqqbUHzfOvCm9HGBRIV8VfqUHPznnsD7NT2jLbKOr1w3geplPZSBjt+EB9Uoqh5MQKBgBDTbVJfQGm5M58DP0QyMELm+Pb7pFkHP6fHCL0en2G9nF93FipXEiqh2hfDjAsUnzzwmqNdp8k92dVRDb3l+e2Hr+MgIoKLzRafsf4EYVnb1FnOeQIG/lniGAXD1UzAcb4zLTqljFWvnqY2VVKeFcKk+/my7igkLfNo6+H5ApOFAoGBAKc+91Dz13RxGfQ4zWcbNyyHtwrpuqZVu9OMrxF5gG40ktK2mlhl+zAFOEQCT0mTbV4W+cFHTF6slg4x8VpYq4Ti25XvH3kYrTTJZhb20KNn17sz+35UDbBf9P6RlI4TSNjoKiNLMzvAN8Z0yyiTGX6xGPAYZDDkpOM95y5g8OylAoGAdNo+eQFz1Nsl2CMsCaHv4b8DclcS1Z4uXuZjvPCrP1SngmnYoQxM1RY8KkA5tJazSkZ0AJ34X5QRA5Y2L/j96vAF2pTXzOQFkO7ZDf8kiYkphTGR96v1ZpA3WCM6VRtROp0bJcJgU+VtKft31MzG68hxetRW10QtrMxWwD01mPf2M=";
+        String hardCodedPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuTsHQTobc7RCbUlcUs/W9nCgKARuTZ5yXPp5lkdBU5MH9eD1Tr4myb8ioO01/HiaIcWZGtfwvYBlrNCkzxWzYXZfyBibVcHZwH5jqA0TBmRLOxAuLxGnw+bx/QtKv85b7RLoXy/VHsMkQM702BCQePkTM72hbm7Sn1i0jDuPtVUCAwEAAQ==";
+
+        // Setting the hardcoded keys
+        mWootzVpnPrefModel.setClientPrivateKey(hardCodedPrivateKey);
+        mWootzVpnPrefModel.setClientPublicKey(hardCodedPublicKey);
         Pair<String, String> host =
                 WootzVpnApiResponseUtils.handleOnGetHostnamesForRegion(
                         getActivity(), mWootzVpnPrefModel, jsonHostNames, isSuccess);
         mWootzVpnPrefModel.setHostname(host.first);
         mWootzVpnPrefModel.setHostnameDisplay(host.second);
     }
-
-    // @Override
-    // public void onGetWireguardProfileCredentials(
-    //         String jsonWireguardProfileCredentials, boolean isSuccess) {
-    //     if (isSuccess && mWootzVpnPrefModel != null) {
-    //         WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials =
-    //
-    // WootzVpnUtils.getWireguardProfileCredentials(jsonWireguardProfileCredentials);
-    //         // stopStartConnection(wootzVpnWireguardProfileCredentials);
-    //     } else {
-    //         Toast.makeText(getActivity(), R.string.vpn_profile_creation_failed,
-    // Toast.LENGTH_LONG)
-    //                 .show();
-    //         WootzVpnUtils.dismissProgressDialog();
-    //         new Handler().post(() -> updateSummaries());
-    //     }
-    // }
-
-    // private void stopStartConnection(
-    //         WootzVpnWireguardProfileCredentials wootzVpnWireguardProfileCredentials) {
-    //     new Thread() {
-    //         @Override
-    //         public void run() {
-    //             try {
-    //                 if (WootzVpnProfileUtils.getInstance().isWootzVPNConnected(getActivity())) {
-    //                     WootzVpnProfileUtils.getInstance().stopVpn(getActivity());
-    //                 }
-    //                 // WireguardConfigUtils.deleteConfig(getActivity());
-    //                 // if (!WireguardConfigUtils.isConfigExist(getActivity())) {
-    //                 //     WireguardConfigUtils.createConfig(getActivity(),
-    //                 //             wootzVpnWireguardProfileCredentials.getMappedIpv4Address(),
-    //                 //             mWootzVpnPrefModel.getHostname(),
-    //                 //             mWootzVpnPrefModel.getClientPrivateKey(),
-    //                 //             wootzVpnWireguardProfileCredentials.getServerPublicKey());
-    //                 // }
-    //                 WootzVpnProfileUtils.getInstance().startVpn(getActivity());
-    //             } catch (Exception e) {
-    //                 Log.e(TAG, e.getMessage());
-    //             }
-    //
-    // mWootzVpnPrefModel.setClientId(wootzVpnWireguardProfileCredentials.getClientId());
-    //             // mWootzVpnPrefModel.setApiAuthToken(
-    //             //         wootzVpnWireguardProfileCredentials.getApiAuthToken());
-    //             WootzVpnPrefUtils.setPrefModel(mWootzVpnPrefModel);
-    //             new Handler(Looper.getMainLooper()).post(() -> updateSummaries());
-    //         }
-    //     }.start();
-    // }
 
     @Override
     public void onStart() {
@@ -364,6 +313,7 @@ public class WootzVpnPreferences extends WootzPreferenceFragment implements Woot
                 .invalidateCredentials(
                         WootzVpnPrefUtils.getHostname(),
                         WootzVpnPrefUtils.getClientId(),
+                        "subscriber",
                         WootzVpnPrefUtils.getApiAuthToken());
         WootzVpnUtils.showProgressDialog(
                 getActivity(), getResources().getString(R.string.resetting_config));

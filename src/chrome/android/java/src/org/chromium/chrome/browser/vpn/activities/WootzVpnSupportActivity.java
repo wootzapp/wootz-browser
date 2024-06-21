@@ -49,7 +49,6 @@ public class WootzVpnSupportActivity extends AsyncInitializationActivity {
         actionBar.setTitle(getResources().getString(R.string.contact_technical_support));
 
         SwitchCompat vpnHostnameSwitch = findViewById(R.id.vpn_hostname_switch);
-        SwitchCompat appReceiptSwitch = findViewById(R.id.app_receipt_switch);
         SwitchCompat appVersionSwitch = findViewById(R.id.app_version_switch);
         SwitchCompat timezoneSwitch = findViewById(R.id.timezone_switch);
         SwitchCompat networkTypeSwitch = findViewById(R.id.network_type_switch);

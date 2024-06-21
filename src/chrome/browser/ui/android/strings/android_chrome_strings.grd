@@ -280,17 +280,24 @@ CHAR_LIMIT guidelines:
       <message name="IDS_NOTIFICATION_CATEGORY_USB" desc="Label for USB-related notifications, within a list of notification categories. [CHAR_LIMIT=32]">
         USB
       </message>
-
       <message name="IDS_WOOTZ_VPN" desc="Title for Wootz vpn settings">
         Wootz VPN
       </message>
-
-      <message name="IDS_HOST" desc="Brave VPN settings section text">
+      <message name="IDS_VPN_IS_ENABLED" desc="Wootz VPN profile text">
+       VPN is now enabled
+      </message>
+      <message name="IDS_SETTINGS_EXIT" desc="Text for Settings exit.">
+	     Settings exit
+      </message>
+      <message name="IDS_HOST" desc="Wootz VPN settings section text">
         Host
       </message>
       <!-- Sign-in, sync and personalization preferences -->
       <message name="IDS_PREFS_SECTION_ACCOUNT_AND_GOOGLE_SERVICES" desc="Title for the group of account-related entries and google services in Settings. [CHAR_LIMIT=32]">
         You and Google
+      </message>
+      <message name="IDS_KILL_SWITCH" desc="Vpn kill swicth tutorial text">
+      kill switch
       </message>
       <message name="IDS_SIGN_IN_TO_CHROME" desc="Title for the button to sign in to Chrome using one's Google account. [CHAR_LIMIT=27]">
         Sign in to Chrome
@@ -4957,6 +4964,27 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
       <message name="IDS_WOOTZ_VPN_PROFILE_TITLE" desc="Wootz VPN plan text">
        Wootz will now install a VPN profile.
       </message>
+      <message name="IDS_SUPPORT_EMAIL_TEXT" desc="Vpn support email text">
+      \n\n\n\n#### Wootz doesn’t track you or know how you use our app, so we don’t know how you’ve set up VPN. Please share info about the issue you’re experiencing and we’ll do our best to resolve it as soon as we can. ####\n\n
+      </message>
+   <message name="IDS_APP_VERSION_TEXT" desc="Vpn support email text">
+      \n\nApp Version\n <ph name="VALUE">%1$s</ph>
+    </message>
+      <message name="IDS_INSTALL_VPN" desc="Wootz VPN plan text">
+      Install VPN
+    </message>
+     <message name="IDS_CELLULAR_CARRIER_TEXT" desc="Vpn support email text">
+      \n\nCellular Carrier\n
+    </message>
+    <message name="IDS_OTHER_ISSUE_TEXT" desc="Vpn support email text">
+      \n\nOther Issue\n
+    </message>
+     <message name="IDS_NETWORK_TYPE_TEXT" desc="Vpn support email text">
+      \n\nNetwork Type\n
+    </message>
+    <message name="IDS_PLATFORM_TEXT" desc="Vpn support email text">
+      \n\nPlatform\n
+    </message>
       <message name="IDS_INSTALL_VPN_PROFILE" desc="Wootz VPN plan text">
       Install VPN Profile
      </message>
@@ -5036,6 +5064,18 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
        <message name="IDS_ALWAYS_ON_VPN" desc="Vpn setting title for always on">
          Always-on VPN
        </message>
+       <message name="IDS_RESETTING_CONFIG" desc="Vpn reset config text">
+      Resetting configuration ...
+    </message>
+      <message name="IDS_AUTOMATIC_SERVER_SELECTION_TEXT" desc="Vpn server selection text">
+        A server region most proximate to you willl be automatically selected, based on your system timezone. This is recommended in order to ensure fast internet speeds.
+      </message>
+      <message name="IDS_ALREADY_SELECTED_THE_SERVER" desc="Vpn server selection text">
+      You have already selected the same server.
+    </message>
+    <message name="IDS_FAIL_TO_GET_SERVER_LOCATIONS" desc="Wootz VPN error text">
+      Fail to get server location. Please try again later.
+    </message>
         <message name="IDS_WOOTZ_VPN_SUPPORT_SUBJECT_NO_INTERNET" desc="VPN support: subject: no internet when connected">
           No internet when connected
        </message>
@@ -5057,6 +5097,28 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the Chrome d
     <message name="IDS_SPLIT_TUNNELING" desc="Vpn splittunnel text">
       Split Tunneling
     </message>
+    <message name="IDS_TIMEZONE_TEXT" desc="Vpn support email text">
+      \n\nTimezone\n
+    </message>
+    <message name="IDS_DISABLE" desc="Wootz VPN timer action text">
+      Disable
+    </message>
+    <message name="IDS_VPN_CONNECTION_ERROR" desc="Vpn connection error message">
+      Connection error
+    </message>
+    <message name="IDS_ALWAYS_ON_DIALOG_TEXT" desc="Always on vpn text">
+      It appears you have other VPNs on this device set to “Always on”. To enable Wootz Firewall + VPN, first disable this “Always on” setting for other VPNs before connecting again. If the problem persists, try uninstalling other VPNs.
+    </message>
+    <message name="IDS_OPEN_VPN_SETTINGS" desc="Always on vpn text">
+      Open VPN Settings
+    </message>
+    <message name="IDS_WOOTZ_FIREWALL_VPN" desc="VPN title text">
+      Wootz Firewall + VPN
+    </message>
+    <message name="IDS_UPDATING_VPN_PROFILE" desc="Message to indicate profile is being update after split tunnel update.">
+      Updating VPN Profile ...
+    </message>
+
        <message name="IDS_HOW_TO_TURN_ON" desc="Vpn kill swicth tutorial text">
          How to turn on:
        </message>

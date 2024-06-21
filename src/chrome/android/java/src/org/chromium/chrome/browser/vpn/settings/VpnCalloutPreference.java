@@ -55,7 +55,6 @@ public class VpnCalloutPreference extends Preference {
             if (!InternetConnection.isNetworkAvailable(getContext())) {
                 Toast.makeText(getContext(), R.string.no_internet, Toast.LENGTH_SHORT).show();
             } else {
-                WootzVpnUtils.openWootzVpnPlansActivity((Activity) getContext());
                 WootzVpnPrefUtils.setCallout(false);
             }
         });

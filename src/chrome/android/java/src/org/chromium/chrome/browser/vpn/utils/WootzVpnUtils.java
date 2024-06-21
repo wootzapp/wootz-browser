@@ -15,7 +15,6 @@ import org.json.JSONObject;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
-import org.chromium.chrome.browser.WootzRewardsNativeWorker;
 import org.chromium.chrome.browser.vpn.WootzVpnNativeWorker;
 import org.chromium.chrome.browser.vpn.activities.VpnAlwaysOnActivity;
 import org.chromium.chrome.browser.vpn.activities.VpnServerSelectionActivity;
@@ -263,14 +262,8 @@ public class WootzVpnUtils {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
     }
 
-    private static boolean isRegionSupported() {
-        WootzRewardsNativeWorker wootzRewardsNativeWorker = WootzRewardsNativeWorker.getInstance();
-        return (wootzRewardsNativeWorker != null && wootzRewardsNativeWorker.isSupported());
-    }
-
     public static boolean isVpnFeatureSupported(Context context) {
-        return isRegionSupported()
-                && ChromiumPlayServicesAvailability.isGooglePlayServicesAvailable(context);
+        return ChromiumPlayServicesAvailability.isGooglePlayServicesAvailable(context);
     }
 
     public static String countryCodeToEmoji(String countryCode) {
