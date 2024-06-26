@@ -46,6 +46,18 @@ found in the LICENSE file.
     <!-- Custom menu-->
     <dimen name="menu_negative_software_vertical_offset">0dp</dimen>
 
+    <dimen name="vpn_plan_margin">32dp</dimen>
+    <dimen name="vpn_plan_section_margin">16dp</dimen>
+
+    <dimen name="onboarding_text_size">16sp</dimen>
+
+    <dimen name="onboarding_network_selection_item_width">103dp</dimen>
+    <dimen name="onboarding_network_selection_item_height">96dp</dimen>
+    
+    <dimen name="default_regular">16sp</dimen>
+    <dimen name="default_semibold">14sp</dimen>
+    <dimen name="large_regular">16sp</dimen>
+    
     <!-- Dropdown default measures -->
     <dimen name="dropdown_item_height">50dp</dimen>
     <dimen name="dropdown_item_divider_height">1px</dimen>

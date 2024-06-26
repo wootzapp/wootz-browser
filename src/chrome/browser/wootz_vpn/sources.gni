@@ -1,0 +1,29 @@
+import("//chrome/components/wootz_vpn/common/buildflags/buildflags.gni")
+
+wootz_browser_wootz_vpn_sources = []
+wootz_browser_wootz_vpn_deps = []
+
+if (enable_wootz_vpn) {
+  wootz_browser_wootz_vpn_sources += [
+    "//wootz/browser/wootz_vpn/wootz_vpn_service_factory.cc",
+    "//wootz/browser/wootz_vpn/wootz_vpn_service_factory.h",
+  ]
+
+  wootz_browser_wootz_vpn_deps += [
+    "//base",
+    "//chrome/browser/wootz_vpn",
+    "//chrome/components/wootz_vpn/browser",
+    "//chrome/browser/profiles:profile",
+    "//components/keyed_service/content",
+    "//components/user_prefs",
+    "//content/public/browser",
+  ]
+
+  if (is_android) {
+    wootz_browser_wootz_vpn_sources += [
+      "//wootz/browser/wootz_vpn/android/wootz_vpn_native_worker.cc",
+      "//wootz/browser/wootz_vpn/android/wootz_vpn_native_worker.h",
+    ]
+    wootz_browser_wootz_vpn_deps += [ "//wootz/build/android:jni_headers" ]
+  }
+}

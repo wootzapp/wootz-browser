@@ -27,8 +27,16 @@ export class BrowserBridge {
    * @returns {Promise} A promise that resolves when the action is complete.
    */
   sendSetNetworkThrottling(offline, latency, downloadThroughput, uploadThroughput, packetLoss) {
-    return sendWithPromise('setNetworkThrottling', offline, latency, downloadThroughput, uploadThroughput, packetLoss);
+    chrome.send('setNetworkThrottling', [offline, latency, downloadThroughput, uploadThroughput, packetLoss]);
   }
+
+ /**
+   * Sends a request to get the current network throttling settings.
+   * @returns {Promise} A promise that resolves with the current network throttling settings.
+   */
+  getNetworkThrottlingSettings() {
+  return sendWithPromise('getNetworkThrottlingSettings');
+}
 
   static getInstance() {
     return instance || (instance = new BrowserBridge());

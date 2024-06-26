@@ -19,10 +19,13 @@
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/webui_util.h"
+#include "chrome/browser/ui/webui/throttle/throttle_prefs.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/throttle_resources.h"
 #include "chrome/grit/throttle_resources_map.h"
 #include "components/prefs/pref_member.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -44,51 +47,60 @@
 
 using content::BrowserThread;
 
-
-
 namespace {
     void CreateAndAddThrottleHTMLSource(Profile* profile) {
         content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
-      profile, chrome::kChromeUIThrottleHost);
-            webui::SetupWebUIDataSource(
+            profile, chrome::kChromeUIThrottleHost);
+        webui::SetupWebUIDataSource(
             source,
             base::make_span(kThrottleResources, kThrottleResourcesSize),
             IDR_THROTTLE_INDEX_HTML);
-            webui::EnableTrustedTypesCSP(source);
-   }
+        webui::EnableTrustedTypesCSP(source);
+    }
 
     class ThrottleMessageHandler : public content::WebUIMessageHandler {
-        public:
-            explicit ThrottleMessageHandler(content::WebUI* web_ui);
+    public:
+        explicit ThrottleMessageHandler(content::WebUI* web_ui);
+        
+        ThrottleMessageHandler(const ThrottleMessageHandler&) = delete;
+        ThrottleMessageHandler& operator=(const ThrottleMessageHandler&) = delete;
 
-            ThrottleMessageHandler(const ThrottleMessageHandler&) = delete;
-            ThrottleMessageHandler& operator=(const ThrottleMessageHandler&) = delete;
+        ~ThrottleMessageHandler() override = default;
 
-            ~ThrottleMessageHandler() override = default;
+    protected:
+        // WebUIMessageHandler implementation:
+        void RegisterMessages() override;
+        void OnJavascriptDisallowed() override;
 
-            protected:
-            // WebUIMessageHandler implementation:
-            void RegisterMessages() override;
-            void OnJavascriptDisallowed() override;
+    private:
+        network::mojom::NetworkContext* GetNetworkContext();
+        const base::UnguessableToken devtools_token;
 
-            private:
-            network::mojom::NetworkContext* GetNetworkContext();
-            const base::UnguessableToken devtools_token;
+        void OnSetNetworkThrottling(const base::Value::List& list);
+        void HandleGetNetworkThrottlingSettings(const base::Value::List& args);
 
-            void OnSetNetworkThrottling(const base::Value::List& list);
+        raw_ptr<content::WebUI> web_ui_;
+        base::WeakPtrFactory<ThrottleMessageHandler> weak_factory_{this};
 
-            raw_ptr<content::WebUI> web_ui_;
-            base::WeakPtrFactory<ThrottleMessageHandler> weak_factory_{this};
+        void LoadNetworkThrottlingSettings();
     };
 
+    // This class receives javascript messages from the renderer.
+    // Note that the WebUI infrastructure runs on the UI thread, therefore all of
+    // this class's methods are expected to run on the UI thread.
     ThrottleMessageHandler::ThrottleMessageHandler(content::WebUI* web_ui)
         : web_ui_(web_ui) {}
 
     void ThrottleMessageHandler::RegisterMessages() {
+        DCHECK_CURRENTLY_ON(BrowserThread::UI);
         web_ui_->RegisterMessageCallback(
             "setNetworkThrottling",
             base::BindRepeating(&ThrottleMessageHandler::OnSetNetworkThrottling,
                                 base::Unretained(this)));
+         web_ui_->RegisterMessageCallback(
+            "getNetworkThrottlingSettings",
+            base::BindRepeating(&ThrottleMessageHandler::HandleGetNetworkThrottlingSettings,
+                            base::Unretained(this)));                        
     }
 
     void ThrottleMessageHandler::OnJavascriptDisallowed() {
@@ -105,6 +117,83 @@ namespace {
         double upload_throughput = args[3].GetDouble();
         double packet_loss = args[4].GetDouble();
         int packet_queue_length = args[5].GetInt();
+	
+	    LOG(ERROR) << "offline: " << offline << " latency: " << latency;
+
+        Profile* profile = Profile::FromWebUI(web_ui_);
+        PrefService* prefs = profile->GetPrefs();
+
+        if(prefs){
+        prefs->SetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline, offline);
+        prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingLatency, latency);
+        prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput, download_throughput);
+        prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput, upload_throughput);
+        prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss, packet_loss);
+        prefs->SetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength, packet_queue_length);
+
+        }
+
+       
+        network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
+        conditions->offline = offline;
+        conditions->latency = base::Milliseconds(latency);
+        conditions->download_throughput = download_throughput;
+        conditions->upload_throughput = upload_throughput;
+        conditions->packet_loss = packet_loss;
+        conditions->packet_queue_length = packet_queue_length;
+        // conditions->packet_reordering = false; // I think its not neccessary
+
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
+
+	    LOG(ERROR) << "After SetNetworkConditions";
+
+        // Notify frontend about the updated settings
+        base::Value::List settings;
+        settings.Append(offline);
+        settings.Append(latency);
+        settings.Append(download_throughput);
+        settings.Append(upload_throughput);
+        settings.Append(packet_loss);
+        settings.Append(packet_queue_length);
+
+
+        AllowJavascript();
+        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings); // TODO: Handle this listener in UI.
+    }
+    
+    void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
+    AllowJavascript();
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    PrefService* prefs = profile->GetPrefs();
+
+    bool offline = prefs->GetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline);
+    double latency = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingLatency);
+    double download_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput);
+    double upload_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput);
+    double packet_loss = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss);
+    int packet_queue_length = prefs->GetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength);
+
+    base::Value::List settings;
+    settings.Append(offline);
+    settings.Append(latency);
+    settings.Append(download_throughput);
+    settings.Append(upload_throughput);
+    settings.Append(packet_loss);
+    settings.Append(packet_queue_length);
+
+    web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+}
+
+    void ThrottleMessageHandler::LoadNetworkThrottlingSettings() {
+        Profile* profile = Profile::FromWebUI(web_ui_);
+        PrefService* prefs = profile->GetPrefs();
+
+        bool offline = prefs->GetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline);
+        double latency = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingLatency);
+        double download_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput);
+        double upload_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput);
+        double packet_loss = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss);
+        int packet_queue_length = prefs->GetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength);
 
         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
         conditions->offline = offline;
@@ -113,29 +202,23 @@ namespace {
         conditions->upload_throughput = upload_throughput;
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
+        // conditions->packet_reordering = false;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
     }
 
-    network::mojom::NetworkContext*
-    ThrottleMessageHandler::GetNetworkContext() {
+    network::mojom::NetworkContext* ThrottleMessageHandler::GetNetworkContext() {
+        return web_ui_->GetWebContents()
+            ->GetBrowserContext()
+            ->GetDefaultStoragePartition()
+            ->GetNetworkContext();
+    }
+}  // namespace
 
-    return web_ui_->GetWebContents()
-      ->GetBrowserContext()
-      ->GetDefaultStoragePartition()
-      ->GetNetworkContext();
-}
-
-} // namespace
-
-
-// ThrottleUI
-
-    ThrottleUI::ThrottleUI(content::WebUI* web_ui)
+ThrottleUI::ThrottleUI(content::WebUI* web_ui)
     : WebUIController(web_ui) {
-    web_ui->AddMessageHandler(
-      std::make_unique<ThrottleMessageHandler>(web_ui));
+    web_ui->AddMessageHandler(std::make_unique<ThrottleMessageHandler>(web_ui));
 
-        // Set up the chrome://net-internals/ source.
-        CreateAndAddThrottleHTMLSource(Profile::FromWebUI(web_ui));
-    }
+    // Set up the wootzapp://throttle source.
+    CreateAndAddThrottleHTMLSource(Profile::FromWebUI(web_ui));
+}

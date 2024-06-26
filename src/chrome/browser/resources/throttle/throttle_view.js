@@ -22,31 +22,51 @@ export class ThrottleView extends DivView {
     this.uploadThroughputInput_ = $(ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID);
     this.packetLossInput_ = $(ThrottleView.PACKET_LOSS_INPUT_ID);
     this.packetQueueLengthInput_ = $(ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID);
-    this.packetReorderingSelect_ = $(ThrottleView.PACKET_REORDERING_SELECT_ID);
 
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
+
+    // Fetch and display the saved network throttling settings on load
+    this.loadAndDisplaySavedSettings_();
   }
 
-  onSubmit_(event) {
+  async onSubmit_(event) {
     event.preventDefault();
-    const offline = this.offlineSelect_.value === 'true';
+    const offline = this.offlineSelect_.value;
     const latency = parseFloat(this.latencyInput_.value.trim());
     const downloadThroughput = parseFloat(this.downloadThroughputInput_.value.trim());
     const uploadThroughput = parseFloat(this.uploadThroughputInput_.value.trim());
     const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || undefined;
     const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || undefined;
-    const packetReordering = this.packetReorderingSelect_.value === 'true';
 
-    this.browserBridge_.sendSetNetworkThrottling({
+    await this.browserBridge_.sendSetNetworkThrottling({
       offline,
       latency,
       downloadThroughput,
       uploadThroughput,
       packetLoss,
       packetQueueLength,
-      packetReordering
     });
+
+
+    this.loadAndDisplaySavedSettings_();
+  }
+
+  async loadAndDisplaySavedSettings_() {
+    const settings = await this.browserBridge_.getNetworkThrottlingSettings();
+    this.displaySavedSettings_(settings);
+  }
+
+  displaySavedSettings_(settings) {
+    const [offline, latency, downloadThroughput, uploadThroughput, packetLoss, packetQueueLength] = settings;
+    this.savedSettingsDiv_.textContent = `
+      Offline: ${offline}
+      Latency: ${latency} ms
+      Download Throughput: ${downloadThroughput} Bps
+      Upload Throughput: ${uploadThroughput} Bps
+      Packet Loss: ${packetLoss}%
+      Packet Queue Length: ${packetQueueLength}
+    `;
 
   }
 
@@ -64,5 +84,5 @@ ThrottleView.DOWNLOAD_THROUGHPUT_INPUT_ID = 'throttle-download-throughput-input'
 ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID = 'throttle-upload-throughput-input';
 ThrottleView.PACKET_LOSS_INPUT_ID = 'throttle-packet-loss-input';
 ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID = 'throttle-packet-queue-length-input';
-ThrottleView.PACKET_REORDERING_SELECT_ID = 'throttle-packet-reordering-select';
+ThrottleView.SAVED_SETTINGS_ID = 'throttle-saved-settings';
 ThrottleView.SUBMIT_ID = 'throttle-submit';

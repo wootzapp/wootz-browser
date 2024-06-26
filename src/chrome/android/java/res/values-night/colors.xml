@@ -12,6 +12,13 @@ found in the LICENSE file.
     <color name="signin_header_animation_line_dark">@color/modern_grey_700</color>
     <color name="signin_header_animation_laptop_screen">@color/modern_grey_900</color>
 
+    <color name="onboarding_text_color">#F0F2FF</color>
+    <color name="onboarding_bg_color">#1E2029</color>
+    <color name="onboarding_timer_color">#478AFF</color>
+
+    <color name="shield_toggle_button_tint">#F0F2FF</color>
+    <color name="wootz_plan_bg">#27155E</color>
+
     <!-- History Navigation UI colors -->
     <color name="navigation_bubble_arrow">@android:color/white</color>
 
@@ -20,4 +27,7 @@ found in the LICENSE file.
 
     <!-- Model selector button background TSR colors -->
     <color name="model_selector_button_bg_color">@android:color/white</color>
+     <color name="vpn_timer_bg_color">#0D0F14</color>
+    <color name="vpn_timer_text_color">#F6F7F8</color>
+    <color name="vpn_timer_icon_color">#A1ABBA</color>
 </resources>

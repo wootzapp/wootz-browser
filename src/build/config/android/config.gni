@@ -6,6 +6,7 @@
 
 # Some arguments that are needed across all builds that import this file, for
 # example by is_robolectric.
+
 declare_args() {
   # Build incremental targets whenever possible.
   # See //build/android/incremental_install/README.md for more details.
