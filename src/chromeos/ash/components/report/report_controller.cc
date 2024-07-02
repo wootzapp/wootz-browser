@@ -158,7 +158,7 @@ ReportController::ReportController(
   g_ash_report_controller = this;
 
   // Halt if device is a testimage/unknown channel.
-  if (chrome_device_params.chrome_channel == version_info::Channel::UNKNOWN) {
+  if (chrome_device_params.WOOTZAPP_CHANNEL == version_info::Channel::UNKNOWN) {
     LOG(ERROR) << "Halt - Client should enter device active reporting logic. "
                << "Unknown and test image channels should not be counted as "
                << "legitimate device counts.";

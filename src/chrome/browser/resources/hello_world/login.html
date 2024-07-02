@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Brave Rewards</title>
+  <style>
+   /* login page styles */
+
+.login-page {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.login-page h2 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.login-form input[type="email"],
+.login-form input[type="password"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.login-form input[type="email"]:focus,
+.login-form input[type="password"]:focus {
+  border-color: #aaa;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.login-form button[type="submit"] {
+  background-color: #337ab7;
+  color: #fff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.login-form button[type="submit"]:hover {
+  background-color: #286090;
+}
+
+.login-form .forgot-password {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.login-form .forgot-password a {
+  color: #337ab7;
+  text-decoration: none;
+}
+
+.login-form .forgot-password a:hover {
+  color: #286090;
+}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- existing content -->
+    <div class="section">
+      <div class="section-content">
+        <p>Ready to start earning? Connect or create an account with one of our partners.</p>
+        <button class="button-connect" id="connect-account-btn">Connect account</button>
+      </div>
+    </div>
+    <!-- login page -->
+    <div class="login-page" id="login-page">
+      <h2>Sign in</h2>
+      <form id="login-form">
+        <label>Email:</label>
+        <input type="email" id="email" />
+        <br />
+        <label>Password:</label>
+        <input type="password" id="password" />
+        <br />
+        <button type="submit" id="login-btn">Sign in</button>
+      </form>
+    </div>
+
+    <script>
+
+const connectAccountBtn = document.getElementById('connect-account-btn');
+const loginPage = document.getElementById('login-page');
+const loginForm = document.getElementById('login-form');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const loginBtn = document.getElementById('login-btn');
+
+connectAccountBtn.addEventListener('click', () => {
+  loginPage.style.display = 'block';
+});
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    // Call API to sign in
+    await signInWithEmailAndPassword(auth, email, password);
+    // Save in local storage
+    localStorage.setItem('dataSharingEnabled', '1');
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+    </script>
+  </div>
+</body>
+</html>

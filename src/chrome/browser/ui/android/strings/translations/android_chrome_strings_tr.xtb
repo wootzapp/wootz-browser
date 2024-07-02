@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> yükleniyor</translation>
 <translation id="1240903469550363138"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />, devam etmek için adınızı, e-posta adresinizi ve profil resminizi bu siteyle paylaşacaktır. Bu sitenin <ph name="BEGIN_LINK1" />gizlilik politikasını<ph name="END_LINK1" /> ve <ph name="BEGIN_LINK2" />hizmet şartlarını<ph name="END_LINK2" /> inceleyin.</translation>
 <translation id="124116460088058876">Diğer diller</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> şifreleriniz Google Şifre Yöneticisi'nden silinecek. Az önce indirdiğiniz şifre dosyasını saklayabilirsiniz.</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> şifreleriniz Google Şifre Yöneticisi'nden silinecek. Az önce indirdiğiniz şifre dosyasını saklayabilirsiniz.</translation>
 <translation id="1242883863226959074">cihaz</translation>
 <translation id="124678866338384709">Geçerli sekmeyi kapatır</translation>
 <translation id="1246905108078336582">Öneri panodan kaldırılsın mı?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Gizli sekmeleri kapat</translation>
 <translation id="1568636008098739136">Bu sayfayı dinleyin. Bu kısayolu düzenlemek için dokunup basılı tutun.</translation>
 <translation id="1571304935088121812">Kullanıcı adını kopyala</translation>
-<translation id="1584648915421894279">Bu cihaza kaydedilen şifreler şu anda Chrome kanallarında kullanılamaz. Chrome 125 sürümünden sonra, Chrome ve <ph name="CHROME_CHANNEL" /> için cihazınıza kaydedilen şifreler birleştirilip her iki uygulamada da kullanılabilir.</translation>
+<translation id="1584648915421894279">Bu cihaza kaydedilen şifreler şu anda Chrome kanallarında kullanılamaz. Chrome 125 sürümünden sonra, Chrome ve <ph name="WOOTZAPP_CHANNEL" /> için cihazınıza kaydedilen şifreler birleştirilip her iki uygulamada da kullanılabilir.</translation>
 <translation id="1592864538817356322">Standart koruma:</translation>
 <translation id="1594635596540195766">Önerilen <ph name="SUGGESTIONS_COUNT" /> öğe aşağıdaki listede</translation>
 <translation id="1598163867407640634"><ph name="SITE_ETLD_PLUS_ONE" /> sitesini <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ile kullanın</translation>
@@ -686,7 +686,7 @@ Diğer Google hizmetlerinden yapılan aramalar ve etkinlikler gibi Google hesab�
 <translation id="4594952190837476234">Bu çevrimdışı sayfa <ph name="CREATION_TIME" /> tarihli olup web'deki sürümden farklı olabilir.</translation>
 <translation id="4595805675102978678">Google Hesabı hatası</translation>
 <translation id="4601095002996233687">Şüpheli indirme işlemleri için ayrıntılı taramalar.</translation>
-<translation id="4609429330876432068">Chrome ve <ph name="CHROME_CHANNEL" /> için kayıtlı şifre listeleriniz birleştirildi. Kayıtlı tüm şifrelerinizi her iki uygulamada da otomatik olarak doldurmaya devam edebilirsiniz.</translation>
+<translation id="4609429330876432068">Chrome ve <ph name="WOOTZAPP_CHANNEL" /> için kayıtlı şifre listeleriniz birleştirildi. Kayıtlı tüm şifrelerinizi her iki uygulamada da otomatik olarak doldurmaya devam edebilirsiniz.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> APK'sını aç</translation>
 <translation id="4619564267100705184">Kimliğinizi doğrulayın</translation>
 <translation id="4634124774493850572">Şifre kullan</translation>
@@ -1651,7 +1651,7 @@ Bu ayarı değiştirmek için <ph name="BEGIN_LINK" />hesabınızdaki Chrome ver
 <translation id="927968626442779827">Google Chrome'da Basit modu kullanın</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> takip ediliyor</translation>
 <translation id="930124987204876019">Geçmiş, çerezler, site verileri, önbelleği silin</translation>
-<translation id="93533588269984624">Tüm şifreler cihazınıza indirilir ve Chrome <ph name="CHROME_CHANNEL" /> hizmetinden kaldırılır</translation>
+<translation id="93533588269984624">Tüm şifreler cihazınıza indirilir ve Chrome <ph name="WOOTZAPP_CHANNEL" /> hizmetinden kaldırılır</translation>
 <translation id="938850635132480979">Hata: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Parolayı girin</translation>
 <translation id="952301137339791907">Sayfa analizleri alt sayfası açıldı</translation>

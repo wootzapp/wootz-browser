@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">正在載入<ph name="LANG" /></translation>
 <translation id="1240903469550363138">如要繼續，<ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> 將會與此網站分享您的姓名、電郵地址和個人檔案相片。查看此網站的《<ph name="BEGIN_LINK1" />私隱權政策<ph name="END_LINK1" />》和《<ph name="BEGIN_LINK2" />服務條款<ph name="END_LINK2" />》。</translation>
 <translation id="124116460088058876">更多語言</translation>
-<translation id="1241792820757384812">密碼將從 <ph name="CHROME_CHANNEL" />的「Google 密碼管理工具」中刪除。你可保留剛剛下載的密碼檔案。</translation>
+<translation id="1241792820757384812">密碼將從 <ph name="WOOTZAPP_CHANNEL" />的「Google 密碼管理工具」中刪除。你可保留剛剛下載的密碼檔案。</translation>
 <translation id="1242883863226959074">裝置</translation>
 <translation id="124678866338384709">關閉目前分頁</translation>
 <translation id="1246905108078336582">要從剪貼簿中移除建議嗎？</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">關閉無痕式分頁</translation>
 <translation id="1568636008098739136">朗讀此頁面內容。按住這裡即可編輯此捷徑。</translation>
 <translation id="1571304935088121812">複製使用者名稱</translation>
-<translation id="1584648915421894279">目前無法將儲存在此裝置上的密碼用於其他 Chrome 版本。在 Chrome 125 以後的版本中，系統會將裝置上儲存的 Chrome 和 <ph name="CHROME_CHANNEL" />密碼合併，可同時在這兩個應用程式上使用。</translation>
+<translation id="1584648915421894279">目前無法將儲存在此裝置上的密碼用於其他 Chrome 版本。在 Chrome 125 以後的版本中，系統會將裝置上儲存的 Chrome 和 <ph name="WOOTZAPP_CHANNEL" />密碼合併，可同時在這兩個應用程式上使用。</translation>
 <translation id="1592864538817356322">標準保護功能：</translation>
 <translation id="1594635596540195766">下面嘅清單入面有 <ph name="SUGGESTIONS_COUNT" /> 個建議項目。</translation>
 <translation id="1598163867407640634">透過 <ph name="SITE_ETLD_PLUS_ONE" /> 支付 <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> 費用</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">此離線網頁在 <ph name="CREATION_TIME" />建立，且可能與網上版本不同。</translation>
 <translation id="4595805675102978678">Google 帳戶錯誤</translation>
 <translation id="4601095002996233687">提供深入掃瞄功能，檢查是否有可疑的下載內容。</translation>
-<translation id="4609429330876432068">Chrome 和 <ph name="CHROME_CHANNEL" />的已儲存密碼清單已合併。你仍可在兩個應用程式中自動填入所有已儲存的密碼。</translation>
+<translation id="4609429330876432068">Chrome 和 <ph name="WOOTZAPP_CHANNEL" />的已儲存密碼清單已合併。你仍可在兩個應用程式中自動填入所有已儲存的密碼。</translation>
 <translation id="4616150815774728855">開啟 <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">驗證身分</translation>
 <translation id="4634124774493850572">使用密碼</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">使用 Google Chrome 的「精簡模式」</translation>
 <translation id="928550791203542716">正在追蹤「<ph name="SITE_NAME" />」</translation>
 <translation id="930124987204876019">刪除記錄、Cookie、網站資料、快取…</translation>
-<translation id="93533588269984624">所有密碼都會下載至你的裝置，並從 <ph name="CHROME_CHANNEL" />中移除</translation>
+<translation id="93533588269984624">所有密碼都會下載至你的裝置，並從 <ph name="WOOTZAPP_CHANNEL" />中移除</translation>
 <translation id="938850635132480979">錯誤：<ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">請輸入複雜密碼</translation>
 <translation id="952301137339791907">開咗頁面分析資料頁底面板</translation>

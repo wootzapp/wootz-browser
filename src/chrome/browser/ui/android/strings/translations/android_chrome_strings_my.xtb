@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> ကို ဖွင့်နေသည်</translation>
 <translation id="1240903469550363138">ရှေ့ဆက်ရန် <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> က သင့်အမည်၊ အီးမေးလ်လိပ်စာနှင့် ပရိုဖိုင်ပုံကို ဤဝဘ်ဆိုက်အား မျှဝေမည်။ ဤဝဘ်ဆိုက်၏ <ph name="BEGIN_LINK1" />ကိုယ်ရေးအချက်အလက်လုံခြုံမှုဆိုင်ရာ မူဝါဒ<ph name="END_LINK1" /> နှင့် <ph name="BEGIN_LINK2" />ဝန်ဆောင်မှုစည်းမျဉ်းများ<ph name="END_LINK2" /> ကို ကြည့်ပါ။</translation>
 <translation id="124116460088058876">နောက်ထပ် ဘာသာစကားများ</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> အတွက် Google Password Manager မှ သင့်စကားဝှက်များကို ဖျက်ပါမည်။ ယခုလေးတင် ဒေါင်းလုဒ်လုပ်လိုက်သော စကားဝှက်ဖိုင်ကို ဆက်သိမ်းထားပါမည်။</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> အတွက် Google Password Manager မှ သင့်စကားဝှက်များကို ဖျက်ပါမည်။ ယခုလေးတင် ဒေါင်းလုဒ်လုပ်လိုက်သော စကားဝှက်ဖိုင်ကို ဆက်သိမ်းထားပါမည်။</translation>
 <translation id="1242883863226959074">စက်</translation>
 <translation id="124678866338384709">လက်ရှိတဘ်ကို ပိတ်ရန်</translation>
 <translation id="1246905108078336582">ကလစ်ဘုတ်မှ အကြံပြုချက်ကို ဖယ်ရှားလိုပါသလား။</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ရုပ်ဖျက်တဘ်များ ပိတ်ရန်</translation>
 <translation id="1568636008098739136">ဤစာမျက်နှာကို နားထောင်ရန်။ ဤဖြတ်လမ်းလင့်ခ်ကို ပြင်ရန် ထိ၍ဖိထားပါ။</translation>
 <translation id="1571304935088121812">အသုံးပြုသူအမည်ကို ကူးယူပါ</translation>
-<translation id="1584648915421894279">ဤစက်တွင် သိမ်းထားသော စကားဝှက်များကို Chrome ချန်နယ်များတွင် ယခု မသုံးနိုင်ပါ။ Chrome 125 နောက်ပိုင်းတွင် Chrome နှင့် <ph name="CHROME_CHANNEL" /> အတွက် သင့်စက်တွင် သိမ်းထားသော စကားဝှက်များကို ပေါင်းစည်းမည်ဖြစ်ပြီး အက်ပ်နှစ်ခုစလုံးတွင် သုံးနိုင်မည်။</translation>
+<translation id="1584648915421894279">ဤစက်တွင် သိမ်းထားသော စကားဝှက်များကို Chrome ချန်နယ်များတွင် ယခု မသုံးနိုင်ပါ။ Chrome 125 နောက်ပိုင်းတွင် Chrome နှင့် <ph name="WOOTZAPP_CHANNEL" /> အတွက် သင့်စက်တွင် သိမ်းထားသော စကားဝှက်များကို ပေါင်းစည်းမည်ဖြစ်ပြီး အက်ပ်နှစ်ခုစလုံးတွင် သုံးနိုင်မည်။</translation>
 <translation id="1592864538817356322">ပုံမှန်ကာကွယ်မှု -</translation>
 <translation id="1594635596540195766">အောက်ပါစာရင်းတွင် အကြံပြုအရာ<ph name="SUGGESTIONS_COUNT" /> ခု ရှိသည်။</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ဖြင့် <ph name="SITE_ETLD_PLUS_ONE" /> ကို အသုံးပြုပါ</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ဤအော့ဖ်လိုင်း စာမျက်နှာသည် <ph name="CREATION_TIME" /> က ဖြစ်ပြီး အွန်လိုင်းဗားရှင်းနှင့် ကွဲပြားနိုင်ပါသည်။</translation>
 <translation id="4595805675102978678">Google Account အမှားအယွင်း</translation>
 <translation id="4601095002996233687">သံသယဖြစ်ဖွယ် ဒေါင်းလုဒ်များအတွက် အသေးစိတ် စကင်ဖတ်ခြင်း။</translation>
-<translation id="4609429330876432068">Chrome နှင့် <ph name="CHROME_CHANNEL" /> တို့အတွက် သိမ်းထားသော စကားဝှက်စာရင်းကို ပေါင်းစည်းလိုက်သည်။ သင်၏ သိမ်းထားသော စကားဝှက်အားလုံးကို အက်ပ်နှစ်ခုစလုံးတွင် အော်တိုဖြည့်နိုင်ပါသေးသည်။</translation>
+<translation id="4609429330876432068">Chrome နှင့် <ph name="WOOTZAPP_CHANNEL" /> တို့အတွက် သိမ်းထားသော စကားဝှက်စာရင်းကို ပေါင်းစည်းလိုက်သည်။ သင်၏ သိမ်းထားသော စကားဝှက်အားလုံးကို အက်ပ်နှစ်ခုစလုံးတွင် အော်တိုဖြည့်နိုင်ပါသေးသည်။</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> ကို ဖွင့်ပါ</translation>
 <translation id="4619564267100705184">သင်ဖြစ်ကြောင်း အတည်ပြုရန်</translation>
 <translation id="4634124774493850572">စကားဝှက်ကို အသုံးပြုရန်</translation>
@@ -1650,7 +1650,7 @@
 <translation id="927968626442779827">Google Chrome တွင် အပေါ့စားမုဒ် သုံးရန်</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> ကို လိုက်ကြည့်နေသည်</translation>
 <translation id="930124987204876019">မှတ်တမ်း၊ ကွတ်ကီးများ၊ ဝဘ်ဆိုက် ဒေတာ၊ ကက်ရှ်များ ဖျက်သည်…</translation>
-<translation id="93533588269984624">စကားဝှက်အားလုံးကို သင်၏စက်တွင် ဒေါင်းလုဒ်လုပ်ပြီး <ph name="CHROME_CHANNEL" /> မှ ဖယ်ရှားလိုက်မည်</translation>
+<translation id="93533588269984624">စကားဝှက်အားလုံးကို သင်၏စက်တွင် ဒေါင်းလုဒ်လုပ်ပြီး <ph name="WOOTZAPP_CHANNEL" /> မှ ဖယ်ရှားလိုက်မည်</translation>
 <translation id="938850635132480979">အမှား- <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">စကားစုဝှက်ကို ရိုက်ထည့်ရန်</translation>
 <translation id="952301137339791907">စာမျက်နှာ သိကောင်းစရာများအတွက် အောက်ခြေအပိုဆောင်း စာမျက်နှာ ဖွင့်ထားသည်</translation>

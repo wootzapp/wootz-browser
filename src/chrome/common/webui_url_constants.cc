@@ -155,6 +155,14 @@ const char kChromeUINewTabPageURL[] = "chrome://new-tab-page/";
 const char kChromeUINewTabPageThirdPartyHost[] = "new-tab-page-third-party";
 const char kChromeUINewTabPageThirdPartyURL[] =
     "chrome://new-tab-page-third-party/";
+
+
+
+const char kChromeUIHelloWorldURL[] = "wootzapp://rewards/";
+const char kChromeUIHelloWorldHost[] = "rewards";
+
+
+
 const char kChromeUINewTabURL[] = "chrome://newtab/";
 const char kChromeUIProfileInternalsHost[] = "profile-internals";
 const char kChromeUIOmniboxHost[] = "omnibox";

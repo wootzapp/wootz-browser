@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> ଲୋଡ୍ ହେଉଛି</translation>
 <translation id="1240903469550363138">ଜାରି ରଖିବାକୁ, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ଏହି ସାଇଟ ସହ ଆପଣଙ୍କ ନାମ, ଇମେଲ ଠିକଣା ଏବଂ ପ୍ରୋଫାଇଲ ଛବିକୁ ସେୟାର କରିବ। ଏହି ସାଇଟର <ph name="BEGIN_LINK1" />ଗୋପନୀୟତା ନୀତି<ph name="END_LINK1" /> ଏବଂ <ph name="BEGIN_LINK2" />ସେବାର ସର୍ତ୍ତାବଳୀ<ph name="END_LINK2" /> ଦେଖନ୍ତୁ।</translation>
 <translation id="124116460088058876">ଅନେକ ଭାଷା</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> ପାଇଁ Google Password Managerରୁ ଆପଣଙ୍କ ପାସୱାର୍ଡଗୁଡ଼ିକ ଡିଲିଟ ହୋଇଯିବ। ଆପଣ ଏବେ ଡାଉନଲୋଡ କରିଥିବା ପାସୱାର୍ଡ ଫାଇଲ ରଖିବେ।</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> ପାଇଁ Google Password Managerରୁ ଆପଣଙ୍କ ପାସୱାର୍ଡଗୁଡ଼ିକ ଡିଲିଟ ହୋଇଯିବ। ଆପଣ ଏବେ ଡାଉନଲୋଡ କରିଥିବା ପାସୱାର୍ଡ ଫାଇଲ ରଖିବେ।</translation>
 <translation id="1242883863226959074">ଡିଭାଇସ୍</translation>
 <translation id="124678866338384709">ସାମ୍ପ୍ରତିକ ଟାବ୍ ବନ୍ଦ କରନ୍ତୁ</translation>
 <translation id="1246905108078336582">କ୍ଲିପ୍‍‍ବୋର୍ଡରୁ ପ୍ରସ୍ତାବ କାଢ଼ି ଦେବେ?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ଇନକଗ୍ନିଟୋ ଟାବଗୁଡ଼ିକ ବନ୍ଦ କର</translation>
 <translation id="1568636008098739136">ଏହି ପୃଷ୍ଠାର ବିଷୟବସ୍ତୁକୁ ଶୁଣନ୍ତୁ। ଏହି ସର୍ଟକଟକୁ ଏଡିଟ କରିବା ପାଇଁ ସ୍ପର୍ଶ କରି ଧରି ରଖନ୍ତୁ।</translation>
 <translation id="1571304935088121812">ଉପଯୋଗକର୍ତ୍ତାନାମ କପି କରନ୍ତୁ</translation>
-<translation id="1584648915421894279">ବର୍ତ୍ତମାନ, ଏହି ଡିଭାଇସରେ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକୁ ସମଗ୍ର Chrome ଚେନେଲରେ ବ୍ୟବହାର କରାଯାଇପାରିବ ନାହିଁ। Chrome 125 ପରେ, Chrome ଏବଂ <ph name="CHROME_CHANNEL" /> ପାଇଁ ଆପଣଙ୍କ ଡିଭାଇସରେ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକୁ ମର୍ଜ କରାଯିବ ଏବଂ ଉଭୟ ଆପ୍ସରେ ବ୍ୟବହାର କରାଯାଇପାରିବ।</translation>
+<translation id="1584648915421894279">ବର୍ତ୍ତମାନ, ଏହି ଡିଭାଇସରେ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକୁ ସମଗ୍ର Chrome ଚେନେଲରେ ବ୍ୟବହାର କରାଯାଇପାରିବ ନାହିଁ। Chrome 125 ପରେ, Chrome ଏବଂ <ph name="WOOTZAPP_CHANNEL" /> ପାଇଁ ଆପଣଙ୍କ ଡିଭାଇସରେ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକୁ ମର୍ଜ କରାଯିବ ଏବଂ ଉଭୟ ଆପ୍ସରେ ବ୍ୟବହାର କରାଯାଇପାରିବ।</translation>
 <translation id="1592864538817356322">ଷ୍ଟାଣ୍ଡାର୍ଡ ସୁରକ୍ଷା:</translation>
 <translation id="1594635596540195766">ନିମ୍ନୋକ୍ତ ତାଲିକାରେ <ph name="SUGGESTIONS_COUNT" />ଟି ପ୍ରସ୍ତାବିତ ଆଇଟମ।</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ମାଧ୍ୟମରେ <ph name="SITE_ETLD_PLUS_ONE" /> ବ୍ୟବହାର କରନ୍ତୁ</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ଏହି ପୃଷ୍ଠା <ph name="CREATION_TIME" />ର ଅଟେ ଏବଂ ଅନ୍‌ଲାଇନ୍ ସଂସ୍କରଣ ଠାରୁ ଅଲଗା ହୋଇପାରେ।</translation>
 <translation id="4595805675102978678">Google ଆକାଉଣ୍ଟ ତ୍ରୁଟି</translation>
 <translation id="4601095002996233687">ସନ୍ଦେହଜନକ ଡାଉନଲୋଡଗୁଡ଼ିକ ପାଇଁ ସବିଶେଷ ସ୍କାନ।</translation>
-<translation id="4609429330876432068">Chrome ଏବଂ <ph name="CHROME_CHANNEL" /> ପାଇଁ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକର ଆପଣଙ୍କ ତାଲିକାଗୁଡ଼ିକ ମର୍ଜ ହୋଇଛି। ଆପଣ ଏବେ ବି ଉଭୟ ଆପ୍ସରେ ଆପଣଙ୍କର ସମସ୍ତ ସେଭ ହୋଇଥିବା ପାସୱାର୍ଡକୁ ଅଟୋଫିଲ କରିପାରିବେ।</translation>
+<translation id="4609429330876432068">Chrome ଏବଂ <ph name="WOOTZAPP_CHANNEL" /> ପାଇଁ ସେଭ କରାଯାଇଥିବା ପାସୱାର୍ଡଗୁଡ଼ିକର ଆପଣଙ୍କ ତାଲିକାଗୁଡ଼ିକ ମର୍ଜ ହୋଇଛି। ଆପଣ ଏବେ ବି ଉଭୟ ଆପ୍ସରେ ଆପଣଙ୍କର ସମସ୍ତ ସେଭ ହୋଇଥିବା ପାସୱାର୍ଡକୁ ଅଟୋଫିଲ କରିପାରିବେ।</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> ଖୋଲନ୍ତୁ</translation>
 <translation id="4619564267100705184">ଏହା ଆପଣ ବୋଲି ଯାଞ୍ଚ କରନ୍ତୁ</translation>
 <translation id="4634124774493850572">ପାସ୍‌ୱର୍ଡ ବ୍ୟବହାର କରନ୍ତୁ</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chromeରେ ଲାଇଟ୍ ମୋଡ୍ ବ୍ୟବହାର କରନ୍ତୁ</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" />କୁ ଅନୁସରଣ କରାଯାଉଛି</translation>
 <translation id="930124987204876019">ଇତିହାସ, କୁକୀ, ସାଇଟ ଡାଟା, କେଶେ ଡିଲିଟ କରନ୍ତୁ…</translation>
-<translation id="93533588269984624">ସମସ୍ତ ପାସୱାର୍ଡକୁ ଆପଣଙ୍କ ଡିଭାଇସରେ ଡାଉନଲୋଡ କରାଯିବ ଏବଂ <ph name="CHROME_CHANNEL" />ରୁ କାଢ଼ି ଦିଆଯିବ</translation>
+<translation id="93533588269984624">ସମସ୍ତ ପାସୱାର୍ଡକୁ ଆପଣଙ୍କ ଡିଭାଇସରେ ଡାଉନଲୋଡ କରାଯିବ ଏବଂ <ph name="WOOTZAPP_CHANNEL" />ରୁ କାଢ଼ି ଦିଆଯିବ</translation>
 <translation id="938850635132480979">ତ୍ରୁଟି: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">ପାସ୍‌-ଫ୍ରେଜ୍ ଲେଖନ୍ତୁ</translation>
 <translation id="952301137339791907">ପୃଷ୍ଠା ଇନସାଇଟ୍ସ ବଟମ ସିଟ ଖୋଲା ଅଛି</translation>

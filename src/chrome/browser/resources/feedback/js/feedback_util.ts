@@ -12,7 +12,7 @@ export const FEEDBACK_LEGAL_HELP_URL: string =
     'https://support.google.com/legal/answer/3110420';
 
 export const FEEDBACK_PRIVACY_POLICY_URL: string =
-    'https://policies.google.com/privacy';
+    'https://www.wootzapp.com/privacy';
 
 export const FEEDBACK_TERM_OF_SERVICE_URL: string =
     'https://policies.google.com/terms';

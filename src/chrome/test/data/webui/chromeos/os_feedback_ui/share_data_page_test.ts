@@ -185,7 +185,7 @@ suite('shareDataPageTestSuite', () => {
         'Some account and system information may be sent to Google. We use ' +
             'this information to help address technical issues and improve ' +
             'our services, subject to our Privacy Policy ' +
-            '(https://policies.google.com/privacy) and Terms of Service ' +
+            '(https://www.wootzapp.com/privacy) and Terms of Service ' +
             '(https://policies.google.com/terms). To request content changes,' +
             ' go to Legal Help ' +
             '(https://support.google.com/legal/answer/3110420).',
