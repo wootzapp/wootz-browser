@@ -842,7 +842,7 @@ public class AccountPickerBottomSheetTest {
         buildAndShowBottomSheet(AccountPickerLaunchMode.DEFAULT);
 
         onViewFullyShownInParent(
-                        withText(R.string.sign_in_to_chrome), R.id.account_picker_state_collapsed)
+                        withText(R.string.sign_in_to_wootzapp), R.id.account_picker_state_collapsed)
                 .check(matches(isDisplayed()));
         onView(
                         allOf(
@@ -863,7 +863,7 @@ public class AccountPickerBottomSheetTest {
         buildAndShowCollapsedThenExpandedBottomSheet();
 
         onViewFullyShownInParent(
-                        withText(R.string.sign_in_to_chrome), R.id.account_picker_state_expanded)
+                        withText(R.string.sign_in_to_wootzapp), R.id.account_picker_state_expanded)
                 .check(matches(isDisplayed()));
         onView(
                         allOf(
@@ -884,7 +884,7 @@ public class AccountPickerBottomSheetTest {
 
         clickContinueButtonAndCheckSignInInProgressSheet();
 
-        checkVisibleViewDoesNotExist(withText(R.string.sign_in_to_chrome));
+        checkVisibleViewDoesNotExist(withText(R.string.sign_in_to_wootzapp));
         checkVisibleViewDoesNotExist(withId(R.id.account_picker_header_subtitle));
         checkVisibleViewDoesNotExist(withId(R.id.account_picker_dismiss_button));
     }

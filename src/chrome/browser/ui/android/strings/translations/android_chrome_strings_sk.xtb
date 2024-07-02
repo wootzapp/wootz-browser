@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Načítava sa <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Ak chcete pokračovať, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> bude s týmto webom zdieľať vaše meno, e‑mailovú adresu a profilovú fotku. Pozrite si <ph name="BEGIN_LINK1" />pravidlá ochrany súkromia<ph name="END_LINK1" /> a <ph name="BEGIN_LINK2" />zmluvné podmienky<ph name="END_LINK2" /> tohto webu.</translation>
 <translation id="124116460088058876">Ďalšie jazyky</translation>
-<translation id="1241792820757384812">Vaše heslá budú odstránené zo Správcu hesiel Google v kanáli <ph name="CHROME_CHANNEL" />. Súbor s heslami, ktorý ste práve stiahli, vám zostane.</translation>
+<translation id="1241792820757384812">Vaše heslá budú odstránené zo Správcu hesiel Google v kanáli <ph name="WOOTZAPP_CHANNEL" />. Súbor s heslami, ktorý ste práve stiahli, vám zostane.</translation>
 <translation id="1242883863226959074">zariadenie</translation>
 <translation id="124678866338384709">Zavretie aktuálnej karty</translation>
 <translation id="1246905108078336582">Chcete odstrániť návrh zo schránky?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Zavrieť karty inkognito</translation>
 <translation id="1568636008098739136">Vypočuť obsah tejto stránky. Ak chcete túto skratku upraviť, pridržte ju.</translation>
 <translation id="1571304935088121812">Kopírovať používateľské meno</translation>
-<translation id="1584648915421894279">Momentálne nemôžete používať heslá uložené v tomto zariadení v kanáloch Chromu. Od Chromu verzie 125 budú heslá pre Chrome a <ph name="CHROME_CHANNEL" /> uložené vo vašom zariadení zlúčené a budú sa dať používať v oboch aplikáciách.</translation>
+<translation id="1584648915421894279">Momentálne nemôžete používať heslá uložené v tomto zariadení v kanáloch Chromu. Od Chromu verzie 125 budú heslá pre Chrome a <ph name="WOOTZAPP_CHANNEL" /> uložené vo vašom zariadení zlúčené a budú sa dať používať v oboch aplikáciách.</translation>
 <translation id="1592864538817356322">Štandardná ochrana:</translation>
 <translation id="1594635596540195766">Zoznam nižšie obsahuje navrhované položky (<ph name="SUGGESTIONS_COUNT" />).</translation>
 <translation id="1598163867407640634">Používajte <ph name="SITE_ETLD_PLUS_ONE" /> od poskytovateľa <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Váš účet Google môže mať na adrese <ph name="BEGIN_LINK" />myactivity.goo
 <translation id="4594952190837476234">Táto offline stránka je z <ph name="CREATION_TIME" /> a líši sa od online verzie.</translation>
 <translation id="4595805675102978678">Chyba účtu Google</translation>
 <translation id="4601095002996233687">Hĺbkové kontroly s cieľom nájsť podozrivé stiahnuté súbory.</translation>
-<translation id="4609429330876432068">Zoznamy uložených hesiel pre Chrome a kanál <ph name="CHROME_CHANNEL" /> boli zlúčené. Všetky svoje uložené heslá môžete naďalej automaticky dopĺňať v oboch aplikáciách.</translation>
+<translation id="4609429330876432068">Zoznamy uložených hesiel pre Chrome a kanál <ph name="WOOTZAPP_CHANNEL" /> boli zlúčené. Všetky svoje uložené heslá môžete naďalej automaticky dopĺňať v oboch aplikáciách.</translation>
 <translation id="4616150815774728855">Otvoriť <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Overte, že ste to vy</translation>
 <translation id="4634124774493850572">Použiť heslo</translation>
@@ -1651,7 +1651,7 @@ Ak chcete toto nastavenie zmeniť, <ph name="BEGIN_LINK" />odstráňte údaje Ch
 <translation id="927968626442779827">Používanie zjednodušeného režimu v prehliadači Google Chrome</translation>
 <translation id="928550791203542716">Sledujete <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Odstrániť históriu, súbory cookie, dáta webov, vyrovnávaciu pamäť…</translation>
-<translation id="93533588269984624">Všetky heslá budú stiahnuté do vášho zariadenia a odstránené z kanála <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Všetky heslá budú stiahnuté do vášho zariadenia a odstránené z kanála <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Chyba: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Zadať prístupovú frázu</translation>
 <translation id="952301137339791907">Dolný hárok štatistík stránky je otvorený</translation>

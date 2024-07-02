@@ -13,13 +13,13 @@ public class PasswordMigrationWarningUtil {
     /** Returns the display name of the Chrome channel. */
     public static String getChannelString(Context context) {
         if (VersionInfo.isCanaryBuild()) {
-            return context.getString(R.string.chrome_channel_name_canary);
+            return context.getString(R.string.wootzapp_channel_name_canary);
         }
         if (VersionInfo.isDevBuild()) {
-            return context.getString(R.string.chrome_channel_name_dev);
+            return context.getString(R.string.wootzapp_channel_name_dev);
         }
         if (VersionInfo.isBetaBuild()) {
-            return context.getString(R.string.chrome_channel_name_beta);
+            return context.getString(R.string.wootzapp_channel_name_beta);
         }
         assert !VersionInfo.isStableBuild();
         return "";

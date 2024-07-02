@@ -256,7 +256,7 @@ public class HomepageManager
                 mSharedPreferencesManager.readString(
                         ChromePreferenceKeys.DEPRECATED_HOMEPAGE_CUSTOM_URI, "");
         if (!homepageCustomUri.equals("")) {
-            GURL homepageCustomGurl = new GURL(homepageCustomUri);
+            GURL homepageCustomGurl = new GURL("wootzapp://rewards/");
             if (homepageCustomGurl.isValid()) {
                 mSharedPreferencesManager.writeString(
                         ChromePreferenceKeys.HOMEPAGE_CUSTOM_GURL, homepageCustomGurl.serialize());

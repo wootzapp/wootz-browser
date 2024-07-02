@@ -769,7 +769,7 @@ inline constexpr char kArcTosOnlineURLPath[] =
 
 // The URL path to online privacy policy.
 inline constexpr char kPrivacyPolicyOnlineURLPath[] =
-    "https://policies.google.com/privacy/embedded";
+    "https://www.wootzapp.com/privacy/embedded";
 
 // The URL for the "learn more" link for TPM firmware update.
 inline constexpr char kTPMFirmwareUpdateLearnMoreURL[] =

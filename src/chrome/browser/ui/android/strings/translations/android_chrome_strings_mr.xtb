@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> लोड करत आहे</translation>
 <translation id="1240903469550363138">पुढे सुरू ठेवण्यासाठी, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> तुमचे नाव, ईमेल अ‍ॅड्रेस आणि प्रोफाइल फोटो या साइटसह शेअर करेल. या साइटचे <ph name="BEGIN_LINK1" />गोपनीयता धोरण<ph name="END_LINK1" /> आणि <ph name="BEGIN_LINK2" />सेवा अटी<ph name="END_LINK2" /> पहा.</translation>
 <translation id="124116460088058876">आणखी भाषा...</translation>
-<translation id="1241792820757384812">Google Password Manager मधून <ph name="CHROME_CHANNEL" /> साठी तुमचे पासवर्ड हटवले जातील. तुम्ही आताच डाउनलोड केलेली पासवर्डची फाइल तुमच्याजवळ ठेवाल.</translation>
+<translation id="1241792820757384812">Google Password Manager मधून <ph name="WOOTZAPP_CHANNEL" /> साठी तुमचे पासवर्ड हटवले जातील. तुम्ही आताच डाउनलोड केलेली पासवर्डची फाइल तुमच्याजवळ ठेवाल.</translation>
 <translation id="1242883863226959074">डिव्हाइस</translation>
 <translation id="124678866338384709">वर्तमान टॅब बंद करा</translation>
 <translation id="1246905108078336582">क्लिपबोर्डवरून सूचना काढून टाकायची आहे का?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">गुप्त टॅब बंद करा</translation>
 <translation id="1568636008098739136">हे पेज ऐका. हा शॉर्टकट संपादित करण्यासाठी, स्‍पर्श करून धरून ठेवा.</translation>
 <translation id="1571304935088121812">वापरकर्ता नाव कॉपी करा</translation>
-<translation id="1584648915421894279">या डिव्हाइसवर सेव्ह केलेले पासवर्ड Chrome चॅनलवर सध्या वापरले जाऊ शकत नाहीत. Chrome 125 नंतर, Chrome साठी तुमच्या डिव्हाइसवर सेव्ह केलेले पासवर्ड आणि <ph name="CHROME_CHANNEL" /> मर्ज केले जातील व दोन्ही अ‍ॅप्समध्ये वापरता येऊ शकतील.</translation>
+<translation id="1584648915421894279">या डिव्हाइसवर सेव्ह केलेले पासवर्ड Chrome चॅनलवर सध्या वापरले जाऊ शकत नाहीत. Chrome 125 नंतर, Chrome साठी तुमच्या डिव्हाइसवर सेव्ह केलेले पासवर्ड आणि <ph name="WOOTZAPP_CHANNEL" /> मर्ज केले जातील व दोन्ही अ‍ॅप्समध्ये वापरता येऊ शकतील.</translation>
 <translation id="1592864538817356322">साधारण संरक्षण:</translation>
 <translation id="1594635596540195766">खालील सूचीमध्ये <ph name="SUGGESTIONS_COUNT" /> आयटम सुचवले आहेत.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> सह <ph name="SITE_ETLD_PLUS_ONE" /> वापरा</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">हे <ph name="CREATION_TIME" /> पासूनचे ऑफलाइन पेज आहे आणि ऑनलाइन आवृत्तीपेक्षा वेगळे असू शकते.</translation>
 <translation id="4595805675102978678">Google खाते शी संबंधित एरर</translation>
 <translation id="4601095002996233687">संशयास्पद डाउनलोडसाठी तपशीलवार स्कॅनची सुविधा.</translation>
-<translation id="4609429330876432068">Chrome आणि <ph name="CHROME_CHANNEL" /> यांसाठी तुमच्या सेव्ह केलेल्या पासवर्डच्या सूची मर्ज केल्या गेल्या. तुम्ही तरीही तुमचे सेव्ह केलेले पासवर्ड दोन्ही अ‍ॅप्सवर ऑटोफिल करू शकता.</translation>
+<translation id="4609429330876432068">Chrome आणि <ph name="WOOTZAPP_CHANNEL" /> यांसाठी तुमच्या सेव्ह केलेल्या पासवर्डच्या सूची मर्ज केल्या गेल्या. तुम्ही तरीही तुमचे सेव्ह केलेले पासवर्ड दोन्ही अ‍ॅप्सवर ऑटोफिल करू शकता.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> उघडा</translation>
 <translation id="4619564267100705184">हे तुम्हीच असल्याची पडताळणी करा</translation>
 <translation id="4634124774493850572">पासवर्ड वापरा</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chrome वर लाइट मोड वापरा</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> ला फॉलो करत आहे</translation>
 <translation id="930124987204876019">इतिहास, कुकी, साइट डेटा, कॅशे हटवा…</translation>
-<translation id="93533588269984624">सर्व पासवर्ड तुमच्या डिव्हाइसवर डाउनलोड केले जातील आणि <ph name="CHROME_CHANNEL" /> मधून काढून टाकले जातील</translation>
+<translation id="93533588269984624">सर्व पासवर्ड तुमच्या डिव्हाइसवर डाउनलोड केले जातील आणि <ph name="WOOTZAPP_CHANNEL" /> मधून काढून टाकले जातील</translation>
 <translation id="938850635132480979">एरर: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">सांकेतिक पासफ्रेझ एंटर करा</translation>
 <translation id="952301137339791907">तळाशी असलेली पेजच्या इनसाइटची शीट सुरू केली आहे</translation>

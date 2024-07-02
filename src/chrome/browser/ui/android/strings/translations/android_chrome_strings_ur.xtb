@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> لوڈ ہو رہی ہے</translation>
 <translation id="1240903469550363138">جاری رکھنے کے لیے، <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> اس سائٹ کے ساتھ آپ کے نام، ای میل پتہ اور پروفائل کی تصویر کا اشتراک کرے گا۔ اس سائٹ کی <ph name="BEGIN_LINK1" />رازداری کی پالیسی<ph name="END_LINK1" /> اور <ph name="BEGIN_LINK2" />سروس کی شرائط<ph name="END_LINK2" /> دیکھیں۔</translation>
 <translation id="124116460088058876">مزید زبانیں</translation>
-<translation id="1241792820757384812">‏آپ کے پاس ورڈز کو Google پاس ورڈ مینیجر برائے <ph name="CHROME_CHANNEL" /> سے حذف کر دیا جائے گا۔ آپ پاس ورڈز کی وہ فائل رکھیں گے جسے آپ نے ابھی ڈاؤن لوڈ کیا ہے۔</translation>
+<translation id="1241792820757384812">‏آپ کے پاس ورڈز کو Google پاس ورڈ مینیجر برائے <ph name="WOOTZAPP_CHANNEL" /> سے حذف کر دیا جائے گا۔ آپ پاس ورڈز کی وہ فائل رکھیں گے جسے آپ نے ابھی ڈاؤن لوڈ کیا ہے۔</translation>
 <translation id="1242883863226959074">آلہ</translation>
 <translation id="124678866338384709">موجودہ ٹیب بند کریں</translation>
 <translation id="1246905108078336582">کلپ بورڈ سے تجویز ہٹائیں؟</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">پوشیدگی ٹیبز بند کریں</translation>
 <translation id="1568636008098739136">اس صفحے کو سنیں۔ اس شارٹ کٹ میں ترمیم کرنے کے لیے، ٹچ کریں اور دبائے رکھیں۔</translation>
 <translation id="1571304935088121812">صارف نام کاپی کریں</translation>
-<translation id="1584648915421894279">‏ابھی، اس آلے پر محفوظ کردہ پاس ورڈز کو Chrome چینلز پر استعمال نہیں کیا جا سکتا۔ Chrome 125 کے بعد، آپ کے آلے پر Chrome اور <ph name="CHROME_CHANNEL" /> کے لیے محفوظ کردہ پاس ورڈز کو ضم کر دیا جائے گا اور انہیں دونوں ایپس میں استعمال کیا جا سکتا ہے۔</translation>
+<translation id="1584648915421894279">‏ابھی، اس آلے پر محفوظ کردہ پاس ورڈز کو Chrome چینلز پر استعمال نہیں کیا جا سکتا۔ Chrome 125 کے بعد، آپ کے آلے پر Chrome اور <ph name="WOOTZAPP_CHANNEL" /> کے لیے محفوظ کردہ پاس ورڈز کو ضم کر دیا جائے گا اور انہیں دونوں ایپس میں استعمال کیا جا سکتا ہے۔</translation>
 <translation id="1592864538817356322">معیاری تحفظ:</translation>
 <translation id="1594635596540195766">مندرجہ ذیل کی فہرست میں تجویز کردہ <ph name="SUGGESTIONS_COUNT" /> آئٹمز۔</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> کے ساتھ <ph name="SITE_ETLD_PLUS_ONE" /> کا استعمال کریں</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">یہ آف لائن صفحہ <ph name="CREATION_TIME" /> کا ہے اور آن لائن ورژن سے مختلف ہو سکتا ہے۔</translation>
 <translation id="4595805675102978678">‏Google اکاؤنٹ میں خرابی</translation>
 <translation id="4601095002996233687">مشتبہ ڈاؤن لوڈز کے لیے گہرائی سے اسکینز کرتا ہے۔</translation>
-<translation id="4609429330876432068">‏Chrome اور <ph name="CHROME_CHANNEL" /> کے لیے آپ کے محفوظ کردہ پاس ورڈز کی فہرستیں ضم کر دی گئیں۔ آپ اب بھی دونوں ایپس پر اپنے تمام محفوظ کردہ پاس ورڈز کو آٹو فل کر سکتے ہیں۔</translation>
+<translation id="4609429330876432068">‏Chrome اور <ph name="WOOTZAPP_CHANNEL" /> کے لیے آپ کے محفوظ کردہ پاس ورڈز کی فہرستیں ضم کر دی گئیں۔ آپ اب بھی دونوں ایپس پر اپنے تمام محفوظ کردہ پاس ورڈز کو آٹو فل کر سکتے ہیں۔</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> کو کھولیں</translation>
 <translation id="4619564267100705184">توثیق کریں کہ یہ آپ ہیں</translation>
 <translation id="4634124774493850572">پاس ورڈ استعمال کریں</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">‏Google Chrome پر لائٹ موڈ کا استعمال کریں</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> کی پیروی کی جا رہی ہے</translation>
 <translation id="930124987204876019">‏سرگزشت، کوکیز، سائٹ ڈیٹا، cache کو حذف کریں…</translation>
-<translation id="93533588269984624">تمام پاس ورڈز آپ کے آلے پر ڈاؤن لوڈ ہو جائیں گے اور انہیں <ph name="CHROME_CHANNEL" /> سے ہٹا دیا جائے گا</translation>
+<translation id="93533588269984624">تمام پاس ورڈز آپ کے آلے پر ڈاؤن لوڈ ہو جائیں گے اور انہیں <ph name="WOOTZAPP_CHANNEL" /> سے ہٹا دیا جائے گا</translation>
 <translation id="938850635132480979">خرابی: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">پاس فریز درج کریں</translation>
 <translation id="952301137339791907">صفحہ کی بصیرتوں کی نیچے کی شیٹ کھلی ہے</translation>

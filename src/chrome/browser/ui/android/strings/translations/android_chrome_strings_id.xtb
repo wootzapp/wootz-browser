@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Memuat <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Untuk melanjutkan, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> akan membagikan nama, alamat email, dan foto profil Anda ke situs ini. Lihat <ph name="BEGIN_LINK1" />kebijakan privasi<ph name="END_LINK1" /> dan <ph name="BEGIN_LINK2" />persyaratan layanan<ph name="END_LINK2" /> situs ini.</translation>
 <translation id="124116460088058876">Bahasa lainnya</translation>
-<translation id="1241792820757384812">Sandi Anda akan dihapus dari Pengelola Sandi Google untuk <ph name="CHROME_CHANNEL" />. Anda akan menyimpan file sandi yang baru saja didownload.</translation>
+<translation id="1241792820757384812">Sandi Anda akan dihapus dari Pengelola Sandi Google untuk <ph name="WOOTZAPP_CHANNEL" />. Anda akan menyimpan file sandi yang baru saja didownload.</translation>
 <translation id="1242883863226959074">perangkat</translation>
 <translation id="124678866338384709">Menutup tab aktif</translation>
 <translation id="1246905108078336582">Hapus saran dari papan klip?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Tutup tab Samaran</translation>
 <translation id="1568636008098739136">Dengarkan halaman ini. Sentuh lama untuk mengedit pintasan ini.</translation>
 <translation id="1571304935088121812">Salin nama pengguna</translation>
-<translation id="1584648915421894279">Saat ini, sandi yang disimpan di perangkat ini tidak dapat digunakan di seluruh saluran Chrome. Setelah Chrome 125, sandi yang disimpan di perangkat Anda untuk Chrome dan <ph name="CHROME_CHANNEL" /> akan digabungkan dan dapat digunakan di kedua aplikasi.</translation>
+<translation id="1584648915421894279">Saat ini, sandi yang disimpan di perangkat ini tidak dapat digunakan di seluruh saluran Chrome. Setelah Chrome 125, sandi yang disimpan di perangkat Anda untuk Chrome dan <ph name="WOOTZAPP_CHANNEL" /> akan digabungkan dan dapat digunakan di kedua aplikasi.</translation>
 <translation id="1592864538817356322">Perlindungan standar:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> item yang disarankan dalam daftar di bawah ini.</translation>
 <translation id="1598163867407640634">Gunakan <ph name="SITE_ETLD_PLUS_ONE" /> dengan <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Akun Google Anda mungkin memiliki bentuk histori penjelajahan lain seperti penel
 <translation id="4594952190837476234">Halaman offline ini dibuat pada <ph name="CREATION_TIME" /> dan mungkin berbeda dengan versi onlinenya.</translation>
 <translation id="4595805675102978678">Terjadi kesalahan pada Akun Google</translation>
 <translation id="4601095002996233687">Pemindaian mendalam untuk download yang mencurigakan.</translation>
-<translation id="4609429330876432068">Daftar sandi tersimpan Anda untuk Chrome dan <ph name="CHROME_CHANNEL" /> telah digabungkan. Anda tetap dapat mengisi otomatis semua sandi tersimpan di kedua aplikasi.</translation>
+<translation id="4609429330876432068">Daftar sandi tersimpan Anda untuk Chrome dan <ph name="WOOTZAPP_CHANNEL" /> telah digabungkan. Anda tetap dapat mengisi otomatis semua sandi tersimpan di kedua aplikasi.</translation>
 <translation id="4616150815774728855">Buka <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Verifikasi diri Anda</translation>
 <translation id="4634124774493850572">Gunakan sandi</translation>
@@ -1651,7 +1651,7 @@ Untuk mengubah setelan ini, <ph name="BEGIN_LINK" />hapus data Chrome di akun An
 <translation id="927968626442779827">Gunakan Mode Ringan di Google Chrome</translation>
 <translation id="928550791203542716">Mengikuti <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Menghapus histori, cookie, data situs, cache…</translation>
-<translation id="93533588269984624">Semua sandi akan didownload di perangkat Anda dan dihapus dari <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Semua sandi akan didownload di perangkat Anda dan dihapus dari <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Kesalahan: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Masukkan frasa sandi</translation>
 <translation id="952301137339791907">Sheet bawah analisis halaman dibuka</translation>

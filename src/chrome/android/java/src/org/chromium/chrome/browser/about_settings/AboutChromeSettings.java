@@ -45,8 +45,8 @@ public class AboutChromeSettings extends PreferenceFragmentCompat
 
     @Override
     public void onCreatePreferences(Bundle bundle, String s) {
-        getActivity().setTitle(R.string.prefs_about_chrome);
-        SettingsUtils.addPreferencesFromResource(this, R.xml.about_chrome_preferences);
+        getActivity().setTitle(R.string.prefs_about_wootzapp);
+        SettingsUtils.addPreferencesFromResource(this, R.xml.about_wootzapp_preferences);
 
         Preference p = findPreference(PREF_APPLICATION_VERSION);
         p.setSummary(

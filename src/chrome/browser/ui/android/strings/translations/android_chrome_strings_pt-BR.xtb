@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Carregando <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Para continuar, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> vai compartilhar seu nome, endereço de e-mail e foto do perfil com esse site. Consulte a <ph name="BEGIN_LINK1" />Política de Privacidade<ph name="END_LINK1" /> e os <ph name="BEGIN_LINK2" />Termos de Serviço<ph name="END_LINK2" /> do site.</translation>
 <translation id="124116460088058876">Mais idiomas</translation>
-<translation id="1241792820757384812">Suas senhas serão excluídas do Gerenciador de senhas do Google para o <ph name="CHROME_CHANNEL" />. Elas vão estar no arquivo de senhas que você acabou de baixar.</translation>
+<translation id="1241792820757384812">Suas senhas serão excluídas do Gerenciador de senhas do Google para o <ph name="WOOTZAPP_CHANNEL" />. Elas vão estar no arquivo de senhas que você acabou de baixar.</translation>
 <translation id="1242883863226959074">dispositivo</translation>
 <translation id="124678866338384709">Fechar a guia atual</translation>
 <translation id="1246905108078336582">Remover sugestão da área de transferência?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Fechar guias anônimas</translation>
 <translation id="1568636008098739136">Ouvir esta página. Para editar este atalho, toque e pressione.</translation>
 <translation id="1571304935088121812">Copiar nome de usuário</translation>
-<translation id="1584648915421894279">No momento, as senhas salvas neste dispositivo não podem ser usadas nos canais do Chrome. Após a versão 125 desse navegador, as senhas do Chrome e do <ph name="CHROME_CHANNEL" /> salvas no dispositivo serão fundidas e poderão ser usadas nos dois apps.</translation>
+<translation id="1584648915421894279">No momento, as senhas salvas neste dispositivo não podem ser usadas nos canais do Chrome. Após a versão 125 desse navegador, as senhas do Chrome e do <ph name="WOOTZAPP_CHANNEL" /> salvas no dispositivo serão fundidas e poderão ser usadas nos dois apps.</translation>
 <translation id="1592864538817356322">Proteção padrão:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> itens sugeridos na lista abaixo.</translation>
 <translation id="1598163867407640634">Use <ph name="SITE_ETLD_PLUS_ONE" /> com <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -687,7 +687,7 @@ Só uma pessoa com sua senha longa pode ler seus dados criptografados. Essa senh
 <translation id="4594952190837476234">Esta página off-line é de <ph name="CREATION_TIME" /> e pode ser diferente da versão on-line.</translation>
 <translation id="4595805675102978678">Erro na Conta do Google</translation>
 <translation id="4601095002996233687">Verificações detalhadas de downloads suspeitos.</translation>
-<translation id="4609429330876432068">Suas listas de senhas salvas do Chrome e do <ph name="CHROME_CHANNEL" /> foram fundidas. Você ainda pode preencher automaticamente todas as senhas salvas nos dois apps.</translation>
+<translation id="4609429330876432068">Suas listas de senhas salvas do Chrome e do <ph name="WOOTZAPP_CHANNEL" /> foram fundidas. Você ainda pode preencher automaticamente todas as senhas salvas nos dois apps.</translation>
 <translation id="4616150815774728855">Abrir <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Confirmar sua identidade</translation>
 <translation id="4634124774493850572">Usar senha</translation>
@@ -1652,7 +1652,7 @@ Para mudar essa configuração, <ph name="BEGIN_LINK" />exclua os dados do Chrom
 <translation id="927968626442779827">Use o Modo Lite no Google Chrome</translation>
 <translation id="928550791203542716">Seguindo <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Excluir histórico, cookies, dados do site, cache…</translation>
-<translation id="93533588269984624">Todas as senhas serão baixadas para seu dispositivo e removidas do <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Todas as senhas serão baixadas para seu dispositivo e removidas do <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Erro: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Inserir senha</translation>
 <translation id="952301137339791907">A página inferior de insights está aberta</translation>

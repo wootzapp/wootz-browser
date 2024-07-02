@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" />-г ачаалж байна</translation>
 <translation id="1240903469550363138">Үргэлжүүлэхийн тулд <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> таны нэр, имэйл хаяг болон профайл зургийг энэ сайттай хуваалцана. Энэ сайтын <ph name="BEGIN_LINK1" />нууцлалын бодлого<ph name="END_LINK1" /> болон <ph name="BEGIN_LINK2" />үйлчилгээний нөхцөлийг<ph name="END_LINK2" /> харна уу.</translation>
 <translation id="124116460088058876">Бусад хэл</translation>
-<translation id="1241792820757384812">Таны нууц үгнүүдийг <ph name="CHROME_CHANNEL" />-н Google Password Manager-с устгана. Та дөнгөж сая татсан нууц үгнүүдийн файлаа хадгална.</translation>
+<translation id="1241792820757384812">Таны нууц үгнүүдийг <ph name="WOOTZAPP_CHANNEL" />-н Google Password Manager-с устгана. Та дөнгөж сая татсан нууц үгнүүдийн файлаа хадгална.</translation>
 <translation id="1242883863226959074">төхөөрөмж</translation>
 <translation id="124678866338384709">Үндсэн чихтэй хуудсыг хаах</translation>
 <translation id="1246905108078336582">Түр санах ойгоос зөвлөмжийг устгах уу?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Нууцлалтай табуудыг хаах</translation>
 <translation id="1568636008098739136">Энэ хуудсыг сонсоно уу. Энэ товчлолыг засахын тулд хүрээд удаан дарна уу.</translation>
 <translation id="1571304935088121812">Хэрэглэгчийн нэрийг хуулах</translation>
-<translation id="1584648915421894279">Одоогоор энэ төхөөрөмжид хадгалсан нууц үгнүүдийг Chrome-н сувгуудад ашиглах боломжгүй. Chrome 125-аас хойш Chrome болон <ph name="CHROME_CHANNEL" />-д зориулж таны төхөөрөмжид хадгалсан нууц үгнүүдийг нэгтгэх бөгөөд хоёр аппын аль алинд нь ашиглах боломжтой болно.</translation>
+<translation id="1584648915421894279">Одоогоор энэ төхөөрөмжид хадгалсан нууц үгнүүдийг Chrome-н сувгуудад ашиглах боломжгүй. Chrome 125-аас хойш Chrome болон <ph name="WOOTZAPP_CHANNEL" />-д зориулж таны төхөөрөмжид хадгалсан нууц үгнүүдийг нэгтгэх бөгөөд хоёр аппын аль алинд нь ашиглах боломжтой болно.</translation>
 <translation id="1592864538817356322">Стандарт хамгаалалт:</translation>
 <translation id="1594635596540195766">Доорх жагсаалтад санал болгосон <ph name="SUGGESTIONS_COUNT" /> зүйл байна.</translation>
 <translation id="1598163867407640634"><ph name="SITE_ETLD_PLUS_ONE" />-г <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />-р ашиглаарай</translation>
@@ -686,7 +686,7 @@ Tаны Google бүртгэл <ph name="BEGIN_LINK" />history.google.com<ph name
 <translation id="4594952190837476234">Энэ офлайн хуудсыг <ph name="CREATION_TIME" />-с харуулж байгаа бөгөөд онлайн хувилбараас өөр байж болзошгүй.</translation>
 <translation id="4595805675102978678">Google Бүртгэлийн алдаа</translation>
 <translation id="4601095002996233687">Сэжигтэй татаж авсан файлд хийх нарийвчилсан скан.</translation>
-<translation id="4609429330876432068">Таны Chrome-н хадгалсан нууц үгнүүдийн жагсаалт болон <ph name="CHROME_CHANNEL" />-г нэгтгэсэн. Та хоёр аппад хоёуланд нь хадгалсан бүх нууц үгээ автоматаар бөглөх боломжтой хэвээр байна.</translation>
+<translation id="4609429330876432068">Таны Chrome-н хадгалсан нууц үгнүүдийн жагсаалт болон <ph name="WOOTZAPP_CHANNEL" />-г нэгтгэсэн. Та хоёр аппад хоёуланд нь хадгалсан бүх нууц үгээ автоматаар бөглөх боломжтой хэвээр байна.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" />-г нээх</translation>
 <translation id="4619564267100705184">Өөрийгөө мөн болохыг бататгах</translation>
 <translation id="4634124774493850572">Нууц үг ашиглах</translation>
@@ -1651,7 +1651,7 @@ Tаны Google бүртгэл <ph name="BEGIN_LINK" />history.google.com<ph name
 <translation id="927968626442779827">Google Chrome дээр Lite горимыг ашиглаарай</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" />-г дагаж байна</translation>
 <translation id="930124987204876019">Түүх, күүки, сайтын өгөгдөл, завсрын санах ойг устгах…</translation>
-<translation id="93533588269984624">Бүх нууц үгийг таны төхөөрөмжид татах бөгөөд <ph name="CHROME_CHANNEL" />-с хасна</translation>
+<translation id="93533588269984624">Бүх нууц үгийг таны төхөөрөмжид татах бөгөөд <ph name="WOOTZAPP_CHANNEL" />-с хасна</translation>
 <translation id="938850635132480979">Алдаа: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Нэвтрэх үгүүдийг оруулна уу</translation>
 <translation id="952301137339791907">Хуудасны статистикийн доод хүснэгтийг нээсэн</translation>

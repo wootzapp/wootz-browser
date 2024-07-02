@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">ກຳລັງໂຫຼດ <ph name="LANG" /></translation>
 <translation id="1240903469550363138">ເພື່ອສືບຕໍ່, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ຈະແບ່ງປັນຊື່, ທີ່ຢູ່ອີເມວ ແລະ ຮູບໂປຣໄຟລ໌ຂອງທ່ານໃຫ້ກັບເວັບໄຊນີ້. ເບິ່ງ <ph name="BEGIN_LINK1" />ນະໂຍບາຍຄວາມເປັນສ່ວນຕົວ<ph name="END_LINK1" /> ແລະ <ph name="BEGIN_LINK2" />ຂໍ້ກຳນົດບໍລິການ<ph name="END_LINK2" /> ຂອງເວັບໄຊນີ້.</translation>
 <translation id="124116460088058876">ພາສາເພີ່ມເຕີມ</translation>
-<translation id="1241792820757384812">ລະຫັດຜ່ານຂອງທ່ານຈະຖືກລຶບອອກຈາກຕົວຈັດການລະຫັດຜ່ານ Google ສຳລັບ <ph name="CHROME_CHANNEL" />. ທ່ານຈະເກັບຮັກສາໄຟລ໌ລະຫັດຜ່ານທີ່ທ່ານຫາກໍດາວໂຫຼດໄປໄວ້.</translation>
+<translation id="1241792820757384812">ລະຫັດຜ່ານຂອງທ່ານຈະຖືກລຶບອອກຈາກຕົວຈັດການລະຫັດຜ່ານ Google ສຳລັບ <ph name="WOOTZAPP_CHANNEL" />. ທ່ານຈະເກັບຮັກສາໄຟລ໌ລະຫັດຜ່ານທີ່ທ່ານຫາກໍດາວໂຫຼດໄປໄວ້.</translation>
 <translation id="1242883863226959074">ອຸປະກອນ</translation>
 <translation id="124678866338384709">ປິດແຖບປັດຈຸບັນ</translation>
 <translation id="1246905108078336582">ລຶບການແນະນຳອອກຈາກຄລິບບອດບໍ?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ປິດແຖບ​ບໍ່ເປີດເຜີຍຕົວຕົນ</translation>
 <translation id="1568636008098739136">ຟັງໜ້ານີ້. ເພື່ອແກ້ໄຂທາງລັດນີ້, ໃຫ້ແຕະຄ້າງໄວ້.</translation>
 <translation id="1571304935088121812">ສຳເນົາຊື່ຜູ້ໃຊ້</translation>
-<translation id="1584648915421894279">ຕອນນີ້, ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຢູ່ອຸປະກອນນີ້ບໍ່ສາມາດໃຊ້ໄດ້ໃນ Chrome ເວີຊັນອື່ນໆໄດ້. ຫຼັງຈາກ Chrome 125, ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຢູ່ອຸປະກອນຂອງທ່ານສຳລັບ Chrome ແລະ <ph name="CHROME_CHANNEL" /> ຈະຮວມກັນ ແລະ ສາມາດໃຊ້ໄດ້ໃນທັງສອງແອັບ.</translation>
+<translation id="1584648915421894279">ຕອນນີ້, ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຢູ່ອຸປະກອນນີ້ບໍ່ສາມາດໃຊ້ໄດ້ໃນ Chrome ເວີຊັນອື່ນໆໄດ້. ຫຼັງຈາກ Chrome 125, ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຢູ່ອຸປະກອນຂອງທ່ານສຳລັບ Chrome ແລະ <ph name="WOOTZAPP_CHANNEL" /> ຈະຮວມກັນ ແລະ ສາມາດໃຊ້ໄດ້ໃນທັງສອງແອັບ.</translation>
 <translation id="1592864538817356322">ການປົກປ້ອງມາດຕະຖານ:</translation>
 <translation id="1594635596540195766">ມີ <ph name="SUGGESTIONS_COUNT" /> ລາຍການທີ່ແນະນຳໃນລາຍຊື່ທາງລຸ່ມ.</translation>
 <translation id="1598163867407640634">ໃຊ້ <ph name="SITE_ETLD_PLUS_ONE" /> ດ້ວຍ <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ໜ້າອອບລາຍນີ້ມາຈາກ <ph name="CREATION_TIME" /> ແລະ ອາດຈະແຕກຕ່າງຈາກເວີຊັນອອນລາຍ.</translation>
 <translation id="4595805675102978678">ບັນຊີ Google ຜິດພາດ</translation>
 <translation id="4601095002996233687">ການສະແກນແບບເຈາະເລິກສຳລັບການດາວໂຫຼດທີ່ໜ້າສົງໄສ.</translation>
-<translation id="4609429330876432068">ລາຍຊື່ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຂອງທ່ານສຳລັບ Chrome ແລະ <ph name="CHROME_CHANNEL" /> ໄດ້ຖືກຮວມເຂົ້າກັນແລ້ວ. ທ່ານຍັງສາມາດຕື່ມລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ທັງໝົດຂອງທ່ານໂດຍອັດຕະໂນມັດໄດ້ໃນທັງ 2 ແອັບ.</translation>
+<translation id="4609429330876432068">ລາຍຊື່ລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ຂອງທ່ານສຳລັບ Chrome ແລະ <ph name="WOOTZAPP_CHANNEL" /> ໄດ້ຖືກຮວມເຂົ້າກັນແລ້ວ. ທ່ານຍັງສາມາດຕື່ມລະຫັດຜ່ານທີ່ບັນທຶກໄວ້ທັງໝົດຂອງທ່ານໂດຍອັດຕະໂນມັດໄດ້ໃນທັງ 2 ແອັບ.</translation>
 <translation id="4616150815774728855">ເປີດ <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">ຢັ້ງຢືນວ່າແມ່ນທ່ານແທ້</translation>
 <translation id="4634124774493850572">ໃຊ້ລະຫັດຜ່ານ</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">ໃຊ້ໂໝດ Lite ໃນ Google Chrome</translation>
 <translation id="928550791203542716">ກຳລັງຕິດຕາມ <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">ລຶບປະຫວັດ, ຄຸກກີ້, ຂໍ້ມູນເວັບໄຊ, ແຄສ…</translation>
-<translation id="93533588269984624">ລະຫັດຜ່ານທັງໝົດຈະຖືກດາວໂຫຼດຢູ່ອຸປະກອນຂອງທ່ານ ແລະ ຖືກລຶບອອກຈາກ <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">ລະຫັດຜ່ານທັງໝົດຈະຖືກດາວໂຫຼດຢູ່ອຸປະກອນຂອງທ່ານ ແລະ ຖືກລຶບອອກຈາກ <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">ຜິດພາດ: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">ປ້ອນວະລີຜ່ານໃສ່</translation>
 <translation id="952301137339791907">ຊີດລຸ່ມສຸດຂໍ້ມູນເຈາະເລິກຂອງໜ້າແມ່ນເປີດຢູ່</translation>
