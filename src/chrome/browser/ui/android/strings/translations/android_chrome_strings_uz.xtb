@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> yuklanmoqda</translation>
 <translation id="1240903469550363138">Davom etish uchun <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ism, email manzil va profil rasmingizni bu sayt bilan ulashadi. Bu saytning <ph name="BEGIN_LINK1" />maxfiylik siyosati<ph name="END_LINK1" /> va <ph name="BEGIN_LINK2" />xizmat shartlari<ph name="END_LINK2" /> bilan tanishing.</translation>
 <translation id="124116460088058876">Boshqa tillar</translation>
-<translation id="1241792820757384812">Parollaringiz <ph name="CHROME_CHANNEL" /> uchun Google Parollar menejeridan oʻchirib tashlanadi. Hozirgina yuklab olingan parollar faylini saqlab qolishingiz mumkin.</translation>
+<translation id="1241792820757384812">Parollaringiz <ph name="WOOTZAPP_CHANNEL" /> uchun Google Parollar menejeridan oʻchirib tashlanadi. Hozirgina yuklab olingan parollar faylini saqlab qolishingiz mumkin.</translation>
 <translation id="1242883863226959074">qurilma</translation>
 <translation id="124678866338384709">Joriy varaqni yopish</translation>
 <translation id="1246905108078336582">Klipbord taklifi olib tashlansinmi?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Inkognito varaqlarni yopish</translation>
 <translation id="1568636008098739136">Bu sahifani tinglash. Bu yorliqni tahrirlash uchun ustiga bosib turing.</translation>
 <translation id="1571304935088121812">Foydalanuvchi nomidan nusxa olish</translation>
-<translation id="1584648915421894279">Ayni damda bu qurilmaga saqlangan parollardan Chrome kanallarida foydalanish imkonsiz. Chrome brauzerining 125-versiyasidan keyin qurilmangiz va <ph name="CHROME_CHANNEL" />ga saqlangan parollar birlashtiriladi hamda har ikki ilovada foydalanish mumkin boʻladi.</translation>
+<translation id="1584648915421894279">Ayni damda bu qurilmaga saqlangan parollardan Chrome kanallarida foydalanish imkonsiz. Chrome brauzerining 125-versiyasidan keyin qurilmangiz va <ph name="WOOTZAPP_CHANNEL" />ga saqlangan parollar birlashtiriladi hamda har ikki ilovada foydalanish mumkin boʻladi.</translation>
 <translation id="1592864538817356322">Standart himoya:</translation>
 <translation id="1594635596540195766">quyidagi roʻyxatdan <ph name="SUGGESTIONS_COUNT" /> ta taklif.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> bilan <ph name="SITE_ETLD_PLUS_ONE" /> ishlatish</translation>
@@ -686,7 +686,7 @@ Google hisobingiz orqali amalga oshirgan qidiruvlaringiz, brauzer tarixi va bosh
 <translation id="4594952190837476234">Bu sahifa saytning <ph name="CREATION_TIME" /> kunidagi nusxasi va onlayn versiyasidan farq qilishi mumkin.</translation>
 <translation id="4595805675102978678">Google hisobi xatosi</translation>
 <translation id="4601095002996233687">Shubhali yuklanmalarni chuqur tekshirish</translation>
-<translation id="4609429330876432068">Chrome va <ph name="CHROME_CHANNEL" /> uchun saqlangan parollar roʻyxatlari birlashtirilgan. Avtomatik kiritish funksiyasidan foydalangan holda saqlangan parollarni har ikki ilovaga ham kiritish mumkin.</translation>
+<translation id="4609429330876432068">Chrome va <ph name="WOOTZAPP_CHANNEL" /> uchun saqlangan parollar roʻyxatlari birlashtirilgan. Avtomatik kiritish funksiyasidan foydalangan holda saqlangan parollarni har ikki ilovaga ham kiritish mumkin.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> veb-ilovasini ochish</translation>
 <translation id="4619564267100705184">Bu siz ekaningizni isbotlang</translation>
 <translation id="4634124774493850572">Paroldan foydalanish</translation>
@@ -1651,7 +1651,7 @@ Bu sozlamani oʻzgartirish uchun <ph name="BEGIN_LINK" />hisobingizda Chrome ma�
 <translation id="927968626442779827">Google Chrome brauzerida Lite rejimidan foydalanish</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> endi kuzatuvingizda</translation>
 <translation id="930124987204876019">Brauzer tarixi, cookie fayllari, kesh va boshqa sayt ma’lumotlarini oʻchirish…</translation>
-<translation id="93533588269984624">Barcha parollar qurilmada yuklab olinadi va <ph name="CHROME_CHANNEL" /> xotirasidan olib tashlanadi</translation>
+<translation id="93533588269984624">Barcha parollar qurilmada yuklab olinadi va <ph name="WOOTZAPP_CHANNEL" /> xotirasidan olib tashlanadi</translation>
 <translation id="938850635132480979">Xato: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Kodli iborani kiriting</translation>
 <translation id="952301137339791907">Quyi ekranda sahifa statistikasi ochildi</translation>

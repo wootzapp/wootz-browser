@@ -49,6 +49,7 @@
 #include "chrome/browser/ui/webui/net_export_ui.h"
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/throttle/throttle_ui.h"
+#include "chrome/browser/ui/webui/hello_world/hello_world_ui.h"
 #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
@@ -444,6 +445,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<NetInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIThrottleHost)
     return &NewWebUI<ThrottleUI>;
+   if (url.host() == chrome::kChromeUIHelloWorldHost)
+    return &NewWebUI<HelloWorldUI>;
   if (url.host_piece() == chrome::kChromeUINTPTilesInternalsHost)
     return &NewWebUI<NTPTilesInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIOmniboxHost)
@@ -547,6 +550,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUIPerformanceSidePanelHost) {
     return &NewWebUI<PerformanceSidePanelUI>;
   }
+ 
   // Settings are implemented with native UI elements on Android.
   if (url.host_piece() == chrome::kChromeUISettingsHost)
     return &NewWebUI<settings::SettingsUI>;
@@ -739,6 +743,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
 
   if (url.host_piece() == chrome::kChromeUIFamilyLinkUserInternalsHost)
     return &NewWebUI<FamilyLinkUserInternalsUI>;
+
+ 
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   if (url.host_piece() == chrome::kChromeUIWelcomeHost &&
@@ -1092,6 +1098,8 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
     GURL(ash::kChromeUIConchURL),
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
+
+
 #elif BUILDFLAG(IS_CHROMEOS_LACROS)
     // Pages that only exist in Lacros, where they are reachable via chrome://.
     // TODO(neis): Some of these still exist in Ash (but are inaccessible) and
@@ -1104,6 +1112,9 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
   return *urls;
 }
 
+
+
+
 bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   if (url.SchemeIs(extensions::kExtensionScheme) && url.has_host()) {
@@ -1114,5 +1125,6 @@ bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
   return crosapi::gurl_os_handler_utils::IsAshUrlInList(
       url, GetListOfAcceptableURLs());
 }
+
 
 #endif  // BUILDFLAG(IS_CHROMEOS)

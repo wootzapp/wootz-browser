@@ -73,7 +73,7 @@ public class BookmarkPromoHeader
         mAccountManagerFacade = AccountManagerFacadeProvider.getInstance();
 
         AccountPickerBottomSheetStrings bottomSheetStrings =
-                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome).build();
+                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp).build();
         SyncPromoController syncPromoController =
                 new SyncPromoController(
                         mProfile,

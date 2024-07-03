@@ -49,7 +49,7 @@ import type {PromoteUpdaterStatus} from './about_page_browser_proxy.js';
 
 // <if expr="_google_chrome">
 export const ABOUT_PAGE_PRIVACY_POLICY_URL: string =
-    'https://policies.google.com/privacy';
+    'https://www.wootzapp.com/privacy';
 // </if>
 
 const SettingsAboutPageElementBase =

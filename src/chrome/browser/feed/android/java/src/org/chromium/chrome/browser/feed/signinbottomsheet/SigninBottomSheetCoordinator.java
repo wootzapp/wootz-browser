@@ -149,7 +149,7 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
         if (mSetTestToast) return;
         Toast.makeText(
                         mWindowAndroid.getActivity().get(),
-                        R.string.sign_in_to_chrome_disabled_by_user_summary,
+                        R.string.sign_in_to_wootzapp_disabled_by_user_summary,
                         Toast.LENGTH_SHORT)
                 .show();
     }

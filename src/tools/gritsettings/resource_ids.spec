@@ -1298,13 +1298,20 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [8380],
   },
+
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/hello_world/resources.grd": {
+    "META": {"sizes": {"includes": [20]}},
+    "includes": [8390],
+  },
+ 
   "<(SHARED_INTERMEDIATE_DIR)/ui/webui/resources/webui_resources.grd": {
-    "META": {"sizes": {"includes": [1100]}},
+    "META": {"sizes": {"includes": [111]}},
     "includes": [8400],
   },
   "weblayer/weblayer_resources.grd": {
     "includes": [8420],
   },
+   
 
   # This file is generated during the build.
   # .grd extension is required because it's checked before var interpolation.

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> लोड गरिँदै छ</translation>
 <translation id="1240903469550363138"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ले जारी राख्ने प्रयोजनका लागि यो साइटसँग तपाईंको नाम, इमेल ठेगाना र प्रोफाइल फोटो सेयर गर्ने छ। यो साइटको <ph name="BEGIN_LINK1" />गोपनीयता नीति<ph name="END_LINK1" /> र <ph name="BEGIN_LINK2" />सेवाका सर्तहरू<ph name="END_LINK2" /> हेर्नुहोस्।</translation>
 <translation id="124116460088058876">थप भाषाहरू</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> का हकमा Google पासवर्ड म्यानेजरबाट तपाईंका पासवर्डहरू मेटाइने छन्। तपाईंले भर्खरै डाउनलोड गरेको पासवर्डहरू भएको फाइल तपाईंको डिभाइसमा सेभ रहिरहने छ।</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> का हकमा Google पासवर्ड म्यानेजरबाट तपाईंका पासवर्डहरू मेटाइने छन्। तपाईंले भर्खरै डाउनलोड गरेको पासवर्डहरू भएको फाइल तपाईंको डिभाइसमा सेभ रहिरहने छ।</translation>
 <translation id="1242883863226959074">डिभाइस</translation>
 <translation id="124678866338384709">हालको ट्याब बन्द गर्नुहोस्</translation>
 <translation id="1246905108078336582">क्लिपबोर्डको सुझाव हटाउने हो?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">इन्कोग्निटो ट्याबहरू बन्द गर्नुहोस्</translation>
 <translation id="1568636008098739136">यो पेजमा भएको टेक्स्ट सुन्नुहोस्। यो सर्टकट परिवर्तन गर्न टच एण्ड होल्ड गर्नुहोस्।</translation>
 <translation id="1571304935088121812">प्रयोगकर्ता नामको कपी गर्नुहोस्</translation>
-<translation id="1584648915421894279">यो डिभाइसमा सेभ गरिएका पासवर्डहरू अहिले Chrome च्यानलहरूमा प्रयोग गर्न मिल्दैन। Chrome को १२५ औँ संस्करण इन्स्टल गरेपछि तपाईंको डिभाइसमा Chrome र <ph name="CHROME_CHANNEL" /> का लागि सेभ गरिएका पासवर्डहरू मर्ज गरिने छन् र ती पासवर्ड दुवै एपमा प्रयोग गर्न मिल्छ।</translation>
+<translation id="1584648915421894279">यो डिभाइसमा सेभ गरिएका पासवर्डहरू अहिले Chrome च्यानलहरूमा प्रयोग गर्न मिल्दैन। Chrome को १२५ औँ संस्करण इन्स्टल गरेपछि तपाईंको डिभाइसमा Chrome र <ph name="WOOTZAPP_CHANNEL" /> का लागि सेभ गरिएका पासवर्डहरू मर्ज गरिने छन् र ती पासवर्ड दुवै एपमा प्रयोग गर्न मिल्छ।</translation>
 <translation id="1592864538817356322">मानक सुरक्षा:</translation>
 <translation id="1594635596540195766">तलको सूचीमा सिफारिस गरिएका <ph name="SUGGESTIONS_COUNT" /> वटा वस्तु छन्।</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> प्रयोग गरी <ph name="SITE_ETLD_PLUS_ONE" /> मा साइन इन गर्नुहोस्</translation>
@@ -685,7 +685,7 @@
 <translation id="4594952190837476234">यो पृष्ठ <ph name="CREATION_TIME" /> मा सिर्जना गरिएको हुँदा अनलाइन संस्करणभन्दा भिन्न हुन सक्छ।</translation>
 <translation id="4595805675102978678">Google खातासम्बन्धी त्रुटि</translation>
 <translation id="4601095002996233687">डाउनलोड गरिएका फाइल शङ्कास्पद देखिएमा विस्तृत रूपमा स्क्यान गर्ने सुविधा।</translation>
-<translation id="4609429330876432068">तपाईंले Chrome र <ph name="CHROME_CHANNEL" /> मा सेभ गरेका पासवर्डका सूचीहरू मर्ज गरिएका थिए। तपाईं अझै पनि आफूले दुवै एपमा सेभ गरेका सबै पासवर्डहरू स्वतः भर्न सक्नुहुन्छ।</translation>
+<translation id="4609429330876432068">तपाईंले Chrome र <ph name="WOOTZAPP_CHANNEL" /> मा सेभ गरेका पासवर्डका सूचीहरू मर्ज गरिएका थिए। तपाईं अझै पनि आफूले दुवै एपमा सेभ गरेका सबै पासवर्डहरू स्वतः भर्न सक्नुहुन्छ।</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> खोल्नुहोस्</translation>
 <translation id="4619564267100705184">यो व्यक्ति तपाईं नै हो भन्ने कुरा पुष्टि गर्नुहोस्</translation>
 <translation id="4634124774493850572">पासवर्ड प्रयोग गर्नुहोस्</translation>
@@ -1650,7 +1650,7 @@
 <translation id="927968626442779827">Google Chrome को लाइट मोड प्रयोग गर्नुहोस्</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> फलो गरिँदै छ</translation>
 <translation id="930124987204876019">हिस्ट्री, कुकी, साइट डेटा, क्यास मेटाउनुहोस्…</translation>
-<translation id="93533588269984624">सबै पासवर्डहरू तपाईंको डिभाइसमा डाउनलोड गरिने छन् र <ph name="CHROME_CHANNEL" /> बाट हटाइने छन्</translation>
+<translation id="93533588269984624">सबै पासवर्डहरू तपाईंको डिभाइसमा डाउनलोड गरिने छन् र <ph name="WOOTZAPP_CHANNEL" /> बाट हटाइने छन्</translation>
 <translation id="938850635132480979">त्रुटि: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">पासफ्रेज प्रविष्टि गर्नुहोस्</translation>
 <translation id="952301137339791907">पेजसम्बन्धी विश्लेषणात्मक डेटाको पुछारको पाना खोलिएको छ</translation>

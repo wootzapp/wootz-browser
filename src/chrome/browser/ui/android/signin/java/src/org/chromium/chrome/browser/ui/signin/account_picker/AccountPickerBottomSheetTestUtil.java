@@ -27,7 +27,7 @@ final class AccountPickerBottomSheetTestUtil {
                         .setDismissButtonStringId(R.string.signin_account_picker_dismiss_button)
                         .build();
             case SigninAccessPoint.BOOKMARK_MANAGER:
-                return new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome)
+                return new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp)
                         .build();
             default:
                 throw new IllegalArgumentException("Access point strings not handled in tests.");

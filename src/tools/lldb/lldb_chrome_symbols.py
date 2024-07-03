@@ -60,11 +60,11 @@ def get_chrome_symbols(debugger, command, result, internal_dict):
                 os.path.dirname(os.path.dirname(framework_parent_dir)))))
 
     chrome_arch = chrome_framework.GetTriple().split('-')[0]
-    chrome_channel = _get_channel(outer_bundle, chrome_version)
+    WOOTZAPP_CHANNEL = _get_channel(outer_bundle, chrome_version)
 
     if os.path.exists(SYMBOL_STORE):
         dsym_dir = download_symbols.get_symbol_directory(
-            chrome_version, chrome_channel, chrome_arch, SYMBOL_STORE)
+            chrome_version, WOOTZAPP_CHANNEL, chrome_arch, SYMBOL_STORE)
         if os.path.exists(dsym_dir):
             print('Adding existing symbols from {}'.format(dsym_dir),
                   file=result)
@@ -74,7 +74,7 @@ def get_chrome_symbols(debugger, command, result, internal_dict):
         os.mkdir(SYMBOL_STORE)
 
     dsym_dir = download_symbols.download_chrome_symbols(chrome_version,
-                                                        chrome_channel,
+                                                        WOOTZAPP_CHANNEL,
                                                         chrome_arch,
                                                         SYMBOL_STORE)
     if dsym_dir:

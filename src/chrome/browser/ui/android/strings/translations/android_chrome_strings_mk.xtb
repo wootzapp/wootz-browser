@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Се вчитува <ph name="LANG" /></translation>
 <translation id="1240903469550363138">За да продолжите, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ќе ги сподели вашето име, адресата на е-пошта и профилната слика со сајтов. Погледнете ја <ph name="BEGIN_LINK1" />Политиката за приватност<ph name="END_LINK1" /> и <ph name="BEGIN_LINK2" />Условите за користење<ph name="END_LINK2" /> на сајтов.</translation>
 <translation id="124116460088058876">Повеќе јазици</translation>
-<translation id="1241792820757384812">Вашите лозинки ќе се избришат од Google Password Manager за <ph name="CHROME_CHANNEL" />. Ќе ја задржите датотеката со лозинки што ја презедовте пред малку.</translation>
+<translation id="1241792820757384812">Вашите лозинки ќе се избришат од Google Password Manager за <ph name="WOOTZAPP_CHANNEL" />. Ќе ја задржите датотеката со лозинки што ја презедовте пред малку.</translation>
 <translation id="1242883863226959074">уред</translation>
 <translation id="124678866338384709">Затвори ја тековната картичка</translation>
 <translation id="1246905108078336582">Дали да се отстрани предлогот од привремената меморија?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Затвори картички „Инкогнито“</translation>
 <translation id="1568636008098739136">Слушајте ја страницава. За да ја измените кратенкава, допрете и задржете.</translation>
 <translation id="1571304935088121812">Копирај го корисничкото име</translation>
-<translation id="1584648915421894279">Во моментов, лозинките што се зачувани на уредов не може да се користат на каналите на Chrome. По верзијата 125 на Chrome, лозинките што се зачувани на уредов за Chrome и <ph name="CHROME_CHANNEL" /> ќе се спојат, па ќе може да се користат и во двете апликации.</translation>
+<translation id="1584648915421894279">Во моментов, лозинките што се зачувани на уредов не може да се користат на каналите на Chrome. По верзијата 125 на Chrome, лозинките што се зачувани на уредов за Chrome и <ph name="WOOTZAPP_CHANNEL" /> ќе се спојат, па ќе може да се користат и во двете апликации.</translation>
 <translation id="1592864538817356322">Стандардна заштита:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> предложени ставки во списокот долу.</translation>
 <translation id="1598163867407640634">Користете <ph name="SITE_ETLD_PLUS_ONE" /> со <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">Офлајн страницава е од <ph name="CREATION_TIME" /> и може да се разликува од онлајн верзијата.</translation>
 <translation id="4595805675102978678">Грешка на сметката на Google</translation>
 <translation id="4601095002996233687">Детални скенирања за сомнителни преземања.</translation>
-<translation id="4609429330876432068">Вашите списоци на зачувани лозинки за Chrome и <ph name="CHROME_CHANNEL" /> се споени. И понатаму може автоматски да ги пополнувате сите зачувани лозинки во двете апликации.</translation>
+<translation id="4609429330876432068">Вашите списоци на зачувани лозинки за Chrome и <ph name="WOOTZAPP_CHANNEL" /> се споени. И понатаму може автоматски да ги пополнувате сите зачувани лозинки во двете апликации.</translation>
 <translation id="4616150815774728855">Отвори <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Потврдете дека сте вие</translation>
 <translation id="4634124774493850572">Употреби ја лозинката</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Користете „Лесен режим“ на Google Chrome</translation>
 <translation id="928550791203542716">Се следи <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Избришете ги историјата, колачињата, податоците од сајтот, кешот…</translation>
-<translation id="93533588269984624">Сите лозинки ќе се преземат на вашиот уред и ќе се отстранат од <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Сите лозинки ќе се преземат на вашиот уред и ќе се отстранат од <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Грешка: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Внеси пристапна фраза</translation>
 <translation id="952301137339791907">Долниот лист со увиди за страницата е отворен</translation>

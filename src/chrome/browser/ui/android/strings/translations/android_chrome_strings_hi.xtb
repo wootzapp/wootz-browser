@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> लोड हो रही है</translation>
 <translation id="1240903469550363138">जारी रखने के लिए, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> इस साइट के साथ आपका नाम, ईमेल पता, और प्रोफ़ाइल फ़ोटो शेयर करेगा. इस साइट की <ph name="BEGIN_LINK1" />निजता नीति<ph name="END_LINK1" /> और <ph name="BEGIN_LINK2" />सेवा की शर्तें<ph name="END_LINK2" /> देखें.</translation>
 <translation id="124116460088058876">ज़्यादा भाषाएं</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> के लिए, Google Password Manager से आपके पासवर्ड मिटा दिए जाएंगे. आपने अभी जो पासवर्ड फ़ाइल डाउनलोड की है वह सेव रहेगी.</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> के लिए, Google Password Manager से आपके पासवर्ड मिटा दिए जाएंगे. आपने अभी जो पासवर्ड फ़ाइल डाउनलोड की है वह सेव रहेगी.</translation>
 <translation id="1242883863226959074">डिवाइस</translation>
 <translation id="124678866338384709">वर्तमान टैब को बंद करें</translation>
 <translation id="1246905108078336582">क्लिपबोर्ड से सुझाव हटाना चाहते हैं?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">गुप्त टैब बंद करें</translation>
 <translation id="1568636008098739136">इस पेज का कॉन्टेंट सुनें. इस शॉर्टकट में बदलाव करने के लिए, दबाकर रखें.</translation>
 <translation id="1571304935088121812">उपयोगकर्ता नाम की कॉपी करें</translation>
-<translation id="1584648915421894279">फ़िलहाल, इस डिवाइस पर सेव किए गए पासवर्ड, सभी Chrome चैनलों पर इस्तेमाल नहीं किए जा सकते. Chrome 125 के बाद, आपके डिवाइस पर Chrome और <ph name="CHROME_CHANNEL" /> के लिए सेव किए गए पासवर्ड मर्ज कर दिए जाएंगे और इनका इस्तेमाल दोनों ऐप्लिकेशन में किया जा सकेगा.</translation>
+<translation id="1584648915421894279">फ़िलहाल, इस डिवाइस पर सेव किए गए पासवर्ड, सभी Chrome चैनलों पर इस्तेमाल नहीं किए जा सकते. Chrome 125 के बाद, आपके डिवाइस पर Chrome और <ph name="WOOTZAPP_CHANNEL" /> के लिए सेव किए गए पासवर्ड मर्ज कर दिए जाएंगे और इनका इस्तेमाल दोनों ऐप्लिकेशन में किया जा सकेगा.</translation>
 <translation id="1592864538817356322">स्टैंडर्ड सुरक्षा मोड:</translation>
 <translation id="1594635596540195766">नीचे दी गई सूची में, सुझाए गए <ph name="SUGGESTIONS_COUNT" /> आइटम हैं.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> की मदद से, <ph name="SITE_ETLD_PLUS_ONE" /> का इस्तेमाल करें</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">यह पेज <ph name="CREATION_TIME" /> का है और यह ऑनलाइन वर्शन से अलग हो सकता है.</translation>
 <translation id="4595805675102978678">Google खाते में गड़बड़ी</translation>
 <translation id="4601095002996233687">यह सुविधा संदिग्ध डाउनलोड की जांच करने के लिए गहराई से स्कैन करती है.</translation>
-<translation id="4609429330876432068">Chrome और <ph name="CHROME_CHANNEL" /> पर सेव किए गए पासवर्ड की सूचियां मर्ज कर दी गई हैं. आपके पास अब भी दोनों ऐप्लिकेशन पर, सेव किए गए अपने सभी पासवर्ड ऑटोमैटिक भरने की सुविधा है.</translation>
+<translation id="4609429330876432068">Chrome और <ph name="WOOTZAPP_CHANNEL" /> पर सेव किए गए पासवर्ड की सूचियां मर्ज कर दी गई हैं. आपके पास अब भी दोनों ऐप्लिकेशन पर, सेव किए गए अपने सभी पासवर्ड ऑटोमैटिक भरने की सुविधा है.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> को खोलें</translation>
 <translation id="4619564267100705184">अपनी पहचान की पुष्टि करें</translation>
 <translation id="4634124774493850572">पासवर्ड का इस्तेमाल करें</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chrome पर लाइट मोड का इस्तेमाल करें</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> को फ़ॉलो किया जा रहा है</translation>
 <translation id="930124987204876019">ब्राउज़िंग इतिहास, कुकी, साइट डेटा, कैश मेमोरी वगैरह मिटाएं…</translation>
-<translation id="93533588269984624">सभी पासवर्ड आपके डिवाइस पर डाउनलोड किए जाएंगे और उन्हें <ph name="CHROME_CHANNEL" /> से हटा दिया जाएगा</translation>
+<translation id="93533588269984624">सभी पासवर्ड आपके डिवाइस पर डाउनलोड किए जाएंगे और उन्हें <ph name="WOOTZAPP_CHANNEL" /> से हटा दिया जाएगा</translation>
 <translation id="938850635132480979">गड़बड़ी: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">'पासफ़्रेज़' दर्ज करें</translation>
 <translation id="952301137339791907">पेज की अहम जानकारी वाली बॉटम शीट खुली है</translation>

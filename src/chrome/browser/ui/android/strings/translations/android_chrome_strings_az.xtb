@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> yüklənir</translation>
 <translation id="1240903469550363138">Davam etmək üçün <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ad, e-poçt ünvanı və profil şəklinizi bu sayt ilə paylaşacaq. Bu saytın <ph name="BEGIN_LINK1" />məxfilik siyasəti<ph name="END_LINK1" /> və <ph name="BEGIN_LINK2" />xidmət şərtlərinə<ph name="END_LINK2" /> baxın.</translation>
 <translation id="124116460088058876">Digər dillər</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> üçün parollar Google Parol Menecerindən silinəcək. İndicə endirilən parol faylını saxlayacaqsınız.</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> üçün parollar Google Parol Menecerindən silinəcək. İndicə endirilən parol faylını saxlayacaqsınız.</translation>
 <translation id="1242883863226959074">cihaz</translation>
 <translation id="124678866338384709">Cari paneli bağlayın</translation>
 <translation id="1246905108078336582">Təklif mübadilə buferindən silinsin?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Anonim tabları qapadın</translation>
 <translation id="1568636008098739136">Bu səhifəni dinləyin. Bu qısayolu redaktə etmək üçün toxunub saxlayın.</translation>
 <translation id="1571304935088121812">İstifadəçi adını kopyalayın</translation>
-<translation id="1584648915421894279">Bu cihazda yadda saxlanan parollar Chrome kanallarında istifadə edilə bilməz. Chrome 125-dən sonra Chrome və <ph name="CHROME_CHANNEL" /> üçün cihazda yadda saxlanan parollar birləşdiriləcək və hər iki tətbiqdə istifadə edilə biləcək.</translation>
+<translation id="1584648915421894279">Bu cihazda yadda saxlanan parollar Chrome kanallarında istifadə edilə bilməz. Chrome 125-dən sonra Chrome və <ph name="WOOTZAPP_CHANNEL" /> üçün cihazda yadda saxlanan parollar birləşdiriləcək və hər iki tətbiqdə istifadə edilə biləcək.</translation>
 <translation id="1592864538817356322">Standart qoruma:</translation>
 <translation id="1594635596540195766">Aşağıdakı siyahıda <ph name="SUGGESTIONS_COUNT" /> element təklif edilib.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ilə <ph name="SITE_ETLD_PLUS_ONE" /> istifadə edin</translation>
@@ -686,7 +686,7 @@ Yalnız parol ifadəsini bilən şəxs şifrələnmiş datanı oxuya bilər. Goo
 <translation id="4594952190837476234">Bu səhifə <ph name="CREATION_TIME" /> tarixində yaradılıb və onlayn versiyadan fərqli ola bilər.</translation>
 <translation id="4595805675102978678">Google Hesabı xətası</translation>
 <translation id="4601095002996233687">Şübhəli endirmələr üçün hərtərəfli skanlama.</translation>
-<translation id="4609429330876432068">Chrome və <ph name="CHROME_CHANNEL" /> üzrə yadda saxlanılmış parolların siyahısı birləşdirildi. Hər iki tətbiqdə yadda saxlanılmış bütün parolları yenə də avtomatik doldura bilərsiniz.</translation>
+<translation id="4609429330876432068">Chrome və <ph name="WOOTZAPP_CHANNEL" /> üzrə yadda saxlanılmış parolların siyahısı birləşdirildi. Hər iki tətbiqdə yadda saxlanılmış bütün parolları yenə də avtomatik doldura bilərsiniz.</translation>
 <translation id="4616150815774728855">Açın: <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Kimliyinizi doğrulayın</translation>
 <translation id="4634124774493850572">Parol istifadə edin</translation>
@@ -1649,7 +1649,7 @@ Bu ayarı dəyişmək üçün <ph name="BEGIN_LINK" />hesabda Chrome datasını 
 <translation id="927968626442779827">Google Chrome'da Lite rejimindən istifadə edin</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> izlənilir</translation>
 <translation id="930124987204876019">Tarixçə, kuki, sayt datası və keşi silin…</translation>
-<translation id="93533588269984624">Bütün parollar cihaza endiriləcək və <ph name="CHROME_CHANNEL" /> kanalından silinəcək</translation>
+<translation id="93533588269984624">Bütün parollar cihaza endiriləcək və <ph name="WOOTZAPP_CHANNEL" /> kanalından silinəcək</translation>
 <translation id="938850635132480979">Xəta: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Parol daxil edin</translation>
 <translation id="952301137339791907">Səhifə statistikası üzrə aşağı vərəq açılıb</translation>
