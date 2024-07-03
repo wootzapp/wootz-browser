@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Laai tans <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Om voort te gaan, sal <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> jou naam, e-posadres en profielfoto met hierdie werf deel. Lees hierdie werf se <ph name="BEGIN_LINK1" />privaatheidsbeleid<ph name="END_LINK1" /> en <ph name="BEGIN_LINK2" />diensbepalings<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">Meer tale</translation>
-<translation id="1241792820757384812">Jou wagwoorde sal van Google Wagwoordbestuurder vir <ph name="CHROME_CHANNEL" /> uitgevee word. Jy sal die wagwoordlêer wat jy sopas afgelaai het, behou.</translation>
+<translation id="1241792820757384812">Jou wagwoorde sal van Google Wagwoordbestuurder vir <ph name="WOOTZAPP_CHANNEL" /> uitgevee word. Jy sal die wagwoordlêer wat jy sopas afgelaai het, behou.</translation>
 <translation id="1242883863226959074">toestel</translation>
 <translation id="124678866338384709">Maak huidige oortjie toe</translation>
 <translation id="1246905108078336582">Verwyder voorstel van knipbord af?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Maak Incognito-oortjies toe</translation>
 <translation id="1568636008098739136">Luister na hierdie bladsy. Raak en hou om hierdie kortpad te wysig.</translation>
 <translation id="1571304935088121812">Kopieer gebruikernaam</translation>
-<translation id="1584648915421894279">Wagwoorde wat op hierdie toestel gestoor is, kan tans nie oor Chrome-kanale gebruik word nie. Ná Chrome 125 sal wagwoorde wat op jou toestel vir Chrome en <ph name="CHROME_CHANNEL" /> gestoor is, saamgevoeg word en in albei apps gebruik kan word.</translation>
+<translation id="1584648915421894279">Wagwoorde wat op hierdie toestel gestoor is, kan tans nie oor Chrome-kanale gebruik word nie. Ná Chrome 125 sal wagwoorde wat op jou toestel vir Chrome en <ph name="WOOTZAPP_CHANNEL" /> gestoor is, saamgevoeg word en in albei apps gebruik kan word.</translation>
 <translation id="1592864538817356322">Standaardbeskerming:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> voorgestelde items op lys hieronder.</translation>
 <translation id="1598163867407640634">Gebruik <ph name="SITE_ETLD_PLUS_ONE" /> met <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Jou Google-rekening het dalk ander vorme van blaaigeskiedenis, soos soektogte en
 <translation id="4594952190837476234">Hierdie vanlyn bladsy is van <ph name="CREATION_TIME" /> af en kan van die aanlyn weergawe verskil.</translation>
 <translation id="4595805675102978678">Fout met Google-rekening</translation>
 <translation id="4601095002996233687">Omvattende skanderings vir verdagte aflaaie.</translation>
-<translation id="4609429330876432068">Jou lyste gestoorde wagwoorde vir Chrome en <ph name="CHROME_CHANNEL" /> is saamgevoeg. Jy kan steeds al jou gestoorde wagwoorde op albei apps outomaties invul.</translation>
+<translation id="4609429330876432068">Jou lyste gestoorde wagwoorde vir Chrome en <ph name="WOOTZAPP_CHANNEL" /> is saamgevoeg. Jy kan steeds al jou gestoorde wagwoorde op albei apps outomaties invul.</translation>
 <translation id="4616150815774728855">Maak <ph name="WEBAPK_NAME" /> oop</translation>
 <translation id="4619564267100705184">Verifieer dis jy</translation>
 <translation id="4634124774493850572">Gebruik wagwoord</translation>
@@ -1651,7 +1651,7 @@ Byvoorbeeld, sommige webwerwe kan op hierdie versoek reageer deur vir jou advert
 <translation id="927968626442779827">Gebruik Ligte Modus op Google Chrome</translation>
 <translation id="928550791203542716">Volg tans <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Vee geskiedenis, webkoekies, werfdata, kasgeheue uit …</translation>
-<translation id="93533588269984624">Alle wagwoorde sal op jou toestel afgelaai word en van <ph name="CHROME_CHANNEL" /> verwyder word</translation>
+<translation id="93533588269984624">Alle wagwoorde sal op jou toestel afgelaai word en van <ph name="WOOTZAPP_CHANNEL" /> verwyder word</translation>
 <translation id="938850635132480979">Fout: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Tik wagfrase in</translation>
 <translation id="952301137339791907">Bladinsigte se onderste blad is oopgemaak</translation>

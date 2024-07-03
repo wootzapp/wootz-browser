@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">S'està carregant <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Per continuar, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> compartirà el teu nom, la teva adreça electrònica i la teva foto de perfil amb aquest lloc web. Consulta la <ph name="BEGIN_LINK1" />política de privadesa<ph name="END_LINK1" /> i les <ph name="BEGIN_LINK2" />condicions del servei<ph name="END_LINK2" /> d'aquest lloc web.</translation>
 <translation id="124116460088058876">Més idiomes</translation>
-<translation id="1241792820757384812">Les teves contrasenyes se suprimiran del gestor de contrasenyes de Google per a <ph name="CHROME_CHANNEL" />. Conservaràs el fitxer de contrasenyes que acabes de baixar.</translation>
+<translation id="1241792820757384812">Les teves contrasenyes se suprimiran del gestor de contrasenyes de Google per a <ph name="WOOTZAPP_CHANNEL" />. Conservaràs el fitxer de contrasenyes que acabes de baixar.</translation>
 <translation id="1242883863226959074">dispositiu</translation>
 <translation id="124678866338384709">Tanca la pestanya actual</translation>
 <translation id="1246905108078336582">Vols suprimir el suggeriment del porta-retalls?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Tanca pestanyes d'incògnit</translation>
 <translation id="1568636008098739136">Escolta aquesta pàgina. Per editar aquesta drecera, mantén-la premuda.</translation>
 <translation id="1571304935088121812">Copia el nom d'usuari</translation>
-<translation id="1584648915421894279">Ara mateix, les contrasenyes desades en aquest dispositiu no es poden utilitzar en tots els canals de Chrome. Després de la versió 125 de Chrome, les contrasenyes desades al dispositiu per a Chrome i <ph name="CHROME_CHANNEL" /> es combinaran i es podran utilitzar en totes dues aplicacions.</translation>
+<translation id="1584648915421894279">Ara mateix, les contrasenyes desades en aquest dispositiu no es poden utilitzar en tots els canals de Chrome. Després de la versió 125 de Chrome, les contrasenyes desades al dispositiu per a Chrome i <ph name="WOOTZAPP_CHANNEL" /> es combinaran i es podran utilitzar en totes dues aplicacions.</translation>
 <translation id="1592864538817356322">Protecció estàndard:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> elements suggerits a la llista següent.</translation>
 <translation id="1598163867407640634">Utilitza <ph name="SITE_ETLD_PLUS_ONE" /> amb <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Només les persones que sàpiguen la teva frase de contrasenya podran llegir les
 <translation id="4594952190837476234">Aquesta pàgina sense connexió és del dia <ph name="CREATION_TIME" /> i pot ser diferent de la versió en línia.</translation>
 <translation id="4595805675102978678">Error del Compte de Google</translation>
 <translation id="4601095002996233687">Anàlisis detallades per comprovar si hi ha baixades sospitoses.</translation>
-<translation id="4609429330876432068">Les teves llistes de contrasenyes desades per a Chrome i <ph name="CHROME_CHANNEL" /> s'han combinat. Pots continuar emplenant automàticament les contrasenyes desades en totes dues aplicacions.</translation>
+<translation id="4609429330876432068">Les teves llistes de contrasenyes desades per a Chrome i <ph name="WOOTZAPP_CHANNEL" /> s'han combinat. Pots continuar emplenant automàticament les contrasenyes desades en totes dues aplicacions.</translation>
 <translation id="4616150815774728855">Obre <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Verifica la teva identitat</translation>
 <translation id="4634124774493850572">Fes servir la contrasenya</translation>
@@ -1651,7 +1651,7 @@ Per canviar aquesta opció de configuració, <ph name="BEGIN_LINK" />suprimeix l
 <translation id="927968626442779827">Utilitza el mode lleuger a Google Chrome</translation>
 <translation id="928550791203542716">Segueixes <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Suprimeix l'historial, les galetes, les dades dels llocs web, la memòria cau…</translation>
-<translation id="93533588269984624">Totes les contrasenyes es baixaran al teu dispositiu i se suprimiran de <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Totes les contrasenyes es baixaran al teu dispositiu i se suprimiran de <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Error: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Introduïu la frase de contrasenya</translation>
 <translation id="952301137339791907">El full inferior d'estadístiques de la pàgina està obert</translation>

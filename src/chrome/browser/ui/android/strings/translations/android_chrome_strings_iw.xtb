@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> בטעינה</translation>
 <translation id="1240903469550363138">כדי להמשיך, הפרטים הבאים ישותפו על ידי <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> עם האתר הזה: השם, האימייל, הכתובת ותמונת הפרופיל שלך. בקישורים הבאים ניתן לצפות ב<ph name="BEGIN_LINK1" />מדיניות הפרטיות<ph name="END_LINK1" /> וב<ph name="BEGIN_LINK2" />תנאים וההגבלות<ph name="END_LINK2" /> של האתר הזה.</translation>
 <translation id="124116460088058876">שפות נוספות</translation>
-<translation id="1241792820757384812">‏הסיסמאות יימחקו ממנהל הסיסמאות של Google ב-<ph name="CHROME_CHANNEL" />. קובץ הסיסמאות שהורדת עכשיו יישאר אצלך.</translation>
+<translation id="1241792820757384812">‏הסיסמאות יימחקו ממנהל הסיסמאות של Google ב-<ph name="WOOTZAPP_CHANNEL" />. קובץ הסיסמאות שהורדת עכשיו יישאר אצלך.</translation>
 <translation id="1242883863226959074">מכשיר</translation>
 <translation id="124678866338384709">סגירת הכרטיסייה הנוכחית</translation>
 <translation id="1246905108078336582">להסיר את ההצעה מהלוח?</translation>
@@ -115,7 +115,7 @@
 <translation id="1558391695376153246">סגירת כרטיסיות מצב אנונימי</translation>
 <translation id="1568636008098739136">האזנה לדף הזה. ניתן לערוך את קיצור הדרך הזה בלחיצה ארוכה.</translation>
 <translation id="1571304935088121812">העתקת שם משתמש</translation>
-<translation id="1584648915421894279">‏בשלב הזה, לא ניתן להשתמש בסיסמאות ששמורות במכשיר הזה בערוצי Chrome. אחרי ההשקה של גרסה 125 של Chrome, הסיסמאות ששמורות במכשיר לשימוש ב-Chrome וב-<ph name="CHROME_CHANNEL" /> ימוזגו, ואפשר יהיה להשתמש בהן בשתי האפליקציות.</translation>
+<translation id="1584648915421894279">‏בשלב הזה, לא ניתן להשתמש בסיסמאות ששמורות במכשיר הזה בערוצי Chrome. אחרי ההשקה של גרסה 125 של Chrome, הסיסמאות ששמורות במכשיר לשימוש ב-Chrome וב-<ph name="WOOTZAPP_CHANNEL" /> ימוזגו, ואפשר יהיה להשתמש בהן בשתי האפליקציות.</translation>
 <translation id="1592864538817356322">הגנה רגילה:</translation>
 <translation id="1594635596540195766">ברשימה שבהמשך יש <ph name="SUGGESTIONS_COUNT" /> הצעות לפריטים.</translation>
 <translation id="1598163867407640634">יש לך אפשרות להשתמש באתר <ph name="SITE_ETLD_PLUS_ONE" /> עם החשבון <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -684,7 +684,7 @@
 <translation id="4594952190837476234">הדף האופליין הזה נוצר ב-<ph name="CREATION_TIME" /> ויכול להיות שהגרסה המקוונת שלו שונה.</translation>
 <translation id="4595805675102978678">‏שגיאה בחשבון Google</translation>
 <translation id="4601095002996233687">סריקות מעמיקות לאיתור הורדות חשודות.</translation>
-<translation id="4609429330876432068">‏הרשימות של הסיסמאות השמורות שלך ב-Chrome וב-<ph name="CHROME_CHANNEL" /> מוזגו. עדיין אפשר למלא באופן אוטומטי את כל הסיסמאות השמורות בשתי האפליקציות האלו.</translation>
+<translation id="4609429330876432068">‏הרשימות של הסיסמאות השמורות שלך ב-Chrome וב-<ph name="WOOTZAPP_CHANNEL" /> מוזגו. עדיין אפשר למלא באופן אוטומטי את כל הסיסמאות השמורות בשתי האפליקציות האלו.</translation>
 <translation id="4616150815774728855">פתיחה של <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">אימות הזהות שלך</translation>
 <translation id="4634124774493850572">שימוש בסיסמה</translation>
@@ -1649,7 +1649,7 @@
 <translation id="927968626442779827">‏כדאי להשתמש במצב הטעינה המהירה ב-Google Chrome</translation>
 <translation id="928550791203542716">האתר <ph name="SITE_NAME" /> נמצא במעקב</translation>
 <translation id="930124987204876019">‏מחיקת ההיסטוריה, קובצי ה-Cookie, נתוני האתרים, המטמון…</translation>
-<translation id="93533588269984624">תתבצע הורדה של כל הסיסמאות שבמכשיר והן יוסרו מ-<ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">תתבצע הורדה של כל הסיסמאות שבמכשיר והן יוסרו מ-<ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">שגיאה: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">הזנת ביטוי סיסמה</translation>
 <translation id="952301137339791907">הגיליון התחתון של התובנות לגבי הדף פתוח</translation>

@@ -186,7 +186,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
 
         SyncPromoPreference syncPromoPreference = findPreference(PREF_SYNC_PROMO);
         AccountPickerBottomSheetStrings bottomSheetStrings =
-                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome).build();
+                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp).build();
         syncPromoPreference.initialize(
                 profileDataCache,
                 accountManagerFacade,

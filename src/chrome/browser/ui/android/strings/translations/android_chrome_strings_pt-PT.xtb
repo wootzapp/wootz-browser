@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">A carregar <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Para continuar, o fornecedor <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> vai partilhar o seu nome, endereço de email e imagem do perfil com este site. Consulte a <ph name="BEGIN_LINK1" />política de privacidade<ph name="END_LINK1" /> e os <ph name="BEGIN_LINK2" />termos de utilização<ph name="END_LINK2" /> deste site.</translation>
 <translation id="124116460088058876">Mais idiomas</translation>
-<translation id="1241792820757384812">As suas palavras-passe vão ser eliminadas do Gestor de Palavras-passe da Google para o <ph name="CHROME_CHANNEL" />. Vai manter o ficheiro de palavras-passe que acabou de transferir.</translation>
+<translation id="1241792820757384812">As suas palavras-passe vão ser eliminadas do Gestor de Palavras-passe da Google para o <ph name="WOOTZAPP_CHANNEL" />. Vai manter o ficheiro de palavras-passe que acabou de transferir.</translation>
 <translation id="1242883863226959074">dispositivo</translation>
 <translation id="124678866338384709">Fechar o separador atual</translation>
 <translation id="1246905108078336582">Remover a sugestão da área de transferência?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Fechar sep. de nav. anónima</translation>
 <translation id="1568636008098739136">Ouça esta página. Para editar este atalho, toque sem soltar.</translation>
 <translation id="1571304935088121812">Copiar nome de utilizador</translation>
-<translation id="1584648915421894279">Neste momento, as palavras-passe guardadas neste dispositivo não podem ser usadas nos canais do Chrome. Depois do Chrome 125, as palavras-passe guardadas no dispositivo para o Chrome e o <ph name="CHROME_CHANNEL" /> vão ser unidas e podem ser usadas em ambas as apps.</translation>
+<translation id="1584648915421894279">Neste momento, as palavras-passe guardadas neste dispositivo não podem ser usadas nos canais do Chrome. Depois do Chrome 125, as palavras-passe guardadas no dispositivo para o Chrome e o <ph name="WOOTZAPP_CHANNEL" /> vão ser unidas e podem ser usadas em ambas as apps.</translation>
 <translation id="1592864538817356322">Proteção padrão:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> itens sugeridos na lista abaixo.</translation>
 <translation id="1598163867407640634">Use o <ph name="SITE_ETLD_PLUS_ONE" /> com o fornecedor <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -696,7 +696,7 @@ A sua Conta Google pode ter outras formas do histórico de navegação, como pes
 <translation id="4594952190837476234">Esta página foi criada a <ph name="CREATION_TIME" /> e pode ser diferente da versão online.</translation>
 <translation id="4595805675102978678">Erro da Conta Google</translation>
 <translation id="4601095002996233687">Análises detalhadas de transferências suspeitas.</translation>
-<translation id="4609429330876432068">As suas listas de palavras-passe guardadas do Chrome e <ph name="CHROME_CHANNEL" /> foram unidas. Pode continuar a preencher automaticamente todas as palavras-passe guardadas em ambas as apps.</translation>
+<translation id="4609429330876432068">As suas listas de palavras-passe guardadas do Chrome e <ph name="WOOTZAPP_CHANNEL" /> foram unidas. Pode continuar a preencher automaticamente todas as palavras-passe guardadas em ambas as apps.</translation>
 <translation id="4616150815774728855">Abrir <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Validar identidade</translation>
 <translation id="4634124774493850572">Usar palavra-passe</translation>
@@ -1669,7 +1669,7 @@ Para alterar esta definição, <ph name="BEGIN_LINK" />elimine os dados do Chrom
 <translation id="927968626442779827">Utilize o Modo Lite no Google Chrome.</translation>
 <translation id="928550791203542716">A seguir <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Elimine o histórico, os cookies, os dados de sites, a cache…</translation>
-<translation id="93533588269984624">Todas as palavras-passe vão ser transferidas para o seu dispositivo e removidas do <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Todas as palavras-passe vão ser transferidas para o seu dispositivo e removidas do <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Erro: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Introduzir frase de acesso</translation>
 <translation id="952301137339791907">A secção inferior das estatísticas da página está aberta</translation>

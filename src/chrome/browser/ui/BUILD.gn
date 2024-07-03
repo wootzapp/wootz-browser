@@ -49,7 +49,8 @@ static_library("ui") {
     "accelerator_utils.h",
     "app_list/app_list_util.cc",
     "app_list/app_list_util.h",
-
+    "webui/hello_world/hello_world_ui.cc",
+    "webui/hello_world/hello_world_ui.h",
     # All other app_list/ files go under is_chromeos_ash below.
     "autofill/autofill_bubble_handler.h",
     "autofill/autofill_client_provider.cc",
@@ -320,6 +321,8 @@ static_library("ui") {
     "webui/net_export_ui.h",
     "webui/net_internals/net_internals_ui.cc",
     "webui/net_internals/net_internals_ui.h",
+    "webui/throttle/throttle_prefs.cc",
+    "webui/throttle/throttle_prefs.h",
     "webui/throttle/throttle_ui.cc",
     "webui/throttle/throttle_ui.h",
     "webui/ntp_tiles_internals_ui.cc",

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Läser in <ph name="LANG" /></translation>
 <translation id="1240903469550363138"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> delar ditt namn, din e-postadress, din adress och din profilbild med den här webbplatsen om du fortsätter. Läs webbplatsens <ph name="BEGIN_LINK1" />integritetspolicy<ph name="END_LINK1" /> och <ph name="BEGIN_LINK2" />användarvillkor<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">Fler språk</translation>
-<translation id="1241792820757384812">Dina lösenord raderas från Google Lösenordshantering för <ph name="CHROME_CHANNEL" />. Lösenordsfilen som du precis laddade ned finns kvar.</translation>
+<translation id="1241792820757384812">Dina lösenord raderas från Google Lösenordshantering för <ph name="WOOTZAPP_CHANNEL" />. Lösenordsfilen som du precis laddade ned finns kvar.</translation>
 <translation id="1242883863226959074">enhet</translation>
 <translation id="124678866338384709">Stäng den aktuella fliken</translation>
 <translation id="1246905108078336582">Vill du ta bort förslaget från urklipp?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Stäng inkognitoflikar</translation>
 <translation id="1568636008098739136">Lyssna på sidan. Tryck länge om du vill ändra det här kortkommandot.</translation>
 <translation id="1571304935088121812">Kopiera användarnamn</translation>
-<translation id="1584648915421894279">Lösenord som är sparade på den här enheten går för närvarande inte att använda i Chrome-kanaler. Efter Chrome 125 sammanfogas lösenord som är sparade på enheten för Chrome och <ph name="CHROME_CHANNEL" /> och kan användas i båda apparna.</translation>
+<translation id="1584648915421894279">Lösenord som är sparade på den här enheten går för närvarande inte att använda i Chrome-kanaler. Efter Chrome 125 sammanfogas lösenord som är sparade på enheten för Chrome och <ph name="WOOTZAPP_CHANNEL" /> och kan användas i båda apparna.</translation>
 <translation id="1592864538817356322">Standardskydd:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> föreslagna objekt i listan nedan.</translation>
 <translation id="1598163867407640634">Använd <ph name="SITE_ETLD_PLUS_ONE" /> med <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -687,7 +687,7 @@ Det kan finnas andra former av webbhistorik i Google-kontot på <ph name="BEGIN_
 <translation id="4594952190837476234">Den här offlinesidan sparades <ph name="CREATION_TIME" /> och kan skilja sig från onlineversionen.</translation>
 <translation id="4595805675102978678">Fel i Google-kontot</translation>
 <translation id="4601095002996233687">Ingående genomsökningar efter misstänkta nedladdningar.</translation>
-<translation id="4609429330876432068">Listorna över sparade lösenord för Chrome och <ph name="CHROME_CHANNEL" /> har sammanfogats. Du kan fortfarande fylla i alla sparade lösenord automatiskt i båda apparna.</translation>
+<translation id="4609429330876432068">Listorna över sparade lösenord för Chrome och <ph name="WOOTZAPP_CHANNEL" /> har sammanfogats. Du kan fortfarande fylla i alla sparade lösenord automatiskt i båda apparna.</translation>
 <translation id="4616150815774728855">Öppna <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Verifiera din identitet</translation>
 <translation id="4634124774493850572">Använd lösenordet</translation>
@@ -1652,7 +1652,7 @@ Om du vill ändra den här inställningen <ph name="BEGIN_LINK" />raderar du Chr
 <translation id="927968626442779827">Använd begränsat läge i Google Chrome</translation>
 <translation id="928550791203542716">Följer <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Radera historik, cookies, webbplatsdata, cacheminne …</translation>
-<translation id="93533588269984624">Alla lösenord laddas ned på enheten och tas bort från <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Alla lösenord laddas ned på enheten och tas bort från <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Fel: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Ange lösenfras</translation>
 <translation id="952301137339791907">Arket för sidinsikter på nedre delen av skärmen har öppnats</translation>

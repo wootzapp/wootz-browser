@@ -119,7 +119,7 @@ public class RecentTabsManager
 
         mProfileDataCache = ProfileDataCache.createWithDefaultImageSizeAndNoBadge(context);
         AccountPickerBottomSheetStrings bottomSheetStrings =
-                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome).build();
+                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp).build();
         mSyncPromoController =
                 new SyncPromoController(
                         mProfile,

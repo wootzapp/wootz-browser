@@ -46,7 +46,7 @@ class SSLCertReporterCallback {
 
   void ReportSent(const std::string& hostname,
                   const chrome_browser_ssl::CertLoggerRequest::ChromeChannel
-                      chrome_channel);
+                      WOOTZAPP_CHANNEL);
 
   const std::string& GetLatestHostnameReported() const;
   chrome_browser_ssl::CertLoggerRequest::ChromeChannel
@@ -55,7 +55,7 @@ class SSLCertReporterCallback {
  private:
   raw_ptr<base::RunLoop> run_loop_;
   std::string latest_hostname_reported_;
-  chrome_browser_ssl::CertLoggerRequest::ChromeChannel chrome_channel_;
+  chrome_browser_ssl::CertLoggerRequest::ChromeChannel WOOTZAPP_CHANNEL_;
 };
 
 #if !BUILDFLAG(IS_ANDROID)

@@ -46,7 +46,7 @@ ios_appex_bundle("appex") {
   assert_no_deps = ios_extension_assert_no_deps
 
   extra_substitutions = [
-    "CHROME_CHANNEL_SCHEME=$url_channel_scheme",
+    "WOOTZAPP_CHANNEL_SCHEME=$url_channel_scheme",
     "CHROMIUM_SHORT_NAME=$chromium_short_name",
     "CHROMIUM_BUNDLE_ID=$ios_chromium_bundle_id",
   ]
