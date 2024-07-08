@@ -29,7 +29,7 @@ export class BrowserBridge {
   sendSetNetworkThrottling(offline, latency, downloadThroughput, uploadThroughput, packetLoss) {
     console.log(`Setting network throttling conditions: HELLO  ${offline}, ${latency}`)
 
-    chrome.send('setNetworkThrottling', [offline, latency, downloadThroughput, uploadThroughput, packetLoss]);
+    chrome.send('setNetworkThrottling', [offline, latency, downloadThroughput, uploadThroughput, packetLoss,0.0]);
   }
 
  /**

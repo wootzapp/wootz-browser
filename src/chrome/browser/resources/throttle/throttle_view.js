@@ -1,6 +1,5 @@
 import {$} from 'chrome://resources/js/util.js';
 import {BrowserBridge} from './browser_bridge.js';
-import {addNode, addNodeWithText} from './util.js';
 import {DivView} from './view.js';
 
 /** @type {?ThrottleView} */
@@ -26,25 +25,19 @@ export class ThrottleView extends DivView {
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
 
-    // Set up listener for saved settings
-    window.cr.addWebUiListener("displaySavedSettings", (settings) => {
-      this.displaySavedSettings_(settings);
-    });
-
-    // Fetch and display the saved network throttling settings on load
-    this.loadAndDisplaySavedSettings_();
   }
 
-  async onSubmit_(event) {
+   onSubmit_(event) {
     event.preventDefault();
-    const offline = this.offlineSelect_.value === 'true';
+    const offline = this.offlineSelect_.value;
     const latency = parseFloat(this.latencyInput_.value.trim());
     const downloadThroughput = parseFloat(this.downloadThroughputInput_.value.trim());
     const uploadThroughput = parseFloat(this.uploadThroughputInput_.value.trim());
     const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || 0;
     const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || 0;
 
-    await this.browserBridge_.sendSetNetworkThrottling({
+    console.log(`Hello OnSubmit ${offline}, ${latency}, ${downloadThroughput}`)
+     this.browserBridge_.sendSetNetworkThrottling({
       offline,
       latency,
       downloadThroughput,
@@ -53,7 +46,6 @@ export class ThrottleView extends DivView {
       packetQueueLength,
     });
 
-    this.loadAndDisplaySavedSettings_();
   }
 
   async loadAndDisplaySavedSettings_() {
