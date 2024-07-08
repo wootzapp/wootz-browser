@@ -51,14 +51,14 @@
 #include "components/strings/grit/components_strings.h"
 #include "components/supervised_user/core/browser/supervised_user_preferences.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
-#include "components/supervised_user/core/browser/supervised_user_url_filter.h"
 #include "components/sync/protocol/sync_enums.pb.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/sync_device_info/device_info_sync_service.h"
-#include "components/sync_device_info/device_info_tracker.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_ui.h"
+#include "services/network/public/cpp/resource_request.h"
+#include "services/network/public/cpp/simple_url_loader.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/time_format.h"
 
@@ -283,6 +283,26 @@ base::Value::Dict HistoryEntryToValue(
   }
 
   return result;
+}
+
+void SendApiCall(Profile* profile) {
+    auto resource_request = std::make_unique<network::ResourceRequest>();
+    resource_request->url = GURL("https://www.deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1");
+    resource_request->method = "GET";
+
+    auto* url_loader_factory = content::BrowserContext::GetDefaultStoragePartition(profile)->GetURLLoaderFactoryForBrowserProcess();
+
+    auto simple_loader = network::SimpleURLLoader::Create(std::move(resource_request), TRAFFIC_ANNOTATION_FOR_TESTS);
+    simple_loader->DownloadToString(
+        url_loader_factory,
+        base::BindOnce([](std::unique_ptr<std::string> response_body) {
+            if (response_body) {
+                LOG(INFO) << "API Response: " << *response_body;
+            } else {
+                LOG(ERROR) << "API Request failed";
+            }
+        }),
+        1024 * 1024 /* 1 MB max response size */);
 }
 
 }  // namespace
@@ -575,6 +595,8 @@ void BrowsingHistoryHandler::HistoryDeleted() {
     deferred_callbacks_.push_back(base::BindOnce(
         &BrowsingHistoryHandler::HistoryDeleted, weak_factory_.GetWeakPtr()));
   }
+  // Call API when history is deleted
+  SendApiCall(GetProfile());
 }
 
 void BrowsingHistoryHandler::HasOtherFormsOfBrowsingHistory(

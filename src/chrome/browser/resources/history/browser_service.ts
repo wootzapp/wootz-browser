@@ -51,6 +51,25 @@ export class BrowserServiceImpl implements BrowserService {
     chrome.send('removeBookmark', [url]);
   }
 
+  // async fetchBackgroundData(): Promise<any> {
+  //   const apiKey = 'mock_api_key';
+  //   const apiUrl = 'https://mockapi.example.com/data';
+    
+  //   const response = await fetch(apiUrl, {
+  //     method: 'GET',
+  //     headers: {
+  //       'Authorization': `Bearer ${apiKey}`,
+  //       'Content-Type': 'application/json',
+  //     },
+  //   });
+
+  //   if (!response.ok) {
+  //     throw new Error('No resp');
+  //   }
+
+  //   return response.json();
+  // }
+
   /**
    * @return Promise that is resolved when items are deleted
    *     successfully or rejected when deletion fails.
