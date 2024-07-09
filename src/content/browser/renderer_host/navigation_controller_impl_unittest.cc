@@ -997,7 +997,7 @@ TEST_F(NavigationControllerTest, LoadURL_PrivilegedPending) {
   NavigationControllerImpl& controller = controller_impl();
 
   // First make some history, starting with a privileged URL.
-  const GURL kExistingURL1("chrome://gpu");
+  const GURL kExistingURL1("wootzapp://gpu");
   NavigationSimulator::NavigateAndCommitFromBrowser(contents(), kExistingURL1);
   EXPECT_EQ(1U, navigation_entry_committed_counter_);
   navigation_entry_committed_counter_ = 0;
@@ -4334,7 +4334,7 @@ TEST_F(NavigationControllerTest, SubFrameNavigationUIData) {
 
 bool SrcDocRewriter(GURL* url, BrowserContext* browser_context) {
   if (url->IsAboutSrcdoc()) {
-    *url = GURL("chrome://srcdoc");
+    *url = GURL("wootzapp://srcdoc");
     return true;
   }
   return false;
@@ -4721,7 +4721,7 @@ class PageBroadcastMockInserter : public WebContentsObserver {
 // with up to date browsing context group information.
 TEST_F(NavigationControllerTest, BrowsingContextGroupUpdate) {
   const GURL url1("http://a/");
-  const GURL url2("chrome://ukm");
+  const GURL url2("wootzapp://ukm");
 
   // Start on a first page.
   NavigateAndCommit(url1);

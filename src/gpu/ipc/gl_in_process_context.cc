@@ -60,7 +60,7 @@ ContextResult GLInProcessContext::Initialize(
   DCHECK(base::SingleThreadTaskRunner::GetCurrentDefault());
 
   command_buffer_ = std::make_unique<InProcessCommandBuffer>(
-      task_executor, GURL("chrome://gpu/GLInProcessContext::Initialize"));
+      task_executor, GURL("wootzapp://gpu/GLInProcessContext::Initialize"));
 
   auto result = command_buffer_->Initialize(
       attribs, base::SingleThreadTaskRunner::GetCurrentDefault(),

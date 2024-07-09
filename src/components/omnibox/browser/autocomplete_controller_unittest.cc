@@ -1980,7 +1980,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
 
     controller_.SetMatchDestinationURL(&match);
     EXPECT_EQ(match.extra_headers, "");
-    EXPECT_EQ(match.destination_url, "chrome://bookmarks/?q=search+term");
+    EXPECT_EQ(match.destination_url, "wootzapp://bookmarks/?q=search+term");
   }
   {
     SCOPED_TRACE("search match does not get an extra header.");

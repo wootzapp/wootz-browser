@@ -43,8 +43,8 @@ namespace enterprise_data_protection {
 namespace {
 
 const char* kSkippedUrls[] = {
-    "chrome://version",
-    "chrome-extension://abcdefghijklmnop",
+    "wootzapp://version",
+    "wootzapp-extension://abcdefghijklmnop",
 };
 
 content::Page& GetPageFromWebContents(content::WebContents* web_contents) {

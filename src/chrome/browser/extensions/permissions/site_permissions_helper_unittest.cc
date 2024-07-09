@@ -163,7 +163,7 @@ TEST_F(SitePermissionsHelperUnitTest, SiteAccessAndInteraction_AllUrls) {
   {
     // Verify a restricted url has "none" site interaction even when the
     // extension has all urls permission
-    const GURL restricted_url("chrome://extensions");
+    const GURL restricted_url("wootzapp://extensions");
     auto* web_contents = AddTab(restricted_url);
     EXPECT_EQ(
         permissions_helper()->GetSiteInteraction(*extension, web_contents),
@@ -220,7 +220,7 @@ TEST_F(SitePermissionsHelperUnitTest, SiteAccessAndInteraction_ActiveTab) {
   {
     // Verify a restricted url has "none" site interaction even if the extension
     // has active tab permission.
-    const GURL restricted_url("chrome://extensions");
+    const GURL restricted_url("wootzapp://extensions");
     auto* web_contents = AddTab(restricted_url);
     EXPECT_EQ(
         permissions_helper()->GetSiteInteraction(*extension, web_contents),

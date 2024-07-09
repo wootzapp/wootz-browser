@@ -330,7 +330,7 @@ class ConnectorsServiceExemptURLsTest
 TEST_P(ConnectorsServiceExemptURLsTest, WebUI) {
   auto* service = ConnectorsServiceFactory::GetForBrowserContext(profile_);
   for (const char* url :
-       {"chrome://settings", "chrome://help-app/background",
+       {"wootzapp://settings", "wootzapp://help-app/background",
         "chrome://foo/bar/baz.html", "chrome://foo/bar/baz.html?param=value"}) {
     auto settings = service->GetAnalysisSettings(GURL(url), connector());
     ASSERT_FALSE(settings.has_value());
@@ -341,9 +341,9 @@ TEST_P(ConnectorsServiceExemptURLsTest, ThirdPartyExtensions) {
   auto* service = ConnectorsServiceFactory::GetForBrowserContext(profile_);
 
   for (const char* url :
-       {"chrome-extension://fake_id", "chrome-extension://fake_id/background",
-        "chrome-extension://fake_id/main.html",
-        "chrome-extension://fake_id/main.html?param=value"}) {
+       {"wootzapp-extension://fake_id", "wootzapp-extension://fake_id/background",
+        "wootzapp-extension://fake_id/main.html",
+        "wootzapp-extension://fake_id/main.html?param=value"}) {
     ASSERT_TRUE(GURL(url).is_valid());
     auto settings = service->GetAnalysisSettings(GURL(url), connector());
     ASSERT_TRUE(settings.has_value());
@@ -406,7 +406,7 @@ TEST_P(ConnectorsServiceExemptURLsTest, FirstPartyExtensions) {
   for (const std::string& suffix :
        {"/", "/background", "/main.html", "/main.html?param=value"}) {
     std::string url = base::StrCat(
-        {"chrome-extension://", extension_misc::kFilesManagerAppId, suffix});
+        {"wootzapp-extension://", extension_misc::kFilesManagerAppId, suffix});
     auto settings = service->GetAnalysisSettings(GURL(url), connector());
     ASSERT_FALSE(settings.has_value());
   }

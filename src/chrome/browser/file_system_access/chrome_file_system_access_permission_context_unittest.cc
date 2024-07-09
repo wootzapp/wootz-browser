@@ -327,7 +327,7 @@ class ChromeFileSystemAccessPermissionContextTest : public testing::Test {
   const base::FilePath kTestPath =
       base::FilePath(FILE_PATH_LITERAL("/foo/bar"));
   const base::FilePath kTestPath2 = base::FilePath(FILE_PATH_LITERAL("/baz/"));
-  const url::Origin kChromeOrigin = url::Origin::Create(GURL("chrome://test"));
+  const url::Origin kChromeOrigin = url::Origin::Create(GURL("wootzapp://test"));
 
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};

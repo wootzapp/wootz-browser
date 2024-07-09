@@ -146,7 +146,7 @@ bool IsSafeURLFromCompanion(const GURL& url) {
   }
 
   static constexpr auto chrome_domain_allowlists =
-      base::MakeFixedFlatSet<std::string_view>({"chrome://settings/syncSetup"});
+      base::MakeFixedFlatSet<std::string_view>({"wootzapp://settings/syncSetup"});
   std::string_view url_string(url.spec());
 
   if (!url.SchemeIsHTTPOrHTTPS() &&

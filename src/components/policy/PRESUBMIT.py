@@ -115,7 +115,7 @@ def _GetCurrentVersion(input_api):
     return _CACHED_FILES['version']
   try:
     root = input_api.change.RepositoryRoot()
-    version_path = input_api.os_path.join(root, 'chrome', 'VERSION')
+    version_path = input_api.os_path.join(root, 'wootzapp', 'VERSION')
     with open(version_path, "rb") as f:
       _CACHED_FILES['version'] = int(f.readline().split(b"=")[1])
   except:

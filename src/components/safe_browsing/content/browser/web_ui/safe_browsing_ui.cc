@@ -79,7 +79,7 @@ WebUIInfoSingleton* WebUIInfoSingleton::GetInstance() {
   CHECK(base::CommandLine::ForCurrentProcess()
             ->GetSwitchValueASCII("type")
             .empty())
-      << "chrome://safe-browsing WebUI is only available in the browser "
+      << "wootzapp://safe-browsing WebUI is only available in the browser "
          "process";
   static base::NoDestructor<WebUIInfoSingleton> instance;
   return instance.get();

@@ -126,8 +126,8 @@ void LaunchReleaseNotesImpl(Profile* profile, apps::LaunchSource source) {
       base::FeatureList::IsEnabled(
           ash::features::kHelpAppOpensInsteadOfReleaseNotesNotification) &&
               source == apps::LaunchSource::kFromReleaseNotesNotification
-          ? GURL("chrome://help-app/updates?launchSource=version-update")
-          : GURL("chrome://help-app/updates");
+          ? GURL("wootzapp://help-app/updates?launchSource=version-update")
+          : GURL("wootzapp://help-app/updates");
   params.launch_source = source;
   LaunchSystemWebAppAsync(profile, ash::SystemWebAppType::HELP, params);
 }

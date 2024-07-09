@@ -503,7 +503,7 @@ class InlineLoginHelperBrowserTest : public DialogBrowserTest {
     InlineLoginHandlerImpl handler;
     // See Source enum in components/signin/public/base/signin_metrics.h for
     // possible values of access_point=, reason=.
-    GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+    GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
     // MockSyncStarterInlineSigninHelper will delete itself when done using
     // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
     // do need the RunUntilIdle() at the end.
@@ -565,7 +565,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   InlineLoginHandlerImpl handler;
   // See Source enum in components/signin/public/base/signin_metrics.h for
   // possible values of access_point=, reason=.
-  GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+  GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.
@@ -603,7 +603,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   InlineLoginHandlerImpl handler;
   // See Source enum in components/signin/public/base/signin_metrics.h for
   // possible values of access_point=, reason=.
-  const GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+  const GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.
@@ -626,7 +626,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   InlineLoginHandlerImpl handler;
   // See Source enum in components/signin/public/base/signin_metrics.h for
   // possible values of access_point=, reason=.
-  GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+  GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.
@@ -651,7 +651,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   InlineLoginHandlerImpl handler;
   // See Source enum in components/signin/public/base/signin_metrics.h for
   // possible values of access_point=, reason=.
-  GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+  GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.
@@ -679,7 +679,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   InlineLoginHandlerImpl handler;
   // See Source enum in components/signin/public/base/signin_metrics.h for
   // possible values of access_point=, reason=.
-  const GURL url("chrome://chrome-signin/?access_point=3&reason=5");
+  const GURL url("wootzapp://wootzapp-signin/?access_point=3&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.
@@ -702,7 +702,7 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
                        ForceSigninWithUserManager) {
   signin_util::ScopedForceSigninSetterForTesting force_signin_setter(true);
   InlineLoginHandlerImpl handler;
-  GURL url("chrome://chrome-signin/?access_point=0&reason=5");
+  GURL url("wootzapp://wootzapp-signin/?access_point=0&reason=5");
   // MockSyncStarterInlineSigninHelper will delete itself when done using
   // base::SingleThreadTaskRunner::DeleteSoon(), so need to delete here.  But
   // do need the RunUntilIdle() at the end.

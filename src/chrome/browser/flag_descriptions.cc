@@ -668,7 +668,7 @@ const char kAutoPictureInPictureForVideoPlaybackName[] =
     "Auto picture in picture for video playback";
 const char kAutoPictureInPictureForVideoPlaybackDescription[] =
     "Enables auto picture in picture for video playback. Requires "
-    "chrome://flags/#auto-picture-in-picture-video-heuristics to be enabled.";
+    "wootzapp://flags/#auto-picture-in-picture-video-heuristics to be enabled.";
 
 const char kAutoPictureInPictureVideoHeuristicsName[] =
     "Auto picture in picture video heuristics";
@@ -866,7 +866,7 @@ const char kCompressionDictionaryTransportName[] =
     "Compression dictionary transport";
 const char kCompressionDictionaryTransportDescription[] =
     "Enables compression dictionary transport features. Requires "
-    "chrome://flags/#enable-compression-dictionary-transport-backend to be "
+    "wootzapp://flags/#enable-compression-dictionary-transport-backend to be "
     "enabled.";
 
 const char kCompressionDictionaryTransportBackendName[] =
@@ -1603,7 +1603,7 @@ const char kEnablePolicyTestPageName[] =
     "Enable access to the policy test page";
 const char kEnablePolicyTestPageDescription[] =
     "When enabled, allows the policy test page to be accessed at "
-    "chrome://policy/test.";
+    "wootzapp://policy/test.";
 
 const char kEnableUnrestrictedUsbName[] =
     "Enable Isolated Web Apps to bypass USB restrictions";
@@ -2877,14 +2877,14 @@ const char kPermissionPredictionsDescription[] =
     "Use the Permission Predictions Service to surface permission requests "
     "using a quieter UI when the likelihood of the user granting the "
     "permission is predicted to be low. Requires "
-    "chrome://flags/#quiet-notification-prompts and `Safe Browsing` to be "
+    "wootzapp://flags/#quiet-notification-prompts and `Safe Browsing` to be "
     "enabled.";
 
 const char kPermissionQuietChipName[] = "Quiet Permission Chip Experiment";
 const char kPermissionQuietChipDescription[] =
     "Enables a permission prompt that uses the quiet chip instead of the "
     "right-hand side address bar icon for quiet permission prompts. Requires "
-    "chrome://flags/#quiet-notification-prompts to be enabled.";
+    "wootzapp://flags/#quiet-notification-prompts to be enabled.";
 
 const char kShowRelatedWebsiteSetsPermissionGrantsName[] =
     "Show permission grants from Related Website Sets";
@@ -2924,7 +2924,7 @@ const char kEnableOmniboxClientSearchPrefetchName[] =
 const char kEnableOmniboxClientSearchPrefetchDescription[] =
     "Allows omnibox to prefetch search suggestions provided by the Default "
     "Search Engine that the client thinks are likely to be navigated. Requires "
-    "chrome://flags/#omnibox-search-prefetch";
+    "wootzapp://flags/#omnibox-search-prefetch";
 
 const char kCbdTimeframeRequiredName[] =
     "Clear Browsing Data Timeframe Experiment on Desktop";
@@ -4789,7 +4789,7 @@ const char kEnableAccessibilityLiveCaptionName[] = "Live Caption";
 const char kEnableAccessibilityLiveCaptionDescription[] =
     "Enables the live caption feature which generates captions for "
     "media playing in Chrome. Turn the feature on in "
-    "chrome://settings/accessibility.";
+    "wootzapp://settings/accessibility.";
 
 const char kEnableLiveCaptionMultilangName[] = "Multilingual Live Caption";
 const char kEnableLiveCaptionMultilangDescription[] =
@@ -4893,7 +4893,7 @@ const char kMemorySaverAggressivenessName[] =
     "Enable the ability to configure how aggressive Memory Saver is.";
 const char kMemorySaverAggressivenessDescription[] =
     "When enabled, the aggressiveness of Memory Saver can be configured via "
-    "chrome://settings/performance.";
+    "wootzapp://settings/performance.";
 
 const char kMuteNotificationSnoozeActionName[] =
     "Snooze action for mute notifications";
@@ -7301,7 +7301,7 @@ const char kTouchscreenCalibrationName[] =
     "Enable/disable touchscreen calibration option in material design settings";
 const char kTouchscreenCalibrationDescription[] =
     "If enabled, the user can calibrate the touch screen displays in "
-    "chrome://settings/display.";
+    "wootzapp://settings/display.";
 
 const char kTrafficCountersEnabledName[] = "Traffic counters enabled";
 const char kTrafficCountersEnabledDescription[] =
@@ -7334,7 +7334,7 @@ const char kUseFakeDeviceForMediaStreamDescription[] =
 const char kUiDevToolsName[] = "Enable native UI inspection";
 const char kUiDevToolsDescription[] =
     "Enables inspection of native UI elements. For local inspection use "
-    "chrome://inspect#other";
+    "wootzapp://inspect#other";
 
 const char kUiSlowAnimationsName[] = "Slow UI animations";
 const char kUiSlowAnimationsDescription[] = "Makes all UI animations slow.";
@@ -7856,7 +7856,7 @@ const char kUseOutOfProcessVideoDecodingDescription[] =
     "Start utility processes to do hardware video decoding. Note: on LaCrOS, "
     "this task is delegated to ash-chrome by requesting a "
     "media.stable.mojom.StableVideoDecoderFactory through the crosapi (so "
-    "chrome://flags#expose-out-of-process-video-decoding-to-lacros must be "
+    "wootzapp://flags#expose-out-of-process-video-decoding-to-lacros must be "
     "enabled in ash-chrome).";
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
@@ -8147,7 +8147,7 @@ const char kEnableStandardBoundSessionCredentialsDescription[] =
 const char kEnableCertManagementV2UIName[] = "Cert Management V2 UI";
 const char kEnableCertManagementV2UIDescription[] =
     "Enables the Cert Management V2 UI; accessible at "
-    "chrome://settings/certificates";
+    "wootzapp://settings/certificates";
 #endif  // BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
 
 // ============================================================================

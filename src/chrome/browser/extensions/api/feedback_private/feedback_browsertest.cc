@@ -321,7 +321,7 @@ IN_PROC_BROWSER_TEST_F(FeedbackTest, DISABLED_AppendQuestionnaireNotGoogler) {
 IN_PROC_BROWSER_TEST_F(FeedbackTest, DISABLED_GetTargetTabUrl) {
   const std::pair<std::string, std::string> test_cases[] = {
       {"https://www.google.com/", "https://www.google.com/"},
-      {"chrome://version/", chrome::kChromeUIVersionURL},
+      {"wootzapp://version/", chrome::kChromeUIVersionURL},
       {chrome::kChromeUIBookmarksURL, chrome::kChromeUIBookmarksURL},
   };
 

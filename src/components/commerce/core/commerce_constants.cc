@@ -10,13 +10,13 @@ const char kChromeUICommerceInternalsHost[] = "commerce-internals";
 
 const char kChromeUICompareHost[] = "compare";
 
-const char kChromeUICompareUrl[] = "chrome://compare";
+const char kChromeUICompareUrl[] = "wootzapp://compare";
 
 const char kChromeUIShoppingInsightsSidePanelHost[] =
     "shopping-insights-side-panel.top-chrome";
 
 const char kChromeUIShoppingInsightsSidePanelUrl[] =
-    "chrome://shopping-insights-side-panel.top-chrome";
+    "wootzapp://shopping-insights-side-panel.top-chrome";
 
 const char kContentType[] = "application/json; charset=UTF-8";
 

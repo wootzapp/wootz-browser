@@ -26,7 +26,7 @@
 #include "ui/views/interaction/element_tracker_views.h"
 
 namespace {
-const char kUrlA[] = "chrome://flags";
+const char kUrlA[] = "wootzapp://flags";
 const char kUrlB[] = "about:blank";
 
 }  // namespace

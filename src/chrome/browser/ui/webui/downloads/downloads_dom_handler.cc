@@ -458,7 +458,7 @@ void DownloadsDOMHandler::RetryDownload(const std::string& id) {
       url, render_frame_host->GetProcess()->GetID(),
       render_frame_host->GetRoutingID(), traffic_annotation);
   dl_params->set_content_initiated(true);
-  dl_params->set_initiator(url::Origin::Create(GURL("chrome://downloads")));
+  dl_params->set_initiator(url::Origin::Create(GURL("wootzapp://downloads")));
   dl_params->set_download_source(download::DownloadSource::RETRY);
 
   web_contents->GetBrowserContext()->GetDownloadManager()->DownloadUrl(

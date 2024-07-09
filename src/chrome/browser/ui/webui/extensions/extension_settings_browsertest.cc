@@ -41,7 +41,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ViewSource) {
   // Navigate to an in-page (guest-view-based) extension options page
   // and grab the WebContents hosting the options page.
   const extensions::Extension* extension = InstallExtensionWithInPageOptions();
-  GURL options_url("chrome://extensions/?options=" + extension->id());
+  GURL options_url("wootzapp://extensions/?options=" + extension->id());
   content::WebContents* options_contents = nullptr;
   {
     content::WebContentsAddedObserver options_contents_added_observer;
@@ -114,7 +114,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ListenerRegistration) {
   }
 
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://extensions"),
+      browser(), GURL("wootzapp://extensions"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -139,7 +139,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest,
                        ActivityLogInactiveWithoutSwitch) {
   // Navigate to chrome://extensions which is a allowlisted URL for the
   // chrome.activityLogPrivate API.
-  GURL extensions_url("chrome://extensions");
+  GURL extensions_url("wootzapp://extensions");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extensions_url));
   content::WebContents* page_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -179,7 +179,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsActivityLogTest, TestActivityLogVisible) {
       test_data_dir.AppendASCII("activity_log/simple_call"));
   ASSERT_TRUE(listener.WaitUntilSatisfied());
 
-  GURL activity_log_url("chrome://extensions/?activity=" + extension->id());
+  GURL activity_log_url("wootzapp://extensions/?activity=" + extension->id());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), activity_log_url));
   content::WebContents* activity_log_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -271,7 +271,7 @@ IN_PROC_BROWSER_TEST_F(SafetyHubExtensionSettingsUIBrowserTest,
   // When the user visits the extensions page, notifications for the extension
   // module of Safety Hub should be dismissed.
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://extensions/")));
+      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://extensions/")));
   notification = notification_service->GetNotificationToShow();
   ASSERT_FALSE(notification.has_value());
 }

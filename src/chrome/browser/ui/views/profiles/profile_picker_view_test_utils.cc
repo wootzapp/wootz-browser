@@ -353,7 +353,7 @@ void CompleteLacrosFirstRun(
       GetPickerWebContents()->GetURL(), "continueWithAccount", std::move(args));
 
   WaitForPickerLoadStop(AppendSyncConfirmationQueryParams(
-      GURL("chrome://sync-confirmation/"), SyncConfirmationStyle::kWindow));
+      GURL("wootzapp://sync-confirmation/"), SyncConfirmationStyle::kWindow));
 
   if (result == LoginUIService::UI_CLOSED) {
     // `UI_CLOSED` is not provided via webui handlers. Instead, it gets sent

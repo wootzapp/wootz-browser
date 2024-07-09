@@ -282,7 +282,7 @@ void RenderFrameObserver::OnDestruct() {
 void RenderFrameObserver::DidStartNavigation(
     const GURL& url,
     std::optional<blink::WebNavigationType> navigation_type) {
-  if (!url.SchemeIs("chrome") || url.host() != "browser") {
+  if (!url.SchemeIs("wootzapp") || url.host() != "browser") {
     this_instance_.reset();
     return;
   }

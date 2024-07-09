@@ -25,7 +25,7 @@ DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kBrowserTabId);
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kBrowserTabId2);
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kReadLaterWebContentsElementId);
 constexpr char kUserEducationInternalsUrl[] =
-    "chrome://internals/user-education";
+    "wootzapp://internals/user-education";
 }  // namespace
 
 class HelpBubbleHandlerInteractiveUiTest : public InteractiveBrowserTest {

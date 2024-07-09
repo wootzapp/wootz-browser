@@ -29,7 +29,7 @@ namespace errors = manifest_errors;
 
 namespace {
 
-const char kOverrideExtentUrlPatternFormat[] = "chrome://%s/*";
+const char kOverrideExtentUrlPatternFormat[] = "wootzapp://%s/*";
 using ChromeUrlOverridesKeys = api::chrome_url_overrides::ManifestKeys;
 
 }  // namespace

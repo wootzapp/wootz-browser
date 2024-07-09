@@ -930,7 +930,7 @@ TEST(PermissionsTest, SuppressedPermissionMessages) {
     api_permissions.insert(APIPermissionID::kTab);
     URLPatternSet hosts;
     hosts.AddPattern(URLPattern(URLPattern::SCHEME_CHROMEUI,
-                                "chrome://favicon/"));
+                                "wootzapp://favicon/"));
     PermissionSet permissions(std::move(api_permissions),
                               ManifestPermissionSet(), std::move(hosts),
                               URLPatternSet());
@@ -944,7 +944,7 @@ TEST(PermissionsTest, SuppressedPermissionMessages) {
     api_permissions.insert(APIPermissionID::kHistory);
     URLPatternSet hosts;
     hosts.AddPattern(URLPattern(URLPattern::SCHEME_CHROMEUI,
-                                "chrome://favicon/"));
+                                "wootzapp://favicon/"));
     PermissionSet permissions(api_permissions.Clone(), ManifestPermissionSet(),
                               std::move(hosts), URLPatternSet());
     EXPECT_TRUE(PermissionSetProducesMessage(
@@ -1779,9 +1779,9 @@ TEST(PermissionsTest, ChromeURLs) {
   allowed_hosts.AddPattern(
       URLPattern(URLPattern::SCHEME_ALL, "http://www.google.com/"));
   allowed_hosts.AddPattern(
-      URLPattern(URLPattern::SCHEME_ALL, "chrome://favicon/"));
+      URLPattern(URLPattern::SCHEME_ALL, "wootzapp://favicon/"));
   allowed_hosts.AddPattern(
-      URLPattern(URLPattern::SCHEME_ALL, "chrome://not-favicon/"));
+      URLPattern(URLPattern::SCHEME_ALL, "wootzapp://not-favicon/"));
   PermissionSet permissions(APIPermissionSet(), ManifestPermissionSet(),
                             std::move(allowed_hosts), URLPatternSet());
   PermissionMessageProvider::Get()->GetPermissionMessages(

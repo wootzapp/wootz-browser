@@ -344,7 +344,7 @@ IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(PageInfoBubbleViewBrowserTest, ChromeURL) {
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://settings")));
+      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://settings")));
   OpenPageInfoBubble(browser());
   EXPECT_EQ(PageInfoBubbleView::BUBBLE_INTERNAL_PAGE,
             PageInfoBubbleView::GetShownBubbleType());

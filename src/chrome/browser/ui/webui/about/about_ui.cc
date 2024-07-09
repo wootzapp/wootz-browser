@@ -486,10 +486,10 @@ bool CompareConfigInfos(const content::WebUIConfigInfo& config1,
 
 std::string ChromeURLs(content::BrowserContext* browser_context) {
   std::string html;
-  AppendHeader(&html, "Chrome URLs");
+  AppendHeader(&html, "WootzApp URLs");
   AppendBody(&html);
 
-  html += "<h2>List of Chrome URLs</h2>\n<ul>\n";
+  html += "<h2>List of WootzApp URLs</h2>\n<ul>\n";
   std::vector<std::string> hosts(
       chrome::kChromeHostURLs,
       chrome::kChromeHostURLs + chrome::kNumberOfChromeHostURLs);
@@ -526,9 +526,9 @@ std::string ChromeURLs(content::BrowserContext* browser_context) {
       // TODO(crbug.com/40805730): The refactor should make sure that the
       // provided list can be shown as is without filtering.
       if (WebUiControllerFactory->CanHandleUrl(GURL("os://" + host)) ||
-          WebUiControllerFactory->CanHandleUrl(GURL("chrome://" + host))) {
+          WebUiControllerFactory->CanHandleUrl(GURL("wootzapp://" + host))) {
         html +=
-            "<li><a href='chrome://" + host + "/'>os://" + host + "</a></li>\n";
+            "<li><a href='wootzapp://" + host + "/'>os://" + host + "</a></li>\n";
       }
     }
   } else {
@@ -547,7 +547,7 @@ std::string ChromeURLs(content::BrowserContext* browser_context) {
     }
 
     html +=
-        "</ul><a id=\"internals\"><h2>List of chrome://internals "
+        "</ul><a id=\"internals\"><h2>List of WootzApp://internals "
         "pages</h2></a>\n<ul>\n";
     std::vector<std::string> internals_paths(
         chrome::kChromeInternalsPathURLs,
@@ -555,8 +555,8 @@ std::string ChromeURLs(content::BrowserContext* browser_context) {
             chrome::kNumberOfChromeInternalsPathURLs);
     std::sort(internals_paths.begin(), internals_paths.end());
     for (const std::string& path : internals_paths) {
-      html += "<li><a href='chrome://internals/" + path +
-              "'>chrome://internals/" + path + "</a></li>\n";
+      html += "<li><a href='wootzapp://internals/" + path +
+              "'>wootzapp://internals/" + path + "</a></li>\n";
     }
   }
 
@@ -576,7 +576,7 @@ std::string ChromeURLs(content::BrowserContext* browser_context) {
       // provided list can be shown as is without filtering.
       const std::string host = GURL(chrome::kChromeDebugURLs[i]).host();
       if (WebUiControllerFactory->CanHandleUrl(GURL("os://" + host)) ||
-          WebUiControllerFactory->CanHandleUrl(GURL("chrome://" + host))) {
+          WebUiControllerFactory->CanHandleUrl(GURL("wootzapp://" + host))) {
         html += "<li>os://" + host + "</li>\n";
       }
     }

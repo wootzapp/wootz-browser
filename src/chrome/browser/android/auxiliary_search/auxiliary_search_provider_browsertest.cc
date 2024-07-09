@@ -208,8 +208,8 @@ IN_PROC_BROWSER_TEST_F(AuxiliarySearchProviderBrowserTest, FilterTabsTest) {
     bool should_be_filtered;
   } test_cases[]{
       {GURL(url::kAboutBlankURL), true},
-      {GURL("chrome://version"), true},
-      {GURL("chrome-native://newtab"), true},
+      {GURL("wootzapp://version"), true},
+      {GURL("wootzapp-native://newtab"), true},
       {embedded_test_server()->GetURL("/android/google.html"), false},
   };
 

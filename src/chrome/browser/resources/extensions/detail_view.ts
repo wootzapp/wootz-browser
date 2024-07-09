@@ -364,7 +364,7 @@ export class ExtensionsDetailViewElement extends
 
   private onSiteSettingsClick_() {
     this.delegate.openUrl(
-        `chrome://settings/content/siteDetails?site=chrome-extension://${
+        `wootzapp://settings/content/siteDetails?site=wootzapp-extension://${
             this.data.id}`);
   }
 

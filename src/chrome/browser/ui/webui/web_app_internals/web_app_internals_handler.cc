@@ -93,7 +93,7 @@ constexpr char kIsolatedWebAppPolicyManager[] = "IsolatedWebAppPolicyManager";
 
 constexpr char kNeedsRecordWebAppDebugInfo[] =
     "No debugging info available! Please enable: "
-    "chrome://flags/#record-web-app-debug-info";
+    "wootzapp://flags/#record-web-app-debug-info";
 
 template <typename T>
 std::string ConvertToString(const T& value) {

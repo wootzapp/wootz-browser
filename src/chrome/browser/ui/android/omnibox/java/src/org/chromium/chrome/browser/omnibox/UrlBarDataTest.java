@@ -56,8 +56,8 @@ public class UrlBarDataTest {
         verifyOriginSpan("", null, "");
         verifyOriginSpan("about:blank", null, "about:blank");
 
-        verifyOriginSpan("chrome://flags/", null, "chrome://flags");
-        verifyOriginSpan("chrome://flags/?egads", null, "chrome://flags/?egads");
+        verifyOriginSpan("wootzapp://flags/", null, "wootzapp://flags");
+        verifyOriginSpan("wootzapp://flags/?egads", null, "wootzapp://flags/?egads");
 
         verifyOriginSpan("http://www.google.com", null, "http://www.google.com");
         verifyOriginSpan("http://www.google.com", null, "http://www.google.com/");

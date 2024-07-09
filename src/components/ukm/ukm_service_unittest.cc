@@ -435,7 +435,7 @@ TEST_F(UkmServiceTest, PurgeExtensionDataFromUnsentLogStore) {
 
   std::string non_extension_url = "https://www.google.ca";
   std::string extension_url =
-      "chrome-extension://bmnlcjabgnpnenekpadlanbbkooimhnj/manifest.json";
+      "wootzapp-extension://bmnlcjabgnpnenekpadlanbbkooimhnj/manifest.json";
 
   // Add both extension- and non-extension-related sources to the Report.
   Source* proto_source_1 = report.add_sources();
@@ -517,7 +517,7 @@ TEST_F(UkmServiceTest, PurgeExtensionDataFromUnsentLogStoreWithVersionChange) {
 
   std::string non_extension_url = "https://www.google.ca";
   std::string extension_url =
-      "chrome-extension://bmnlcjabgnpnenekpadlanbbkooimhnj/manifest.json";
+      "wootzapp-extension://bmnlcjabgnpnenekpadlanbbkooimhnj/manifest.json";
 
   // Add both extension- and non-extension-related sources to the Report.
   Source* proto_source_1 = report.add_sources();
@@ -602,7 +602,7 @@ TEST_F(UkmServiceTest, PurgeAppDataFromUnsentLogStore) {
   // A URL with app:// scheme.
   std::string app_url = "app://mgndgikekgjfcpckkfioiadnlibdjbkf";
   // OS Settings is an app on ChromeOS without the app:// scheme.
-  std::string os_settings_url = "chrome://os-settings";
+  std::string os_settings_url = "wootzapp://os-settings";
 
   // Add sources to the Report.
   // Non-app source.
@@ -688,7 +688,7 @@ TEST_F(UkmServiceTest, PurgeMsbbDataFromUnsentLogStore) {
   // A URL with app:// scheme.
   std::string app_url = "app://mgndgikekgjfcpckkfioiadnlibdjbkf";
   // OS Settings is an app on ChromeOS without the app:// scheme.
-  std::string os_settings_url = "chrome://os-settings";
+  std::string os_settings_url = "wootzapp://os-settings";
 
   // Add sources to the Report.
   // Non-app source.
@@ -784,7 +784,7 @@ TEST_F(UkmServiceTest, PurgeAppDataLogMetadataUpdate) {
   // A URL with app:// scheme.
   std::string app_url = "app://mgndgikekgjfcpckkfioiadnlibdjbkf";
   // OS Settings is an app on ChromeOS without the app:// scheme.
-  std::string os_settings_url = "chrome://os-settings";
+  std::string os_settings_url = "wootzapp://os-settings";
 
   // Add sources to the Report.
   AddSourceToReport(report, 1, SourceIdType::NAVIGATION_ID, non_app_url);
@@ -1561,11 +1561,11 @@ TEST_F(UkmServiceTest, SupportedSchemes) {
       {"http://google.ca/", true},
       {"https://google.ca/", true},
       {"about:blank", true},
-      {"chrome://version/", true},
+      {"wootzapp://version/", true},
       {"app://play/abcdefghijklmnopqrstuvwxyzabcdef/", true},
       // chrome-extension are controlled by TestIsWebstoreExtension, above.
-      {"chrome-extension://bhcnanendmgjjeghamaccjnochlnhcgj/", true},
-      {"chrome-extension://abcdefghijklmnopqrstuvwxyzabcdef/", false},
+      {"wootzapp-extension://bhcnanendmgjjeghamaccjnochlnhcgj/", true},
+      {"wootzapp-extension://abcdefghijklmnopqrstuvwxyzabcdef/", false},
       {"ftp://google.ca/", false},
       {"file:///tmp/", false},
       {"abc://google.ca/", false},
@@ -1621,10 +1621,10 @@ TEST_F(UkmServiceTest, SupportedSchemesNoExtensions) {
       {"http://google.ca/", true},
       {"https://google.ca/", true},
       {"about:blank", true},
-      {"chrome://version/", true},
+      {"wootzapp://version/", true},
       {"app://play/abcdefghijklmnopqrstuvwxyzabcdef/", true},
-      {"chrome-extension://bhcnanendmgjjeghamaccjnochlnhcgj/", false},
-      {"chrome-extension://abcdefghijklmnopqrstuvwxyzabcdef/", false},
+      {"wootzapp-extension://bhcnanendmgjjeghamaccjnochlnhcgj/", false},
+      {"wootzapp-extension://abcdefghijklmnopqrstuvwxyzabcdef/", false},
       {"ftp://google.ca/", false},
       {"file:///tmp/", false},
       {"abc://google.ca/", false},
@@ -1697,13 +1697,13 @@ TEST_F(UkmServiceTest, SanitizeChromeUrlParams) {
     const char* url;
     const char* expected_url;
   } test_cases[] = {
-      {"chrome://version/?foo=bar", "chrome://version/"},
+      {"wootzapp://version/?foo=bar", "wootzapp://version/"},
       {"about:blank?foo=bar", "about:blank"},
-      {"chrome://histograms/Variations", "chrome://histograms/Variations"},
+      {"wootzapp://histograms/Variations", "wootzapp://histograms/Variations"},
       {"http://google.ca/?foo=bar", "http://google.ca/?foo=bar"},
       {"https://google.ca/?foo=bar", "https://google.ca/?foo=bar"},
-      {"chrome-extension://bhcnanendmgjjeghamaccjnochlnhcgj/foo.html?a=b",
-       "chrome-extension://bhcnanendmgjjeghamaccjnochlnhcgj/"},
+      {"wootzapp-extension://bhcnanendmgjjeghamaccjnochlnhcgj/foo.html?a=b",
+       "wootzapp-extension://bhcnanendmgjjeghamaccjnochlnhcgj/"},
   };
 
   for (const auto& test : test_cases) {
@@ -1821,7 +1821,7 @@ TEST_F(UkmServiceTest, PurgeNonCarriedOverSources) {
       ConvertSourceIdToAllowlistedType(7, SourceIdType::EXTENSION_ID);
   recorder.UpdateSourceURL(
       extension_id,
-      GURL("chrome-extension://bhcnanendmgjjeghamaccjnochlnhcgj"));
+      GURL("wootzapp-extension://bhcnanendmgjjeghamaccjnochlnhcgj"));
 
   service.Flush(metrics::MetricsLogsEventManager::CreateReason::kUnknown);
   int logs_count = 0;

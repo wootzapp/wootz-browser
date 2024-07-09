@@ -207,7 +207,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionServiceImplBrowserTest,
   EXPECT_TRUE(
       NavigateToURL(shell(), GetTestUrl("media/session", "embedder.html")));
   // Navigate to a chrome:// URL to avoid render process re-use.
-  EXPECT_TRUE(NavigateToURL(shell(), GURL("chrome://gpu")));
+  EXPECT_TRUE(NavigateToURL(shell(), GURL("wootzapp://gpu")));
   // Should not crash.
 }
 

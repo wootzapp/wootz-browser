@@ -63,7 +63,7 @@ public class LocalTabGroupMutationHelperUnitTest {
     private static final String TAB_TITLE_1 = "Tab Title 1";
     private static final GURL TAB_URL_1 = new GURL("https://url1.com");
     private static final GURL TAB_URL_2 = new GURL("https://url2.com");
-    private static final GURL UNSYNCABLE_URL_1 = new GURL("chrome://flags");
+    private static final GURL UNSYNCABLE_URL_1 = new GURL("wootzapp://flags");
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Profile mProfile;

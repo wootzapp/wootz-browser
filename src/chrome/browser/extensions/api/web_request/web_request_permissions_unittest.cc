@@ -243,7 +243,7 @@ TEST_F(ExtensionWebRequestHelpersTestWithThreadsTest,
                 std::nullopt, kWebRequestType));
 
   // Make sure that chrome:// URLs cannot be accessed.
-  const GURL chrome_url("chrome://version/");
+  const GURL chrome_url("wootzapp://version/");
   EXPECT_EQ(PermissionsData::PageAccess::kDenied,
             WebRequestPermissions::CanExtensionAccessURL(
                 permission_helper_, com_policy_extension_->id(), chrome_url,

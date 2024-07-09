@@ -3187,7 +3187,7 @@ IN_PROC_BROWSER_TEST_P(DeclarativeNetRequestBrowserTest,
   EXPECT_EQ(
       extension->permissions_data()->active_permissions().explicit_hosts(),
       URLPatternSet(
-          {URLPattern(URLPattern::SCHEME_CHROMEUI, "chrome://favicon/*")}));
+          {URLPattern(URLPattern::SCHEME_CHROMEUI, "wootzapp://favicon/*")}));
 
   // Request made by index.html to script.js should be blocked despite the
   // extension having no active host permissions to the request.

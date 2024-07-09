@@ -31,7 +31,7 @@ def _request_list_path(out_folder, target_name):
 def _get_dep_path(dep, host_url, out_folder):
   if dep.startswith(host_url):
     return dep.replace(host_url, os.path.relpath(out_folder, _CWD))
-  elif not (dep.startswith('chrome://') or dep.startswith('//')):
+  elif not (dep.startswith('wootzapp://') or dep.startswith('//')):
     return os.path.relpath(out_folder, _CWD) + '/' + dep
   return dep
 
@@ -251,7 +251,7 @@ def main(argv):
   args.out_folder = os.path.normpath(args.out_folder)
   scheme_end_index = args.host.find('://')
   if (scheme_end_index == -1):
-    args.host_url = 'chrome://%s/' % args.host
+    args.host_url = 'wootzapp://%s/' % args.host
   else:
     args.host_url = args.host
 

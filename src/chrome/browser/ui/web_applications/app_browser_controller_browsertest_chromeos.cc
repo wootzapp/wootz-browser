@@ -188,7 +188,7 @@ IN_PROC_BROWSER_TEST_F(AppBrowserControllerBrowserTest, TabsTest) {
 
   // Tabbed PWAs only open URLs within the scope of the app. The manifest is
   // another URL besides |tabbed_app_url_| in scope.
-  GURL manifest("chrome://test-system-app/manifest.json");
+  GURL manifest("wootzapp://test-system-app/manifest.json");
   // Check URL of tab1.
   EXPECT_EQ(GetActiveTabURL(), tabbed_app_url_);
   // Create tab2 with another URL from app, check URL, number of tabs.
@@ -252,7 +252,7 @@ IN_PROC_BROWSER_TEST_F(AppBrowserControllerBrowserTest, NonAppUrl) {
   EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
   EXPECT_EQ(
       browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
-      "chrome://newtab/");
+      "wootzapp://newtab/");
   EXPECT_TRUE(app_browser_->is_type_app());
   EXPECT_EQ(app_browser_->tab_strip_model()->count(), 1);
   EXPECT_EQ(GetActiveTabURL(), tabbed_app_url_);

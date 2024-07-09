@@ -243,7 +243,7 @@ class IsolatedWebAppBrowsingDataClearingTest
   }
 
   void ClearTimeRangedData(browsing_data::TimePeriod time_period) {
-    const GURL kClearDataUrl("chrome://settings/clearBrowserData");
+    const GURL kClearDataUrl("wootzapp://settings/clearBrowserData");
     base::RunLoop run_loop;
 
     auto* browsing_data_remover = profile()->GetBrowsingDataRemover();

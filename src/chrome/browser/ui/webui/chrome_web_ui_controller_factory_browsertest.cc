@@ -35,7 +35,7 @@ IN_PROC_BROWSER_TEST_F(ChromeWebUIControllerFactoryBrowserTest,
   // Check that we can navigate to chrome://version and that it serves the right
   // resources and has a WebUI.
   EXPECT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL(base::StrCat({"chrome://", chrome::kChromeUIVersionHost,
+      browser(), GURL(base::StrCat({"wootzapp://", chrome::kChromeUIVersionHost,
                                     "/title2.html"}))));
   EXPECT_EQ(u"About Version", web_contents->GetTitle());
   EXPECT_TRUE(web_contents->GetWebUI());

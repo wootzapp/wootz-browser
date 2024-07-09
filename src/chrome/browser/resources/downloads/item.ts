@@ -332,7 +332,7 @@ export class DownloadsItemElement extends DownloadsItemElementBase {
       return '';
     }
 
-    const url = `chrome://extensions/?id=${this.data.byExtId}`;
+    const url = `wootzapp://extensions/?id=${this.data.byExtId}`;
     const name = this.data.byExtName;
     return loadTimeData.getStringF('controlledByUrl', url, htmlEscape(name));
   }

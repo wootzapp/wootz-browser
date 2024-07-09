@@ -136,7 +136,7 @@ class CurrentTabDesktopMediaListTest : public testing::Test {
         web_contents->GetController().GetLastCommittedEntry();
     if (!entry) {
       content::NavigationSimulator::NavigateAndCommitFromBrowser(
-          web_contents.get(), GURL("chrome://blank"));
+          web_contents.get(), GURL("wootzapp://blank"));
       entry = web_contents->GetController().GetLastCommittedEntry();
     }
 

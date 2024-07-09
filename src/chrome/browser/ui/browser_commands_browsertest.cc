@@ -50,7 +50,7 @@ class BrowserCommandsTest : public InProcessBrowserTest {
     ASSERT_TRUE(https_server_.Start());
   }
 
-  static constexpr char kUrl[] = "chrome://version/";
+  static constexpr char kUrl[] = "wootzapp://version/";
 
   void AddAndReloadTabs(int tab_count) {
     for (int i = 0; i < tab_count; ++i) {
@@ -264,8 +264,8 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveToExistingWindow) {
 // since it needs to create a new browser window, which doesn't work with a
 // TestingProfile.
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveActiveTabToNewWindow) {
-  GURL url1("chrome://version");
-  GURL url2("chrome://about");
+  GURL url1("wootzapp://version");
+  GURL url2("wootzapp://about");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
 
   // Should be disabled with 1 tab.
@@ -302,9 +302,9 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveActiveTabToNewWindow) {
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
                        MoveActiveTabToNewWindowMultipleSelection) {
-  GURL url1("chrome://version");
-  GURL url2("chrome://about");
-  GURL url3("chrome://terms");
+  GURL url1("wootzapp://version");
+  GURL url2("wootzapp://about");
+  GURL url3("wootzapp://terms");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
   ASSERT_TRUE(AddTabAtIndex(1, url2, ui::PAGE_TRANSITION_LINK));
   ASSERT_TRUE(AddTabAtIndex(2, url3, ui::PAGE_TRANSITION_LINK));

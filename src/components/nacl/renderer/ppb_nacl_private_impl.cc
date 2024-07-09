@@ -80,7 +80,7 @@ namespace {
 const char* const kPortableArch = "portable";
 
 // The base URL for resources used by the PNaCl translator processes.
-const char* kPNaClTranslatorBaseUrl = "chrome://pnacl-translator/";
+const char* kPNaClTranslatorBaseUrl = "wootzapp://pnacl-translator/";
 
 base::LazyInstance<scoped_refptr<PnaclTranslationResourceHost>>::
     DestructorAtExit g_pnacl_resource_host = LAZY_INSTANCE_INITIALIZER;
@@ -1170,7 +1170,7 @@ PP_Bool PPBNaClPrivate::GetPnaclResourceInfo(PP_Instance instance,
   CHECK(load_manager);
 
   const auto get_info = [&]() -> base::expected<void, std::string> {
-    const std::string kFilename = "chrome://pnacl-translator/pnacl.json";
+    const std::string kFilename = "wootzapp://pnacl-translator/pnacl.json";
     uint64_t nonce_lo = 0;
     uint64_t nonce_hi = 0;
     base::File file(GetReadonlyPnaclFd(kFilename, false /* is_executable */,
@@ -1178,7 +1178,7 @@ PP_Bool PPBNaClPrivate::GetPnaclResourceInfo(PP_Instance instance,
     if (!file.IsValid()) {
       return base::unexpected(
           "The Portable Native Client (pnacl) component is not installed. "
-          "Please consult chrome://components for more information.");
+          "Please consult wootzapp://components for more information.");
     }
 
     int64_t file_size = file.GetLength();

@@ -501,7 +501,7 @@ TEST_F(LaunchApplicationTest,
               @(app.processIdentifier));
 
   NSRunningApplication* app2 = LaunchApplicationSyncExpectSuccess(
-      helper_app_bundle_path_, command_line_args, {"chrome://app-launch/0"},
+      helper_app_bundle_path_, command_line_args, {"wootzapp://app-launch/0"},
       {.create_new_instance = false, .hidden_in_background = true});
   EXPECT_NSEQ(app, app2);
   EXPECT_EQ(app.processIdentifier, app2.processIdentifier);

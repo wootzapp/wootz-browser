@@ -6149,7 +6149,7 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesBrowserTest,
 // restrict-properties changes the CoopRelatedGroup.
 IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesBrowserTest,
                        NavigateWebUiToCoopRp) {
-  GURL webui_page("chrome://ukm");
+  GURL webui_page("wootzapp://ukm");
   GURL coop_rp_page(https_server()->GetURL(
       "a.test",
       "/set-header"
@@ -9728,7 +9728,7 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesAccessBrowserTest,
                        NavigationToOtherCoopRelatedGroup) {
   GURL regular_page(https_server()->GetURL("a.test", "/title1.html"));
   GURL regular_page_2(https_server()->GetURL("b.test", "/title1.html"));
-  GURL webui_page("chrome://ukm");
+  GURL webui_page("wootzapp://ukm");
 
   // Start from a regular page and a popup in the same browsing context group.
   ASSERT_TRUE(NavigateToURL(shell(), regular_page));
@@ -9940,7 +9940,7 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesAccessBrowserTest,
   // RenderFrameHost's SiteInstance (the "candidate_instance") at response
   // time, rather than getting a SiteInstance + BrowsingInstance in the same
   // CoopRelatedGroup.
-  GURL webui_page("chrome://ukm");
+  GURL webui_page("wootzapp://ukm");
   ASSERT_TRUE(NavigateToURL(shell(), webui_page));
   scoped_refptr<SiteInstanceImpl> webui_instance(
       current_frame_host()->GetSiteInstance());

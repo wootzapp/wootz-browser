@@ -20,10 +20,10 @@
 
 namespace {
 const char kTitle[] = "test_tile";
-const char kTestUrl1[] = "chrome://new-tab-page/";
-const char kTestUrl2[] = "chrome://version/";
-const char kTestUrl3[] = "chrome://flags/";
-const char kTestUrl4[] = "chrome://management/";
+const char kTestUrl1[] = "wootzapp://new-tab-page/";
+const char kTestUrl2[] = "wootzapp://version/";
+const char kTestUrl3[] = "wootzapp://flags/";
+const char kTestUrl4[] = "wootzapp://management/";
 
 }  // namespace
 

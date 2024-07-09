@@ -36,9 +36,9 @@
 
       promise_test(async t => {
         await test_driver.bless();
-        const promise = navigator.share({ url: "chrome://about" });
+        const promise = navigator.share({ url: "wootzapp://about" });
         return promise_rejects_js(t, TypeError, promise);
-      }, "share() rejects chrome: URLs");
+      }, "share() rejects wootzapp: URLs");
 
       promise_test(async t => {
         await test_driver.bless();

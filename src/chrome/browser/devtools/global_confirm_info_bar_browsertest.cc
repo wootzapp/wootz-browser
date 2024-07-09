@@ -54,7 +54,7 @@ class GlobalConfirmInfoBarTest : public InProcessBrowserTest {
   // Adds an additional tab.
   void AddTab() {
     ASSERT_FALSE(
-        AddTabAtIndex(0, GURL("chrome://blank/"), ui::PAGE_TRANSITION_LINK));
+        AddTabAtIndex(0, GURL("wootzapp://blank/"), ui::PAGE_TRANSITION_LINK));
   }
 };
 

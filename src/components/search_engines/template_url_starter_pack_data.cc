@@ -25,8 +25,8 @@ const StarterPackEngine bookmarks = {
     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_BOOKMARKS_NAME,
     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_BOOKMARKS_KEYWORD,
     .favicon_url = nullptr,
-    .search_url = "chrome://bookmarks/?q={searchTerms}",
-    .destination_url = "chrome://bookmarks",
+    .search_url = "wootzapp://bookmarks/?q={searchTerms}",
+    .destination_url = "wootzapp://bookmarks",
     .id = StarterPackID::kBookmarks,
     .type = SEARCH_ENGINE_STARTER_PACK_BOOKMARKS,
 };
@@ -35,8 +35,8 @@ const StarterPackEngine history = {
     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_HISTORY_NAME,
     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_HISTORY_KEYWORD,
     .favicon_url = nullptr,
-    .search_url = "chrome://history/?q={searchTerms}",
-    .destination_url = "chrome://history",
+    .search_url = "wootzapp://history/?q={searchTerms}",
+    .destination_url = "wootzapp://history",
     .id = StarterPackID::kHistory,
     .type = SEARCH_ENGINE_STARTER_PACK_HISTORY,
 };
@@ -48,7 +48,7 @@ const StarterPackEngine tabs = {
     // This search_url is a placeholder URL to make templateURL happy.
     // chrome://tabs does not currently exist and the tab search engine will
     // only provide suggestions from the OpenTabProvider.
-    .search_url = "chrome://tabs/?q={searchTerms}",
+    .search_url = "wootzapp://tabs/?q={searchTerms}",
     .destination_url = "http://support.google.com/chrome/?p=tab_search",
     .id = StarterPackID::kTabs,
     .type = SEARCH_ENGINE_STARTER_PACK_TABS,

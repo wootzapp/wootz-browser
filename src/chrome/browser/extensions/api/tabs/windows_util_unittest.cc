@@ -58,11 +58,11 @@ TEST_F(WindowsUtilUnitTest, ShouldOpenIncognitoWindowIncognitoForced) {
 TEST_F(WindowsUtilUnitTest, ShouldOpenIncognitoWindowIncompatibleURL) {
   std::string error;
   std::vector<GURL> urls;
-  urls.emplace_back(GURL("chrome://history"));
+  urls.emplace_back(GURL("wootzapp://history"));
   EXPECT_EQ(
       IncognitoResult::kError,
       ShouldOpenIncognitoWindow(profile(), /*incognito=*/true, &urls, &error));
-  EXPECT_EQ("Cannot open URL \"chrome://history/\" in an incognito window.",
+  EXPECT_EQ("Cannot open URL \"wootzapp://history/\" in an incognito window.",
             error);
   EXPECT_TRUE(urls.empty());
 }
@@ -71,7 +71,7 @@ TEST_F(WindowsUtilUnitTest,
        ShouldOpenIncognitoWindowIncompatibleURLWithSomeLeft) {
   std::string error;
   std::vector<GURL> urls;
-  urls.emplace_back(GURL("chrome://history"));
+  urls.emplace_back(GURL("wootzapp://history"));
   urls.emplace_back(GURL("https://google.com"));
   EXPECT_EQ(
       IncognitoResult::kIncognito,

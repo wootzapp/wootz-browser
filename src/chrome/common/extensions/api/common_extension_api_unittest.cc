@@ -173,15 +173,15 @@ TEST(ExtensionAPITest, APIFeatures) {
        GURL("http://bar.com")},
       {"test7.bar", false, mojom::ContextType::kWebPage,
        GURL("http://foo.com")},
-      {"test8", true, mojom::ContextType::kWebUi, GURL("chrome://test/")},
-      {"test8", true, mojom::ContextType::kWebUi, GURL("chrome://other-test/")},
-      {"test8", false, mojom::ContextType::kWebUi, GURL("chrome://dangerous/")},
+      {"test8", true, mojom::ContextType::kWebUi, GURL("wootzapp://test/")},
+      {"test8", true, mojom::ContextType::kWebUi, GURL("wootzapp://other-test/")},
+      {"test8", false, mojom::ContextType::kWebUi, GURL("wootzapp://dangerous/")},
       {"test8", false, mojom::ContextType::kWebUi,
        GURL("chrome-untrusted://test/")},
       {"test8", false, mojom::ContextType::kUntrustedWebUi,
        GURL("chrome-untrusted://test/")},
       {"test8", false, mojom::ContextType::kUntrustedWebUi,
-       GURL("chrome://test/*")},
+       GURL("wootzapp://test/*")},
       {"test9", true, mojom::ContextType::kUntrustedWebUi,
        GURL("chrome-untrusted://test/")},
       {"test9", true, mojom::ContextType::kUntrustedWebUi,
@@ -189,8 +189,8 @@ TEST(ExtensionAPITest, APIFeatures) {
       {"test9", false, mojom::ContextType::kUntrustedWebUi,
        GURL("chrome-untrusted://dangerous/")},
       {"test9", false, mojom::ContextType::kUntrustedWebUi,
-       GURL("chrome://test/")},
-      {"test9", false, mojom::ContextType::kWebUi, GURL("chrome://test/")},
+       GURL("wootzapp://test/")},
+      {"test9", false, mojom::ContextType::kWebUi, GURL("wootzapp://test/")},
       {"test9", false, mojom::ContextType::kWebUi,
        GURL("chrome-untrusted://test/*")},
 
@@ -359,9 +359,9 @@ TEST(ExtensionAPITest, IsAnyFeatureAvailableToContext) {
       {"test7", false, mojom::ContextType::kWebPage, nullptr,
        GURL("http://bar.com")},
       {"test10", true, mojom::ContextType::kWebUi, nullptr,
-       GURL("chrome://test/")},
+       GURL("wootzapp://test/")},
       {"test10", true, mojom::ContextType::kWebUi, nullptr,
-       GURL("chrome://other-test/")},
+       GURL("wootzapp://other-test/")},
       {"test10", false, mojom::ContextType::kUntrustedWebUi, nullptr,
        GURL("chrome-untrusted://test/")},
       {"test11", true, mojom::ContextType::kUntrustedWebUi, nullptr,
@@ -369,7 +369,7 @@ TEST(ExtensionAPITest, IsAnyFeatureAvailableToContext) {
       {"test11", true, mojom::ContextType::kUntrustedWebUi, nullptr,
        GURL("chrome-untrusted://other-test/")},
       {"test11", false, mojom::ContextType::kWebUi, nullptr,
-       GURL("chrome://test/")},
+       GURL("wootzapp://test/")},
   };
 
   FeatureProvider api_feature_provider;
@@ -773,11 +773,11 @@ TEST(ExtensionAPITest, URLMatching) {
 
   // Also to internal URLs.
   EXPECT_TRUE(MatchesURL(api.get(), "app", "about:flags"));
-  EXPECT_TRUE(MatchesURL(api.get(), "app", "chrome://flags"));
+  EXPECT_TRUE(MatchesURL(api.get(), "app", "wootzapp://flags"));
 
   // "app" should be available to chrome-extension URLs.
   EXPECT_TRUE(MatchesURL(api.get(), "app",
-                          "chrome-extension://fakeextension"));
+                          "wootzapp-extension://fakeextension"));
 
   // "storage" API (for example) isn't available to any URLs.
   EXPECT_FALSE(MatchesURL(api.get(), "storage",
@@ -785,9 +785,9 @@ TEST(ExtensionAPITest, URLMatching) {
   EXPECT_FALSE(MatchesURL(api.get(), "storage", "https://blah.net"));
   EXPECT_FALSE(MatchesURL(api.get(), "storage", "file://somefile.html"));
   EXPECT_FALSE(MatchesURL(api.get(), "storage", "about:flags"));
-  EXPECT_FALSE(MatchesURL(api.get(), "storage", "chrome://flags"));
+  EXPECT_FALSE(MatchesURL(api.get(), "storage", "wootzapp://flags"));
   EXPECT_FALSE(MatchesURL(api.get(), "storage",
-                          "chrome-extension://fakeextension"));
+                          "wootzapp-extension://fakeextension"));
 }
 
 TEST(ExtensionAPITest, GetAPINameFromFullName) {

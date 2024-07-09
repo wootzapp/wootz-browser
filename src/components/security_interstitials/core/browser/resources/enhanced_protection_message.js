@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SecurityInterstitialCommandId, sendCommand} from 'chrome://interstitials/common/resources/interstitial_common.js';
-import {mobileNav} from 'chrome://interstitials/common/resources/interstitial_mobile_nav.js';
+import {SecurityInterstitialCommandId, sendCommand} from 'wootzapp://interstitials/common/resources/interstitial_common.js';
+import {mobileNav} from 'wootzapp://interstitials/common/resources/interstitial_mobile_nav.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 
 // Other constants defined in security_interstitial_page.h.

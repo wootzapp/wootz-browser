@@ -95,7 +95,7 @@ std::string GetMessageString() {
     default:
       return std::string(
           "Memory logging must be manually enabled for each process via "
-          "chrome://memory-internals.");
+          "wootzapp://memory-internals.");
   }
 #elif defined(ADDRESS_SANITIZER)
   return "Memory logging is not available in this build because a memory "

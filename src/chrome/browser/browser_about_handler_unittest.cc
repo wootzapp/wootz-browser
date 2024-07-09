@@ -87,7 +87,7 @@ TEST_F(BrowserAboutHandlerTest,
   GURL history_foo_url(
       GURL(chrome::kChromeUIHistoryURL).ReplaceComponents(replace_foo_query));
   TestHandleChromeAboutAndChromeSyncRewrite(std::vector<AboutURLTestCase>({
-      {GURL("chrome:history"), GURL(chrome::kChromeUIHistoryURL)},
+      {GURL("wootzapp:history"), GURL(chrome::kChromeUIHistoryURL)},
       {GURL(chrome::kChromeUIHistoryURL), GURL(chrome::kChromeUIHistoryURL)},
       {history_foo_url, history_foo_url},
   }));

@@ -836,7 +836,7 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(Browser* browser) {
   }
 
   GURL url(location_bar->navigation_params().destination_url);
-  TRACE_EVENT1("navigation", "chrome::OpenCurrentURL", "url", url);
+  TRACE_EVENT1("navigation", "wootzapp::OpenCurrentURL", "url", url);
 
   if (ShouldInterceptChromeURLNavigationInIncognito(browser, url)) {
     ProcessInterceptedChromeURLNavigationInIncognito(browser, url);

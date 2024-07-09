@@ -628,7 +628,7 @@ TEST_F(BookmarkBridgeTest, TestMoveBookmarkToReadingList) {
 }
 
 TEST_F(BookmarkBridgeTest, TestMoveBookmarkToReadingListAddFails) {
-  GURL url = GURL("chrome://newtab");
+  GURL url = GURL("wootzapp://newtab");
   const std::u16string title = u"native page";
 
   const BookmarkNode* node =

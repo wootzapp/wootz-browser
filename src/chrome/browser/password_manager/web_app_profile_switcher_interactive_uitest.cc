@@ -36,8 +36,8 @@
 
 namespace {
 
-const char kTestWebUIManifestId[] = "chrome://password-manager/";
-const char kTestWebUIAppURL[] = "chrome://password-manager/?source=pwa";
+const char kTestWebUIManifestId[] = "wootzapp://password-manager/";
+const char kTestWebUIAppURL[] = "wootzapp://password-manager/?source=pwa";
 
 std::unique_ptr<web_app::WebAppInstallInfo> GetTestWebAppInstallInfo() {
   auto web_app_info = std::make_unique<web_app::WebAppInstallInfo>(

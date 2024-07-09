@@ -16,9 +16,9 @@ import {Channel} from './channel.js';
  */
 const ALLOWED_ORIGINS = [
   'chrome://oobe',
-  'chrome://chrome-signin',
-  'chrome://password-change',
-  'chrome://lock-reauth',
+  'wootzapp://wootzapp-signin',
+  'wootzapp://password-change',
+  'wootzapp://lock-reauth',
 ];
 
 /** @const */

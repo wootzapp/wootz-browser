@@ -971,7 +971,7 @@ IN_PROC_BROWSER_TEST_F(DiceBrowserTest, RevokeSyncAccountInAuthErrorState) {
 IN_PROC_BROWSER_TEST_F(DiceBrowserTest, MAYBE_NoDiceFromWebUI) {
   // Navigate to Gaia and from the native tab, which uses an extension.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("chrome:chrome-signin?reason=5")));
+      browser(), GURL("wootzapp:wootzapp-signin?reason=5")));
 
   // Check that the request had no Dice request header.
   if (dice_request_header_.empty())
@@ -1121,7 +1121,7 @@ IN_PROC_BROWSER_TEST_F(DiceBrowserTest,
       signin_metrics::AccessPoint::ACCESS_POINT_SETTINGS);
 
   content::TestNavigationObserver sync_confirmation_url_observer(
-      GURL("chrome://sync-confirmation"));
+      GURL("wootzapp://sync-confirmation"));
   sync_confirmation_url_observer.StartWatchingNewWebContents();
 
   // Receive token.

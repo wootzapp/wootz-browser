@@ -551,7 +551,7 @@ public class BookmarkManagerMediatorTest {
     @Test
     public void setUrlBeforeModelLoaded() {
         // Setting a URL prior to the model loading should set the state for when it loads.
-        mMediator.updateForUrl("chrome-native://bookmarks/folder/" + mFolderId1.getId());
+        mMediator.updateForUrl("wootzapp-native://bookmarks/folder/" + mFolderId1.getId());
 
         finishLoading();
         assertEquals(BookmarkUiMode.FOLDER, mMediator.getCurrentUiMode());

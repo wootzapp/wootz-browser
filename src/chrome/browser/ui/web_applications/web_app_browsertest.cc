@@ -2115,13 +2115,13 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, PopupLocationBar) {
 IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, WebAppInternalsPage) {
   // Loads with no web app.
   NavigateViaLinkClickToURLAndWait(browser(),
-                                   GURL("chrome://web-app-internals"));
+                                   GURL("wootzapp://web-app-internals"));
 
   const GURL app_url = GetSecureAppURL();
   InstallPWA(app_url);
   // Loads with one web app.
   NavigateViaLinkClickToURLAndWait(browser(),
-                                   GURL("chrome://web-app-internals"));
+                                   GURL("wootzapp://web-app-internals"));
 
   // Install a non-promotable web app.
   NavigateViaLinkClickToURLAndWait(
@@ -2135,7 +2135,7 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, WebAppInternalsPage) {
   SetAutoAcceptWebAppDialogForTesting(false, false);
   // Loads with two apps.
   NavigateViaLinkClickToURLAndWait(browser(),
-                                   GURL("chrome://web-app-internals"));
+                                   GURL("wootzapp://web-app-internals"));
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, BrowserDisplayNotInstallable) {

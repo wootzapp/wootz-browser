@@ -1587,7 +1587,7 @@ TEST_F(PasswordsPrivateDelegateImplTest, DISABLED_ShowAddShortcutDialog) {
   auto window = std::make_unique<TestBrowserWindow>();
   params.window = window.get();
   auto browser = std::unique_ptr<Browser>(Browser::Create(params));
-  NavigateParams nav_params(browser.get(), GURL("chrome://password-manager"),
+  NavigateParams nav_params(browser.get(), GURL("wootzapp://password-manager"),
                             ui::PAGE_TRANSITION_TYPED);
   nav_params.tabstrip_index = 0;
   nav_params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;

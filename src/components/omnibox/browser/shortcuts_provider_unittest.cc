@@ -153,7 +153,7 @@ struct TestShortcutData shortcut_test_db[] = {
      AutocompleteMatch::DocumentType::NONE, "www.word", "0,0", "Google Search",
      "0,4", ui::PAGE_TRANSITION_GENERATED,
      AutocompleteMatchType::SEARCH_HISTORY, "google.com", 1, 100},
-    {GetGuid(), "about:o", "chrome://omnibox", "chrome://omnibox/",
+    {GetGuid(), "about:o", "wootzapp://omnibox", "wootzapp://omnibox/",
      AutocompleteMatch::DocumentType::NONE, "about:omnibox", "0,3,10,1", "", "",
      ui::PAGE_TRANSITION_TYPED, AutocompleteMatchType::NAVSUGGEST, "", 1, 100},
     {GetGuid(), "www/real sp", "http://www/real space/long-url-with-space.html",
@@ -421,7 +421,7 @@ TEST_F(ShortcutsProviderTest, SimpleSingleMatch) {
 TEST_F(ShortcutsProviderTest, TrickySingleMatch) {
   // Test that about: URLs are fixed up/transformed to chrome:// URLs.
   std::u16string text(u"about:o");
-  std::string expected_url("chrome://omnibox/");
+  std::string expected_url("wootzapp://omnibox/");
   ExpectedURLs expected_urls;
   expected_urls.push_back(ExpectedURLAndAllowedToBeDefault(expected_url, true));
   RunShortcutsProviderTest(provider_, text, false, expected_urls, expected_url,

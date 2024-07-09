@@ -184,7 +184,7 @@ class ChromeContentBrowserClientTest : public testing::Test {
 // empty document scheme in ChromeContentClient.
 TEST_F(ChromeContentBrowserClientTest, ShouldAssignSiteForURL) {
   EXPECT_FALSE(content::SiteInstance::ShouldAssignSiteForURL(
-      GURL("chrome-native://test")));
+      GURL("wootzapp-native://test")));
   EXPECT_TRUE(content::SiteInstance::ShouldAssignSiteForURL(
       GURL("http://www.google.com")));
   EXPECT_TRUE(content::SiteInstance::ShouldAssignSiteForURL(
@@ -249,31 +249,31 @@ TEST_F(ChromeContentBrowserClientWindowTest, ShouldStayInParentProcessForNTP) {
   // be embedded within the remote NTP.
   scoped_refptr<content::SiteInstance> site_instance =
       content::SiteInstance::CreateForURL(browser()->profile(),
-                                          GURL("chrome-search://remote-ntp"));
+                                          GURL("wootzapp-search://remote-ntp"));
   EXPECT_TRUE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome-search://most-visited/title.html"),
+      GURL("wootzapp-search://most-visited/title.html"),
       site_instance->GetSiteURL()));
 
   // Only the most visited tiles host is allowed to stay in the 3P NTP.
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome-search://foo/"), site_instance->GetSiteURL()));
+      GURL("wootzapp-search://foo/"), site_instance->GetSiteURL()));
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome://new-tab-page"), site_instance->GetSiteURL()));
+      GURL("wootzapp://new-tab-page"), site_instance->GetSiteURL()));
 
   site_instance = content::SiteInstance::CreateForURL(
-      browser()->profile(), GURL("chrome://new-tab-page"));
+      browser()->profile(), GURL("wootzapp://new-tab-page"));
 
   // chrome://new-tab-page is an NTP replacing local-ntp and supports OOPIFs.
   // ShouldStayInParentProcessForNTP() should only return true for NTPs hosted
   // under the chrome-search: scheme.
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome://new-tab-page"), site_instance->GetSiteURL()));
+      GURL("wootzapp://new-tab-page"), site_instance->GetSiteURL()));
 
   // For now, we also allow chrome-search://most-visited to stay in 1P NTP,
   // chrome://new-tab-page.  We should consider tightening this to only allow
   // most-visited tiles to stay in 3P NTP.
   EXPECT_TRUE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome-search://most-visited"), site_instance->GetSiteURL()));
+      GURL("wootzapp-search://most-visited"), site_instance->GetSiteURL()));
 }
 
 TEST_F(ChromeContentBrowserClientWindowTest, OverrideNavigationParams) {
@@ -283,7 +283,7 @@ TEST_F(ChromeContentBrowserClientWindowTest, OverrideNavigationParams) {
   content::Referrer referrer = content::Referrer();
   std::optional<url::Origin> initiator_origin = std::nullopt;
 
-  GURL remote_ntp_url("chrome-search://remote-ntp");
+  GURL remote_ntp_url("wootzapp-search://remote-ntp");
   transition = ui::PAGE_TRANSITION_LINK;
   is_renderer_initiated = true;
   // The origin is a placeholder to test that |initiator_origin| is set to
@@ -957,7 +957,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectHelpURL) {
   const GURL help_url(chrome::kChromeUIHelpURL);
   GURL dest_url = help_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL("chrome://settings/help"), dest_url);
+  EXPECT_EQ(GURL("wootzapp://settings/help"), dest_url);
 
   base::Value::List list;
   list.Append(static_cast<int>(policy::SystemFeature::kBrowserSettings));
@@ -1399,7 +1399,7 @@ TEST_F(DisableWebAuthnWithBrokenCertsTest, SecurityLevelNotAcceptable) {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 TEST_F(DisableWebAuthnWithBrokenCertsTest, ExtensionSupported) {
-  GURL url("chrome-extension://extensionid");
+  GURL url("wootzapp-extension://extensionid");
   TestChromeContentBrowserClient client;
   auto simulator =
       content::NavigationSimulator::CreateBrowserInitiated(url, web_contents());

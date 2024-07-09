@@ -112,7 +112,7 @@ TEST_F(SafeBrowsingPrefsTest, GetSafeBrowsingExtendedReportingLevel) {
 
 TEST_F(SafeBrowsingPrefsTest, VerifyMatchesPasswordProtectionLoginURL) {
   GURL url("https://mydomain.com/login.html#ref?username=alice");
-  GURL chrome_url("chrome://os-settings");
+  GURL chrome_url("wootzapp://os-settings");
   EXPECT_FALSE(prefs_.HasPrefPath(prefs::kPasswordProtectionLoginURLs));
   EXPECT_FALSE(MatchesPasswordProtectionLoginURL(url, prefs_));
 #if BUILDFLAG(IS_CHROMEOS)
@@ -131,7 +131,7 @@ TEST_F(SafeBrowsingPrefsTest, VerifyMatchesPasswordProtectionLoginURL) {
   EXPECT_TRUE(MatchesPasswordProtectionLoginURL(url, prefs_));
 
   base::Value::List login_urls2;
-  login_urls2.Append("chrome://os-settings");
+  login_urls2.Append("wootzapp://os-settings");
   prefs_.SetList(prefs::kPasswordProtectionLoginURLs, std::move(login_urls2));
   EXPECT_TRUE(prefs_.HasPrefPath(prefs::kPasswordProtectionLoginURLs));
   EXPECT_TRUE(MatchesPasswordProtectionLoginURL(chrome_url, prefs_));

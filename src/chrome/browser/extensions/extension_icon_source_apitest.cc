@@ -27,7 +27,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, IconsLoaded) {
   // parameters work correctly.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
-      GURL("chrome-extension://gbmgkahjioeacddebbnengilkgbkhodg/index.html")));
+      GURL("wootzapp-extension://gbmgkahjioeacddebbnengilkgbkhodg/index.html")));
   EXPECT_EQ(
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       "document.title"),
@@ -37,7 +37,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, IconsLoaded) {
   // without the management permission.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
-      GURL("chrome-extension://apocjbpjpkghdepdngjlknfpmabcmlao/index.html")));
+      GURL("wootzapp-extension://apocjbpjpkghdepdngjlknfpmabcmlao/index.html")));
   EXPECT_EQ(
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       "document.title"),
@@ -47,7 +47,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, IconsLoaded) {
 IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, InvalidURL) {
   // Test that navigation to an invalid url works.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("chrome://extension-icon/invalid")));
+      browser(), GURL("wootzapp://extension-icon/invalid")));
 
   EXPECT_EQ(
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
@@ -67,7 +67,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, IconsLoadedIncognito) {
   // parameters work correctly.
   Browser* otr_browser = OpenURLOffTheRecord(
       browser()->profile(),
-      GURL("chrome-extension://gbmgkahjioeacddebbnengilkgbkhodg/index.html"));
+      GURL("wootzapp-extension://gbmgkahjioeacddebbnengilkgbkhodg/index.html"));
   EXPECT_EQ(
       content::EvalJs(otr_browser->tab_strip_model()->GetActiveWebContents(),
                       "document.title"),
@@ -77,7 +77,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionIconSourceTest, IconsLoadedIncognito) {
   // without the management permission.
   OpenURLOffTheRecord(
       browser()->profile(),
-      GURL("chrome-extension://apocjbpjpkghdepdngjlknfpmabcmlao/index.html"));
+      GURL("wootzapp-extension://apocjbpjpkghdepdngjlknfpmabcmlao/index.html"));
   EXPECT_EQ(
       content::EvalJs(otr_browser->tab_strip_model()->GetActiveWebContents(),
                       "document.title"),

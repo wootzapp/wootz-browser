@@ -28,14 +28,14 @@ public class NativePageTest {
     }
 
     public static final UrlCombo[] VALID_URLS = {
-        new UrlCombo("chrome-native://newtab", NativePageType.NTP),
-        new UrlCombo("chrome-native://newtab/", NativePageType.NTP),
-        new UrlCombo("chrome-native://bookmarks", NativePageType.BOOKMARKS),
-        new UrlCombo("chrome-native://bookmarks/", NativePageType.BOOKMARKS),
-        new UrlCombo("chrome-native://bookmarks/#245", NativePageType.BOOKMARKS),
-        new UrlCombo("chrome-native://recent-tabs", NativePageType.RECENT_TABS),
-        new UrlCombo("chrome-native://recent-tabs/", NativePageType.RECENT_TABS),
-        new UrlCombo("chrome://history/", NativePageType.HISTORY)
+        new UrlCombo("wootzapp-native://newtab", NativePageType.NTP),
+        new UrlCombo("wootzapp-native://newtab/", NativePageType.NTP),
+        new UrlCombo("wootzapp-native://bookmarks", NativePageType.BOOKMARKS),
+        new UrlCombo("wootzapp-native://bookmarks/", NativePageType.BOOKMARKS),
+        new UrlCombo("wootzapp-native://bookmarks/#245", NativePageType.BOOKMARKS),
+        new UrlCombo("wootzapp-native://recent-tabs", NativePageType.RECENT_TABS),
+        new UrlCombo("wootzapp-native://recent-tabs/", NativePageType.RECENT_TABS),
+        new UrlCombo("wootzapp://history/", NativePageType.HISTORY)
     };
 
     public static final String[] INVALID_URLS = {
@@ -45,16 +45,16 @@ public class NativePageTest {
         "newtab@google.com:80",
         "/newtab",
         "://newtab",
-        "chrome://",
-        "chrome://most_visited",
-        "chrome-native://",
-        "chrome-native://newtablet",
-        "chrome-native://bookmarks-inc",
-        "chrome-native://recent_tabs",
-        "chrome-native://recent-tabswitcher",
-        "chrome-native://most_visited",
-        "chrome-native://astronaut",
-        "chrome-internal://newtab",
+        "wootzapp://",
+        "wootzapp://most_visited",
+        "wootzapp-native://",
+        "wootzapp-native://newtablet",
+        "wootzapp-native://bookmarks-inc",
+        "wootzapp-native://recent_tabs",
+        "wootzapp-native://recent-tabswitcher",
+        "wootzapp-native://most_visited",
+        "wootzapp-native://astronaut",
+        "wootzapp-internal://newtab",
         "french-fries://newtab",
         "http://bookmarks",
         "https://recent-tabs",

@@ -292,7 +292,7 @@ TEST_F(PermissionsManagerUnittest, GetSiteAccess_AllUrls) {
 
   // Chrome pages should be restricted, and the extension shouldn't have grant
   // or withheld site access.
-  const GURL restricted_url("chrome://extensions");
+  const GURL restricted_url("wootzapp://extensions");
   {
     const PermissionsManager::ExtensionSiteAccess site_access =
         manager_->GetSiteAccess(*extension, restricted_url);
@@ -427,7 +427,7 @@ TEST_F(PermissionsManagerUnittest, CanUserSelectSiteAccess_AllUrls) {
 
   // Verify "on click", "on site" and "on all sites" cannot be selected for a
   // restricted url.
-  const GURL chrome_url("chrome://settings");
+  const GURL chrome_url("wootzapp://settings");
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,
                                                  UserSiteAccess::kOnClick));
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,

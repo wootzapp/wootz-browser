@@ -2417,7 +2417,7 @@ bool SkiaOutputSurfaceImplOnGpu::MakeCurrent(bool need_framebuffer) {
     LOG(ERROR) << "Failed to make current.";
     dependency_->DidLoseContext(
         *context_state_->context_lost_reason(),
-        GURL("chrome://gpu/SkiaOutputSurfaceImplOnGpu::MakeCurrent"));
+        GURL("wootzapp://gpu/SkiaOutputSurfaceImplOnGpu::MakeCurrent"));
     MarkContextLost(GetContextLostReason(
         gpu::error::kLostContext, *context_state_->context_lost_reason()));
     return false;

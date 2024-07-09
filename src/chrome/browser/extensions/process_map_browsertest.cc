@@ -425,7 +425,7 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
   // Opens a new tab to a Web UI page.
   void OpenWebUi() {
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://settings")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://settings")));
   }
 
   // Opens a new tab to a page in the given `extension`.

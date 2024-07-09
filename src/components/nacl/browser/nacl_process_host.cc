@@ -213,7 +213,7 @@ void NaClProcessHost::EarlyStartup() {
   // about::flags only allows empty flags as the default, so replace
   // the empty setting with the default. To debug all apps, use a wild-card.
   if (nacl_debug_mask.empty()) {
-    nacl_debug_mask = "!*://*/*ssh_client.nmf,chrome://pnacl-translator/*";
+    nacl_debug_mask = "!*://*/*ssh_client.nmf,wootzapp://pnacl-translator/*";
   }
   NaClBrowser::GetDelegate()->SetDebugPatterns(nacl_debug_mask);
 }

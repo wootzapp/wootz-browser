@@ -716,14 +716,14 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, OutOfOrderTabSwitchTest) {
 // longer exists: if NTP, load in current tab, otherwise load in new
 // foreground tab.
 IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, NavigateOnTabSwitchLostTest) {
-  const GURL singleton_url("chrome://dino");
+  const GURL singleton_url("wootzapp://dino");
 
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
   NavigateHelper(singleton_url, browser(), WindowOpenDisposition::SWITCH_TO_TAB,
                  true, tab);
   EXPECT_EQ(1, browser()->tab_strip_model()->count());
 
-  NavigateHelper(GURL("chrome://about"), browser(),
+  NavigateHelper(GURL("wootzapp://about"), browser(),
                  WindowOpenDisposition::NEW_FOREGROUND_TAB, true);
   int previous_tab_count = browser()->tab_strip_model()->count();
   browser()->tab_strip_model()->CloseWebContentsAt(0,
@@ -740,7 +740,7 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, NavigateOnTabSwitchLostTest) {
 IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, SchemeMismatchTabSwitchTest) {
   GURL navigate_url("https://www.chromium.org/");
   GURL search_url("http://www.chromium.org/");
-  GURL dino_url("chrome://dino");
+  GURL dino_url("wootzapp://dino");
 
   NavigateHelper(navigate_url, browser(), WindowOpenDisposition::CURRENT_TAB,
                  true);
@@ -760,8 +760,8 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, SchemeMismatchTabSwitchTest) {
 // Make sure that switching tabs preserves the post-focus state (of the
 // content area) of the previous tab.
 IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, SaveAfterFocusTabSwitchTest) {
-  GURL first_url("chrome://dino/");
-  GURL second_url("chrome://history/");
+  GURL first_url("wootzapp://dino/");
+  GURL second_url("wootzapp://history/");
 
   NavigateHelper(first_url, browser(), WindowOpenDisposition::CURRENT_TAB,
                  true);
@@ -844,16 +844,16 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, DISABLED_SwitchToTabLatestWindow) {
 // window.
 IN_PROC_BROWSER_TEST_F(BrowserNavigatorTest, SingletonWindowLeak) {
   // Navigate to a site.
-  NavigateHelper(GURL("chrome://dino"), browser(),
+  NavigateHelper(GURL("wootzapp://dino"), browser(),
                  WindowOpenDisposition::CURRENT_TAB, true);
 
   // Navigate to a new window.
-  Browser* browser2 = NavigateHelper(GURL("chrome://about"), browser(),
+  Browser* browser2 = NavigateHelper(GURL("wootzapp://about"), browser(),
                                      WindowOpenDisposition::NEW_WINDOW, true);
 
   // Make sure we open non-special URL here.
   Browser* test_browser =
-      NavigateHelper(GURL("chrome://dino"), browser2,
+      NavigateHelper(GURL("wootzapp://dino"), browser2,
                      WindowOpenDisposition::NEW_FOREGROUND_TAB, true);
   EXPECT_EQ(browser2, test_browser);
 }

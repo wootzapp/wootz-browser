@@ -1127,7 +1127,7 @@ TEST_F(ExtensionsMenuMainPageViewUnitTest, RestrictedSite) {
   InstallEnterpriseExtension(kEnterpriseExtension,
                              /*host_permissions=*/{"<all_urls>"});
 
-  const GURL restricted_url("chrome://extensions");
+  const GURL restricted_url("wootzapp://extensions");
   auto restricted_origin = url::Origin::Create(restricted_url);
   web_contents_tester()->NavigateAndCommit(restricted_url);
 
@@ -1259,7 +1259,7 @@ TEST_F(ExtensionsMenuMainPageViewUnitTest, PolicyBlockedSite) {
 TEST_F(ExtensionsMenuMainPageViewUnitTest, MessageSection_RestrictedAccess) {
   InstallExtensionWithHostPermissions("Extension", {"<all_urls>"});
 
-  const GURL restricted_url("chrome://extensions");
+  const GURL restricted_url("wootzapp://extensions");
   web_contents_tester()->NavigateAndCommit(restricted_url);
 
   ShowMenu();

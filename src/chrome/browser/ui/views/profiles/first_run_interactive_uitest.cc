@@ -626,7 +626,7 @@ IN_PROC_BROWSER_TEST_P(FirstRunParameterizedInteractiveUiTest, SignInAndSync) {
   SimulateSignIn(kTestEmail, kTestGivenName);
 
   GURL sync_page_url = AppendSyncConfirmationQueryParams(
-      GURL("chrome://sync-confirmation/"), SyncConfirmationStyle::kWindow);
+      GURL("wootzapp://sync-confirmation/"), SyncConfirmationStyle::kWindow);
   histogram_tester().ExpectUniqueSample(
       "Signin.SignIn.Completed",
       signin_metrics::AccessPoint::ACCESS_POINT_FOR_YOU_FRE, 1);
@@ -750,7 +750,7 @@ IN_PROC_BROWSER_TEST_P(FirstRunParameterizedInteractiveUiTest, DeclineSync) {
       views::ElementTrackerViews::GetContextForView(view()),
       WaitForWebContentsNavigation(
           kWebContentsId,
-          AppendSyncConfirmationQueryParams(GURL("chrome://sync-confirmation/"),
+          AppendSyncConfirmationQueryParams(GURL("wootzapp://sync-confirmation/"),
                                             SyncConfirmationStyle::kWindow)),
 
       // Button is visible once capabilities are loaded or defaulted.
@@ -821,7 +821,7 @@ IN_PROC_BROWSER_TEST_P(FirstRunParameterizedInteractiveUiTest, GoToSettings) {
       views::ElementTrackerViews::GetContextForView(view()),
       WaitForWebContentsNavigation(
           kWebContentsId,
-          AppendSyncConfirmationQueryParams(GURL("chrome://sync-confirmation/"),
+          AppendSyncConfirmationQueryParams(GURL("wootzapp://sync-confirmation/"),
                                             SyncConfirmationStyle::kWindow)),
 
       // Wait for opt-in button to appear for all test cases except for

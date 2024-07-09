@@ -43,7 +43,7 @@ using PrintPreviewDialogControllerUnitTest = PrintPreviewTest;
 
 TEST_F(PrintPreviewDialogControllerUnitTest, IsPrintPreviewURL) {
   EXPECT_TRUE(PrintPreviewDialogController::IsPrintPreviewURL(
-      GURL("chrome://print/fake-path")));
+      GURL("wootzapp://print/fake-path")));
   EXPECT_FALSE(PrintPreviewDialogController::IsPrintPreviewURL(
       GURL("chrome-untrusted://print/fake-path")));
 }
@@ -52,7 +52,7 @@ TEST_F(PrintPreviewDialogControllerUnitTest, IsPrintPreviewContentURL) {
   EXPECT_TRUE(PrintPreviewDialogController::IsPrintPreviewContentURL(
       GURL("chrome-untrusted://print/fake-path")));
   EXPECT_FALSE(PrintPreviewDialogController::IsPrintPreviewContentURL(
-      GURL("chrome://print/fake-path")));
+      GURL("wootzapp://print/fake-path")));
 }
 
 // Create/Get a preview dialog for initiator.

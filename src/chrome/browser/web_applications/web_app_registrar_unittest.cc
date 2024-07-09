@@ -1509,7 +1509,7 @@ class WebAppRegistrarAshTest : public WebAppTest, public WithCrosapiParam {
 
 TEST_P(WebAppRegistrarAshTest, SourceSupported) {
   const GURL example_url("https://example.com/my-app/start");
-  const GURL swa_url("chrome://swa/start");
+  const GURL swa_url("wootzapp://swa/start");
   const GURL uninstalling_url("https://example.com/uninstalling/start");
 
   webapps::AppId example_id;
@@ -1556,7 +1556,7 @@ TEST_P(WebAppRegistrarAshTest, SourceSupported) {
   }
 
   EXPECT_EQ(registrar.FindAppWithUrlInScope(swa_url), swa_id);
-  EXPECT_EQ(registrar.GetAppScope(swa_id), GURL("chrome://swa/"));
+  EXPECT_EQ(registrar.GetAppScope(swa_id), GURL("wootzapp://swa/"));
   EXPECT_TRUE(registrar.GetAppUserDisplayMode(swa_id).has_value());
 
   EXPECT_FALSE(registrar.FindAppWithUrlInScope(uninstalling_url).has_value());
@@ -1579,7 +1579,7 @@ using WebAppRegistrarLacrosTest = WebAppTest;
 
 TEST_F(WebAppRegistrarLacrosTest, SwaSourceNotSupported) {
   const GURL example_url("https://example.com/my-app/start");
-  const GURL swa_url("chrome://swa/start");
+  const GURL swa_url("wootzapp://swa/start");
   const GURL uninstalling_url("https://example.com/uninstalling/start");
 
   webapps::AppId example_id;

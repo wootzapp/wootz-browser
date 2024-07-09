@@ -111,9 +111,9 @@ export class PrintPreviewDestinationListItemElement extends
           this.shadowRoot!.querySelector<HTMLElement>('.extension-icon');
       assert(icon);
       icon.style.backgroundImage = 'image-set(' +
-          'url(chrome://extension-icon/' + this.destination.extensionId +
+          'url(wootzapp://extension-icon/' + this.destination.extensionId +
           '/24/1) 1x,' +
-          'url(chrome://extension-icon/' + this.destination.extensionId +
+          'url(wootzapp://extension-icon/' + this.destination.extensionId +
           '/48/1) 2x)';
     }
   }

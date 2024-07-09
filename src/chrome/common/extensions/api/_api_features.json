@@ -55,7 +55,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://extensions/*"
+      "wootzapp://extensions/*"
     ]
   }],
   "app": {
@@ -93,7 +93,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://settings/*"
+      "wootzapp://settings/*"
     ]
   }],
   "autotestPrivate": {
@@ -104,9 +104,9 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
-      "chrome://read-later.top-chrome/*"
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://read-later.top-chrome/*"
     ]
   },
   "bookmarks": [{
@@ -117,10 +117,10 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
-      "chrome://read-later.top-chrome/*",
-      "chrome://welcome/*"
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://read-later.top-chrome/*",
+      "wootzapp://welcome/*"
     ]
   }],
   "bookmarks.export": {
@@ -128,7 +128,7 @@
     "contexts": ["webui"],
     "dependencies": [],
     "matches": [
-      "chrome://bookmarks/*"
+      "wootzapp://bookmarks/*"
     ]
   },
   "bookmarks.import": {
@@ -136,7 +136,7 @@
     "contexts": ["webui"],
     "dependencies": [],
     "matches": [
-      "chrome://bookmarks/*"
+      "wootzapp://bookmarks/*"
     ]
   },
   "brailleDisplayPrivate": {
@@ -193,7 +193,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://version/*"
+      "wootzapp://version/*"
     ],
     "platforms": ["chromeos", "lacros"]
   }],
@@ -209,16 +209,16 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://assistant-optin/*",
-      "chrome://add-supervision/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*",
-      "chrome://password-change/*",
-      "chrome://lock-reauth/*"
+      "wootzapp://assistant-optin/*",
+      "wootzapp://add-supervision/*",
+      "wootzapp://wootzapp-signin/*",
+      "wootzapp://discards/*",
+      "wootzapp://mobilesetup/*",
+      "wootzapp://oobe/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://parent-access/*",
+      "wootzapp://password-change/*",
+      "wootzapp://lock-reauth/*"
     ]
   }],
   "chromeWebViewInternal": [{
@@ -232,7 +232,7 @@
     // Note: The dependency above effectively restricts where this can be used
     // to the specified set of URLs, so this could even be <all_urls>. Just to
     // be extra-cautious, we restrict to the chrome scheme.
-    "matches": [ "chrome://*/*" ]
+    "matches": [ "wootzapp://*/*" ]
   }, {
     // This feature is used by the Controlled Frame API and is specifically
     // enabled by //chrome.
@@ -277,8 +277,8 @@
       "webui"
     ],
     "matches": [
-      "chrome://camera-app/*",
-      "chrome://media-app/*"
+      "wootzapp://camera-app/*",
+      "wootzapp://media-app/*"
     ]
   },
   {
@@ -317,7 +317,7 @@
   }, {
     "channel": "stable",
     "contexts": ["webui"],
-    "matches": ["chrome://extensions/*"]
+    "matches": ["wootzapp://extensions/*"]
   }],
   // All devtools APIs are implemented by hand, so don't compile them.
   "devtools.inspectedWindow": {
@@ -351,7 +351,7 @@
     {
       "channel": "stable",
       "contexts": ["webui"],
-      "matches": ["chrome://download-shelf.top-chrome/*"]
+      "matches": ["wootzapp://download-shelf.top-chrome/*"]
     }
   ],
   "downloadsInternal": [
@@ -365,7 +365,7 @@
       "internal": true,
       "channel": "stable",
       "contexts": ["webui"],
-      "matches": ["chrome://download-shelf.top-chrome/*"]
+      "matches": ["wootzapp://download-shelf.top-chrome/*"]
     }
   ],
   "echoPrivate": {
@@ -493,7 +493,7 @@
     "internal": true,
     "channel": "stable",
     "contexts": ["webui"],
-    "matches": ["chrome://extensions/*"]
+    "matches": ["wootzapp://extensions/*"]
   },
   // This is not a real API, only here for documentation purposes.
   // See http://crbug.com/275944 for background.
@@ -520,7 +520,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://file-manager/*",
+      "wootzapp://file-manager/*",
       "chrome://webui-test/*"
     ]
   }],
@@ -533,7 +533,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://file-manager/*",
+      "wootzapp://file-manager/*",
       "chrome://webui-test/*"
     ]
   }],
@@ -607,8 +607,8 @@
     "matches": [
       // TODO(maybelle): Audit and remove chrome://settings or
       // chrome://os-settings as appropriate
-      "chrome://os-settings/*",
-      "chrome://settings/*"
+      "wootzapp://os-settings/*",
+      "wootzapp://settings/*"
     ]
   }],
   "instanceID": {
@@ -624,8 +624,8 @@
     "matches": [
       // TODO(maybelle): Audit and remove chrome://settings or
       // chrome://os-settings as appropriate
-      "chrome://os-settings/*",
-      "chrome://settings/*"
+      "wootzapp://os-settings/*",
+      "wootzapp://settings/*"
     ]
   }],
   "login": [{
@@ -715,8 +715,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://settings/*",
-      "chrome://password-manager/*"
+      "wootzapp://settings/*",
+      "wootzapp://password-manager/*"
     ]
   }],
   "permissions": {
@@ -776,10 +776,10 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://multidevice-setup/*",
-      "chrome://os-settings/*",
-      "chrome://settings/*",
-      "chrome://oobe/*"
+      "wootzapp://multidevice-setup/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://settings/*",
+      "wootzapp://oobe/*"
     ],
     "platforms": ["chromeos", "lacros"]
   },
@@ -795,7 +795,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://print/*"
+      "wootzapp://print/*"
     ]
   }],
   "rtcPrivate": {
@@ -830,9 +830,9 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://os-settings/*",
-      "chrome://settings/*",
-      "chrome://password-manager/*"
+      "wootzapp://os-settings/*",
+      "wootzapp://settings/*",
+      "wootzapp://password-manager/*"
     ]
   }],
   "sidePanel": {
@@ -879,10 +879,10 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
-      "chrome://read-later.top-chrome/*",
-      "chrome://tab-strip.top-chrome/*"
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://read-later.top-chrome/*",
+      "wootzapp://tab-strip.top-chrome/*"
     ]
   }, {
     "channel": "stable",
@@ -959,7 +959,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://oobe/*"
+      "wootzapp://oobe/*"
     ]
   }],
   "ttsEngine": {
@@ -974,7 +974,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://os-settings/*"
+      "wootzapp://os-settings/*"
     ]
   }],
   "virtualKeyboardPrivate": {
@@ -988,7 +988,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://file-manager/*"
+      "wootzapp://file-manager/*"
     ]
   }],
   "webAuthenticationProxy": {
@@ -1047,8 +1047,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://tab-strip.top-chrome/*"
+      "wootzapp://bookmarks/*",
+      "wootzapp://tab-strip.top-chrome/*"
     ]
   }, {
     "channel": "stable",

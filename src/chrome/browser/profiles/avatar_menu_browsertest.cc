@@ -59,7 +59,7 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, AddNewProfile) {
   EXPECT_TRUE(menu()->ShouldShowAddNewProfileLink());
   menu()->AddNewProfile();
   profiles::testing::WaitForPickerLoadStop(
-      GURL("chrome://profile-picker/new-profile"));
+      GURL("wootzapp://profile-picker/new-profile"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   ProfilePicker::Hide();
   profiles::testing::WaitForPickerClosed();

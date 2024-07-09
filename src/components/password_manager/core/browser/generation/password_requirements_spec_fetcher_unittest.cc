@@ -164,7 +164,7 @@ TEST(PasswordRequirementsSpecFetcherTest, FetchData) {
       },
       {
           .test_name = "IP addresses give the empty spec",
-          .origin = "chrome://settings",
+          .origin = "wootzapp://settings",
           // By setting the prefix to 0, the URL of the shard is predefined,
           // but actually, not network request should be sent as password
           // requirements are not supported the chrome:// scheme.

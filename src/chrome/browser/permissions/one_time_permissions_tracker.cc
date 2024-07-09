@@ -265,8 +265,8 @@ bool OneTimePermissionsTracker::ShouldIgnoreOrigin(const url::Origin& origin) {
   // used synonymously causing inconsistencies in the map. So we just ignore
   // them.
   return origin.opaque() ||
-         origin == url::Origin::Create(GURL("chrome://newtab/")) ||
-         origin == url::Origin::Create(GURL("chrome://new-tab-page/"));
+         origin == url::Origin::Create(GURL("wootzapp://newtab/")) ||
+         origin == url::Origin::Create(GURL("wootzapp://new-tab-page/"));
 }
 
 void OneTimePermissionsTracker::NotifyBackgroundTimerExpired(

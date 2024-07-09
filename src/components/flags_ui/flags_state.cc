@@ -610,7 +610,7 @@ std::vector<std::string> FlagsState::RegisterEnabledFeatureVariationParameters(
             DCHECK(insert_result.second)
                 << "Multiple values for the same parameter '"
                 << variation->params[i].param_name
-                << "' are specified in chrome://flags!";
+                << "' are specified in wootzapp://flags!";
           }
           if (variation->variation_id)
             variation_ids.push_back(variation->variation_id);

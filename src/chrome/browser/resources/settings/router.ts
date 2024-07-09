@@ -447,7 +447,7 @@ export class Router {
    * @param urlPath The url path (only).
    */
   recordMetrics(urlPath: string) {
-    assert(!urlPath.startsWith('chrome://'));
+    assert(!urlPath.startsWith('wootzapp://'));
     assert(!urlPath.startsWith('settings'));
     assert(urlPath.startsWith('/'));
     assert(!urlPath.match(/\?/g));

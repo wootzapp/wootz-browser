@@ -3710,7 +3710,7 @@
   </message>
 
   <message name="IDS_DEVICE_LOG_LINK_TEXT" desc="Message preceeding link to chrome://device-log">
-    To view network UI logs, see: <ph name="DEVICE_LOG_LINK">&lt;a href="chrome://device-log"&gt;chrome://device-log&lt;/a&gt;</ph>
+    To view network UI logs, see: <ph name="DEVICE_LOG_LINK">&lt;a href="wootzapp://device-log"&gt;chrome://device-log&lt;/a&gt;</ph>
   </message>
 
   <!-- Device health display strings-->
@@ -5117,7 +5117,7 @@
     Couldn’t restore Linux backup
   </message>
   <message name="IDS_CROSTINI_UPGRADER_RESTORE_ERROR_MESSAGE" desc="Text shown by the Crostini upgrader when restoring from backup fails fails.">
-    Linux may not have enough disk space. You can increase your Linux disk space and try to restore again in <ph name="LINK_START">&lt;a href="chrome://os-settings/crostini/details"&gt;</ph>Settings<ph name="LINK_END">&lt;/a&gt;</ph>.
+    Linux may not have enough disk space. You can increase your Linux disk space and try to restore again in <ph name="LINK_START">&lt;a href="wootzapp://os-settings/crostini/details"&gt;</ph>Settings<ph name="LINK_END">&lt;/a&gt;</ph>.
   </message>
   <message name="IDS_CROSTINI_UPGRADER_RESTORE_SUCCEEDED_TITLE" desc="Title of the Crostini upgrader when the upgrade failed but the restore of a backup completed successfully.">
     Linux backup restored

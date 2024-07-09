@@ -24,7 +24,7 @@ class _VersionTest(unittest.TestCase):
   """
 
   _CHROME_VERSION_FILE = os.path.join(
-      os.path.dirname(__file__), os.pardir, os.pardir, 'chrome', 'VERSION')
+      os.path.dirname(__file__), os.pardir, os.pardir, 'wootzapp', 'VERSION')
 
   _SCRIPT = os.path.join(os.path.dirname(__file__), 'version.py')
 

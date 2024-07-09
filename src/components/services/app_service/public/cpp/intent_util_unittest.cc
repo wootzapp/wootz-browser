@@ -588,13 +588,13 @@ GURL test_url(const std::string& file_name) {
 
 GURL ext_test_url(const std::string& file_name) {
   GURL url =
-      GURL("filesystem:chrome-extension://extensionid/external/" + file_name);
+      GURL("filesystem:wootzapp-extension://extensionid/external/" + file_name);
   EXPECT_TRUE(url.is_valid());
   return url;
 }
 
 GURL system_web_app_test_url(const std::string& file_name) {
-  GURL url = GURL("filesystem:chrome://file-manager/external/" + file_name);
+  GURL url = GURL("filesystem:wootzapp://file-manager/external/" + file_name);
   EXPECT_TRUE(url.is_valid());
   return url;
 }
@@ -732,7 +732,7 @@ TEST_F(IntentUtilTest, FileURLMatch) {
 }
 
 TEST_F(IntentUtilTest, FileSystemWebAppURLMatch) {
-  std::string mp3_url_pattern = R"(filesystem:chrome://.*/.*\.mp3)";
+  std::string mp3_url_pattern = R"(filesystem:wootzapp://.*/.*\.mp3)";
 
   auto url_filter = apps_util::MakeURLFilterForView(mp3_url_pattern, "label");
 
