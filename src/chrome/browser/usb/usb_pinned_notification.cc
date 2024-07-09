@@ -10,7 +10,7 @@
 UsbPinnedNotification::UsbPinnedNotification()
     : UsbSystemTrayIcon(std::make_unique<DevicePinnedNotificationRenderer>(
           this,
-          "chrome://device_indicator/usb/",
+          "wootzapp://device_indicator/usb/",
 #if BUILDFLAG(IS_CHROMEOS_ASH)
           ash::NotificationCatalogName::kWebUsb,
 #endif

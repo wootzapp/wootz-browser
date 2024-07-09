@@ -351,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(NativeBindingsApiTest, ErrorsInCallbackTest) {
 // Tests that bindings are available in WebUI pages.
 IN_PROC_BROWSER_TEST_F(NativeBindingsApiTest, WebUIBindings) {
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://extensions")));
+      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://extensions")));
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   auto api_exists = [web_contents](const std::string& api_name) {

@@ -765,7 +765,7 @@ void BackgroundContentsService::NotificationImageReady(
   message_center::Notification notification(
       message_center::NOTIFICATION_TYPE_SIMPLE, id, std::u16string(), message,
       ui::ImageModel::FromImage(notification_icon), std::u16string(),
-      GURL("chrome://extension-crash"),
+      GURL("wootzapp://extension-crash"),
 #if BUILDFLAG(IS_CHROMEOS_ASH)
       message_center::NotifierId(
           message_center::NotifierType::SYSTEM_COMPONENT, kNotifierId,

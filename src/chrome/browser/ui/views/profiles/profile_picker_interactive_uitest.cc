@@ -311,7 +311,7 @@ INSTANTIATE_TEST_SUITE_P(,
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, CloseWithKeyboard) {
   // Open a new picker.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   SendCloseWindowKeyboardCommand();
   WaitForPickerClosed();
@@ -325,7 +325,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, CloseWithKeyboard) {
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, ExitWithKeyboard) {
   // Open a new picker.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 
   SendQuitAppKeyboardCommand();
@@ -338,7 +338,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, ExitWithKeyboard) {
 IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest, FullscreenWithKeyboard) {
   // Open a new picker.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   EXPECT_FALSE(widget()->IsFullscreen());
   WidgetBoundsChangeWaiter bounds_waiter(widget());
@@ -362,7 +362,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       WaitForShow(kProfilePickerViewId),
       InstrumentNonTabWebView(kPickerWebContentsId, web_view()),
       WaitForWebContentsReady(kPickerWebContentsId,
-                              GURL("chrome://profile-picker/new-profile")),
+                              GURL("wootzapp://profile-picker/new-profile")),
 
       // Click "sign in".
       // Note: the button should be disabled after this, but there is no good
@@ -393,7 +393,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
   // back to the picker makes sense. Check that the navigation list is populated
   // correctly.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
 
   RunTestSequenceInContext(
       views::ElementTrackerViews::GetContextForView(view()),
@@ -401,7 +401,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       WaitForShow(kProfilePickerViewId),
       InstrumentNonTabWebView(kPickerWebContentsId, web_view()),
       WaitForWebContentsReady(kPickerWebContentsId,
-                              GURL("chrome://profile-picker")),
+                              GURL("wootzapp://profile-picker")),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 1,
                                              .last_committed_entry_index = 0})),
 
@@ -410,7 +410,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       MoveMouseTo(kPickerWebContentsId, kAddProfileButton), ClickMouse(),
       WaitForStateChange(
           kPickerWebContentsId,
-          UrlEntryMatches(GURL("chrome://profile-picker/new-profile"))),
+          UrlEntryMatches(GURL("wootzapp://profile-picker/new-profile"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 1})),
 
@@ -424,7 +424,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
       WaitForStateChange(
           kPickerWebContentsId,
-          UrlEntryMatches(GURL("chrome://profile-picker/new-profile"))),
+          UrlEntryMatches(GURL("wootzapp://profile-picker/new-profile"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 1})),
 
@@ -432,7 +432,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
       CheckResult(HasPendingNav(), IsTrue()),
       WaitForStateChange(kPickerWebContentsId,
-                         UrlEntryMatches(GURL("chrome://profile-picker"))),
+                         UrlEntryMatches(GURL("wootzapp://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
@@ -448,7 +448,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
   // back to the picker makes sense. Check that the navigation list is populated
   // correctly.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
 
   RunTestSequenceInContext(
       views::ElementTrackerViews::GetContextForView(view()),
@@ -456,7 +456,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       WaitForShow(kProfilePickerViewId),
       InstrumentNonTabWebView(kPickerWebContentsId, web_view()),
       WaitForWebContentsReady(kPickerWebContentsId,
-                              GURL("chrome://profile-picker")),
+                              GURL("wootzapp://profile-picker")),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 1,
                                              .last_committed_entry_index = 0})),
 
@@ -465,7 +465,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       MoveMouseTo(kPickerWebContentsId, kAddProfileButton), ClickMouse(),
       WaitForStateChange(
           kPickerWebContentsId,
-          UrlEntryMatches(GURL("chrome://profile-picker/new-profile"))),
+          UrlEntryMatches(GURL("wootzapp://profile-picker/new-profile"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 1})),
 
@@ -473,7 +473,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       SendAccelerator(kProfilePickerViewId, GetAccelerator(IDC_BACK)),
       CheckResult(HasPendingNav(), IsTrue()),
       WaitForStateChange(kPickerWebContentsId,
-                         UrlEntryMatches(GURL("chrome://profile-picker"))),
+                         UrlEntryMatches(GURL("wootzapp://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
@@ -488,7 +488,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
   // populates the navigation list is populated correctly such that back
   // navigations make sense.
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuAddNewProfile,
-                     GURL("chrome://profile-picker/new-profile"));
+                     GURL("wootzapp://profile-picker/new-profile"));
 
   RunTestSequenceInContext(
       views::ElementTrackerViews::GetContextForView(view()),
@@ -496,7 +496,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       WaitForShow(kProfilePickerViewId),
       InstrumentNonTabWebView(kPickerWebContentsId, web_view()),
       WaitForWebContentsReady(kPickerWebContentsId,
-                              GURL("chrome://profile-picker/new-profile")),
+                              GURL("wootzapp://profile-picker/new-profile")),
 
       // Even though we start straight on the "new-profile" page, the picker
       // main view should be loaded under it in the nav stack.
@@ -511,7 +511,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
       CheckResult(HasPendingNav(), IsTrue(),
                   /*check_description=*/"HasPendingNav"),
       WaitForStateChange(kPickerWebContentsId,
-                         UrlEntryMatches(GURL("chrome://profile-picker"))),
+                         UrlEntryMatches(GURL("wootzapp://profile-picker"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 0})),
 
@@ -531,7 +531,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerInteractiveUiTest,
 IN_PROC_BROWSER_TEST_P(ProfilePickerParametrizedInteractiveUiTest,
                        MAYBE_ContinueWithoutAccount) {
   ShowAndFocusPicker(ProfilePicker::EntryPoint::kProfileMenuManageProfiles,
-                     GURL("chrome://profile-picker"));
+                     GURL("wootzapp://profile-picker"));
 
   RunTestSequenceInContext(
       views::ElementTrackerViews::GetContextForView(view()),
@@ -539,7 +539,7 @@ IN_PROC_BROWSER_TEST_P(ProfilePickerParametrizedInteractiveUiTest,
       WaitForShow(kProfilePickerViewId),
       InstrumentNonTabWebView(kPickerWebContentsId, web_view()),
       WaitForWebContentsReady(kPickerWebContentsId,
-                              GURL("chrome://profile-picker")),
+                              GURL("wootzapp://profile-picker")),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 1,
                                              .last_committed_entry_index = 0})),
 
@@ -549,7 +549,7 @@ IN_PROC_BROWSER_TEST_P(ProfilePickerParametrizedInteractiveUiTest,
           .SetMustRemainVisible(false),
       WaitForStateChange(
           kPickerWebContentsId,
-          UrlEntryMatches(GURL("chrome://profile-picker/new-profile"))),
+          UrlEntryMatches(GURL("wootzapp://profile-picker/new-profile"))),
       CheckResult(GetNavState(), Eq(NavState{.entry_count = 2,
                                              .last_committed_entry_index = 1})),
 

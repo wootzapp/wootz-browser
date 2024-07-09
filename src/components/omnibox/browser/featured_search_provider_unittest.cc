@@ -139,9 +139,9 @@ TEST_F(FeaturedSearchProviderTest, NonAtPrefix) {
       {u"http:www.google.com", {}},
       {u"http://www.google.com", {}},
       {u"file:filename", {}},
-      {u"chrome:", {}},
-      {u"chrome://", {}},
-      {u"chrome://version", {}},
+      {u"wootzapp:", {}},
+      {u"wootzapp://", {}},
+      {u"wootzapp://version", {}},
   };
 
   RunTest(test_cases, std::size(test_cases));

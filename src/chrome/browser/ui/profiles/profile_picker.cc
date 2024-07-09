@@ -45,7 +45,7 @@ ProfilePicker::AvailabilityOnStartup GetAvailabilityOnStartup() {
 }  // namespace
 
 const char ProfilePicker::kTaskManagerUrl[] =
-    "chrome://profile-picker/task-manager";
+    "wootzapp://profile-picker/task-manager";
 
 ProfilePicker::Params::~Params() {
 #if BUILDFLAG(IS_CHROMEOS_LACROS)

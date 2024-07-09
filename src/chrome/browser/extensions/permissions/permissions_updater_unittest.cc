@@ -554,12 +554,12 @@ TEST_F(PermissionsUpdaterTest, ChromeFaviconIsNotARevokableHost) {
   InitializeEmptyExtensionService();
 
   URLPattern chrome_favicon_pattern(Extension::kValidHostPermissionSchemes,
-                                    "chrome://favicon/");
+                                    "wootzapp://favicon/");
 
   {
     scoped_refptr<const Extension> extension =
         ExtensionBuilder("favicon extension")
-            .AddPermissions({"https://example.com/*", "chrome://favicon/*"})
+            .AddPermissions({"https://example.com/*", "wootzapp://favicon/*"})
             .Build();
     URLPattern example_com_pattern(Extension::kValidHostPermissionSchemes,
                                    "https://example.com/*");

@@ -317,7 +317,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerMenuItemInteractiveTest,
                   SelectMenuItem(AppMenuModel::kPasswordManagerMenuItem),
                   WaitForWebContentsNavigation(
                       kPrimaryTabPageElementId,
-                      GURL("chrome://password-manager/passwords")));
+                      GURL("wootzapp://password-manager/passwords")));
 
   histograms.ExpectTotalCount("WrenchMenu.TimeToAction.ShowPasswordManager", 1);
   histograms.ExpectBucketCount("WrenchMenu.MenuAction",
@@ -328,9 +328,9 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerMenuItemInteractiveTest,
                        NoMenuItemOnPasswordManagerPage) {
   RunTestSequence(
       AddInstrumentedTab(kPrimaryTabPageElementId,
-                         GURL("chrome://password-manager/passwords")),
+                         GURL("wootzapp://password-manager/passwords")),
       WaitForWebContentsReady(kPrimaryTabPageElementId,
-                              GURL("chrome://password-manager/passwords")),
+                              GURL("wootzapp://password-manager/passwords")),
       PressButton(kToolbarAppMenuButtonElementId),
       EnsureNotPresent(AppMenuModel::kPasswordManagerMenuItem));
 }

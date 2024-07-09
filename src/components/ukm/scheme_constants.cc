@@ -7,7 +7,7 @@
 namespace ukm {
 
 const char kAppScheme[] = "app";
-const char kChromeUIScheme[] = "chrome";
-const char kExtensionScheme[] = "chrome-extension";
+const char kChromeUIScheme[] = "wootzapp";
+const char kExtensionScheme[] = "wootzapp-extension";
 
 }  // namespace ukm

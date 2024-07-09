@@ -5486,7 +5486,7 @@ class ChromeSignInWebViewTest : public WebViewTest {
 // This verifies the fix for http://crbug.com/667708.
 IN_PROC_BROWSER_TEST_F(ChromeSignInWebViewTest,
                        ClosingChromeSignInShouldNotCrash) {
-  GURL signin_url{"chrome://chrome-signin/?reason=5"};
+  GURL signin_url{"wootzapp://wootzapp-signin/?reason=5"};
 
   ASSERT_TRUE(AddTabAtIndex(0, signin_url, ui::PAGE_TRANSITION_TYPED));
   ASSERT_TRUE(AddTabAtIndex(1, signin_url, ui::PAGE_TRANSITION_TYPED));
@@ -5513,7 +5513,7 @@ IN_PROC_BROWSER_TEST_F(ChromeSignInWebViewTest,
 #endif
 IN_PROC_BROWSER_TEST_F(ChromeSignInWebViewTest,
                        MAYBE_NoFindInPageForUnattachedGuest) {
-  GURL signin_url{"chrome://chrome-signin/?reason=5"};
+  GURL signin_url{"wootzapp://wootzapp-signin/?reason=5"};
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), signin_url));
 
   // Navigate a tab to a page with a <webview>.

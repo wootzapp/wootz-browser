@@ -46,7 +46,7 @@ namespace error_page {
 namespace {
 
 // Hardcode these constants to avoid dependences on //chrome and //content.
-const char kChromeUIScheme[] = "chrome";
+const char kChromeUIScheme[] = "wootzapp";
 const char kChromeUIDinoHost[] = "dino";
 
 static const char kRedirectLoopLearnMoreUrl[] =

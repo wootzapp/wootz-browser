@@ -18,7 +18,7 @@ namespace plugin {
 
 namespace {
 
-static const char kPnaclBaseUrl[] = "chrome://pnacl-translator/";
+static const char kPnaclBaseUrl[] = "wootzapp://pnacl-translator/";
 
 std::string GetFullUrl(const std::string& partial_url) {
   return std::string(kPnaclBaseUrl) + nacl::PPBNaClPrivate::GetSandboxArch() +

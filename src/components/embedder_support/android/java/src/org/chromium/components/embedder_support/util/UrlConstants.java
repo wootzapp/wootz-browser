@@ -15,8 +15,8 @@ import org.chromium.url.GURL;
 public class UrlConstants {
     public static final String APP_INTENT_SCHEME = "android-app";
     public static final String BLOB_SCHEME = "blob";
-    public static final String CHROME_SCHEME = "chrome";
-    public static final String CHROME_NATIVE_SCHEME = "chrome-native";
+    public static final String CHROME_SCHEME = "wootzapp";
+    public static final String CHROME_NATIVE_SCHEME = "wootzapp-native";
     public static final String CONTENT_SCHEME = "content";
     public static final String CUSTOM_TAB_SCHEME = "customtab";
     public static final String DATA_SCHEME = "data";
@@ -35,50 +35,50 @@ public class UrlConstants {
     public static final String TEL_SCHEME = "tel";
 
     public static final String CONTENT_URL_SHORT_PREFIX = "content:";
-    public static final String CHROME_URL_SHORT_PREFIX = "chrome:";
-    public static final String CHROME_NATIVE_URL_SHORT_PREFIX = "chrome-native:";
+    public static final String CHROME_URL_SHORT_PREFIX = "wootzapp:";
+    public static final String CHROME_NATIVE_URL_SHORT_PREFIX = "wootzapp-native:";
     public static final String FILE_URL_SHORT_PREFIX = "file:";
 
-    public static final String CHROME_URL_PREFIX = "chrome://";
-    public static final String CHROME_NATIVE_URL_PREFIX = "chrome-native://";
+    public static final String CHROME_URL_PREFIX = "wootzapp://";
+    public static final String CHROME_NATIVE_URL_PREFIX = "wootzapp-native://";
     public static final String CONTENT_URL_PREFIX = "content://";
     public static final String FILE_URL_PREFIX = "file://";
     public static final String HTTP_URL_PREFIX = "http://";
     public static final String HTTPS_URL_PREFIX = "https://";
 
-    public static final String ABOUT_URL = "chrome://about/";
+    public static final String ABOUT_URL = "wootzapp://about/";
 
     public static final String NTP_HOST = "newtab";
-    public static final String NTP_URL = "chrome-native://newtab/";
-    public static final String NTP_NON_NATIVE_URL = "chrome://newtab/";
+    public static final String NTP_URL = "wootzapp-native://newtab/";
+    public static final String NTP_NON_NATIVE_URL = "wootzapp://newtab/";
     public static final String NTP_ABOUT_URL = "about:newtab";
 
     public static final String BOOKMARKS_HOST = "bookmarks";
-    public static final String BOOKMARKS_URL = "chrome-native://bookmarks/";
-    public static final String BOOKMARKS_FOLDER_URL = "chrome-native://bookmarks/folder/";
+    public static final String BOOKMARKS_URL = "wootzapp-native://bookmarks/";
+    public static final String BOOKMARKS_FOLDER_URL = "wootzapp-native://bookmarks/folder/";
     public static final String BOOKMARKS_UNCATEGORIZED_URL =
-            "chrome-native://bookmarks/uncategorized/";
+            "wootzapp-native://bookmarks/uncategorized/";
 
     public static final String DOWNLOADS_HOST = "downloads";
-    public static final String DOWNLOADS_URL = "chrome-native://downloads/";
-    public static final String DOWNLOADS_FILTER_URL = "chrome-native://downloads/filter/";
+    public static final String DOWNLOADS_URL = "wootzapp-native://downloads/";
+    public static final String DOWNLOADS_FILTER_URL = "wootzapp-native://downloads/filter/";
 
     public static final String RECENT_TABS_HOST = "recent-tabs";
-    public static final String RECENT_TABS_URL = "chrome-native://recent-tabs/";
+    public static final String RECENT_TABS_URL = "wootzapp-native://recent-tabs/";
 
     // TODO(dbeam): do we need both HISTORY_URL and NATIVE_HISTORY_URL?
     public static final String HISTORY_HOST = "history";
-    public static final String HISTORY_URL = "chrome://history/";
-    public static final String NATIVE_HISTORY_URL = "chrome-native://history/";
+    public static final String HISTORY_URL = "wootzapp://history/";
+    public static final String NATIVE_HISTORY_URL = "wootzapp-native://history/";
 
     public static final String LAUNCHPAD_HOST = "apps";
-    public static final String LAUNCHPAD_URL = "chrome://apps/";
+    public static final String LAUNCHPAD_URL = "wootzapp://apps/";
 
     public static final String INTERESTS_HOST = "interests";
-    public static final String INTERESTS_URL = "chrome-native://interests/";
+    public static final String INTERESTS_URL = "wootzapp-native://interests/";
 
-    public static final String GPU_URL = "chrome://gpu/";
-    public static final String VERSION_URL = "chrome://version/";
+    public static final String GPU_URL = "wootzapp://gpu/";
+    public static final String VERSION_URL = "wootzapp://version/";
 
     public static final String GOOGLE_ACCOUNT_HOME_URL = "https://myaccount.google.com/";
 
@@ -118,20 +118,20 @@ public class UrlConstants {
     public static final String GOOGLE_URL = "https://www.google.com/";
 
     public static final String EXPLORE_HOST = "explore";
-    public static final String EXPLORE_URL = "chrome-native://explore/";
-    public static final String CHROME_DINO_URL = "chrome://dino/";
+    public static final String EXPLORE_URL = "wootzapp-native://explore/";
+    public static final String CHROME_DINO_URL = "wootzapp://dino/";
 
     public static final String LOCALHOST = "localhost";
 
     public static final String MANAGEMENT_HOST = "management";
-    public static final String MANAGEMENT_URL = "chrome://management/";
+    public static final String MANAGEMENT_URL = "wootzapp://management/";
 
     /* Host used for PDF native pages. */
     public static final String PDF_HOST = "pdf";
 
     private static class Holder {
         private static final String SERIALIZED_NTP_URL =
-                "73,1,true,0,6,0,-1,0,-1,9,6,0,-1,15,1,0,-1,0,-1,false,false,chrome://newtab/";
+                "73,1,true,0,6,0,-1,0,-1,9,6,0,-1,15,1,0,-1,0,-1,false,false,wootzapp://newtab/";
         private static GURL sNtpGurl =
                 GURL.deserializeLatestVersionOnly(SERIALIZED_NTP_URL.replace(',', '\0'));
     }

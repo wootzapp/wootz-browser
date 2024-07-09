@@ -76,7 +76,7 @@ static const SegmentCase segment_cases[] = {
         url::Component(24, 3),  // ref
     },
     {
-        "chrome:host/path?query#ref", "chrome", url::Component(0, 6),  // scheme
+        "wootzapp:host/path?query#ref", "wootzapp", url::Component(0, 6),  // scheme
         url::Component(),       // username
         url::Component(),       // password
         url::Component(7, 4),   // host
@@ -86,7 +86,7 @@ static const SegmentCase segment_cases[] = {
         url::Component(23, 3),  // ref
     },
     {
-        "chrome://host/path?query#ref", "chrome",
+        "wootzapp://host/path?query#ref", "wootzapp",
         url::Component(0, 6),   // scheme
         url::Component(),       // username
         url::Component(),       // password
@@ -329,9 +329,9 @@ struct FixupCase {
     {"http://host.com:ninety-two/", "http://host.com:ninety-two/"},
     {"http://host.com:ninety-two?foo", "http://host.com:ninety-two/?foo"},
     {"google.com:123", "http://google.com:123/"},
-    {"about:", "chrome://version/"},
+    {"about:", "wootzapp://version/"},
     {"about:foo", "chrome://foo/"},
-    {"about:version", "chrome://version/"},
+    {"about:version", "wootzapp://version/"},
     {"about:blank", "about:blank"},
     {"About:blaNk", "about:blank"},
     {"about:blank#blah", "about:blank#blah"},
@@ -389,7 +389,7 @@ struct FixupCase {
     {"::1", "http://:1/"},
     // Semicolon as scheme separator for standard schemes.
     {"http;//www.google.com/", "http://www.google.com/"},
-    {"about;help", "chrome://help/"},
+    {"about;help", "wootzapp://help/"},
     // Semicolon in non-standard schemes is not replaced by colon.
     {"whatsup;//fool", "http://whatsup;//fool"},
     // Semicolon left as-is in URL itself.

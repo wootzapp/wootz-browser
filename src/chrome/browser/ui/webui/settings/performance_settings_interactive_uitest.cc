@@ -533,7 +533,7 @@ IN_PROC_BROWSER_TEST_F(BatterySettingsInteractiveTest,
       ClickElement(kPerformanceSettingsPage, battery_saver_link_row),
       WaitForShow(kOsSettingsElementId),
       WaitForWebContentsReady(kOsSettingsElementId,
-                              GURL("chrome://os-settings/power")));
+                              GURL("wootzapp://os-settings/power")));
 }
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)

@@ -28,7 +28,7 @@ TEST(SessionSyncServiceFactoryTest, ShouldSyncURL) {
   EXPECT_FALSE(SessionSyncServiceFactory::ShouldSyncURLForTestingAndMetrics(
       GURL(chrome::kChromeUIVersionURL)));
   EXPECT_FALSE(SessionSyncServiceFactory::ShouldSyncURLForTestingAndMetrics(
-      GURL("chrome-native://anything")));
+      GURL("wootzapp-native://anything")));
   EXPECT_FALSE(SessionSyncServiceFactory::ShouldSyncURLForTestingAndMetrics(
       GURL("chrome-distiller://anything")));
 

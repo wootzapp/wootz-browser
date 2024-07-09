@@ -845,7 +845,7 @@ TEST_F(ScriptingPermissionsModifierUnitTest, ChangeHostPermissions_AllHosts) {
 
   // Verify a restricted site does not have site access withheld, but it has all
   // sites withheld.
-  const GURL chrome_extensions("chrome://extensions");
+  const GURL chrome_extensions("wootzapp://extensions");
   {
     const PermissionsManager::ExtensionSiteAccess site_access =
         manager->GetSiteAccess(*extension, chrome_extensions);

@@ -193,7 +193,7 @@ class AboutFlagsBrowserTest : public InProcessBrowserTest,
 
   void NavigateToFlagsPage() {
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://flags")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://flags")));
     WaitForExperimentalFeatures(
         browser()->tab_strip_model()->GetActiveWebContents());
   }

@@ -7,7 +7,7 @@
 namespace security_interstitials {
 
 const char kChromeUIConnectionHelpHost[] = "connection-help";
-const char kChromeUIConnectionHelpURL[] = "chrome://connection-help";
+const char kChromeUIConnectionHelpURL[] = "wootzapp://connection-help";
 
 const char kChromeUIConnectionMonitoringDetectedHost[] =
     "connection-monitoring-detected";

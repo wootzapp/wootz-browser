@@ -206,7 +206,7 @@ IN_PROC_BROWSER_TEST_F(AppWindowApiTest, OpeningAbsoluteURLs) {
   ASSERT_EQ(1u, app_windows.size());
   content::WebContents* app_window_contents =
       (*app_windows.begin())->web_contents();
-  EXPECT_EQ(GURL("chrome://version"),
+  EXPECT_EQ(GURL("wootzapp://version"),
             app_window_contents->GetLastCommittedURL());
   EXPECT_FALSE(app_window_contents->GetPrimaryMainFrame()->IsErrorDocument());
 }

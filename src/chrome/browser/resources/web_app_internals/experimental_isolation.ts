@@ -27,8 +27,8 @@ clearButton.addEventListener('click', async () => {
       'Failed to clear all data. You probably have launched some web apps, ' +
       'which prevents some of the data from being deleted. ';
   const restartChrome = document.createElement('a');
-  restartChrome.href = 'chrome://restart';
-  restartChrome.innerText = 'Restart chrome';
+  restartChrome.href = 'wootzapp://restart';
+  restartChrome.innerText = 'Restart wootzapp';
   messageDiv.appendChild(restartChrome);
   messageDiv.appendChild(document.createTextNode(' and try again.'));
 });

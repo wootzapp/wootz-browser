@@ -49,7 +49,7 @@ IN_PROC_BROWSER_TEST_F(ManagementUIPWATest, RunOnOsLoginApplicationsReported) {
 
   // Check that applications contains given app
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("chrome://management")));
+      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://management")));
 
   const std::string javascript =
       "window.ManagementBrowserProxyImpl.getInstance()"

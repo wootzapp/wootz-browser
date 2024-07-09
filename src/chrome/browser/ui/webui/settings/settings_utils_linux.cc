@@ -51,7 +51,7 @@ const char* const kDeepinProxyConfigCommand[] = {"dde-control-center",
 
 // The URL for Linux proxy configuration help when not running under a
 // supported desktop environment.
-constexpr char kLinuxProxyConfigUrl[] = "chrome://linux-proxy-config";
+constexpr char kLinuxProxyConfigUrl[] = "wootzapp://linux-proxy-config";
 
 // Show the proxy config URL in the given tab.
 void ShowLinuxProxyConfigUrl(base::WeakPtr<content::WebContents> web_contents,

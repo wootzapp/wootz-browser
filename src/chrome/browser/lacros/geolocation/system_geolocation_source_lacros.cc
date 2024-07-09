@@ -71,7 +71,7 @@ void SystemGeolocationSourceLacros::OpenSystemPermissionSetting() {
   if (service.is_connected()) {
     // Open the appropriate CrOS system settings page.
     service->OpenUrl(
-        GURL("chrome://os-settings/osPrivacy/privacyHub/geolocation"));
+        GURL("wootzapp://os-settings/osPrivacy/privacyHub/geolocation"));
   }
 }
 

@@ -397,12 +397,12 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
   ASSERT_TRUE(AddTabAtIndex(0, embedded_test_server()->GetURL("/title1.html"),
                             ui::PAGE_TRANSITION_TYPED));
   ASSERT_TRUE(
-      AddTabAtIndex(1, GURL("chrome://extensions"), ui::PAGE_TRANSITION_TYPED));
+      AddTabAtIndex(1, GURL("wootzapp://extensions"), ui::PAGE_TRANSITION_TYPED));
   browser()->tab_strip_model()->ActivateTabAt(1);
 
   ShowUi("");
   EXPECT_EQ(main_page()->GetSubheaderSubtitleTextForTesting(),
-            u"chrome://extensions");
+            u"wootzapp://extensions");
 
   // Update the title of the unfocused tab.
   browser()->set_update_ui_immediately_for_testing();
@@ -422,7 +422,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuMainPageViewInteractiveUITest,
   // displayed on the menu's subtitle.
   ASSERT_EQ(browser()->tab_strip_model()->active_index(), 1);
   EXPECT_EQ(main_page()->GetSubheaderSubtitleTextForTesting(),
-            u"chrome://extensions");
+            u"wootzapp://extensions");
 }
 
 // Verifies extensions can add site access requests on active and inactive tabs,

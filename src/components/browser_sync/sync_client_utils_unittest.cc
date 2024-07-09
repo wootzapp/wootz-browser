@@ -472,7 +472,7 @@ TEST_F(LocalDataQueryHelperTest, ShouldReturnLocalReadingListViaCallback) {
 
 TEST_F(LocalDataQueryHelperTest, ShouldWorkForUrlsWithNoTLD) {
   // Add test data to local store.
-  local_password_store_->AddLogin(CreateTestPassword("chrome://flags"));
+  local_password_store_->AddLogin(CreateTestPassword("wootzapp://flags"));
   local_password_store_->AddLogin(CreateTestPassword("https://test"));
 
   RunAllPendingTasks();
@@ -484,7 +484,7 @@ TEST_F(LocalDataQueryHelperTest, ShouldWorkForUrlsWithNoTLD) {
   std::map<syncer::ModelType, syncer::LocalDataDescription> expected = {
       {syncer::PASSWORDS,
        CreateLocalDataDescription(syncer::PASSWORDS, 2,
-                                  {"chrome://flags", "test"}, 2)}};
+                                  {"wootzapp://flags", "test"}, 2)}};
 
   EXPECT_CALL(callback, Run(expected));
 

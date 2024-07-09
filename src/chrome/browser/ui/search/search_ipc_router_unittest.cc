@@ -101,7 +101,7 @@ class SearchIPCRouterTest : public BrowserWithTestWindowTest {
 
   void SetUp() override {
     BrowserWithTestWindowTest::SetUp();
-    AddTab(browser(), GURL("chrome://blank"));
+    AddTab(browser(), GURL("wootzapp://blank"));
     SearchTabHelper::CreateForWebContents(web_contents());
 
     TemplateURLServiceFactory::GetInstance()->SetTestingFactoryAndUse(

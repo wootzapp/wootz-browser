@@ -819,7 +819,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPICanvasTest, DISABLED_DynamicSetIcon) {
 
   // Create a new tab.
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://newtab"),
+      browser(), GURL("wootzapp://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -1201,7 +1201,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, SetPopupWithInvalidPath) {
   // Set the popup to an invalid nonexistent extension URL and expect an error.
   {
     static constexpr char kInvalidPopupUrl[] =
-        "chrome-extension://notavalidextensionid/popup.html";
+        "wootzapp-extension://notavalidextensionid/popup.html";
     RunTestAndWaitForSuccess(web_contents,
                              get_script(tab_id, kInvalidPopupUrl));
   }
@@ -1276,7 +1276,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, GettersAndSetters) {
 
   // And a second new tab.
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://newtab"),
+      browser(), GURL("wootzapp://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
   int second_tab_id = GetActiveTabId();
@@ -1493,7 +1493,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, EnableAndDisable) {
       browser()->tab_strip_model()->GetActiveWebContents();
 
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://newtab"),
+      browser(), GURL("wootzapp://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -1798,7 +1798,7 @@ IN_PROC_BROWSER_TEST_P(ActionAndBrowserActionAPITest,
   EnsureActionIsEnabledOnTab(action, tab_id1);
 
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://newtab"),
+      browser(), GURL("wootzapp://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 

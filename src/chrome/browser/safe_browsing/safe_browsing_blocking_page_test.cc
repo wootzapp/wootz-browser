@@ -155,7 +155,7 @@ const char kCrossSiteMaliciousPage[] = "/safe_browsing/malware2.html";
 const char kMaliciousIframe[] = "/safe_browsing/malware_iframe.html";
 const char kRedirectToMalware[] = "/safe_browsing/redirect_to_malware.html";
 const char kUnrelatedUrl[] = "https://www.google.com";
-const char kEnhancedProtectionUrl[] = "chrome://settings/security?q=enhanced";
+const char kEnhancedProtectionUrl[] = "wootzapp://settings/security?q=enhanced";
 const char kMaliciousJsPage[] = "/safe_browsing/malware_js.html";
 const char kMaliciousJs[] = "/safe_browsing/script.js";
 

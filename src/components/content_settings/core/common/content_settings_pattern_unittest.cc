@@ -90,7 +90,7 @@ TEST(ContentSettingsPatternTest, FromURL) {
   EXPECT_EQ("file:///foo/bar.html", pattern.ToString());
 
   // WebUI and other portless schemes shouldn't use domain wildcards.
-  pattern = ContentSettingsPattern::FromURL(GURL("chrome://test"));
+  pattern = ContentSettingsPattern::FromURL(GURL("wootzapp://test"));
   EXPECT_TRUE(pattern.IsValid());
   EXPECT_FALSE(pattern.Matches(GURL("chrome://foo.test")));
   pattern = ContentSettingsPattern::FromURL(GURL("chrome-untrusted://test"));
@@ -203,9 +203,9 @@ TEST(ContentSettingsPatternTest, FromURLNoWildcard) {
   EXPECT_FALSE(pattern.Matches(
       GURL("filesystem:https://foo.www.google.com/temporary/")));
 
-  pattern = ContentSettingsPattern::FromURLNoWildcard(GURL("chrome://test"));
+  pattern = ContentSettingsPattern::FromURLNoWildcard(GURL("wootzapp://test"));
   EXPECT_TRUE(pattern.IsValid());
-  EXPECT_TRUE(pattern.Matches(GURL("chrome://test")));
+  EXPECT_TRUE(pattern.Matches(GURL("wootzapp://test")));
 
   pattern = ContentSettingsPattern::FromURLNoWildcard(
       GURL("chrome-untrusted://test"));
@@ -305,7 +305,7 @@ TEST(ContentSettingsPatternTest, URLToSchemefulSitePattern) {
                     GURL("filesystem:http://www.google.com/temporary/"))
                     .ToString());
   EXPECT_EQ("", ContentSettingsPattern::FromURLToSchemefulSitePattern(
-                    GURL("chrome://test"))
+                    GURL("wootzapp://test"))
                     .ToString());
   EXPECT_EQ("", ContentSettingsPattern::FromURLToSchemefulSitePattern(
                     GURL("devtools://devtools/"))
@@ -630,7 +630,7 @@ TEST(ContentSettingsPatternTest, FromString_Canonicalized) {
 }
 
 TEST(ContentSettingsPatternTest, FromString_WebUISchemes) {
-  const char* patterns[] = {"chrome://test/", "chrome-untrusted://test/",
+  const char* patterns[] = {"wootzapp://test/", "chrome-untrusted://test/",
                             "devtools://devtools/"};
 
   for (const char* pattern_str : patterns) {
@@ -1064,8 +1064,8 @@ TEST(ContentSettingsPatternTest, ToRepresentativeUrl) {
   EXPECT_EQ(Pattern("http://example.com:8080").ToRepresentativeUrl(),
             GURL("http://example.com:8080"));
 
-  EXPECT_EQ(Pattern("chrome://settings").ToRepresentativeUrl(),
-            GURL("chrome://settings"));
+  EXPECT_EQ(Pattern("wootzapp://settings").ToRepresentativeUrl(),
+            GURL("wootzapp://settings"));
 
   EXPECT_EQ(Pattern("file:///*").ToRepresentativeUrl(), GURL());
   EXPECT_EQ(Pattern("file:///foo/bar/example.txt").ToRepresentativeUrl(),

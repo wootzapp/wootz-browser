@@ -20,7 +20,7 @@
 
 namespace {
 
-constexpr char kPageWithAnchorURL[] = "chrome://internals/user-education";
+constexpr char kPageWithAnchorURL[] = "wootzapp://internals/user-education";
 constexpr char16_t kBubbleBodyText[] = u"bubble body";
 
 // Gets a partially-filled params block with default values. You will still

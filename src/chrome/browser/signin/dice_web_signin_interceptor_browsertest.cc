@@ -504,7 +504,7 @@ IN_PROC_BROWSER_TEST_F(DiceWebSigninInterceptorBrowserTest, CloseSourceTab) {
   EXPECT_EQ(browser()->tab_strip_model()->count(), original_tab_count - 1);
   EXPECT_EQ(
       added_browser->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
-      GURL("chrome://newtab/"));
+      GURL("wootzapp://newtab/"));
 }
 
 class DiceWebSigninInterceptorWithChromeSigninHelpersBrowserTest

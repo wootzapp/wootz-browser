@@ -93,8 +93,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bluetooth-pairing/*",
-      "chrome://os-settings/*"
+      "wootzapp://bluetooth-pairing/*",
+      "wootzapp://os-settings/*"
     ]
   }],
   "bluetoothLowEnergy": {
@@ -109,8 +109,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bluetooth-pairing/*",
-      "chrome://os-settings/*"
+      "wootzapp://bluetooth-pairing/*",
+      "wootzapp://os-settings/*"
     ]
   }],
   "bluetoothSocket": {
@@ -188,9 +188,9 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://feedback/*",
-        "chrome://cast-feedback/*",
-        "chrome://os-feedback/*"
+        "wootzapp://feedback/*",
+        "wootzapp://cast-feedback/*",
+        "wootzapp://os-feedback/*"
       ]
     }
   ],
@@ -214,7 +214,7 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://feedback/*"
+        "wootzapp://feedback/*"
       ]
     }
   ],
@@ -233,18 +233,18 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://add-supervision/*",
-        "chrome://assistant-optin/*",
-        "chrome://discards/*",
-        "chrome://extensions/*",
-        "chrome://home/*",
-        "chrome://chrome-signin/*",
-        "chrome://mobilesetup/*",
-        "chrome://oobe/*",
-        "chrome://os-settings/*",
-        "chrome://parent-access/*",
-        "chrome://password-change/*",
-        "chrome://lock-reauth/*"
+        "wootzapp://add-supervision/*",
+        "wootzapp://assistant-optin/*",
+        "wootzapp://discards/*",
+        "wootzapp://extensions/*",
+        "wootzapp://home/*",
+        "wootzapp://wootzapp-signin/*",
+        "wootzapp://mobilesetup/*",
+        "wootzapp://oobe/*",
+        "wootzapp://os-settings/*",
+        "wootzapp://parent-access/*",
+        "wootzapp://password-change/*",
+        "wootzapp://lock-reauth/*"
       ]
     }, {
       // This feature is used by the Controlled Frame API and is specifically
@@ -294,8 +294,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://extensions/*",
-      "chrome://settings/*"
+      "wootzapp://extensions/*",
+      "wootzapp://settings/*"
     ]
   }, {
     "channel": "stable",
@@ -336,31 +336,31 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://apps/*",
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
-      "chrome://customize-chrome-side-panel.top-chrome/*",
-      "chrome://shopping-insights-side-panel.top-chrome/*",
-      "chrome://download-shelf.top-chrome/*",
-      "chrome://eche-app/*",
-      "chrome://extensions/*",
-      "chrome://file-manager/*",
-      "chrome://help-app/*",
-      "chrome://history/*",
-      "chrome://new-tab-page/*",
-      "chrome://os-settings/*",
-      "chrome://password-manager/*",
-      "chrome://personalization/*",
-      "chrome://profile-picker/*",
-      "chrome://read-later.top-chrome/*",
-      "chrome://settings/*",
-      "chrome://sync-confirmation/*",
-      "chrome://tab-search.top-chrome/*",
-      "chrome://tab-strip.top-chrome/*",
-      "chrome://welcome/*",
-      "chrome://vc-background/*",
-      "chrome://app-settings/*",
-      "chrome://search-engine-choice/*"
+      "wootzapp://apps/*",
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://customize-chrome-side-panel.top-chrome/*",
+      "wootzapp://shopping-insights-side-panel.top-chrome/*",
+      "wootzapp://download-shelf.top-chrome/*",
+      "wootzapp://eche-app/*",
+      "wootzapp://extensions/*",
+      "wootzapp://file-manager/*",
+      "wootzapp://help-app/*",
+      "wootzapp://history/*",
+      "wootzapp://new-tab-page/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://password-manager/*",
+      "wootzapp://personalization/*",
+      "wootzapp://profile-picker/*",
+      "wootzapp://read-later.top-chrome/*",
+      "wootzapp://settings/*",
+      "wootzapp://sync-confirmation/*",
+      "wootzapp://tab-search.top-chrome/*",
+      "wootzapp://tab-strip.top-chrome/*",
+      "wootzapp://welcome/*",
+      "wootzapp://vc-background/*",
+      "wootzapp://app-settings/*",
+      "wootzapp://search-engine-choice/*"
     ]
   }, {
     "channel": "stable",
@@ -416,7 +416,7 @@
     "channel": "stable",
     "contexts": ["webui_untrusted"],
     "matches": [
-      "chrome://apps/*",
+      "wootzapp://apps/*",
       "chrome-untrusted://demo-mode-app/*"
     ]
   },
@@ -465,11 +465,11 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://network/*",
-      "chrome://oobe/*",
-      "chrome://internet-config-dialog/*",
-      "chrome://internet-detail-dialog/*",
-      "chrome://os-settings/*"
+      "wootzapp://network/*",
+      "wootzapp://oobe/*",
+      "wootzapp://internet-config-dialog/*",
+      "wootzapp://internet-detail-dialog/*",
+      "wootzapp://os-settings/*"
     ]
   }],
   "odfsConfigPrivate": {
@@ -643,8 +643,8 @@
   },{
     "contexts": ["webui"],
     "matches": [
-      "chrome://password-change/*",
-      "chrome://file-manager/*"
+      "wootzapp://password-change/*",
+      "wootzapp://file-manager/*"
     ]
   },{
     "channel": "stable",
@@ -717,7 +717,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://os-settings/*"
+      "wootzapp://os-settings/*"
     ]
   }],
   "system.memory": {
@@ -753,9 +753,9 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://extensions/*",
+      "wootzapp://extensions/*",
       // System Web App version of File Manager.
-      "chrome://file-manager/*",
+      "wootzapp://file-manager/*",
       "chrome://webui-test/*"
     ]
   }, {
@@ -812,17 +812,17 @@
     "internal": true,
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*",
-      "chrome://password-change/*",
-      "chrome://lock-reauth/*"
+      "wootzapp://add-supervision/*",
+      "wootzapp://assistant-optin/*",
+      "wootzapp://wootzapp-signin/*",
+      "wootzapp://discards/*",
+      "wootzapp://home/*",
+      "wootzapp://mobilesetup/*",
+      "wootzapp://oobe/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://parent-access/*",
+      "wootzapp://password-change/*",
+      "wootzapp://lock-reauth/*"
     ]
   }, {
     // This feature is used by the Controlled Frame API and is specifically
@@ -843,17 +843,17 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*",
-      "chrome://password-change/*",
-      "chrome://lock-reauth/*"
+      "wootzapp://add-supervision/*",
+      "wootzapp://assistant-optin/*",
+      "wootzapp://wootzapp-signin/*",
+      "wootzapp://discards/*",
+      "wootzapp://home/*",
+      "wootzapp://mobilesetup/*",
+      "wootzapp://oobe/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://parent-access/*",
+      "wootzapp://password-change/*",
+      "wootzapp://lock-reauth/*"
     ]
   }, {
     // This feature is used by the Controlled Frame API and is specifically
@@ -872,15 +872,15 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*"
+      "wootzapp://add-supervision/*",
+      "wootzapp://assistant-optin/*",
+      "wootzapp://wootzapp-signin/*",
+      "wootzapp://discards/*",
+      "wootzapp://home/*",
+      "wootzapp://mobilesetup/*",
+      "wootzapp://oobe/*",
+      "wootzapp://os-settings/*",
+      "wootzapp://parent-access/*"
     ]
   }]
 }

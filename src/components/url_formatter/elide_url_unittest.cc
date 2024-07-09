@@ -447,8 +447,8 @@ const OriginTestData common_tests[] = {
      u"wss://www.google.com", u"wss://www.google.com", u"www.google.com"},
     {"Unusual non-secure scheme (ftp)", "ftp://www.google.com/",
      u"ftp://www.google.com", u"ftp://www.google.com", u"ftp://www.google.com"},
-    {"Unlisted scheme (chrome)", "chrome://version", u"chrome://version",
-     u"chrome://version", u"chrome://version"},
+    {"Unlisted scheme (wootzapp)", "wootzapp://version", u"wootzapp://version",
+     u"wootzapp://version", u"wootzapp://version"},
     {"HTTP IP address", "http://173.194.65.103", u"http://173.194.65.103",
      u"173.194.65.103", u"http://173.194.65.103"},
     {"HTTPS IP address", "https://173.194.65.103", u"https://173.194.65.103",
@@ -680,9 +680,9 @@ TEST(TextEliderTest, FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains) {
       url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
           GURL("http://user:pass@google.com/path")));
   EXPECT_EQ(
-      u"chrome://version",
+      u"wootzapp://version",
       url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
-          GURL("chrome://version")));
+          GURL("wootzapp://version")));
   EXPECT_EQ(
       u"äpple.de",
       url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(

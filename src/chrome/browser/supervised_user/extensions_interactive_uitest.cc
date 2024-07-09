@@ -34,7 +34,7 @@ namespace supervised_user {
 namespace {
 
 static constexpr std::string_view kChromeManageExternsionsUrl =
-    "chrome://extensions/";
+    "wootzapp://extensions/";
 
 // State of a Family Link switch.
 enum class FamilyLinkSwitchState : int {

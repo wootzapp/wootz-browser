@@ -557,7 +557,7 @@ public class ReadAloudControllerUnitTest {
         reset(mHooksImpl);
         checkURLNotReadAloudSupported(new GURL("invalid"));
         checkURLNotReadAloudSupported(GURL.emptyGURL());
-        checkURLNotReadAloudSupported(new GURL("chrome://history/"));
+        checkURLNotReadAloudSupported(new GURL("wootzapp://history/"));
         checkURLNotReadAloudSupported(new GURL("about:blank"));
         checkURLNotReadAloudSupported(new GURL("https://www.google.com/search?q=weather"));
         checkURLNotReadAloudSupported(new GURL("https://myaccount.google.com/"));

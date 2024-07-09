@@ -54,8 +54,8 @@ public class RoundedIconGeneratorTest {
         Assert.assertEquals("appspot.com", getIconTextForUrl("https://foo.appspot.com/", false));
 
         // Verify Chrome-internal
-        Assert.assertEquals("chrome", getIconTextForUrl("chrome://about", false));
-        Assert.assertEquals("chrome", getIconTextForUrl("chrome-native://newtab", false));
+        Assert.assertEquals("wootzapp", getIconTextForUrl("wootzapp://about", false));
+        Assert.assertEquals("wootzapp", getIconTextForUrl("wootzapp-native://newtab", false));
 
         // Verify that other URIs from which a hostname can be resolved use that.
         Assert.assertEquals("localhost", getIconTextForUrl("http://localhost/", false));

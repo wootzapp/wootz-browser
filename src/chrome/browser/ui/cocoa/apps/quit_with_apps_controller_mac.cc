@@ -39,7 +39,7 @@ using extensions::ExtensionRegistry;
 
 namespace {
 
-const char kQuitWithAppsOriginUrl[] = "chrome://quit-with-apps";
+const char kQuitWithAppsOriginUrl[] = "wootzapp://quit-with-apps";
 const int kQuitAllAppsButtonIndex = 0;
 const int kDontShowAgainButtonIndex = 1;
 

@@ -48,15 +48,15 @@ TEST(ChromeContentClientTest, AdditionalSchemes) {
     // The schemes below are registered both as secure and no-access.  Product
     // code needs to treat such URLs as trustworthy, even though no-access
     // schemes translate into an opaque origin (which is untrustworthy).
-    "chrome-native://newtab/",
-    "chrome-error://foo/",
+    "wootzapp-native://newtab/",
+    "wootzapp-error://foo/",
     // The schemes below are registered as secure (but not as no-access).
     "chrome://foo/",
     "chrome-untrusted://foo/",
-    "chrome-search://foo/",
+    "wootzapp-search://foo/",
     "isolated-app://foo/",
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-    "chrome-extension://foo/",
+    "wootzapp-extension://foo/",
 #endif
     "devtools://foo/",
   };

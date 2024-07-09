@@ -455,8 +455,8 @@ TEST_F(SiteEngagementServiceTest, DISABLED_RestrictedToHTTPAndHTTPS) {
   // The https and http versions of www.google.com should be separate.
   GURL url1("ftp://www.google.com/");
   GURL url2("file://blah");
-  GURL url3("chrome://version/");
-  GURL url4("chrome://config");
+  GURL url3("wootzapp://version/");
+  GURL url4("wootzapp://config");
 
   NavigateAndCommit(url1);
   service_->HandleUserInput(web_contents(), EngagementType::kMouse);
@@ -1633,7 +1633,7 @@ TEST_F(SiteEngagementServiceTest, GetAllDetailsIncludesBonusOnlyScores) {
 
 TEST_F(SiteEngagementServiceTest, GetAllDetailsFilterByURLSets) {
   GURL http_url("http://www.google.com/");
-  GURL webui_url("chrome://history");
+  GURL webui_url("wootzapp://history");
 
   EXPECT_EQ(0u, service_->GetAllDetails().size());
 

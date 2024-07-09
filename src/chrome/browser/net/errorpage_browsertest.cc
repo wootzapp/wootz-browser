@@ -1087,7 +1087,7 @@ IN_PROC_BROWSER_TEST_F(ErrorPageOfflineAppLaunchTest, DiagnosticsConnectivity) {
       browser(),
       URLRequestFailedJob::GetMockHttpUrl(net::ERR_INTERNET_DISCONNECTED)));
 
-  const GURL expected_url = GURL("chrome://diagnostics/?connectivity");
+  const GURL expected_url = GURL("wootzapp://diagnostics/?connectivity");
   content::TestNavigationObserver observer(expected_url);
   observer.StartWatchingNewWebContents();
 

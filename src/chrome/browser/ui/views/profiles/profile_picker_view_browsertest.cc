@@ -169,7 +169,7 @@ AccountInfo FillAccountInfo(
 }
 
 GURL GetSyncConfirmationURL() {
-  return AppendSyncConfirmationQueryParams(GURL("chrome://sync-confirmation/"),
+  return AppendSyncConfirmationQueryParams(GURL("wootzapp://sync-confirmation/"),
                                            SyncConfirmationStyle::kWindow);
 }
 
@@ -318,12 +318,12 @@ class ProfilePickerViewBrowserTest : public ProfilePickerTestBase {};
 // Regression test for crbug.com/1442159.
 IN_PROC_BROWSER_TEST_F(ProfilePickerViewBrowserTest,
                        ShowScreen_DoesNotFinishForErrorOnInternalNavigation) {
-  GURL bad_target_url{"chrome://unregistered-host"};
+  GURL bad_target_url{"wootzapp://unregistered-host"};
   base::test::TestFuture<void> navigation_finished_future;
 
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL{"chrome://profile-picker"});
+  WaitForLoadStop(GURL{"wootzapp://profile-picker"});
   view()->ShowScreenInPickerContents(bad_target_url,
                                      navigation_finished_future.GetCallback());
 
@@ -345,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerViewBrowserTest,
 
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL{"chrome://profile-picker"});
+  WaitForLoadStop(GURL{"wootzapp://profile-picker"});
   view()->ShowScreenInPickerContents(bad_target_url,
                                      navigation_finished_future.GetCallback());
 
@@ -426,8 +426,8 @@ class ProfilePickerCreationFlowBrowserTest
             : ProfilePicker::EntryPoint::kProfileMenuAddNewProfile));
     // Wait until webUI is fully initialized.
     const GURL kInitialPageUrl(start_on_management_page
-                                   ? "chrome://profile-picker"
-                                   : "chrome://profile-picker/new-profile");
+                                   ? "wootzapp://profile-picker"
+                                   : "wootzapp://profile-picker/new-profile");
     WaitForLoadStop(kInitialPageUrl);
     return kInitialPageUrl;
   }
@@ -668,7 +668,7 @@ class ProfilePickerCreationFlowBrowserTest
 
  protected:
   const GURL kLocalProfileCreationUrl = AppendProfileCustomizationQueryParams(
-      GURL("chrome://profile-customization"),
+      GURL("wootzapp://profile-customization"),
       ProfileCustomizationStyle::kLocalProfileCreation);
   const std::string kLocalProfileName = "LocalProfile";
 
@@ -692,7 +692,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest, ShowPicker) {
   // loads and after it loads.
   views::WidgetDelegate* delegate = widget()->widget_delegate();
   EXPECT_NE(delegate->GetWindowTitle(), delegate->GetAccessibleWindowTitle());
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_NE(delegate->GetWindowTitle(), delegate->GetAccessibleWindowTitle());
 }
 
@@ -705,7 +705,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest, ShowChoice) {
   // loads and after it loads.
   views::WidgetDelegate* delegate = widget()->widget_delegate();
   EXPECT_NE(delegate->GetWindowTitle(), delegate->GetAccessibleWindowTitle());
-  WaitForLoadStop(GURL("chrome://profile-picker/new-profile"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker/new-profile"));
   EXPECT_NE(delegate->GetWindowTitle(), delegate->GetAccessibleWindowTitle());
 }
 
@@ -733,7 +733,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -793,7 +793,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
 
   Browser* new_browser = BrowserAddedWaiter(/*total_count=*/2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 }
 
@@ -881,7 +881,7 @@ class ForceSigninProfilePickerCreationFlowBrowserTest
     // Make sure the profile picker is opened, with the main profile picker view
     // (where the dialog can be shown), and the page is fully loaded.
     EXPECT_TRUE(ProfilePicker::IsOpen());
-    const GURL main_profile_picker_url("chrome://profile-picker");
+    const GURL main_profile_picker_url("wootzapp://profile-picker");
     EXPECT_EQ(web_contents()->GetURL().GetWithEmptyPath(),
               main_profile_picker_url);
     WaitForLoadStop(main_profile_picker_url);
@@ -976,7 +976,7 @@ IN_PROC_BROWSER_TEST_F(ForceSigninProfilePickerCreationFlowBrowserTest,
   deletion_observer.Wait();
 
   // Expect a redirect to the initial page of the profile picker.
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 
   // The created profile path entry is now deletec.
@@ -1104,7 +1104,7 @@ IN_PROC_BROWSER_TEST_F(ForceSigninProfilePickerCreationFlowBrowserTest,
 
   // Expect the profile picker to be opened instead of a browser, and the
   // profile to be still locked.
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   EXPECT_TRUE(IsForceSigninErrorDialogShown());
   EXPECT_EQ(BrowserList::GetInstance()->size(), initial_browser_count);
@@ -1172,7 +1172,7 @@ IN_PROC_BROWSER_TEST_F(ForceSigninProfilePickerCreationFlowBrowserTest,
 
   // Expect the profile picker to be opened since it was the last step before
   // reauth, toolbar should be hidden, and the profile to be still locked.
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   EXPECT_FALSE(IsNativeToolbarVisible());
   EXPECT_EQ(BrowserList::GetInstance()->size(), initial_browser_count);
@@ -1326,7 +1326,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1380,7 +1380,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuAddNewProfile));
   // Wait until webUI is fully initialized.
-  WaitForLoadStop(GURL("chrome://profile-picker/new-profile"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker/new-profile"));
 
   // Simulate a click on the signin button.
   base::MockCallback<base::OnceCallback<void(bool)>> switch_finished_callback;
@@ -1465,7 +1465,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1516,7 +1516,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::CONFIGURE_SYNC_FIRST);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/syncSetup"),
+  WaitForLoadStop(GURL("wootzapp://settings/syncSetup"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1621,7 +1621,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1695,7 +1695,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 
   // Check expectations when the profile creation flow is closes.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -1843,7 +1843,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
                        OpenPickerAndClose) {
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
   ProfilePicker::Hide();
   WaitForPickerClosed();
@@ -1855,7 +1855,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Open the first picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 
   // Request to open the second picker window while the first one is still
@@ -1873,7 +1873,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest, ReShow) {
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 
   // Show the picker with a different entry point, the picker is reused.
@@ -1926,13 +1926,13 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   // Open the other profile.
   OpenProfileFromPicker(other_path, /*open_settings=*/false);
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
   WaitForFirstNonEmptyPaint(
-      GURL("chrome://newtab/"),
+      GURL("wootzapp://newtab/"),
       new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -1958,7 +1958,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kOnStartup));
   EXPECT_TRUE(ProfilePicker::IsOpen());
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
 
   // Open the new profile.
   OpenProfileFromPicker(other_path, /*open_settings=*/false);
@@ -1968,7 +1968,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
   WaitForFirstNonEmptyPaint(
-      GURL("chrome://newtab/"),
+      GURL("wootzapp://newtab/"),
       new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -1997,12 +1997,12 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   // Open the other profile.
   OpenProfileFromPicker(other_path, /*open_settings=*/true);
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/manageProfile"),
+  WaitForLoadStop(GURL("wootzapp://settings/manageProfile"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -2013,12 +2013,12 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
                        OpenURL_PickerClosed) {
   ASSERT_EQ(1u, BrowserList::GetInstance()->size());
-  const GURL kTargetURL("chrome://settings/help");
+  const GURL kTargetURL("wootzapp://settings/help");
   // Create a profile.
   base::FilePath profile_path = CreateNewProfileWithoutBrowser();
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::ForBackgroundManager(kTargetURL));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   // Open the profile.
   OpenProfileFromPicker(profile_path, /*open_settings=*/false);
   // Browser for the profile is displayed.
@@ -2039,12 +2039,12 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   // Open a Guest profile.
   OpenGuestFromPicker();
   // Browser for the guest profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab"),
+  WaitForLoadStop(GURL("wootzapp://newtab"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_TRUE(new_browser->profile()->IsGuestSession());
   WaitForPickerClosed();
@@ -2062,7 +2062,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
 
   // Close the browser window.
   BrowserList::GetInstance()->CloseAllBrowsersWithProfile(browser()->profile());
@@ -2093,7 +2093,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuAddNewProfile));
   // Wait until webUI is fully initialized.
-  WaitForLoadStop(GURL("chrome://profile-picker/new-profile"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker/new-profile"));
 
   // Simulate clicking the "Continue without an account" button.
   CreateLocalProfile();
@@ -2145,7 +2145,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuAddNewProfile));
   // Wait until webUI is fully initialized.
-  WaitForLoadStop(GURL("chrome://profile-picker/new-profile"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker/new-profile"));
 
   // Simulate clicking the "Continue without an account" button.
   CreateLocalProfile();
@@ -2194,7 +2194,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest, DeleteProfile) {
   // Open the picker.
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuManageProfiles));
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   ProfilePickerHandler* handler = profile_picker_handler();
 
   // Simulate profile deletion from the picker.
@@ -2273,7 +2273,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2331,7 +2331,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       /*choice=*/signin::SIGNIN_CHOICE_NEW_PROFILE);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2395,7 +2395,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::CONFIGURE_SYNC_FIRST);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/syncSetup"),
+  WaitForLoadStop(GURL("wootzapp://settings/syncSetup"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2488,7 +2488,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       /*choice=*/signin::SIGNIN_CHOICE_CANCEL);
 
   // As the management page was opened, the picker returns to it.
-  WaitForLoadStop(GURL("chrome://profile-picker"));
+  WaitForLoadStop(GURL("wootzapp://profile-picker"));
   observer.Wait();
 
   // The profile entry is deleted
@@ -2533,7 +2533,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
   // chrome://sync-confirmation/loading gets displayed but that page may not
   // finish loading and anyway is not so relevant).
   Profile* contents_profile =
-      SignInForNewProfile(GURL("chrome://profile-picker/profile-switch"),
+      SignInForNewProfile(GURL("wootzapp://profile-picker/profile-switch"),
                           "joe.consumer@gmail.com", "Joe");
   base::FilePath contents_profile_path = contents_profile->GetPath();
   EXPECT_EQ(ProfilePicker::GetSwitchProfilePath(), other_path);
@@ -2546,7 +2546,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
 
   // Browser for a pre-existing profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
 
@@ -2603,7 +2603,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
   // chrome://sync-confirmation/loading gets displayed but that page may not
   // finish loading and anyway is not so relevant).
   Profile* contents_profile =
-      SignInForNewProfile(GURL("chrome://profile-picker/profile-switch"),
+      SignInForNewProfile(GURL("wootzapp://profile-picker/profile-switch"),
                           "joe.consumer@gmail.com", "Joe");
   base::FilePath contents_profile_path = contents_profile->GetPath();
 
@@ -2771,7 +2771,7 @@ IN_PROC_BROWSER_TEST_P(ProfilePickerCreationFlowEphemeralProfileBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   WaitForPickerClosed();

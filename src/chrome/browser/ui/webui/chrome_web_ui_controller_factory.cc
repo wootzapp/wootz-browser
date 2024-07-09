@@ -520,7 +520,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     // NTPResourceCache::GetNewTabHTML!
     switch (NTPResourceCache::GetWindowType(profile)) {
       case NTPResourceCache::NORMAL:
-        LOG(ERROR) << "Requested load of chrome://newtab/ for incorrect "
+        LOG(ERROR) << "Requested load of wootzapp://newtab/ for incorrect "
                       "profile type.";
         // TODO(crbug.com/40244589): Add DumpWithoutCrashing() here.
         return nullptr;

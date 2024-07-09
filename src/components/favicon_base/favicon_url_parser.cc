@@ -105,7 +105,7 @@ bool ParseFaviconPathWithFavicon2Format(const std::string& path,
   if (path.empty())
     return false;
 
-  GURL query_url = GURL("chrome://favicon2/").Resolve(path);
+  GURL query_url = GURL("wootzapp://favicon2/").Resolve(path);
 
   *parsed = chrome::ParsedFaviconPath();
 

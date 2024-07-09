@@ -695,7 +695,7 @@ TEST_P(TemplateURLServiceTest, NotPersistOmniboxExtensionKeyword) {
 
   // Register an omnibox keyword.
   model()->RegisterOmniboxKeyword("test", "extension", "keyword",
-                                  "chrome-extension://test", Time());
+                                  "wootzapp-extension://test", Time());
   ASSERT_TRUE(model()->GetTemplateURLForKeyword(u"keyword"));
 
   // Reload the data.
@@ -1411,7 +1411,7 @@ TEST_P(TemplateURLServiceTest, RepairStarterPackEngines) {
 
   // The keyword for bookmarks wasn't reverted.
   EXPECT_EQ(u"trash", bookmarks->short_name());
-  EXPECT_EQ("chrome://bookmarks/?q={searchTerms}", bookmarks->url());
+  EXPECT_EQ("wootzapp://bookmarks/?q={searchTerms}", bookmarks->url());
 
   // @history was repaired, verify that the NORMAL built-in engine is still back
   // even though the @history extension outranks the built-in engine.

@@ -115,27 +115,27 @@ TEST_F(HistoryUtilTest, CanChangeToURLInUniqueOrigin) {
 
 TEST_F(HistoryUtilTest, CanChangeToURLWebUI) {
   url::ScopedSchemeRegistryForTests scoped_registry;
-  url::AddStandardScheme("chrome", url::SCHEME_WITH_HOST);
+  url::AddStandardScheme("wootzapp", url::SCHEME_WITH_HOST);
 
   struct TestCase {
     const char* url;
     const char* document_url;
     bool expected;
   } cases[] = {
-      {"chrome://bookmarks", "chrome://bookmarks", true},
-      {"chrome://bookmarks", "chrome://bookmarks/test_loader.html", true},
-      {"chrome://bookmarks/test_loader.html", "chrome://bookmarks", true},
-      {"chrome://history", "chrome://bookmarks", false},
-      {"chrome-error://history", "chrome://bookmarks", false},
-      {"about:blank", "chrome://bookmarks", false},
-      {"about:srcdoc", "chrome://bookmarks", false},
-      {"about:blank?query#hash", "chrome://bookmarks", false},
-      {"about:srcdoc?query#hash", "chrome://bookmarks", false},
-      {"chrome://bookmarks", "about:blank", false},
-      {"chrome://bookmarks", "about:srcdoc", false},
-      {"chrome://bookmarks", "about:blank?query#hash", false},
-      {"chrome://bookmarks", "about:srcdoc?query#hash", false},
-      {"https://example.com/path", "chrome://bookmarks", false},
+      {"wootzapp://bookmarks", "wootzapp://bookmarks", true},
+      {"wootzapp://bookmarks", "wootzapp://bookmarks/test_loader.html", true},
+      {"wootzapp://bookmarks/test_loader.html", "wootzapp://bookmarks", true},
+      {"wootzapp://history", "wootzapp://bookmarks", false},
+      {"wootzapp-error://history", "wootzapp://bookmarks", false},
+      {"about:blank", "wootzapp://bookmarks", false},
+      {"about:srcdoc", "wootzapp://bookmarks", false},
+      {"about:blank?query#hash", "wootzapp://bookmarks", false},
+      {"about:srcdoc?query#hash", "wootzapp://bookmarks", false},
+      {"wootzapp://bookmarks", "about:blank", false},
+      {"wootzapp://bookmarks", "about:srcdoc", false},
+      {"wootzapp://bookmarks", "about:blank?query#hash", false},
+      {"wootzapp://bookmarks", "about:srcdoc?query#hash", false},
+      {"https://example.com/path", "wootzapp://bookmarks", false},
   };
 
   for (const auto& test : cases) {

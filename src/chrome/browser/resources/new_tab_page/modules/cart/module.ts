@@ -182,7 +182,7 @@ export class ChromeCartModuleElement extends I18nMixin
   }
 
   private getFaviconUrl_(url: string): string {
-    const faviconUrl = new URL('chrome://favicon2/');
+    const faviconUrl = new URL('wootzapp://favicon2/');
     faviconUrl.searchParams.set('size', '24');
     faviconUrl.searchParams.set('scaleFactor', '1x');
     faviconUrl.searchParams.set('showFallbackMonogram', '');

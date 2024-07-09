@@ -596,7 +596,7 @@ TEST_F(ExtensionsToolbarContainerUnitTest,
        ExtensionsButton_ChromeRestrictedSite) {
   InstallExtensionWithHostPermissions("Extension", {"<all_urls>"});
 
-  const GURL restricted_url("chrome://extensions");
+  const GURL restricted_url("wootzapp://extensions");
   NavigateAndCommit(restricted_url);
 
   // Extensions button has "all extensions blocked" icon type for chrome

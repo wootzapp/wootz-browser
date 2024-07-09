@@ -78,13 +78,13 @@ class ExtensionWebUITest : public ExtensionApiTest {
   }
 
   testing::AssertionResult RunTestOnExtensionsPage(const char* name) {
-    return RunTest(name, GURL("chrome://extensions"), true);
+    return RunTest(name, GURL("wootzapp://extensions"), true);
   }
 
   testing::AssertionResult RunTestOnAboutPage(const char* name) {
     // chrome://about is an innocuous page that doesn't have any bindings.
     // Tests should fail.
-    return RunTest(name, GURL("chrome://about"), false);
+    return RunTest(name, GURL("wootzapp://about"), false);
   }
 };
 

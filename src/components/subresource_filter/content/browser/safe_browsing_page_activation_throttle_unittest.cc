@@ -880,7 +880,7 @@ TEST_P(SafeBrowsingPageActivationThrottleScopeTest,
 
   // data URLs are also not supported, but not listed here, as it's not possible
   // for a page to redirect to them after https://crbug.com/594215 is fixed.
-  const char* unsupported_urls[] = {"ftp://example.com/", "chrome://settings",
+  const char* unsupported_urls[] = {"ftp://example.com/", "wootzapp://settings",
                                     "chrome-extension://some-extension",
                                     "file:///var/www/index.html"};
   const char* supported_urls[] = {"http://example.test",

@@ -415,7 +415,7 @@ class WebFileHandlersFileLaunchBrowserTest
               /*quota_manager_proxy=*/nullptr, base::FilePath());
       auto file_system_url = file_system_context->CreateCrackedFileSystemURL(
           blink::StorageKey::CreateFromStringForTesting(
-              "chrome://file-manager"),
+              "wootzapp://file-manager"),
           storage::kFileSystemTypeTest, file_path);
 
       // Update the intent with the file.
@@ -455,7 +455,7 @@ class WebFileHandlersFileLaunchBrowserTest
         storage::CreateFileSystemContextForTesting(
             /*quota_manager_proxy=*/nullptr, base::FilePath());
     auto file_system_url = file_system_context->CreateCrackedFileSystemURL(
-        blink::StorageKey::CreateFromStringForTesting("chrome://file-manager"),
+        blink::StorageKey::CreateFromStringForTesting("wootzapp://file-manager"),
         storage::kFileSystemTypeTest, file_path);
 
     // Update the intent with the file.

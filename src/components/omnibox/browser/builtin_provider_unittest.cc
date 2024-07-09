@@ -27,12 +27,12 @@
 
 namespace {
 
-const char kEmbedderAboutScheme[] = "chrome";
-const char16_t kEmbedderAboutScheme16[] = u"chrome";
-const char16_t kDefaultURL1[] = u"chrome://default1/";
-const char16_t kDefaultURL2[] = u"chrome://default2/";
+const char kEmbedderAboutScheme[] = "wootzapp";
+const char16_t kEmbedderAboutScheme16[] = u"wootzapp";
+const char16_t kDefaultURL1[] = u"wootzapp://default1/";
+const char16_t kDefaultURL2[] = u"wootzapp://default2/";
 const char16_t kDefaultURL3[] = u"chrome://foo/";
-const char16_t kSubpageURL[] = u"chrome://subpage/";
+const char16_t kSubpageURL[] = u"wootzapp://subpage/";
 
 // Arbitrary host constants, chosen to start with the letters "b" and "me".
 const char16_t kHostBar[] = u"bar";
@@ -300,7 +300,7 @@ TEST_F(BuiltinProviderTest, AboutBlank) {
 }
 
 TEST_F(BuiltinProviderTest, DoesNotSupportMatchesOnFocus) {
-  AutocompleteInput input(u"chrome://m", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(u"wootzapp://m", metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
   input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
   provider_->Start(input, false);

@@ -58,19 +58,19 @@ namespace {
 const char* kBypassBlocklistWildcardForSchemes[] = {
     // For internal extension URLs e.g. the Bookmark Manager and the File
     // Manager on Chrome OS.
-    "chrome-extension",
+    "wootzapp-extension",
 
     // NTP on Android.
-    "chrome-native",
+    "wootzapp-native",
 
     // NTP on other platforms.
-    "chrome-search",
+    "wootzapp-search",
 };
 
 #if BUILDFLAG(IS_IOS)
 // The two schemes used on iOS for the NTP.
 constexpr char kIosNtpAboutScheme[] = "about";
-constexpr char kIosNtpChromeScheme[] = "chrome";
+constexpr char kIosNtpChromeScheme[] = "wootzapp";
 // The host string used on iOS for the NTP.
 constexpr char kIosNtpHost[] = "newtab";
 #endif

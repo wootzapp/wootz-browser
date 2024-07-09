@@ -44,8 +44,8 @@ class MapValueIterator {
 // These constants are copied from extensions/common/extension_constants.h and
 // content/public/common/url_constants.h to avoid complicated dependencies.
 const char kChromeDevToolsScheme[] = "devtools";
-const char kChromeUIScheme[] = "chrome";
-const char kExtensionScheme[] = "chrome-extension";
+const char kChromeUIScheme[] = "wootzapp";
+const char kExtensionScheme[] = "wootzapp-extension";
 const char kChromeUIUntrustedScheme[] = "chrome-untrusted";
 
 std::string ContentSettingToString(ContentSetting setting);

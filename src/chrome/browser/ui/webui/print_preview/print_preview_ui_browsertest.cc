@@ -52,7 +52,7 @@ class PrintPreviewBrowserTest : public InProcessBrowserTest {
     chrome::ExecuteCommand(browser(), IDC_PRINT);
     nav_observer.Wait();
     nav_observer.StopWatchingNewWebContents();
-    EXPECT_EQ(GURL("chrome://print/"), nav_observer.last_navigation_url());
+    EXPECT_EQ(GURL("wootzapp://print/"), nav_observer.last_navigation_url());
   }
 };
 

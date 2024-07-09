@@ -54,7 +54,7 @@ class BookmarkBubbleSignInDelegateTest : public InProcessBrowserTest {
 // replace this tab.  This function replaces about:blank with another URL
 // so that the sign in page goes into a new tab.
 void BookmarkBubbleSignInDelegateTest::ReplaceBlank(Browser* browser) {
-  ShowSingletonTabOverwritingNTP(browser, GURL("chrome:version"),
+  ShowSingletonTabOverwritingNTP(browser, GURL("wootzapp:version"),
                                  NavigateParams::IGNORE_AND_NAVIGATE);
 }
 

@@ -151,7 +151,7 @@ export class SettingsSafetyCheckExtensionsChildElement extends
   }
 
   private openExtensionsPage_() {
-    OpenWindowProxyImpl.getInstance().openUrl('chrome://extensions');
+    OpenWindowProxyImpl.getInstance().openUrl('wootzapp://extensions');
   }
 }
 

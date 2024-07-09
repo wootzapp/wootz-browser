@@ -73,7 +73,7 @@ import java.util.List;
 @Config(manifest = Config.NONE)
 public class IntentHandlerRobolectricTest {
     private static final String[] ACCEPTED_NON_HTTP_AND_HTTPS_URLS = {
-        "chrome://newtab",
+        "wootzapp://newtab",
         "file://foo.txt",
         "ftp://www.foo.com",
         "",
@@ -674,10 +674,10 @@ public class IntentHandlerRobolectricTest {
 
         Assert.assertTrue(IntentHandler.wasIntentSenderChrome(trustedIntent));
 
-        trustedIntent.setData(Uri.parse("chrome://credits"));
+        trustedIntent.setData(Uri.parse("wootzapp://credits"));
         Assert.assertFalse(IntentHandler.shouldIgnoreIntent(trustedIntent, null));
 
-        trustedIntent.setData(Uri.parse("chrome-native://newtab"));
+        trustedIntent.setData(Uri.parse("wootzapp-native://newtab"));
         Assert.assertFalse(IntentHandler.shouldIgnoreIntent(trustedIntent, null));
     }
 
@@ -688,10 +688,10 @@ public class IntentHandlerRobolectricTest {
         Intent untrustedIntent = new Intent(Intent.ACTION_VIEW);
         Assert.assertFalse(IntentHandler.wasIntentSenderChrome(untrustedIntent));
 
-        untrustedIntent.setData(Uri.parse("chrome://credits"));
+        untrustedIntent.setData(Uri.parse("wootzapp://credits"));
         Assert.assertTrue(IntentHandler.shouldIgnoreIntent(untrustedIntent, null));
 
-        untrustedIntent.setData(Uri.parse("chrome-native://newtab"));
+        untrustedIntent.setData(Uri.parse("wootzapp-native://newtab"));
         Assert.assertTrue(IntentHandler.shouldIgnoreIntent(untrustedIntent, null));
     }
 

@@ -1763,7 +1763,7 @@ TEST_F(SiteInstanceTest, IsProcessLockASite) {
   EXPECT_FALSE(ProcessLockFromString("").IsASiteOrOrigin());
   EXPECT_FALSE(ProcessLockFromString("google.com").IsASiteOrOrigin());
   EXPECT_FALSE(ProcessLockFromString("http:").IsASiteOrOrigin());
-  EXPECT_FALSE(ProcessLockFromString("chrome:").IsASiteOrOrigin());
+  EXPECT_FALSE(ProcessLockFromString("wootzapp:").IsASiteOrOrigin());
 
   EXPECT_TRUE(ProcessLockFromString("http://foo.com").IsASiteOrOrigin());
   EXPECT_TRUE(ProcessLockFromString("http://bar.foo.com").IsASiteOrOrigin());

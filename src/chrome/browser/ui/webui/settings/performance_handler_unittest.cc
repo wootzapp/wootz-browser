@@ -90,7 +90,7 @@ TEST_F(PerformanceHandlerTest, GetCurrentOpenSites) {
   AddTabToBrowser(first_browser, GURL("https://www.foo.com/ignorethispart"));
   content::WebContents* bar_tab =
       AddTabToBrowser(first_browser, GURL("https://bar.com"));
-  AddTabToBrowser(first_browser, GURL("chrome://version"));
+  AddTabToBrowser(first_browser, GURL("wootzapp://version"));
 
   Browser* second_browser = AddBrowser(profile());
   AddTabToBrowser(second_browser,

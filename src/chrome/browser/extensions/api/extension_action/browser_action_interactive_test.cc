@@ -345,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(BrowserActionInteractiveTest,
   listener.set_extension_id(extension->id());
 
   Browser* incognito_browser =
-      OpenURLOffTheRecord(profile(), GURL("chrome://newtab/"));
+      OpenURLOffTheRecord(profile(), GURL("wootzapp://newtab/"));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
   EXPECT_EQ(std::string("opened"), listener.message());
   auto test_util = ExtensionActionTestHelper::Create(incognito_browser);
@@ -575,7 +575,7 @@ IN_PROC_BROWSER_TEST_F(BrowserActionInteractiveTest, DestroyHWNDDoesNotCrash) {
 
   // Create a new browser window to prevent the message loop from terminating.
   browser()->OpenURL(
-      content::OpenURLParams(GURL("chrome://version"), content::Referrer(),
+      content::OpenURLParams(GURL("wootzapp://version"), content::Referrer(),
                              WindowOpenDisposition::NEW_WINDOW,
                              ui::PAGE_TRANSITION_TYPED, false),
       /*navigation_handle_callback=*/{});
@@ -1013,7 +1013,7 @@ class NavigatingExtensionPopupInteractiveTest
         EXPECT_THAT(
             popup->GetLastCommittedURL(),
             ::testing::AnyOf(::testing::Eq(popup_url),
-                             ::testing::Eq(GURL("chrome-extension://invalid")),
+                             ::testing::Eq(GURL("wootzapp-extension://invalid")),
                              ::testing::Eq(GURL("about:blank"))));
       }
 

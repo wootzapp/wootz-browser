@@ -69,7 +69,7 @@ class ProfileTypeChoiceUIPixelTest
 
     DCHECK(browser());
     const GURL profile_type_choice_url =
-        GURL("chrome://profile-picker/new-profile");
+        GURL("wootzapp://profile-picker/new-profile");
     content::TestNavigationObserver observer(profile_type_choice_url);
     observer.StartWatchingNewWebContents();
 

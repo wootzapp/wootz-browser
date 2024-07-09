@@ -40,7 +40,7 @@ bundle_js("bundle_js") {
                   root_build_dir)
 
   external_paths = [
-    "chrome://interstitials/|$shared_interstitials_path",
+    "wootzapp://interstitials/|$shared_interstitials_path",
     "chrome://resources/js/jstemplate_compiled.js|$jstemplate_compiled_path",
   ]
   deps = [

@@ -134,7 +134,7 @@ void CleanUp(void* fulfill) {
 
 gpu::ContextUrl& GetActiveUrl() {
   static base::NoDestructor<gpu::ContextUrl> active_url(
-      GURL("chrome://gpu/SkiaRenderer"));
+      GURL("wootzapp://gpu/SkiaRenderer"));
   return *active_url;
 }
 

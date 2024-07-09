@@ -1772,7 +1772,7 @@ TEST_F(ExternallyManagedAppManagerImplTest,
 
 TEST_F(ExternallyManagedAppManagerImplTest,
        DoNotRegisterServiceWorkerForLocalApps) {
-  GURL local_urls[] = {GURL("chrome://sample"),
+  GURL local_urls[] = {GURL("wootzapp://sample"),
                        GURL("chrome-untrusted://sample")};
 
   for (const auto& install_url : local_urls) {

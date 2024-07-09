@@ -18,12 +18,12 @@ GURL CreateValidURL(const std::string& str) {
 }
 
 TEST(UrlUtilsTest, HasWebUIScheme) {
-  EXPECT_TRUE(HasWebUIScheme(CreateValidURL("chrome://test")));
+  EXPECT_TRUE(HasWebUIScheme(CreateValidURL("wootzapp://test")));
   EXPECT_TRUE(HasWebUIScheme(CreateValidURL("chrome-untrusted://test")));
   EXPECT_TRUE(HasWebUIScheme(CreateValidURL("devtools://test")));
 
   // Other chromium schemes not considered WebUI schemes.
-  EXPECT_FALSE(HasWebUIScheme(CreateValidURL("chrome-error://test")));
+  EXPECT_FALSE(HasWebUIScheme(CreateValidURL("wootzapp-error://test")));
   EXPECT_FALSE(HasWebUIScheme(CreateValidURL("googlechrome://test")));
 
   EXPECT_FALSE(HasWebUIScheme(CreateValidURL("http://foo/bar.html")));
@@ -38,7 +38,7 @@ TEST(UrlUtilsTest, IsURLHandledByNetworkStack) {
       IsURLHandledByNetworkStack(CreateValidURL("https://foo/bar.html")));
   EXPECT_TRUE(IsURLHandledByNetworkStack(CreateValidURL("data://foo")));
   EXPECT_TRUE(IsURLHandledByNetworkStack(CreateValidURL("cid:foo@bar")));
-  EXPECT_TRUE(IsURLHandledByNetworkStack(CreateValidURL("chrome://test")));
+  EXPECT_TRUE(IsURLHandledByNetworkStack(CreateValidURL("wootzapp://test")));
   EXPECT_TRUE(IsURLHandledByNetworkStack(CreateValidURL("devtools://test")));
   EXPECT_TRUE(
       IsURLHandledByNetworkStack(CreateValidURL("chrome-untrusted://test")));
@@ -85,7 +85,7 @@ TEST(UrlUtilsTest, IsSafeRedirectTarget) {
                                    CreateValidURL("http://foo/bar.html")));
 
   // WebUI schemes
-  EXPECT_FALSE(IsSafeRedirectTarget(GURL(), CreateValidURL("chrome://test")));
+  EXPECT_FALSE(IsSafeRedirectTarget(GURL(), CreateValidURL("wootzapp://test")));
   EXPECT_FALSE(IsSafeRedirectTarget(GURL(), CreateValidURL("devtools://test")));
   EXPECT_FALSE(
       IsSafeRedirectTarget(GURL(), CreateValidURL("chrome-untrusted://test")));

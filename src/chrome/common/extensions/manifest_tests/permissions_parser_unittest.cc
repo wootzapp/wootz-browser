@@ -136,7 +136,7 @@ TEST_F(PermissionsParserTest, OptionalHostPermissionsInvalidScheme) {
   std::vector<std::string> expected_warnings;
   expected_warnings.push_back(ErrorUtils::FormatErrorMessage(
       manifest_errors::kInvalidPermissionScheme,
-      manifest_keys::kOptionalPermissions, "chrome://extensions/"));
+      manifest_keys::kOptionalPermissions, "wootzapp://extensions/"));
 
   scoped_refptr<Extension> extension(LoadAndExpectWarnings(
       "optional_permissions_invalid_scheme.json", expected_warnings));
@@ -185,10 +185,10 @@ TEST_F(PermissionsParserTest, HostPermissionsKeyInvalidScheme) {
   std::vector<std::string> expected_warnings;
   expected_warnings.push_back(ErrorUtils::FormatErrorMessage(
       manifest_errors::kInvalidPermissionScheme,
-      manifest_keys::kHostPermissions, "chrome://extensions/"));
+      manifest_keys::kHostPermissions, "wootzapp://extensions/"));
   expected_warnings.push_back(ErrorUtils::FormatErrorMessage(
       manifest_errors::kInvalidPermissionScheme,
-      manifest_keys::kOptionalHostPermissions, "chrome://settings/"));
+      manifest_keys::kOptionalHostPermissions, "wootzapp://settings/"));
 
   scoped_refptr<Extension> extension(LoadAndExpectWarnings(
       "host_permissions_key_invalid_scheme.json", expected_warnings));
@@ -230,12 +230,12 @@ TEST_F(PermissionsParserTest, ChromeFavicon) {
     return ManifestData(std::move(manifest_value).TakeDict(), permission);
   };
 
-  static constexpr char kFaviconPattern[] = "chrome://favicon/*";
+  static constexpr char kFaviconPattern[] = "wootzapp://favicon/*";
   // <all_urls> implicitly includes chrome://favicon, if it's supported.
   constexpr char kAllUrls[] = "<all_urls>";
 
   auto has_favicon_access = [](const Extension& extension) {
-    const GURL favicon_url("chrome://favicon");
+    const GURL favicon_url("wootzapp://favicon");
     return extension.permissions_data()->HasHostPermission(favicon_url);
   };
 

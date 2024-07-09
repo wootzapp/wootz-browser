@@ -151,7 +151,7 @@ IN_PROC_BROWSER_TEST_F(SignInViewControllerBrowserTest,
                                       signin::ConsentLevel::kSync);
 #endif
   content::TestNavigationObserver content_observer(
-      GURL("chrome://sync-confirmation/"));
+      GURL("wootzapp://sync-confirmation/"));
   content_observer.StartWatchingNewWebContents();
   browser()->signin_view_controller()->ShowModalSyncConfirmationDialog();
   EXPECT_TRUE(browser()->signin_view_controller()->ShowsModalDialog());
@@ -254,7 +254,7 @@ IN_PROC_BROWSER_TEST_F(SignInViewControllerInteractiveBrowserTest,
 IN_PROC_BROWSER_TEST_F(SignInViewControllerBrowserTest,
                        ErrorDialogDefaultFocus) {
   content::TestNavigationObserver content_observer(
-      GURL("chrome://signin-error/"));
+      GURL("wootzapp://signin-error/"));
   content_observer.StartWatchingNewWebContents();
   browser()->signin_view_controller()->ShowModalSigninErrorDialog();
   EXPECT_TRUE(browser()->signin_view_controller()->ShowsModalDialog());

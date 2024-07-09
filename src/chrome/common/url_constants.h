@@ -51,7 +51,7 @@ inline constexpr char kAdvancedProtectionDownloadLearnMoreURL[] =
 
 // "Chrome Settings" URL for website notifications linked out from OSSettings.
 inline constexpr char kAppNotificationsBrowserSettingsURL[] =
-    "chrome://settings/content/notifications";
+    "wootzapp://settings/content/notifications";
 
 // "Learn more" URL for Battery Saver Mode.
 inline constexpr char kBatterySaverModeLearnMoreUrl[] =
@@ -63,15 +63,15 @@ inline constexpr char kBluetoothAdapterOffHelpURL[] =
 
 // "Chrome Settings" URL for website camera access permissions.
 inline constexpr char kBrowserCameraPermissionsSettingsURL[] =
-    "chrome://settings/content/camera";
+    "wootzapp://settings/content/camera";
 
 // "Chrome Settings" URL for website location access permissions.
 inline constexpr char kBrowserLocationPermissionsSettingsURL[] =
-    "chrome://settings/content/location";
+    "wootzapp://settings/content/location";
 
 // "Chrome Settings" URL for website microphone access permissions.
 inline constexpr char kBrowserMicrophonePermissionsSettingsURL[] =
-    "chrome://settings/content/microphone";
+    "wootzapp://settings/content/microphone";
 
 // "Learn more" URL shown in the dialog to enable cloud services for Cast.
 inline constexpr char kCastCloudServicesHelpURL[] =
@@ -106,7 +106,7 @@ inline constexpr char16_t kChromeFixUpdateProblems[] =
 inline constexpr char kChromeHelpViaKeyboardURL[] =
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "chrome-extension://honijodknafkokifofgiaalefdiedpko/main.html";
+    "wootzapp-extension://honijodknafkokifofgiaalefdiedpko/main.html";
 #else
     "https://support.google.com/chromebook?p=help&ctx=keyboard";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -117,7 +117,7 @@ inline constexpr char kChromeHelpViaKeyboardURL[] =
 inline constexpr char kChromeHelpViaMenuURL[] =
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "chrome-extension://honijodknafkokifofgiaalefdiedpko/main.html";
+    "wootzapp-extension://honijodknafkokifofgiaalefdiedpko/main.html";
 #else
     "https://support.google.com/chromebook?p=help&ctx=menu";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -130,7 +130,7 @@ inline constexpr char kChromeHelpViaWebUIURL[] =
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 inline constexpr char kChromeOsHelpViaWebUIURL[] =
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "chrome-extension://honijodknafkokifofgiaalefdiedpko/main.html";
+    "wootzapp-extension://honijodknafkokifofgiaalefdiedpko/main.html";
 #else
     "https://support.google.com/chromebook?p=help&ctx=settings";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -143,7 +143,7 @@ inline constexpr char16_t kIsolatedAppSchemeUtf16[] = u"isolated-app";
 
 // The chrome-native: scheme is used show pages rendered with platform specific
 // widgets instead of using HTML.
-inline constexpr char kChromeNativeScheme[] = "chrome-native";
+inline constexpr char kChromeNativeScheme[] = "wootzapp-native";
 
 // The URL of safe section in Chrome page (https://www.google.com/chrome).
 inline constexpr char16_t kChromeSafePageURL[] =
@@ -152,7 +152,7 @@ inline constexpr char16_t kChromeSafePageURL[] =
 // Host and URL for most visited iframes used on the Instant Extended NTP.
 inline constexpr char kChromeSearchMostVisitedHost[] = "most-visited";
 inline constexpr char kChromeSearchMostVisitedUrl[] =
-    "chrome-search://most-visited/";
+    "wootzapp-search://most-visited/";
 
 // URL for NTP custom background image selected from the user's machine and
 // filename for the version of the file in the Profile directory
@@ -180,7 +180,7 @@ inline constexpr char kChromeSearchRemoteNtpHost[] = "remote-ntp";
 //  3. Browser: for specific sub-classes of URLDataSource, like ThemeSource
 //     there are additional Instant-PID checks that make sure the request is
 //     coming from a blessed Instant process, and deny the request.
-inline constexpr char kChromeSearchScheme[] = "chrome-search";
+inline constexpr char kChromeSearchScheme[] = "wootzapp-search";
 
 // This is the base URL of content that can be embedded in chrome://new-tab-page
 // using an <iframe>. The embedded untrusted content can make web requests and
@@ -418,11 +418,11 @@ inline constexpr char kPrivacyLearnMoreURL[] =
 
 // "Chrome Settings" URL for Ad Topics page
 inline constexpr char kPrivacySandboxAdTopicsURL[] =
-    "chrome://settings/adPrivacy/interests";
+    "wootzapp://settings/adPrivacy/interests";
 
 // "Chrome Settings" URL for Managing Topics page
 inline constexpr char kPrivacySandboxManageTopicsURL[] =
-    "chrome://settings/adPrivacy/interests/manage";
+    "wootzapp://settings/adPrivacy/interests/manage";
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 // The Privacy Sandbox homepage.
@@ -642,7 +642,7 @@ inline constexpr char kChromeOSCreditsCompressedPath[] =
 // The magic numbers in this url are the topic and article ids currently
 // required to navigate directly to a help article in the Help App.
 inline constexpr char kChromeOSGestureEducationHelpURL[] =
-    "chrome://help-app/help/sub/3399710/id/9739838";
+    "wootzapp://help-app/help/sub/3399710/id/9739838";
 
 // Palette help link for Chrome.
 inline constexpr char kChromePaletteHelpURL[] =
@@ -660,7 +660,7 @@ inline constexpr char kEasyUnlockLearnMoreUrl[] =
 
 // The URL for the help center article about redeeming Chromebook offers.
 inline constexpr char kEchoLearnMoreURL[] =
-    "chrome://help-app/help/sub/3399709/id/2703646";
+    "wootzapp://help-app/help/sub/3399709/id/2703646";
 
 // The URL for EOL notification
 inline constexpr char16_t kEolNotificationURL[] =

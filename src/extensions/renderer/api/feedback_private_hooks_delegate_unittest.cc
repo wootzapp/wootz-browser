@@ -38,7 +38,7 @@ TEST_F(FeedbackPrivateHooksDelegateTest, MAYBE_SendFeedback) {
   v8::Local<v8::Context> context = MainContext();
   ScriptContext* script_context =
       CreateScriptContext(context, nullptr, mojom::ContextType::kWebUi);
-  script_context->set_url(GURL("chrome://feedback"));
+  script_context->set_url(GURL("wootzapp://feedback"));
   bindings_system()->UpdateBindingsForContext(script_context);
 
   constexpr char kFakeAPIResponse[] =

@@ -18,7 +18,7 @@ namespace content {
 
 namespace {
 
-const char kQuotaInternalsUrl[] = "chrome://quota-internals/";
+const char kQuotaInternalsUrl[] = "wootzapp://quota-internals/";
 
 }  // namespace
 

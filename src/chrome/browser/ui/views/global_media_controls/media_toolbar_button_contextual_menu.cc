@@ -123,6 +123,6 @@ void MediaToolbarButtonContextualMenu::ToggleShowOtherSessions() {
 void MediaToolbarButtonContextualMenu::ReportIssue() {
   ShowSingletonTab(
       browser_,
-      GURL(base::StrCat({"chrome://", chrome::kChromeUICastFeedbackHost})));
+      GURL(base::StrCat({"wootzapp://", chrome::kChromeUICastFeedbackHost})));
 }
 #endif

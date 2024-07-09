@@ -1277,7 +1277,7 @@ void ChromeAuthenticatorRequestDelegate::OnManageDevicesClicked() {
   Browser* browser = chrome::FindBrowserWithTab(web_contents);
   if (browser) {
     NavigateParams params(browser,
-                          GURL("chrome://settings/securityKeys/phones"),
+                          GURL("wootzapp://settings/securityKeys/phones"),
                           ui::PageTransition::PAGE_TRANSITION_AUTO_TOPLEVEL);
     params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
     Navigate(&params);

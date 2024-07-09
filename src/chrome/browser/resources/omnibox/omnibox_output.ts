@@ -541,7 +541,7 @@ class OutputScoringSignalsProperty extends OutputDictionaryProperty {
                      value,
                    } as DictionaryEntry)));
     const link = createEl('a', null, ['icon', 'edit-icon']);
-    link.href = `chrome://omnibox/ml?signals=${Object.values(value).join()}`;
+    link.href = `wootzapp://omnibox/ml?signals=${Object.values(value).join()}`;
     this.container.insertBefore(link, this.container.firstChild);
   }
 }
@@ -574,7 +574,7 @@ class OutputUrlProperty extends FlexWrappingOutputProperty {
     const iconAndUrlContainer = createEl('div', this.container, ['pair-item']);
     if (!isSearchType) {
       createEl('img', iconAndUrlContainer).src =
-          `chrome://favicon/${destinationUrl}`;
+          `wootzapp://favicon/${destinationUrl}`;
     }
     createEl('a', iconAndUrlContainer, [], destinationUrl).href =
         destinationUrl;

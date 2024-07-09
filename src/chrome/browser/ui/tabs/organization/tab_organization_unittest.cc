@@ -367,7 +367,7 @@ TEST_F(TabOrganizationTest, TabDataHttpHttpsOnlyURLs) {
   }
   {
     content::WebContents* web_contents =
-        AddTab(tab_strip_model(), GURL("chrome://page"));
+        AddTab(tab_strip_model(), GURL("wootzapp://page"));
     TabData tab_data(tab_strip_model(), web_contents);
     EXPECT_FALSE(tab_data.IsValidForOrganizing());
   }

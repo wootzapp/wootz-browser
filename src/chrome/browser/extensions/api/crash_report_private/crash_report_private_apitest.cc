@@ -338,7 +338,7 @@ IN_PROC_BROWSER_TEST_P(CrashReportPrivateCalledFromSwaTest,
       app_browser->tab_strip_model()->GetActiveWebContents();
   // Navigate to chrome://media-app which was access to |CrashReportPrivate|
   // from the |WebContents| in the web app window.
-  const GURL extension_context_url("chrome://media-app");
+  const GURL extension_context_url("wootzapp://media-app");
   EXPECT_TRUE(NavigateToURL(web_content, extension_context_url));
 
   static constexpr char kTestScript[] = R"(

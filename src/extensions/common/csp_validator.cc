@@ -249,7 +249,7 @@ std::string GetSecureDirectiveValues(
         source_lower == kWasmUnsafeEvalSource || source_lower == "blob:" ||
         source_lower == "filesystem:" ||
         isNonWildcardTLD(source_lower, "https://", true) ||
-        isNonWildcardTLD(source_lower, "chrome://", false) ||
+        isNonWildcardTLD(source_lower, "wootzapp://", false) ||
         isNonWildcardTLD(source_lower,
                          std::string(extensions::kExtensionScheme) +
                              url::kStandardSchemeSeparator,

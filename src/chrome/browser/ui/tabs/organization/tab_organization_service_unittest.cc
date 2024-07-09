@@ -30,7 +30,7 @@
 namespace {
 
 constexpr char kValidURL[] = "http://zombo.com";
-constexpr char kInvalidURL[] = "chrome://page";
+constexpr char kInvalidURL[] = "wootzapp://page";
 
 std::unique_ptr<KeyedService> CreateSyncService(
     content::BrowserContext* context) {

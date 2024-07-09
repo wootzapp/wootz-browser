@@ -46,7 +46,7 @@ TEST_F(WebUIAllowlistProviderTest, RegisterChrome) {
 
   // Check |url_allowed| is not affected by allowlisted_schemes. This mechanism
   // take precedence over allowlist provider.
-  const GURL url_allowed = GURL("chrome://test/");
+  const GURL url_allowed = GURL("wootzapp://test/");
   ASSERT_EQ(CONTENT_SETTING_BLOCK,
             map->GetContentSetting(url_allowed, url_allowed,
                                    ContentSettingsType::BLUETOOTH_GUARD));
@@ -70,7 +70,7 @@ TEST_F(WebUIAllowlistProviderTest, RegisterChrome) {
             map->GetContentSetting(url_ordinary, url_ordinary,
                                    ContentSettingsType::BLUETOOTH_GUARD));
 
-  const GURL url_no_permission_webui = GURL("chrome://no-perm");
+  const GURL url_no_permission_webui = GURL("wootzapp://no-perm");
   EXPECT_EQ(
       CONTENT_SETTING_BLOCK,
       map->GetContentSetting(url_no_permission_webui, url_no_permission_webui,
@@ -164,7 +164,7 @@ TEST_F(WebUIAllowlistProviderTest, MAYBE_InvalidContentSetting) {
 
   EXPECT_DEATH_IF_SUPPORTED(
       allowlist->RegisterAutoGrantedPermission(
-          url::Origin::Create(GURL("chrome://test/")),
+          url::Origin::Create(GURL("wootzapp://test/")),
           ContentSettingsType::BLUETOOTH_GUARD, CONTENT_SETTING_DEFAULT),
       std::string());
 }
@@ -183,7 +183,7 @@ TEST_F(WebUIAllowlistProviderTest, AutoGrantPermissionIsPerProfile) {
   map2->SetDefaultContentSetting(ContentSettingsType::GEOLOCATION,
                                  CONTENT_SETTING_BLOCK);
 
-  GURL url = GURL("chrome://test");
+  GURL url = GURL("wootzapp://test");
 
   // Register GEOLOCATION with |profile1|.
   WebUIAllowlist::GetOrCreate(profile1)->RegisterAutoGrantedPermission(
@@ -232,7 +232,7 @@ TEST_F(WebUIAllowlistProviderTest, RegisterWithPermissionList) {
   map->SetDefaultContentSetting(ContentSettingsType::NOTIFICATIONS,
                                 CONTENT_SETTING_BLOCK);
 
-  const GURL url_chrome = GURL("chrome://test");
+  const GURL url_chrome = GURL("wootzapp://test");
 
   auto* allowlist = WebUIAllowlist::GetOrCreate(profile());
   allowlist->RegisterAutoGrantedPermissions(

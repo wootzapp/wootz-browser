@@ -1929,7 +1929,7 @@ TEST_F(HintsManagerFetchingTest, HintsFetcherEnabledNoHostsButHasUrlsToFetch) {
   InitializeWithDefaultConfig("1.0.0");
 
   tab_url_provider()->SetUrls(
-      {GURL("https://a.com"), GURL("https://b.com"), GURL("chrome://new-tab")});
+      {GURL("https://a.com"), GURL("https://b.com"), GURL("wootzapp://new-tab")});
 
   // No hints fetch should happen on startup.
   RunUntilIdle();
@@ -1980,7 +1980,7 @@ TEST_F(HintsManagerFetchingTest, HintsFetcherTimerFetchOnStartup) {
   InitializeWithDefaultConfig("1.0.0");
 
   tab_url_provider()->SetUrls(
-      {GURL("https://a.com"), GURL("https://b.com"), GURL("chrome://new-tab")});
+      {GURL("https://a.com"), GURL("https://b.com"), GURL("wootzapp://new-tab")});
 
   // No hints fetch should happen on startup.
   RunUntilIdle();
@@ -2026,7 +2026,7 @@ TEST_F(HintsManagerFetchingTest, HintsFetcherDeferredStartup) {
   InitializeWithDefaultConfig("1.0.0");
 
   tab_url_provider()->SetUrls(
-      {GURL("https://a.com"), GURL("https://b.com"), GURL("chrome://new-tab")});
+      {GURL("https://a.com"), GURL("https://b.com"), GURL("wootzapp://new-tab")});
 
   // No hints fetch should happen on startup.
   RunUntilIdle();

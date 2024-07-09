@@ -249,7 +249,7 @@ TEST(ExtensionCSPValidator, IsSecure) {
   EXPECT_TRUE(CheckCSP(SanitizeCSP(
       "default-src 'self' chrome://resources;", OPTIONS_ALLOW_UNSAFE_EVAL)));
   EXPECT_TRUE(CheckCSP(SanitizeCSP(
-      "default-src 'self' chrome-extension://aabbcc;",
+      "default-src 'self' wootzapp-extension://aabbcc;",
       OPTIONS_ALLOW_UNSAFE_EVAL)));
   EXPECT_TRUE(
       CheckCSP(SanitizeCSP("default-src 'self';", OPTIONS_ALLOW_UNSAFE_EVAL)));
@@ -317,19 +317,19 @@ TEST(ExtensionCSPValidator, IsSecure) {
       "default-src 'self';",
       InsecureValueWarning("default-src", "https://www.*.google.com:*/")));
   EXPECT_TRUE(CheckCSP(
-      SanitizeCSP("default-src 'self' chrome://*", OPTIONS_ALLOW_UNSAFE_EVAL),
+      SanitizeCSP("default-src 'self' wootzapp://*", OPTIONS_ALLOW_UNSAFE_EVAL),
       "default-src 'self';",
-      InsecureValueWarning("default-src", "chrome://*")));
+      InsecureValueWarning("default-src", "wootzapp://*")));
   EXPECT_TRUE(
-      CheckCSP(SanitizeCSP("default-src 'self' chrome-extension://*",
+      CheckCSP(SanitizeCSP("default-src 'self' wootzapp-extension://*",
                            OPTIONS_ALLOW_UNSAFE_EVAL),
                "default-src 'self';",
-               InsecureValueWarning("default-src", "chrome-extension://*")));
+               InsecureValueWarning("default-src", "wootzapp-extension://*")));
   EXPECT_TRUE(
-      CheckCSP(SanitizeCSP("default-src 'self' chrome-extension://",
+      CheckCSP(SanitizeCSP("default-src 'self' wootzapp-extension://",
                            OPTIONS_ALLOW_UNSAFE_EVAL),
                "default-src 'self';",
-               InsecureValueWarning("default-src", "chrome-extension://")));
+               InsecureValueWarning("default-src", "wootzapp-extension://")));
 
   EXPECT_TRUE(CheckCSP(SanitizeCSP(
       "default-src 'self' https://*.google.com;", OPTIONS_ALLOW_UNSAFE_EVAL)));

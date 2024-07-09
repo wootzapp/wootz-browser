@@ -151,7 +151,7 @@ TEST_F(SearchTest, ShouldAssignURLToInstantRenderer) {
   // Only remote NTPs and most-visited tiles embedded in remote NTPs should be
   // assigned to Instant renderers.
   const SearchTestCase kTestCases[] = {
-      {"chrome-search://most-visited/title.html?bar=abc", true,
+      {"wootzapp-search://most-visited/title.html?bar=abc", true,
        "Most-visited tile"},
       {"https://foo.com/newtab", true, "Remote NTP"},
       {"https://foo.com/instant", false, "Instant support was removed"},
@@ -172,9 +172,9 @@ TEST_F(SearchTest, ShouldAssignURLToInstantRenderer) {
 
 TEST_F(SearchTest, ShouldUseProcessPerSiteForInstantSiteURL) {
   const SearchTestCase kTestCases[] = {
-      {"chrome-search://remote-ntp", true, "Remote NTP"},
+      {"wootzapp-search://remote-ntp", true, "Remote NTP"},
       {"invalid-scheme://online-ntp", false, "Invalid Online NTP URL"},
-      {"chrome-search://foo.com", false, "Search result page"},
+      {"wootzapp-search://foo.com", false, "Search result page"},
       {"https://foo.com/instant", false, ""},
       {"https://foo.com/url", false, ""},
       {"https://foo.com/alt", false, ""},
@@ -196,7 +196,7 @@ TEST_F(SearchTest, ShouldUseProcessPerSiteForInstantSiteURL) {
 TEST_F(SearchTest, ProcessIsolation) {
   for (size_t i = 0; i < std::size(kProcessIsolationTestCases); ++i) {
     const ProcessIsolationTestCase& test = kProcessIsolationTestCases[i];
-    AddTab(browser(), GURL("chrome://blank"));
+    AddTab(browser(), GURL("wootzapp://blank"));
     content::WebContents* contents =
         browser()->tab_strip_model()->GetActiveWebContents();
 
@@ -233,7 +233,7 @@ TEST_F(SearchTest, ProcessIsolation) {
 TEST_F(SearchTest, ProcessIsolation_RendererInitiated) {
   for (size_t i = 0; i < std::size(kProcessIsolationTestCases); ++i) {
     const ProcessIsolationTestCase& test = kProcessIsolationTestCases[i];
-    AddTab(browser(), GURL("chrome://blank"));
+    AddTab(browser(), GURL("wootzapp://blank"));
     content::WebContents* contents =
         browser()->tab_strip_model()->GetActiveWebContents();
 
@@ -277,15 +277,15 @@ const SearchTestCase kInstantNTPTestCases[] = {
     {"https://foo.com/url?bar=abc", false, "Has query terms"},
     {"http://foo.com/instant", false, "Insecure URL"},
     {"https://foo.com/instant", false, "No search term replacement"},
-    {"chrome://blank/", false, "Chrome scheme"},
-    {"chrome-search://foo", false, "Chrome-search scheme"},
+    {"wootzapp://blank/", false, "wootzapp scheme"},
+    {"wootzapp-search://foo", false, "wootzapp-search scheme"},
     {"https://bar.com/instant", false, "Random non-search page"},
     {"https://foo.com/newtab", true, "New tab URL"},
     {"http://foo.com/newtab", false, "Insecure New tab URL"},
 };
 
 TEST_F(SearchTest, InstantNTPExtendedEnabled) {
-  AddTab(browser(), GURL("chrome://blank"));
+  AddTab(browser(), GURL("wootzapp://blank"));
   for (const SearchTestCase& test : kInstantNTPTestCases) {
     NavigateAndCommitActiveTab(GURL(test.url));
     content::WebContents* contents =
@@ -296,7 +296,7 @@ TEST_F(SearchTest, InstantNTPExtendedEnabled) {
 }
 
 TEST_F(SearchTest, InstantCacheableNTPNavigationEntry) {
-  AddTab(browser(), GURL("chrome://blank"));
+  AddTab(browser(), GURL("wootzapp://blank"));
   content::WebContents* contents =
         browser()->tab_strip_model()->GetWebContentsAt(0);
   content::NavigationController& controller = contents->GetController();
@@ -403,12 +403,12 @@ TEST_F(SearchTest, IsNTPOrRelatedURL) {
 // See search::IsNTPURL(const GURL& url);
 TEST_F(SearchTest, IsNTPURL) {
   const SearchTestCase kTestCases[] = {
-      {"chrome-search://remote-ntp", true, "Remote NTP URL"},
-      {"chrome://new-tab-page", true, "WebUI NTP"},
-      {"chrome://new-tab-page/path?params", true,
+      {"wootzapp-search://remote-ntp", true, "Remote NTP URL"},
+      {"wootzapp://new-tab-page", true, "WebUI NTP"},
+      {"wootzapp://new-tab-page/path?params", true,
        "WebUI NTP with path and params"},
       {"invalid-scheme://remote-ntp", false, "Invalid Remote NTP URL"},
-      {"chrome-search://most-visited/", false, "Most visited URL"},
+      {"wootzapp-search://most-visited/", false, "Most visited URL"},
       {"", false, "Invalid URL"},
   };
 
@@ -439,7 +439,7 @@ TEST_F(SearchTest, SearchProviderWithPort) {
       GURL("https://[::1]:1993/newtab?lala"), profile()));
   EXPECT_FALSE(ShouldAssignURLToInstantRenderer(
       GURL("https://[::1]:1992/newtab?lala"), profile()));
-  EXPECT_EQ(GURL("chrome-search://remote-ntp/newtab?lala"),
+  EXPECT_EQ(GURL("wootzapp-search://remote-ntp/newtab?lala"),
             GetEffectiveURLForInstant(GURL("https://[::1]:1993/newtab?lala"),
                                       profile()));
   EXPECT_FALSE(ShouldAssignURLToInstantRenderer(

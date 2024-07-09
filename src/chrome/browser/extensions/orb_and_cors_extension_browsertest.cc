@@ -2137,7 +2137,7 @@ IN_PROC_BROWSER_TEST_F(OrbAndCorsExtensionBrowserTest,
     // would otherwise occur when navigating to a WebUI pages from either the
     // NTP or from a web page).  This simulates choosing "Settings" from the
     // main menu.
-    GURL web_ui_url("chrome://settings");
+    GURL web_ui_url("wootzapp://settings");
     NavigateParams nav_params(
         browser(), web_ui_url,
         ui::PageTransitionFromInt(ui::PAGE_TRANSITION_GENERATED));
@@ -2184,7 +2184,7 @@ IN_PROC_BROWSER_TEST_F(OrbAndCorsExtensionBrowserTest,
     std::string actual_error = api_test_utils::RunFunctionAndReturnError(
         function.get(), args, browser()->profile());
     std::string expected_error =
-        "Cannot access contents of url \"chrome://settings/\". "
+        "Cannot access contents of url \"wootzapp://settings/\". "
         "Extension manifest must request permission to access this host.";
     EXPECT_EQ(expected_error, actual_error);
 
@@ -2361,7 +2361,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(actual_origin_header,
-              ::testing::Not(::testing::HasSubstr("chrome-extension")));
+              ::testing::Not(::testing::HasSubstr("wootzapp-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
@@ -2411,7 +2411,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(actual_origin_header,
-              ::testing::Not(::testing::HasSubstr("chrome-extension")));
+              ::testing::Not(::testing::HasSubstr("wootzapp-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
@@ -2454,7 +2454,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(fetch_result,
-              ::testing::Not(::testing::HasSubstr("Origin: chrome-extension")));
+              ::testing::Not(::testing::HasSubstr("Origin: wootzapp-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OrbAndCorsExtensionBrowserTest,

@@ -24,13 +24,13 @@ namespace {
 const char* const kNonDevUiUrls[] = {
     "https://example.com",
     "https://example.com/path?query#frag",
-    "chrome://credits",
-    "chrome://credits/path?query#frag",
+    "wootzapp://credits",
+    "wootzapp://credits/path?query#frag",
 };
 
 const char* const kDevUiUrls[] = {
-    "chrome://bluetooth-internals",
-    "chrome://bluetooth-internals/path?query#frag",
+    "wootzapp://bluetooth-internals",
+    "wootzapp://bluetooth-internals/path?query#frag",
 };
 
 /******** MockDevUiModuleProvider ********/
@@ -165,18 +165,18 @@ TEST_F(DevUiLoaderThrottleTest, PreventAccidentalInclusion) {
   auto ShouldInstallDevUiDfm = DevUiLoaderThrottle::ShouldInstallDevUiDfm;
 
   // Useful to have the catalog always.
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://chrome-urls")));
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://about")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://wootzapp-urls")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://about")));
   // Inclusion in base module is mandatory.
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://credits")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://credits")));
   // Well-loved game, and shown when there's no internet (cannot install DFM).
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://dino")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://dino")));
   // chrome://flags has relatively high usage.
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://flags")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://flags")));
   // Useful for filing bugs.
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://version")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://version")));
   // Used by Android WebView.
-  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("chrome://safe-browsing")));
+  EXPECT_FALSE(ShouldInstallDevUiDfm(GURL("wootzapp://safe-browsing")));
 }
 
 TEST_F(DevUiLoaderThrottleTest, MaybeCreateThrottleFor) {

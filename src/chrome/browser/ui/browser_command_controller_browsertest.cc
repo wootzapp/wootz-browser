@@ -332,7 +332,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
       browser()->tab_strip_model()->GetActiveWebContents();
   content::WaitForLoadStop(web_contents);
   EXPECT_EQ(web_contents->GetURL().possibly_invalid_spec(),
-            "chrome://settings/manageProfile");
+            "wootzapp://settings/manageProfile");
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
@@ -357,7 +357,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
       browser()->tab_strip_model()->GetActiveWebContents();
   content::WaitForLoadStop(web_contents);
   EXPECT_EQ(web_contents->GetURL().possibly_invalid_spec(),
-            "chrome://settings/syncSetup");
+            "wootzapp://settings/syncSetup");
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
@@ -388,7 +388,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
                        ExecuteProfileMenuAddNewProfile) {
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_ADD_NEW_PROFILE));
   profiles::testing::WaitForPickerLoadStop(
-      GURL("chrome://profile-picker/new-profile"));
+      GURL("wootzapp://profile-picker/new-profile"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 }
 
@@ -403,7 +403,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
 IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
                        ShowTranslateStatusChromePage) {
   ASSERT_TRUE(embedded_test_server()->Start());
-  GURL url = GURL("chrome://new-tab-page/");
+  GURL url = GURL("wootzapp://new-tab-page/");
   translate::TranslateManager::SetIgnoreMissingKeyForTesting(true);
   net::NetworkChangeNotifier::CreateMockIfNeeded();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));

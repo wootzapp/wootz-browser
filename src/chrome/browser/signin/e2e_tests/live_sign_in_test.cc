@@ -263,7 +263,7 @@ IN_PROC_BROWSER_TEST_F(LiveSignInTest, MANUAL_CancelSyncWithWebAccount) {
   sign_in_functions.SignInFromWeb(test_account, 0);
 
   SignInTestObserver observer(identity_manager(), account_reconcilor());
-  GURL settings_url("chrome://settings");
+  GURL settings_url("wootzapp://settings");
   ASSERT_TRUE(AddTabAtIndex(0, settings_url,
                             ui::PageTransition::PAGE_TRANSITION_TYPED));
   auto* settings_tab = browser()->tab_strip_model()->GetActiveWebContents();
@@ -556,7 +556,7 @@ IN_PROC_BROWSER_TEST_F(LiveSignInTest, MANUAL_CreateSignedInProfile) {
   ProfilePicker::Show(ProfilePicker::Params::FromEntryPoint(
       ProfilePicker::EntryPoint::kProfileMenuAddNewProfile));
   profiles::testing::WaitForPickerLoadStop(
-      GURL("chrome://profile-picker/new-profile"));
+      GURL("wootzapp://profile-picker/new-profile"));
 
   // Simulate a click on the signin button.
   base::test::TestFuture<bool> proceed_future;
@@ -583,7 +583,7 @@ IN_PROC_BROWSER_TEST_F(LiveSignInTest, MANUAL_CreateSignedInProfile) {
   ui_test_utils::BrowserChangeObserver browser_added_observer(
       nullptr, ui_test_utils::BrowserChangeObserver::ChangeType::kAdded);
   GURL sync_confirmation_url = AppendSyncConfirmationQueryParams(
-      GURL("chrome://sync-confirmation/"), SyncConfirmationStyle::kWindow);
+      GURL("wootzapp://sync-confirmation/"), SyncConfirmationStyle::kWindow);
   profiles::testing::WaitForPickerLoadStop(sync_confirmation_url);
   LoginUIServiceFactory::GetForProfile(new_profile)
       ->SyncConfirmationUIClosed(LoginUIService::SYNC_WITH_DEFAULT_SETTINGS);

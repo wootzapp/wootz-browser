@@ -3753,7 +3753,7 @@ TEST_F(GLES2ImplementationTest, TraceBeginCHROMIUM) {
 
 TEST_F(GLES2ImplementationTest, SetActiveURLCHROMIUM) {
   const uint32_t kURLBucketId = GLES2Implementation::kResultBucketId;
-  const std::string url = "chrome://test";
+  const std::string url = "wootzapp://test";
   const size_t kPaddedStringSize =
       transfer_buffer_->RoundToAlignment(url.size());
 

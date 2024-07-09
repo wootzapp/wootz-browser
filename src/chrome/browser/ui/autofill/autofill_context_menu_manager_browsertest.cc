@@ -908,14 +908,14 @@ IN_PROC_BROWSER_TEST_F(
     ImportPasswordsTriggersOpeningPaswordManagerTabAndRecordsMetrics) {
   base::HistogramTester histogram_tester;
   ASSERT_NE(web_contents()->GetLastCommittedURL(),
-            "chrome://password-manager/");
+            "cwootzapphrome://password-manager/");
 
   autofill_context_menu_manager()->ExecuteCommand(
       IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_IMPORT_PASSWORDS);
 
   EXPECT_TRUE(base::test::RunUntil([&]() {
     return web_contents()->GetLastCommittedURL() ==
-           "chrome://password-manager/";
+           "wootzapp://password-manager/";
   }));
   histogram_tester.ExpectUniqueSample(
       "PasswordManager.ManagePasswordsReferrer",

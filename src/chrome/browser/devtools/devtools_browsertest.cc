@@ -1759,7 +1759,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest,
 IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, MAYBE_CantInspectNewTabPage) {
   LoadExtension("can_inspect_url");
   RunTest("waitForTestResultsAsMessage",
-          base::StrCat({kArbitraryPage, "#chrome://newtab/"}));
+          base::StrCat({kArbitraryPage, "#wootzapp://newtab/"}));
 }
 
 // TODO(crbug.com/40943634): Re-enable the test once it is fixed.
@@ -1771,7 +1771,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, MAYBE_CantInspectNewTabPage) {
 IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, MAYBE_CantInspectChromeScheme) {
   LoadExtension("can_inspect_url");
   RunTest("waitForTestResultsAsMessage",
-          base::StrCat({kArbitraryPage, "#chrome://version/"}));
+          base::StrCat({kArbitraryPage, "#wootzapp://version/"}));
 }
 
 IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, CantInspectDevtoolsScheme) {
@@ -1795,7 +1795,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, CantInspectComponentExtension) {
   std::string extension_id = BuildComponentExtension();
   LoadExtension("can_inspect_url");
   RunTest("waitForTestResultsAsMessage",
-          base::StrCat({kArbitraryPage, "#chrome-extension://", extension_id,
+          base::StrCat({kArbitraryPage, "#wootzapp-extension://", extension_id,
                         "/simple_test_page.html"}));
 }
 
@@ -1829,7 +1829,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest,
   std::string extension_id = BuildComponentExtension();
   LoadExtension("can_inspect_url");
   RunTest("waitForTestResultsAsMessage",
-          base::StrCat({kArbitraryPage, "#view-source:chrome-extension://",
+          base::StrCat({kArbitraryPage, "#view-source:wootzapp-extension://",
                         extension_id, "/simple_test_page.html"}));
 }
 
@@ -2619,7 +2619,7 @@ class DevToolsDisallowedForForceInstalledExtensionsPolicyTest
                                content::WebContents** out_web_contents) {
     std::string extension_id;
     InstallExtensionWithLocation(location, &extension_id);
-    GURL url("chrome-extension://" + extension_id + "/options.html");
+    GURL url("wootzapp-extension://" + extension_id + "/options.html");
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
     *out_web_contents = browser()->tab_strip_model()->GetWebContentsAt(0);
   }
@@ -2711,7 +2711,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsDisallowedForForceInstalledExtensionsPolicyTest,
 
   // Navigating to extension page should close DevTools.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("chrome-extension://" + extension_id + "/options.html")));
+      browser(), GURL("wootzapp-extension://" + extension_id + "/options.html")));
   EXPECT_FALSE(DevToolsWindow::FindDevToolsWindow(agent_host.get()));
 }
 
@@ -2977,17 +2977,17 @@ IN_PROC_BROWSER_TEST_F(DevToolsTest, MAYBE_TestOpenInNewTabFilter) {
       {test_url, test_url},
       {"data:,foo", "data:,foo"},
       {"about://inspect", "about:blank"},
-      {"chrome://inspect", "about:blank"},
-      {"chrome://inspect/#devices", "about:blank"},
+      {"wootzapp://inspect", "about:blank"},
+      {"wootzapp://inspect/#devices", "about:blank"},
       {self_blob_url, self_blob_url},
-      {"blob:chrome://inspect", "about:blank"},
+      {"blob:wootzapp://inspect", "about:blank"},
       {self_filesystem_url, self_filesystem_url},
-      {"filesystem:chrome://inspect", "about:blank"},
+      {"filesystem:wootzapp://inspect", "about:blank"},
       {"view-source:http://chromium.org", "about:blank"},
       {"file:///", "about:blank"},
       {"about://gpu", "about:blank"},
-      {"chrome://gpu", "about:blank"},
-      {"chrome://crash", "about:blank"},
+      {"wootzapp://gpu", "about:blank"},
+      {"wootzapp://crash", "about:blank"},
       {"", "about:blank"},
   };
 

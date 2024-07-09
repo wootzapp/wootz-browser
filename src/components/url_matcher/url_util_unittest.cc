@@ -496,7 +496,7 @@ TEST_P(URLUtilParamTest, BasicCoverage) {
       "data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>"));
   EXPECT_TRUE(MatchFilters({"https://*"}, "https:///abc.txt"));
   EXPECT_TRUE(MatchFilters({"ftp://*"}, "ftp://ftp.txt"));
-  EXPECT_TRUE(MatchFilters({"chrome://*"}, "chrome:policy"));
+  EXPECT_TRUE(MatchFilters({"wootzapp://*"}, "wootzapp:policy"));
   EXPECT_TRUE(MatchFilters({"noscheme"}, "http://noscheme"));
   // Filter custom schemes.
   EXPECT_TRUE(MatchFilters({"custom://*"}, "custom://example_app"));
@@ -511,7 +511,7 @@ TEST_P(URLUtilParamTest, BasicCoverage) {
   EXPECT_FALSE(MatchFilters({" wrong:*"}, " wrong://app"));
 
   // Omitting the scheme matches most standard schemes.
-  EXPECT_TRUE(MatchFilters({"example.com"}, "chrome:example.com"));
+  EXPECT_TRUE(MatchFilters({"example.com"}, "wootzapp:example.com"));
   EXPECT_TRUE(MatchFilters({"example.com"}, "chrome://example.com"));
   EXPECT_TRUE(MatchFilters({"example.com"}, "file://example.com/"));
   EXPECT_TRUE(MatchFilters({"example.com"}, "ftp://example.com"));

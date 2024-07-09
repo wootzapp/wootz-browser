@@ -109,7 +109,7 @@ export class TabSearchItem extends TabSearchItemBase {
     return tab.faviconUrl ?
         `url("${tab.faviconUrl.url}")` :
         getFaviconForPageURL(
-            tab.isDefaultFavicon ? 'chrome://newtab' : tab.url.url, false);
+            tab.isDefaultFavicon ? 'wootzapp://newtab' : tab.url.url, false);
   }
 
   /**
@@ -179,8 +179,8 @@ export class TabSearchItem extends TabSearchItemBase {
 
     // Show chrome:// if it's a chrome internal url
     const protocol = new URL(normalizeURL(data.tab.url.url)).protocol;
-    if (protocol === 'chrome:') {
-      this.$.secondaryText.prepend(document.createTextNode('chrome://'));
+    if (protocol === 'wootzapp:') {
+      this.$.secondaryText.prepend(document.createTextNode('wootzapp://'));
     }
 
     if (data.tabGroup) {

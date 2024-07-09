@@ -10,7 +10,7 @@ import {$} from 'chrome://resources/js/util.js';
  *    numerical error ID and error code string.
  */
 function listErrorCodes(errorCodes) {
-  const errorPageUrl = 'chrome://network-error/';
+  const errorPageUrl = 'wootzapp://network-error/';
   const errorCodesList = document.createElement('ul');
   for (let i = 0; i < errorCodes.length; i++) {
     const listEl = document.createElement('li');

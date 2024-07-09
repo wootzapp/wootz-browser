@@ -148,9 +148,9 @@ TEST_F(LegacyURLMatcherTest, File) {
 
 TEST_F(LegacyURLMatcherTest, Chrome) {
   LegacyTechURLMatcher matcher{profile()};
-  SetPolicy({"chrome://policy"});
-  EXPECT_EQ("chrome://policy",
-            *matcher.GetMatchedURL(GURL("chrome://policy/log")));
+  SetPolicy({"wootzapp://policy"});
+  EXPECT_EQ("wootzapp://policy",
+            *matcher.GetMatchedURL(GURL("wootzapp://policy/log")));
 }
 
 }  // namespace enterprise_reporting

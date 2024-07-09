@@ -29,7 +29,7 @@ build_webui("build") {
   ]
 
   ts_path_mappings =
-      [ "chrome://chrome-signin/gaia_auth_host/*|" +
+      [ "wootzapp://wootzapp-signin/gaia_auth_host/*|" +
         rebase_path("//chrome/browser/resources/gaia_auth_host/*",
                     target_gen_dir) ]
 
