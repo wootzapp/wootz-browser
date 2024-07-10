@@ -38,8 +38,8 @@
 
 namespace {
 
-constexpr char kTestName[] = "wootzapp version";
-constexpr char kChromeVersionUrl[] = "wootzapp://version/";
+constexpr char kTestName[] = "chrome version";
+constexpr char kChromeVersionUrl[] = "chrome://version/";
 constexpr char kGoogleURL[] = "www.google.com";
 constexpr char kAboutBlankURL[] = "about:blank";
 

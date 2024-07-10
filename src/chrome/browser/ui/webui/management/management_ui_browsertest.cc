@@ -84,7 +84,7 @@ class ManagementUITest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(ManagementUITest, MAYBE_ManagementStateChange) {
   profile_policy_connector()->OverrideIsManagedForTesting(false);
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://management")));
+      ui_test_utils::NavigateToURL(browser(), GURL("chrome://management")));
 
   // The browser is not managed.
   const std::string javascript =

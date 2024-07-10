@@ -63,7 +63,7 @@ std::unique_ptr<ash::DeskTemplate> GetFirstAdminTemplate() {
               .Build())
       .AddAppWindow(
           SavedDeskBrowserBuilder()
-              .SetUrls({GURL("wootzapp://version/"),
+              .SetUrls({GURL("chrome://version/"),
                         GURL("https://dev.chromium.org/")})
               .SetGenericBuilder(
                   SavedDeskGenericAppBuilder().SetWindowId(30001).SetEventFlag(

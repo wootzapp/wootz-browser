@@ -3095,7 +3095,7 @@ TEST_F(WebContentsImplTest, CanonicalUrlSchemeHttpsIsAllowed) {
 }
 
 TEST_F(WebContentsImplTest, CanonicalUrlSchemeChromeIsNotAllowed) {
-  TestCanonicalUrlLocalFrame local_frame(contents(), GURL("wootzapp://someurl/"));
+  TestCanonicalUrlLocalFrame local_frame(contents(), GURL("chrome://someurl/"));
   NavigationSimulator::NavigateAndCommitFromBrowser(contents(),
                                                     GURL("https://site/"));
 

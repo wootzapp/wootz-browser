@@ -204,7 +204,7 @@ IN_PROC_BROWSER_TEST_P(FirstRunLacrosInteractiveUiTest,
   ASSERT_TRUE(IsProfileNameDefault());
   OpenFirstRun(proceed_future.GetCallback());
   GURL sync_page_url = AppendSyncConfirmationQueryParams(
-      GURL("wootzapp://sync-confirmation/"), SyncConfirmationStyle::kWindow);
+      GURL("chrome://sync-confirmation/"), SyncConfirmationStyle::kWindow);
 
   RunTestSequenceInContext(
       views::ElementTrackerViews::GetContextForView(view()),

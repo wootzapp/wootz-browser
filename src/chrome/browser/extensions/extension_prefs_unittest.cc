@@ -204,7 +204,7 @@ class ExtensionPrefsGrantedPermissions : public ExtensionPrefsTest {
 
     AddPattern(&ehost_perm_set1_, "http://*.google.com/*");
     AddPattern(&ehost_perm_set1_, "http://example.com/*");
-    AddPattern(&ehost_perm_set1_, "wootzapp://favicon/*");
+    AddPattern(&ehost_perm_set1_, "chrome://favicon/*");
 
     AddPattern(&ehost_perm_set2_, "https://*.google.com/*");
     // with duplicate:
@@ -219,7 +219,7 @@ class ExtensionPrefsGrantedPermissions : public ExtensionPrefsTest {
 
     AddPattern(&ehost_permissions_, "http://*.google.com/*");
     AddPattern(&ehost_permissions_, "http://example.com/*");
-    AddPattern(&ehost_permissions_, "wootzapp://favicon/*");
+    AddPattern(&ehost_permissions_, "chrome://favicon/*");
     AddPattern(&ehost_permissions_, "https://*.google.com/*");
 
     AddPattern(&shost_permissions_, "http://reddit.com/r/test/*");
@@ -337,7 +337,7 @@ class ExtensionPrefsActivePermissions : public ExtensionPrefsTest {
       URLPatternSet ehosts;
       AddPattern(&ehosts, "http://*.google.com/*");
       AddPattern(&ehosts, "http://example.com/*");
-      AddPattern(&ehosts, "wootzapp://favicon/*");
+      AddPattern(&ehosts, "chrome://favicon/*");
 
       URLPatternSet shosts;
       AddPattern(&shosts, "https://*.google.com/*");
@@ -912,7 +912,7 @@ class ExtensionPrefsComponentExtension : public ExtensionPrefsTest {
     api_perms.insert(APIPermissionID::kHistory);
 
     URLPatternSet shosts;
-    AddPattern(&shosts, "wootzapp://print/*");
+    AddPattern(&shosts, "chrome://print/*");
 
     active_perms_ = std::make_unique<PermissionSet>(
         std::move(api_perms), ManifestPermissionSet(), URLPatternSet(),

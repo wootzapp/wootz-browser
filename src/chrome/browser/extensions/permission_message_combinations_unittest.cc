@@ -540,7 +540,7 @@ TEST_F(PermissionMessageCombinationsUnittest, HostsPermissionMessages) {
       "{"
       "  'permissions': ["
       "    'http://*.go.com/',"
-      "    'wootzapp://favicon/',"
+      "    'chrome://favicon/',"
       "  ]"
       "}");
   ASSERT_TRUE(CheckManifestProducesPermissions(
@@ -553,7 +553,7 @@ TEST_F(PermissionMessageCombinationsUnittest, HostsPermissionMessages) {
       "{"
       "  'permissions': ["
       "    'http://*.go.com/',"
-      "    'wootzapp://favicon/',"
+      "    'chrome://favicon/',"
       "    'http://*.*',"
       "  ]"
       "}");

@@ -6,16 +6,16 @@
 
 namespace safe_browsing {
 
-const char kChromeUISafeBrowsingURL[] = "wootzapp://safe-browsing/";
+const char kChromeUISafeBrowsingURL[] = "chrome://safe-browsing/";
 const char kChromeUISafeBrowsingHost[] = "safe-browsing";
 const char kChromeUISafeBrowsingMatchBillingUrl[] =
-    "wootzapp://safe-browsing/match?type=billing";
+    "chrome://safe-browsing/match?type=billing";
 const char kChromeUISafeBrowsingMatchMalwareUrl[] =
-    "wootzapp://safe-browsing/match?type=malware";
+    "chrome://safe-browsing/match?type=malware";
 const char kChromeUISafeBrowsingMatchPhishingUrl[] =
-    "wootzapp://safe-browsing/match?type=phishing";
+    "chrome://safe-browsing/match?type=phishing";
 const char kChromeUISafeBrowsingMatchUnwantedUrl[] =
-    "wootzapp://safe-browsing/match?type=unwanted";
+    "chrome://safe-browsing/match?type=unwanted";
 
 bool IsSafeBrowsingWebUIUrl(const GURL& url) {
   return url == kChromeUISafeBrowsingMatchMalwareUrl ||

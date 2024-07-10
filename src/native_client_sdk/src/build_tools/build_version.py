@@ -19,7 +19,7 @@ import lastchange
 
 
 # Location of chrome's version file.
-VERSION_PATH = os.path.join(SRC_DIR, 'wootzapp', 'VERSION')
+VERSION_PATH = os.path.join(SRC_DIR, 'chrome', 'VERSION')
 
 
 def ChromeVersion():

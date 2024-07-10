@@ -38,7 +38,7 @@ TEST_F(PermissionsManagerUnitTest, FaviconPermissionsAreNotWithheld) {
   ASSERT_TRUE(extension);
 
   URLPattern chrome_favicon_pattern(Extension::kValidHostPermissionSchemes,
-                                    "wootzapp://favicon/");
+                                    "chrome://favicon/");
   EXPECT_TRUE(extension->permissions_data()
                   ->active_permissions()
                   .explicit_hosts()

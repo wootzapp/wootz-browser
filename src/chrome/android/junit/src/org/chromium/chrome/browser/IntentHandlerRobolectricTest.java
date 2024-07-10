@@ -674,10 +674,10 @@ public class IntentHandlerRobolectricTest {
 
         Assert.assertTrue(IntentHandler.wasIntentSenderChrome(trustedIntent));
 
-        trustedIntent.setData(Uri.parse("wootzapp://credits"));
+        trustedIntent.setData(Uri.parse("chrome://credits"));
         Assert.assertFalse(IntentHandler.shouldIgnoreIntent(trustedIntent, null));
 
-        trustedIntent.setData(Uri.parse("wootzapp-native://newtab"));
+        trustedIntent.setData(Uri.parse("chrome-native://newtab"));
         Assert.assertFalse(IntentHandler.shouldIgnoreIntent(trustedIntent, null));
     }
 
@@ -688,10 +688,10 @@ public class IntentHandlerRobolectricTest {
         Intent untrustedIntent = new Intent(Intent.ACTION_VIEW);
         Assert.assertFalse(IntentHandler.wasIntentSenderChrome(untrustedIntent));
 
-        untrustedIntent.setData(Uri.parse("wootzapp://credits"));
+        untrustedIntent.setData(Uri.parse("chrome://credits"));
         Assert.assertTrue(IntentHandler.shouldIgnoreIntent(untrustedIntent, null));
 
-        untrustedIntent.setData(Uri.parse("wootzapp-native://newtab"));
+        untrustedIntent.setData(Uri.parse("chrome-native://newtab"));
         Assert.assertTrue(IntentHandler.shouldIgnoreIntent(untrustedIntent, null));
     }
 

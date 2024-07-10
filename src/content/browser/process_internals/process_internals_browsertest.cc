@@ -28,7 +28,7 @@ class ProcessInternalsWebUiBrowserTest : public ContentBrowserTest {
 // This test verifies that loading of the process-internals WebUI works
 // correctly and the process rendering it has no WebUI bindings.
 IN_PROC_BROWSER_TEST_F(ProcessInternalsWebUiBrowserTest, NoProcessBindings) {
-  GURL url("wootzapp://process-internals/#web-contents");
+  GURL url("chrome://process-internals/#web-contents");
   EXPECT_TRUE(NavigateToURL(shell(), url));
 
   EXPECT_FALSE(ChildProcessSecurityPolicyImpl::GetInstance()->HasWebUIBindings(
@@ -53,7 +53,7 @@ IN_PROC_BROWSER_TEST_F(ProcessInternalsWebUiBrowserTest,
                        MojoJsBindingsCorrectlyScoped) {
   const std::u16string passed_title = u"passed";
 
-  GURL url("wootzapp://process-internals/#web-contents");
+  GURL url("chrome://process-internals/#web-contents");
   EXPECT_TRUE(NavigateToURL(shell(), url));
   {
     TitleWatcher sent_title_watcher(shell()->web_contents(), passed_title);

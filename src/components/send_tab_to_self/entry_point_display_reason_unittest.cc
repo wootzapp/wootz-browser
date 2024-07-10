@@ -140,7 +140,7 @@ TEST_F(EntryPointDisplayReasonTest, ShouldOnlyOfferFeatureIfHttpOrHttps) {
                                  send_tab_to_self_model(), pref_service()));
 
   EXPECT_FALSE(
-      GetEntryPointDisplayReason(GURL("wootzapp://flags"), sync_service(),
+      GetEntryPointDisplayReason(GURL("chrome://flags"), sync_service(),
                                  send_tab_to_self_model(), pref_service()));
 
   EXPECT_FALSE(

@@ -89,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(SubAppsInstallDialogControllerBrowserTest,
   static_cast<views::StyledLabel*>(manage_permissions_link)
       ->ClickFirstLinkForTesting();
 
-  std::string app_settings_url = "wootzapp://os-settings/app-management";
+  std::string app_settings_url = "chrome://os-settings/app-management";
   GURL parent_app_settings_url(app_settings_url +
                                "/detail?id=" + parent_app_id);
 

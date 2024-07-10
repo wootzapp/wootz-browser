@@ -57,9 +57,9 @@ export class PrintPreviewDestinationListItemElement extends PolymerElement {
           this.shadowRoot!.querySelector<HTMLElement>('.extension-icon');
       assert(icon);
       icon.style.backgroundImage = 'image-set(' +
-          'url(wootzapp://extension-icon/' + this.destination.extensionId +
+          'url(chrome://extension-icon/' + this.destination.extensionId +
           '/24/1) 1x,' +
-          'url(wootzapp://extension-icon/' + this.destination.extensionId +
+          'url(chrome://extension-icon/' + this.destination.extensionId +
           '/48/1) 2x)';
     }
   }

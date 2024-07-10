@@ -55,7 +55,7 @@ std::u16string TestThirdPartyCookiePhaseoutInfoBarDelegate::GetLinkText()
 }
 
 GURL TestThirdPartyCookiePhaseoutInfoBarDelegate::GetLinkURL() const {
-  return GURL("wootzapp://flags/#test-third-party-cookie-phaseout");
+  return GURL("chrome://flags/#test-third-party-cookie-phaseout");
 }
 
 bool TestThirdPartyCookiePhaseoutInfoBarDelegate::ShouldExpire(

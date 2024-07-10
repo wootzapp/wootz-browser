@@ -46,14 +46,14 @@ const StringWithRedaction kStringsWithRedactions[] = {
     {"wootzapp://settings/crisper.js",  // Exempt settings URLs.
      "wootzapp://settings/crisper.js", PIIType::kNone},
     // Exempt first party extension.
-    {"wootzapp-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",
-     "wootzapp-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",
+    {"chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",
+     "chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",
      PIIType::kNone},
     {"aaaaaaaahttp://tets.comaaaaaaa",  // URL.
      "aaaaaaaa(URL: 1)", PIIType::kURL},
     {"chrome://resources/f?user=bar",  // Potentially PII in parameter.
      "(URL: 2)", PIIType::kURL},
-    {"wootzapp-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js?bar=x",
+    {"chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js?bar=x",
      "(URL: 3)", PIIType::kURL},  // Potentially PII in parameter.
     {"isolated-app://airugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaac/",
      "(URL: 4)", PIIType::kURL},                  // URL
@@ -622,8 +622,8 @@ TEST_F(RedactionToolTest, RedactCustomPatterns) {
       "http://test.com/foo(bar)baz.html",
       "http://test.com/foo%20bar",
       "ftp://test:tester@test.com",
-      "wootzapp://extensions/",
-      "wootzapp-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/options.html",
+      "chrome://extensions/",
+      "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/options.html",
       "http://example.com/foo?email=foo@bar.com",
       "rtsp://root@example.com/",
       "https://aaaaaaaaaaaaaaaa.com",
@@ -904,7 +904,7 @@ TEST_F(RedactionToolTest, DetectPII) {
           "isolated-app://"
           "airugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaac/",
           "chrome://resources/f?user=bar",
-          "wootzapp-extension://nkoccljplnhpfnfiajclkommnmllphnl/"
+          "chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/"
           "foobar.js?bar=x"}},
         {PIIType::kEmail, {"aaaaaemail@example.comaaa"}},
         {PIIType::kIPAddress,

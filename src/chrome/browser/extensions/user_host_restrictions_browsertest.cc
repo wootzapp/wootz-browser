@@ -556,7 +556,7 @@ IN_PROC_BROWSER_TEST_P(UserHostRestrictionsWithPermittedSitesBrowserTest,
   const Extension* extension = LoadExtension(test_dir.UnpackedPath());
   ASSERT_TRUE(extension);
 
-  const GURL favicon_url("wootzapp://favicon/http://example.com");
+  const GURL favicon_url("chrome://favicon/http://example.com");
   EXPECT_TRUE(extension->permissions_data()->HasHostPermission(favicon_url));
 
   WithholdExtensionPermissions(*extension);

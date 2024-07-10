@@ -23,7 +23,7 @@ A developer can register on the `Origin Trial Console
 and receive a token, which can be embedded into a page and will enable the feature without the user needing to use a flag.
 (For more details see the linked guide). The trial is scheduled to last through Chrome 78, approximately until December 2019.
 This change is not intended to affect NaCl or PNaCl in Chrome Apps or extensions, and the "enable-nacl"
-flag in wootzapp://flags can also be used to enable PNaCl locally for testing
+flag in chrome://flags can also be used to enable PNaCl locally for testing
 (this flag also retains its current function of enabling non-PNaCl "native" NaCl on any page).
 
 We also recently announced the deprecation Q1 2018 of

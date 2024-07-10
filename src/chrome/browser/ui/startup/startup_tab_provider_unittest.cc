@@ -248,7 +248,7 @@ TEST(StartupTabProviderTest, GetCommandLineTabs) {
   // from Ash will work (URLs from untrustworthy applications are filtered
   // before getting to StartupTabProvider).
   {
-    base::CommandLine command_line({CMD_ARG(""), CMD_ARG("wootzapp://flags")});
+    base::CommandLine command_line({CMD_ARG(""), CMD_ARG("chrome://flags")});
     StartupTabProviderImpl instance;
     StartupTabs output =
         instance.GetCommandLineTabs(command_line, base::FilePath(), &profile);

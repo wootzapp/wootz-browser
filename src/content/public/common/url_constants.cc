@@ -12,7 +12,7 @@ namespace content {
 // Before adding new chrome schemes please check with security@chromium.org.
 // There are security implications associated with introducing new schemes.
 const char kChromeDevToolsScheme[] = "devtools";
-const char kChromeErrorScheme[] = "wootzapp-error";
+const char kChromeErrorScheme[] = "chrome-error";
 const char kChromeUIScheme[] = "wootzapp";
 const char kChromeUIUntrustedScheme[] = "chrome-untrusted";
 const char kViewSourceScheme[] = "view-source";
@@ -35,7 +35,8 @@ const char kChromeUIMediaInternalsHost[] = "media-internals";
 const char kChromeUIMemoryExhaustHost[] = "memory-exhaust";
 const char kChromeUINetworkErrorHost[] = "network-error";
 const char kChromeUINetworkErrorsListingHost[] = "network-errors";
-const char kChromeUIPrivateAggregationInternalsHost[] ="private-aggregation-internals";
+const char kChromeUIPrivateAggregationInternalsHost[] =
+    "private-aggregation-internals";
 const char kChromeUIProcessInternalsHost[] = "process-internals";
 const char kChromeUIQuotaInternalsHost[] = "quota-internals";
 const char kChromeUIResourcesHost[] = "resources";
@@ -51,7 +52,7 @@ const char kChromeUIWebXrInternalsHost[] = "webxr-internals";
 
 // This error URL is loaded in normal web renderer processes, so it should not
 // have a chrome:// scheme that might let it be confused with a WebUI page.
-const char kUnreachableWebDataURL[] = "wootzapp-error://chromewebdata/";
+const char kUnreachableWebDataURL[] = "chrome-error://chromewebdata/";
 
 const char kBlockedURL[] = "about:blank#blocked";
 

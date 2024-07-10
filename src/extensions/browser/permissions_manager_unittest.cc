@@ -292,7 +292,7 @@ TEST_F(PermissionsManagerUnittest, GetSiteAccess_AllUrls) {
 
   // Chrome pages should be restricted, and the extension shouldn't have grant
   // or withheld site access.
-  const GURL restricted_url("wootzapp://extensions");
+  const GURL restricted_url("chrome://extensions");
   {
     const PermissionsManager::ExtensionSiteAccess site_access =
         manager_->GetSiteAccess(*extension, restricted_url);

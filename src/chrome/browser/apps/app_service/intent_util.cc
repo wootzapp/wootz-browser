@@ -105,7 +105,7 @@ apps::IntentFilterPtr CreateFileURLFilter(
 const std::string URLPatternToFileSystemPattern(const URLPattern& pattern,
                                                 bool legacy) {
   const char* scheme =
-      legacy ? "wootzapp-extension://*" : "wootzapp://file-manager";
+      legacy ? "chrome-extension://*" : "chrome://file-manager";
   std::string path =
       base::StrCat({url::kFileSystemScheme, ":", scheme, pattern.path()});
   base::ReplaceChars(path, ".", R"(\.)", &path);

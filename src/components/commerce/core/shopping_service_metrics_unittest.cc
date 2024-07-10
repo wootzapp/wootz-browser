@@ -315,7 +315,7 @@ TEST_F(ShoppingServiceMetricsTest, TestLocalPDPDetection_IllegalScheme) {
   auto result = base::Value::Dict();
   result.Set(kOgType, kOgTypeOgProduct);
   base::Value js_result(std::move(result));
-  MockWebWrapper web(GURL("wootzapp://internal-page"), false, &js_result);
+  MockWebWrapper web(GURL("chrome://internal-page"), false, &js_result);
 
   opt_guide_->SetResponse(GURL(kProductUrl), OptimizationType::PRICE_TRACKING,
                           OptimizationGuideDecision::kFalse,

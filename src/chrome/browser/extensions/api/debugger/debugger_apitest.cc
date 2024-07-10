@@ -329,7 +329,7 @@ IN_PROC_BROWSER_TEST_F(DebuggerApiTest,
   EXPECT_EQ("{\"foo\":\"bar\"}",
             content::EvalJs(blob_web_contents, "document.body.innerText"));
   EXPECT_TRUE(
-      RunAttachFunction(blob_web_contents, "Cannot access a wootzapp:// URL"));
+      RunAttachFunction(blob_web_contents, "Cannot access a chrome:// URL"));
 }
 
 IN_PROC_BROWSER_TEST_F(DebuggerApiTest,

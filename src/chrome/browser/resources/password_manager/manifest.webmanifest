@@ -3,13 +3,13 @@
   "name": "Password Manager",
   "icons": [
     {
-      "src": "wootzapp://password-manager/images/password_manager_logo.svg",
+      "src": "chrome://password-manager/images/password_manager_logo.svg",
       "type": "image/svg+xml",
       "sizes": "any"
     }
   ],
   "start_url": "/?source=pwa",
-  "id": "wootzapp://password-manager/",
+  "id": "chrome://password-manager/",
   "display": "standalone",
-  "scope": "wootzapp://password-manager/"
+  "scope": "chrome://password-manager/"
 }

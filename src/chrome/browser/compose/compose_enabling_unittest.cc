@@ -44,7 +44,7 @@ using testing::Return;
 namespace {
 constexpr char kEmail[] = "example@gmail.com";
 constexpr char kExampleURL[] = "https://example.com";
-constexpr char kExampleBadURL[] = "wootzapp://version";
+constexpr char kExampleBadURL[] = "chrome://version";
 using translate::testing::MockTranslateClient;
 
 class MockTranslateLanguageProvider : public TranslateLanguageProvider {

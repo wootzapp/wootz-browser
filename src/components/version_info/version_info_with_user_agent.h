@@ -21,7 +21,7 @@ std::string GetProductNameAndVersionForReducedUserAgent(
 // Returns the product name and version information for the User-Agent header,
 // in the format: Chrome/<major_version>.<minor_version>.<build>.<patch>.
 constexpr base::StringPiece GetProductNameAndVersionForUserAgent() {
-  return "WootzApp/" PRODUCT_VERSION;
+  return "Chrome/" PRODUCT_VERSION;
 }
 
 }  // namespace version_info

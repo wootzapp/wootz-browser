@@ -2278,7 +2278,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsZoomTest, CannotZoomInvalidTab) {
   error = RunSetZoomSettingsExpectError(bogus_id, "manual", "per-tab");
   EXPECT_TRUE(base::MatchPattern(error, keys::kTabNotFoundError));
 
-  const char kNewTestTabArgs[] = "wootzapp://version";
+  const char kNewTestTabArgs[] = "chrome://version";
   params = GetOpenParams(kNewTestTabArgs);
   web_contents = browser()->OpenURL(params, /*navigation_handle_callback=*/{});
   tab_id = ExtensionTabUtil::GetTabId(web_contents);

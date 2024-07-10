@@ -54,7 +54,7 @@ std::u16string BiddingAndAuctionConsentedDebuggingDelegate::GetLinkText()
 }
 
 GURL BiddingAndAuctionConsentedDebuggingDelegate::GetLinkURL() const {
-  return GURL("wootzapp://flags/#protected-audience-debugging");
+  return GURL("chrome://flags/#protected-audience-debugging");
 }
 
 bool BiddingAndAuctionConsentedDebuggingDelegate::ShouldExpire(

@@ -46,7 +46,7 @@ class BrowserUserEducationServiceUiTest : public InteractiveFeaturePromoTest {
   auto DoSetup() {
     return Steps(InstrumentTab(kMainContentsElementId),
                  NavigateWebContents(kMainContentsElementId,
-                                     GURL("wootzapp://internals/user-education")),
+                                     GURL("chrome://internals/user-education")),
                  NameDescendantViewByType<ToolbarView>(kTopContainerElementId,
                                                        kToolbarName),
                  NameViewRelative(kBrowserViewElementId, kContentsPaneName,

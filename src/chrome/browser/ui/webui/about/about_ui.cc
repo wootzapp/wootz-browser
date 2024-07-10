@@ -547,7 +547,7 @@ std::string ChromeURLs(content::BrowserContext* browser_context) {
     }
 
     html +=
-        "</ul><a id=\"internals\"><h2>List of WootzApp://internals "
+        "</ul><a id=\"internals\"><h2>List of wootzapp://internals "
         "pages</h2></a>\n<ul>\n";
     std::vector<std::string> internals_paths(
         chrome::kChromeInternalsPathURLs,

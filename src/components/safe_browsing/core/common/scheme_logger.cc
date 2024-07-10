@@ -36,11 +36,11 @@ const std::map<std::string, UrlScheme>& GetSchemeOptions() {
           {url::kWssScheme, UrlScheme::kWss},
           // From chrome/common/url_constants.cc
           {"isolated-app", UrlScheme::kIsolatedApp},
-          {"wootzapp-native", UrlScheme::kChromeNative},
-          {"wootzapp-search", UrlScheme::kChromeSearch},
+          {"chrome-native", UrlScheme::kChromeNative},
+          {"chrome-search", UrlScheme::kChromeSearch},
           // From content/public/common/url_constants.cc
           {"devtools", UrlScheme::kDevTools},
-          {"wootzapp-error", UrlScheme::kChromeError},
+          {"chrome-error", UrlScheme::kChromeError},
           {"wootzapp", UrlScheme::kChrome},
           {"chrome-untrusted", UrlScheme::kChromeUntrusted},
           {"view-source", UrlScheme::kViewSource},
@@ -53,7 +53,7 @@ const std::map<std::string, UrlScheme>& GetSchemeOptions() {
           // From components/dom_distiller/core/url_constants.cc
           {"chrome-distiller", UrlScheme::kChromeDistiller},
           // From extensions/common/constants.cc
-          {"wootzapp-extension", UrlScheme::kChromeExtension},
+          {"chrome-extension", UrlScheme::kChromeExtension},
       });
   return *scheme_options;
 }

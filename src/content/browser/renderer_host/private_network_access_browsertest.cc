@@ -989,7 +989,7 @@ IN_PROC_BROWSER_TEST_F(PrivateNetworkAccessBrowserTest,
 IN_PROC_BROWSER_TEST_F(PrivateNetworkAccessBrowserTest,
                        ClientSecurityStateForSpecialSchemeChromeURL) {
   // Not all chrome:// hosts are available in content/ but ukm is one of them.
-  EXPECT_TRUE(NavigateToURL(shell(), GURL("wootzapp://ukm")));
+  EXPECT_TRUE(NavigateToURL(shell(), GURL("chrome://ukm")));
   EXPECT_TRUE(
       root_frame_host()->GetLastCommittedURL().SchemeIs(kChromeUIScheme));
 

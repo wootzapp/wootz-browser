@@ -18,7 +18,7 @@
 
 namespace {
 
-const char* kTestURL = "wootzapp://test";
+const char* kTestURL = "chrome://test";
 
 }  // namespace
 

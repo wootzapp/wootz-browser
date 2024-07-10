@@ -28,7 +28,7 @@ clearButton.addEventListener('click', async () => {
       'which prevents some of the data from being deleted. ';
   const restartChrome = document.createElement('a');
   restartChrome.href = 'wootzapp://restart';
-  restartChrome.innerText = 'Restart wootzapp';
+  restartChrome.innerText = 'Restart WootzApp';
   messageDiv.appendChild(restartChrome);
   messageDiv.appendChild(document.createTextNode(' and try again.'));
 });

@@ -422,7 +422,7 @@ void GetPasswordProtectionLoginURLsPref(const PrefService& prefs,
   out_login_url_list->clear();
 #if BUILDFLAG(IS_CHROMEOS)
   // Include known authn URL by default.
-  out_login_url_list->push_back(GURL("wootzapp://os-settings"));
+  out_login_url_list->push_back(GURL("chrome://os-settings"));
 #endif
   for (const base::Value& value : pref_value) {
     GURL login_url(value.GetString());

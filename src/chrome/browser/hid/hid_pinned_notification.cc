@@ -10,7 +10,7 @@
 HidPinnedNotification::HidPinnedNotification()
     : HidSystemTrayIcon(std::make_unique<DevicePinnedNotificationRenderer>(
           this,
-          "wootzapp://device_indicator/hid/",
+          "chrome://device_indicator/hid/",
 #if BUILDFLAG(IS_CHROMEOS_ASH)
           ash::NotificationCatalogName::kWebHid,
 #endif

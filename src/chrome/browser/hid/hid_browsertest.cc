@@ -384,7 +384,7 @@ class WebHidExtensionBrowserTest : public extensions::ExtensionBrowserTest {
         IDC_DEVICE_SYSTEM_TRAY_ICON_FIRST + 2, 0);
     EXPECT_EQ(
         browser->tab_strip_model()->GetActiveWebContents()->GetURL(),
-        "wootzapp://settings/content/siteDetails?site=wootzapp-extension%3A%2F%2F" +
+        "wootzapp://settings/content/siteDetails?site=chrome-extension%3A%2F%2F" +
             extension->id());
 #endif
   }

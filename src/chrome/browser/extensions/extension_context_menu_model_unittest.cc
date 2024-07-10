@@ -1213,7 +1213,7 @@ TEST_F(ExtensionContextMenuModelTest,
        {}},
       // No access controls should ever show for restricted pages, like
       // chrome:-scheme pages or the webstore.
-      {"<all_urls>", "<all_urls>", GURL("wootzapp://extensions"), {}, {}},
+      {"<all_urls>", "<all_urls>", GURL("chrome://extensions"), {}, {}},
       {"<all_urls>",
        "<all_urls>",
        ExtensionsClient::Get()->GetWebstoreBaseURL(),

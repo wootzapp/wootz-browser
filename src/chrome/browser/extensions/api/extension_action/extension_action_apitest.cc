@@ -1201,7 +1201,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, SetPopupWithInvalidPath) {
   // Set the popup to an invalid nonexistent extension URL and expect an error.
   {
     static constexpr char kInvalidPopupUrl[] =
-        "wootzapp-extension://notavalidextensionid/popup.html";
+        "chrome-extension://notavalidextensionid/popup.html";
     RunTestAndWaitForSuccess(web_contents,
                              get_script(tab_id, kInvalidPopupUrl));
   }

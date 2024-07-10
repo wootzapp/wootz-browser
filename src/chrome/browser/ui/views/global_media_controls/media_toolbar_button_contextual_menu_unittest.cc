@@ -114,7 +114,7 @@ TEST_F(MediaToolbarButtonContextualMenuTest, ToggleOtherSessionsItem) {
 TEST_F(MediaToolbarButtonContextualMenuTest, ExecuteReportIssueCommand) {
   ExecuteReportIssueCommand();
   EXPECT_EQ(browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL(),
-            GURL("wootzapp://cast-feedback"));
+            GURL("chrome://cast-feedback"));
 }
 #endif
 

@@ -17,7 +17,7 @@ export class ExtensionControlBrowserProxyImpl implements
   }
 
   manageExtension(extensionId: string) {
-    window.open('wootzapp://extensions?id=' + extensionId);
+    window.open('chrome://extensions?id=' + extensionId);
   }
 
   static getInstance(): ExtensionControlBrowserProxy {

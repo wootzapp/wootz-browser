@@ -8,7 +8,7 @@
 
 namespace browser_ui {
 #if BUILDFLAG(IS_ANDROID)
-const char kChromeUINativeScheme[] = "wootzapp-native";
+const char kChromeUINativeScheme[] = "chrome-native";
 #endif
 
 }  // namespace browser_ui

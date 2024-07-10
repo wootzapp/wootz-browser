@@ -71,7 +71,7 @@ export class SettingsSafetyHubExtensionsModuleElement extends
   private onButtonClick_() {
     MetricsBrowserProxyImpl.getInstance().recordAction(
         'Settings.SafetyCheck.ReviewExtensionsThroughSafetyCheck');
-    OpenWindowProxyImpl.getInstance().openUrl('wootzapp://extensions');
+    OpenWindowProxyImpl.getInstance().openUrl('chrome://extensions');
   }
 }
 

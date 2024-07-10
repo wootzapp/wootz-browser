@@ -141,7 +141,7 @@ bool IsLiveCaptionFeatureSupported() {
 
 std::string GetCaptionSettingsUrl() {
 #if BUILDFLAG(IS_CHROMEOS)
-  return "wootzapp://os-settings/audioAndCaptions";
+  return "chrome://os-settings/audioAndCaptions";
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_LINUX)

@@ -273,7 +273,7 @@ const PopulateRequestContextHistogramData
         {"", false, false, "", "", false, 0, "kBrowserInitiated"},
         {"wootzapp://newtab/", false, false, "", "", false, 1,
          "kInternalChromePageInitiated"},
-        {"wootzapp-search://most-visited/title.html", false, false, "", "", false,
+        {"chrome-search://most-visited/title.html", false, false, "", "", false,
          1, "kInternalChromePageInitiated"},
         {"https://www.youtube.com/", true, false, "", "", false, 2,
          "kGooglePageInitiated"},

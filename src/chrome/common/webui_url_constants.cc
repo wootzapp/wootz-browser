@@ -33,36 +33,36 @@ const char kChromeUIActivateSafetyCheckSettingsURL[] =
 const char kChromeUIAccessibilityHost[] = "accessibility";
 const char kChromeUIAllSitesPath[] = "/content/all";
 const char kChromeUIAppIconHost[] = "app-icon";
-const char kChromeUIAppIconURL[] = "wootzapp://app-icon/";
+const char kChromeUIAppIconURL[] = "chrome://app-icon/";
 const char kChromeUIAppLauncherPageHost[] = "apps";
-const char kChromeUIAppsURL[] = "wootzapp://apps/";
+const char kChromeUIAppsURL[] = "chrome://apps/";
 const char kChromeUIAppsWithDeprecationDialogURL[] =
-    "wootzapp://apps?showDeletionDialog=";
+    "chrome://apps?showDeletionDialog=";
 const char kChromeUIAppsWithForceInstalledDeprecationDialogURL[] =
-    "wootzapp://apps?showForceInstallDialog=";
+    "chrome://apps?showForceInstallDialog=";
 const char kChromeUIAutofillInternalsHost[] = "autofill-internals";
 const char kChromeUIBluetoothInternalsHost[] = "bluetooth-internals";
-const char kChromeUIBluetoothInternalsURL[] = "wootzapp://bluetooth-internals";
+const char kChromeUIBluetoothInternalsURL[] = "chrome://bluetooth-internals";
 const char kChromeUIBookmarksHost[] = "bookmarks";
 const char kChromeUIBookmarksURL[] = "wootzapp://bookmarks/";
 const char kChromeUIBrowsingTopicsInternalsHost[] = "topics-internals";
 const char kChromeUICertificateViewerHost[] = "view-cert";
-const char kChromeUICertificateViewerURL[] = "wootzapp://view-cert/";
-const char kChromeUIChromeSigninHost[] = "wootzapp-signin";
-const char kChromeUIChromeSigninURL[] = "wootzapp://wootzapp-signin/";
+const char kChromeUICertificateViewerURL[] = "chrome://view-cert/";
+const char kChromeUIChromeSigninHost[] = "chrome-signin";
+const char kChromeUIChromeSigninURL[] = "chrome://chrome-signin/";
 const char kChromeUIChromeURLsHost[] = "wootzapp-urls";
 const char kChromeUIChromeURLsURL[] = "wootzapp://wootzapp-urls/";
 const char kChromeUIComponentsHost[] = "components";
-const char kChromeUIComponentsUrl[] = "wootzapp://components";
+const char kChromeUIComponentsUrl[] = "chrome://components";
 const char kChromeUIConflictsHost[] = "conflicts";
-const char kChromeUIConstrainedHTMLTestURL[] = "wootzapp://constrained-test/";
+const char kChromeUIConstrainedHTMLTestURL[] = "chrome://constrained-test/";
 const char kChromeUIContentSettingsURL[] = "wootzapp://settings/content";
 const char kChromeUICookieSettingsURL[] = "wootzapp://settings/cookies";
 const char kChromeUICrashHost[] = "crash";
 const char kChromeUICrashesHost[] = "crashes";
-const char kChromeUICrashesUrl[] = "wootzapp://crashes";
+const char kChromeUICrashesUrl[] = "chrome://crashes";
 const char kChromeUICreditsHost[] = "credits";
-const char kChromeUICreditsURL[] = "wootzapp://credits/";
+const char kChromeUICreditsURL[] = "chrome://credits/";
 const char kChromeUIDefaultHost[] = "version";
 const char kChromeUIDelayedHangUIHost[] = "delayeduithreadhang";
 const char kChromeUIDevToolsBlankPath[] = "blank";
@@ -73,70 +73,70 @@ const char kChromeUIDevToolsRemotePath[] = "remote";
 const char kChromeUIDevToolsURL[] =
     "devtools://devtools/bundled/inspector.html";
 const char kChromeUIDeviceLogHost[] = "device-log";
-const char kChromeUIDeviceLogUrl[] = "wootzapp://device-log";
-const char kChromeUIDevUiLoaderURL[] = "wootzapp://dev-ui-loader/";
+const char kChromeUIDeviceLogUrl[] = "chrome://device-log";
+const char kChromeUIDevUiLoaderURL[] = "chrome://dev-ui-loader/";
 const char kChromeUIDiceWebSigninInterceptHost[] =
     "signin-dice-web-intercept.top-chrome";
 const char kChromeUIDiceWebSigninInterceptURL[] =
-    "wootzapp://signin-dice-web-intercept.top-chrome/";
+    "chrome://signin-dice-web-intercept.top-chrome/";
 const char kChromeUIDiceWebSigninInterceptChromeSigninURL[] =
-    "wootzapp://signin-dice-web-intercept.top-chrome/wootzapp-signin";
+    "chrome://signin-dice-web-intercept.top-chrome/chrome-signin";
 const char kChromeUIDiceWebSigninInterceptChromeSigninSubPage[] =
-    "wootzapp-signin";
+    "chrome-signin";
 const char kChromeUIDownloadInternalsHost[] = "download-internals";
 const char kChromeUIDownloadsHost[] = "downloads";
 const char kChromeUIDownloadsURL[] = "wootzapp://downloads/";
 const char kChromeUIDriveInternalsHost[] = "drive-internals";
-const char kChromeUIDriveInternalsUrl[] = "wootzapp://drive-internals";
+const char kChromeUIDriveInternalsUrl[] = "chrome://drive-internals";
 const char kChromeUIEDUCoexistenceLoginURLV2[] =
-    "wootzapp://wootzapp-signin/edu-coexistence";
+    "chrome://chrome-signin/edu-coexistence";
 const char kChromeUIAccessCodeCastHost[] = "access-code-cast";
-const char kChromeUIAccessCodeCastURL[] = "wootzapp://access-code-cast/";
+const char kChromeUIAccessCodeCastURL[] = "chrome://access-code-cast/";
 const char kChromeUIDataSharingInternalsHost[] = "data-sharing-internals";
 const char kChromeUIExtensionIconHost[] = "extension-icon";
-const char kChromeUIExtensionIconURL[] = "wootzapp://extension-icon/";
+const char kChromeUIExtensionIconURL[] = "chrome://extension-icon/";
 const char kChromeUIExtensionsHost[] = "extensions";
 const char kChromeUIExtensionsInternalsHost[] = "extensions-internals";
-const char kChromeUIExtensionsInternalsURL[] = "wootzapp://extensions-internals";
-const char kChromeUIExtensionsURL[] = "wootzapp://extensions/";
+const char kChromeUIExtensionsInternalsURL[] = "chrome://extensions-internals";
+const char kChromeUIExtensionsURL[] = "chrome://extensions/";
 const char kChromeUIFamilyLinkUserInternalsHost[] =
     "family-link-user-internals";
 const char kChromeUIFaviconHost[] = "favicon";
-const char kChromeUIFaviconURL[] = "wootzapp://favicon/";
+const char kChromeUIFaviconURL[] = "chrome://favicon/";
 const char kChromeUIFavicon2Host[] = "favicon2";
 const char kChromeUIFeedbackHost[] = "feedback";
-const char kChromeUIFeedbackURL[] = "wootzapp://feedback/";
-const char kChromeUIFileiconURL[] = "wootzapp://fileicon/";
+const char kChromeUIFeedbackURL[] = "chrome://feedback/";
+const char kChromeUIFileiconURL[] = "chrome://fileicon/";
 const char kChromeUIFlagsHost[] = "flags";
-const char kChromeUIFlagsURL[] = "wootzapp://flags/";
+const char kChromeUIFlagsURL[] = "chrome://flags/";
 const char kChromeUIGCMInternalsHost[] = "gcm-internals";
 const char kChromeUIHangUIHost[] = "uithreadhang";
 const char kChromeUIHelpHost[] = "help";
-const char kChromeUIHelpURL[] = "wootzapp://help/";
+const char kChromeUIHelpURL[] = "chrome://help/";
 const char kChromeUIHistoryHost[] = "history";
 const char kChromeUIHistorySyncedTabs[] = "/syncedTabs";
 const char kChromeUIHistoryURL[] = "wootzapp://history/";
 const char kChromeUIHumanPresenceInternalsHost[] = "hps-internals";
-const char kChromeUIHumanPresenceInternalsURL[] = "wootzapp://hps-internals/";
+const char kChromeUIHumanPresenceInternalsURL[] = "chrome://hps-internals/";
 const char kChromeUIIdentityInternalsHost[] = "identity-internals";
 const char kChromeUIImageHost[] = "image";
-const char kChromeUIImageURL[] = "wootzapp://image/";
+const char kChromeUIImageURL[] = "chrome://image/";
 const char kChromeUIInspectHost[] = "inspect";
-const char kChromeUIInspectURL[] = "wootzapp://inspect/";
+const char kChromeUIInspectURL[] = "chrome://inspect/";
 const char kChromeUIInternalsHost[] = "internals";
 const char kChromeUIInterstitialHost[] = "interstitials";
-const char kChromeUIInterstitialURL[] = "wootzapp://interstitials/";
+const char kChromeUIInterstitialURL[] = "chrome://interstitials/";
 const char kChromeUIKillHost[] = "kill";
 const char kChromeUILauncherInternalsHost[] = "launcher-internals";
-const char kChromeUILauncherInternalsURL[] = "wootzapp://launcher-internals";
+const char kChromeUILauncherInternalsURL[] = "chrome://launcher-internals";
 const char kChromeUILensSearchBubbleHost[] = "lens-search-bubble";
-const char kChromeUILensSearchBubbleURL[] = "wootzapp://lens-search-bubble/";
+const char kChromeUILensSearchBubbleURL[] = "chrome://lens-search-bubble/";
 const char kChromeUISensorInfoHost[] = "sensor-info";
-const char kChromeUISensorInfoURL[] = "wootzapp://sensor-info/";
+const char kChromeUISensorInfoURL[] = "chrome://sensor-info/";
 const char kChromeUILocalStateHost[] = "local-state";
 const char kChromeUILocationInternalsHost[] = "location-internals";
 const char kChromeUIManagementHost[] = "management";
-const char kChromeUIManagementURL[] = "wootzapp://management";
+const char kChromeUIManagementURL[] = "chrome://management";
 const char kChromeUIMediaEngagementHost[] = "media-engagement";
 const char kChromeUIMediaRouterInternalsHost[] = "media-router-internals";
 const char kChromeUIMemoryInternalsHost[] = "memory-internals";
@@ -144,7 +144,7 @@ const char kChromeUIMetricsInternalsHost[] = "metrics-internals";
 const char kChromeUINTPTilesInternalsHost[] = "ntp-tiles-internals";
 const char kChromeUINaClHost[] = "nacl";
 const char kChromeUINetExportHost[] = "net-export";
-const char kChromeUINetExportURL[] = "wootzapp://net-export";
+const char kChromeUINetExportURL[] = "chrome://net-export";
 const char kChromeUINetInternalsHost[] = "net-internals";
 const char kChromeUINetInternalsURL[] = "wootzapp://net-internals/";
 const char kChromeUIThrottleHost[] = "throttle";
@@ -166,36 +166,36 @@ const char kChromeUIHelloWorldHost[] = "rewards";
 const char kChromeUINewTabURL[] = "wootzapp://newtab/";
 const char kChromeUIProfileInternalsHost[] = "profile-internals";
 const char kChromeUIOmniboxHost[] = "omnibox";
-const char kChromeUIOmniboxURL[] = "wootzapp://omnibox/";
+const char kChromeUIOmniboxURL[] = "chrome://omnibox/";
 #if !BUILDFLAG(IS_ANDROID)
 const char kChromeUIOnDeviceInternalsHost[] = "on-device-internals";
 const char kChromeUISearchEngineChoiceHost[] = "search-engine-choice";
-const char kChromeUISearchEngineChoiceURL[] = "wootzapp://search-engine-choice";
+const char kChromeUISearchEngineChoiceURL[] = "chrome://search-engine-choice";
 #endif
 const char kChromeUIPasswordManagerInternalsHost[] =
     "password-manager-internals";
-const char kChromeUIPasswordManagerURL[] = "wootzapp://password-manager";
+const char kChromeUIPasswordManagerURL[] = "chrome://password-manager";
 const char kChromeUIPasswordManagerCheckupURL[] =
-    "wootzapp://password-manager/checkup?start=true";
+    "chrome://password-manager/checkup?start=true";
 const char kChromeUIPasswordManagerSettingsURL[] =
-    "wootzapp://password-manager/settings";
+    "chrome://password-manager/settings";
 const char kChromeUIPerformanceSidePanelHost[] =
     "performance-side-panel.top-chrome";
 const char kChromeUIPerformanceSidePanelURL[] =
-    "wootzapp://performance-side-panel.top-chrome";
+    "chrome://performance-side-panel.top-chrome";
 const char kChromeUIPolicyHost[] = "policy";
-const char kChromeUIPolicyURL[] = "wootzapp://policy/";
-const char kChromeUIPolicyTestURL[] = "wootzapp://policy/test";
+const char kChromeUIPolicyURL[] = "chrome://policy/";
+const char kChromeUIPolicyTestURL[] = "chrome://policy/test";
 const char kChromeUIPredictorsHost[] = "predictors";
 const char kChromeUIPrefsInternalsHost[] = "prefs-internals";
-const char kChromeUIPrefsInternalsURL[] = "wootzapp://prefs-internals";
-const char kChromeUIPrintURL[] = "wootzapp://print/";
+const char kChromeUIPrefsInternalsURL[] = "chrome://prefs-internals";
+const char kChromeUIPrintURL[] = "chrome://print/";
 const char kChromeUIPrivacySandboxInternalsHost[] = "privacy-sandbox-internals";
 const char kChromeUIPrivacySandboxInternalsURL[] =
-    "wootzapp://privacy-sandbox-internals";
+    "chrome://privacy-sandbox-internals";
 const char kChromeUIPrivacySandboxDialogHost[] = "privacy-sandbox-dialog";
 const char kChromeUIPrivacySandboxDialogURL[] =
-    "wootzapp://privacy-sandbox-dialog";
+    "chrome://privacy-sandbox-dialog";
 const char kChromeUIPrivacySandboxDialogCombinedPath[] = "combined";
 const char kChromeUIPrivacySandboxDialogNoticePath[] = "notice";
 const char kChromeUIPrivacySandboxDialogNoticeRestrictedPath[] = "restricted";
@@ -209,7 +209,7 @@ const char kChromeUIQuitHost[] = "quit";
 const char kChromeUIQuitURL[] = "wootzapp://quit/";
 const char kChromeUIQuotaInternalsHost[] = "quota-internals";
 const char kChromeUIResetPasswordHost[] = "reset-password";
-const char kChromeUIResetPasswordURL[] = "wootzapp://reset-password/";
+const char kChromeUIResetPasswordURL[] = "chrome://reset-password/";
 const char kChromeUIRestartHost[] = "restart";
 const char kChromeUIRestartURL[] = "wootzapp://restart/";
 const char kChromeUISafetyPixelbookURL[] = "https://g.co/Pixelbook/legal";
@@ -221,32 +221,32 @@ const char kChromeUISessionServiceInternalsPath[] = "session-service";
 const char kChromeUISettingsHost[] = "settings";
 const char kChromeUISettingsURL[] = "wootzapp://settings/";
 const char kChromeUISignInInternalsHost[] = "signin-internals";
-const char kChromeUISignInInternalsUrl[] = "wootzapp://signin-internals";
+const char kChromeUISignInInternalsUrl[] = "chrome://signin-internals";
 const char kChromeUISigninEmailConfirmationHost[] = "signin-email-confirmation";
 const char kChromeUISigninEmailConfirmationURL[] =
-    "wootzapp://signin-email-confirmation";
+    "chrome://signin-email-confirmation";
 const char kChromeUISigninErrorHost[] = "signin-error";
-const char kChromeUISigninErrorURL[] = "wootzapp://signin-error/";
+const char kChromeUISigninErrorURL[] = "chrome://signin-error/";
 const char kChromeUISigninReauthHost[] = "signin-reauth";
-const char kChromeUISigninReauthURL[] = "wootzapp://signin-reauth/";
+const char kChromeUISigninReauthURL[] = "chrome://signin-reauth/";
 const char kChromeUISiteDataDeprecatedPath[] = "/siteData";
 const char kChromeUISiteEngagementHost[] = "site-engagement";
 const char kChromeUISupervisedUserPassphrasePageHost[] =
     "managed-user-passphrase";
 const char kChromeUISupportToolHost[] = "support-tool";
-const char kChromeUISupportToolURL[] = "wootzapp://support-tool";
+const char kChromeUISupportToolURL[] = "chrome://support-tool";
 const char kChromeUISyncConfirmationHost[] = "sync-confirmation";
 const char kChromeUISyncConfirmationLoadingPath[] = "loading";
-const char kChromeUISyncConfirmationURL[] = "wootzapp://sync-confirmation/";
+const char kChromeUISyncConfirmationURL[] = "chrome://sync-confirmation/";
 const char kChromeUISyncFileSystemInternalsHost[] = "syncfs-internals";
 const char kChromeUISyncHost[] = "sync";
 const char kChromeUISyncInternalsHost[] = "sync-internals";
-const char kChromeUISyncInternalsUrl[] = "wootzapp://sync-internals";
+const char kChromeUISyncInternalsUrl[] = "chrome://sync-internals";
 const char kChromeUISystemInfoHost[] = "system";
 const char kChromeUITermsHost[] = "terms";
-const char kChromeUITermsURL[] = "wootzapp://terms/";
+const char kChromeUITermsURL[] = "chrome://terms/";
 const char kChromeUIThemeHost[] = "theme";
-const char kChromeUIThemeURL[] = "wootzapp://theme/";
+const char kChromeUIThemeURL[] = "chrome://theme/";
 const char kChromeUITranslateInternalsHost[] = "translate-internals";
 const char kChromeUITopChromeDomain[] = "top-chrome";
 const char kChromeUIUntrustedComposeHost[] = "compose";
@@ -262,11 +262,11 @@ const char kChromeUIUntrustedThemeURL[] = "chrome-untrusted://theme/";
 const char kChromeUIUsbInternalsHost[] = "usb-internals";
 const char kChromeUIUserActionsHost[] = "user-actions";
 const char kChromeUIVersionHost[] = "version";
-const char kChromeUIVersionURL[] = "wootzapp://version/";
+const char kChromeUIVersionURL[] = "chrome://version/";
 const char kChromeUIWelcomeHost[] = "welcome";
-const char kChromeUIWelcomeURL[] = "wootzapp://welcome/";
+const char kChromeUIWelcomeURL[] = "chrome://welcome/";
 const char kChromeUIWhatsNewHost[] = "whats-new";
-const char kChromeUIWhatsNewURL[] = "wootzapp://whats-new/";
+const char kChromeUIWhatsNewURL[] = "chrome://whats-new/";
 const char kChromeUIWebuiGalleryHost[] = "webui-gallery";
 
 #if BUILDFLAG(IS_WIN)
@@ -277,17 +277,17 @@ const char kChromeUIWelcomeWin10Host[] = "welcome-win10";
 #if BUILDFLAG(IS_ANDROID)
 const char kChromeUIInternalsQueryTilesPath[] = "query-tiles";
 const char kChromeUIJavaCrashURL[] = "wootzapp://java-crash/";
-const char kChromeUINativeBookmarksURL[] = "wootzapp-native://bookmarks/";
-const char kChromeUINativeExploreURL[] = "wootzapp-native://explore";
-const char kChromeUINativeNewTabURL[] = "wootzapp-native://newtab/";
+const char kChromeUINativeBookmarksURL[] = "chrome-native://bookmarks/";
+const char kChromeUINativeExploreURL[] = "chrome-native://explore";
+const char kChromeUINativeNewTabURL[] = "chrome-native://newtab/";
 const char kChromeUIOfflineInternalsHost[] = "offline-internals";
 const char kChromeUISnippetsInternalsHost[] = "snippets-internals";
 const char kChromeUIWebApksHost[] = "webapks";
 #else
 const char kChromeUIAppServiceInternalsHost[] = "app-service-internals";
-const char kChromeUIAppServiceInternalsURL[] = "wootzapp://app-service-internals";
+const char kChromeUIAppServiceInternalsURL[] = "chrome://app-service-internals";
 const char kChromeUINearbyInternalsHost[] = "nearby-internals";
-const char kChromeUINearbyInternalsURL[] = "wootzapp://nearby-internals";
+const char kChromeUINearbyInternalsURL[] = "chrome://nearby-internals";
 const char kChromeUIBookmarksSidePanelHost[] =
     "bookmarks-side-panel.top-chrome";
 const char kChromeUIBookmarksSidePanelURL[] =
@@ -299,7 +299,7 @@ const char kChromeUIUntrustedCompanionSidePanelURL[] =
 const char kChromeUICustomizeChromeSidePanelHost[] =
     "customize-chrome-side-panel.top-chrome";
 const char kChromeUICustomizeChromeSidePanelURL[] =
-    "wootzapp://customize-chrome-side-panel.top-chrome";
+    "chrome://customize-chrome-side-panel.top-chrome";
 const char kChromeUIHistoryClustersSidePanelHost[] =
     "history-clusters-side-panel.top-chrome";
 const char kChromeUIHistoryClustersSidePanelURL[] =
@@ -313,18 +313,18 @@ const char kChromeUIUntrustedReadAnythingSidePanelHost[] =
 const char kChromeUIUntrustedReadAnythingSidePanelURL[] =
     "chrome-untrusted://read-anything-side-panel.top-chrome/";
 const char kChromeUIReadLaterHost[] = "read-later.top-chrome";
-const char kChromeUIReadLaterURL[] = "wootzapp://read-later.top-chrome/";
+const char kChromeUIReadLaterURL[] = "chrome://read-later.top-chrome/";
 const char kChromeUIUntrustedFeedURL[] = "chrome-untrusted://feed/";
 const char kChromeUIUserNotesSidePanelHost[] =
     "user-notes-side-panel.top-chrome";
 const char kChromeUIUserNotesSidePanelURL[] =
-    "wootzapp://user-notes-side-panel.top-chrome/";
+    "chrome://user-notes-side-panel.top-chrome/";
 const char kChromeUIOmniboxPopupHost[] = "omnibox-popup.top-chrome";
-const char kChromeUIOmniboxPopupURL[] = "wootzapp://omnibox-popup.top-chrome/";
+const char kChromeUIOmniboxPopupURL[] = "chrome://omnibox-popup.top-chrome/";
 const char kChromeUISuggestInternalsHost[] = "suggest-internals";
-const char kChromeUISuggestInternalsURL[] = "wootzapp://suggest-internals/";
+const char kChromeUISuggestInternalsURL[] = "chrome://suggest-internals/";
 const char kChromeUIWebAppInternalsHost[] = "web-app-internals";
-const char kChromeUIWebAppInternalsURL[] = "wootzapp://web-app-internals";
+const char kChromeUIWebAppInternalsURL[] = "chrome://web-app-internals";
 const char kChromeUIWebUITestHost[] = "webui-test";
 const char kChromeUIUntrustedWebUITestURL[] = "chrome-untrusted://webui-test/";
 #endif
@@ -332,123 +332,123 @@ const char kChromeUIUntrustedWebUITestURL[] = "chrome-untrusted://webui-test/";
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Keep alphabetized.
 const char kChromeUIAccountManagerErrorHost[] = "account-manager-error";
-const char kChromeUIAccountManagerErrorURL[] = "wootzapp://account-manager-error";
+const char kChromeUIAccountManagerErrorURL[] = "chrome://account-manager-error";
 const char kChromeUIAccountMigrationWelcomeHost[] = "account-migration-welcome";
 const char kChromeUIAccountMigrationWelcomeURL[] =
-    "wootzapp://account-migration-welcome";
+    "chrome://account-migration-welcome";
 const char kChromeUIAddSupervisionHost[] = "add-supervision";
-const char kChromeUIAddSupervisionURL[] = "wootzapp://add-supervision/";
+const char kChromeUIAddSupervisionURL[] = "chrome://add-supervision/";
 const char kChromeUIAppInstallDialogHost[] = "app-install-dialog";
-const char kChromeUIAppInstallDialogURL[] = "wootzapp://app-install-dialog/";
+const char kChromeUIAppInstallDialogURL[] = "chrome://app-install-dialog/";
 const char kChromeUIArcOverviewTracingHost[] = "arc-overview-tracing";
-const char kChromeUIArcOverviewTracingURL[] = "wootzapp://arc-overview-tracing/";
+const char kChromeUIArcOverviewTracingURL[] = "chrome://arc-overview-tracing/";
 const char kChromeUIArcPowerControlHost[] = "arc-power-control";
-const char kChromeUIArcPowerControlURL[] = "wootzapp://arc-power-control/";
+const char kChromeUIArcPowerControlURL[] = "chrome://arc-power-control/";
 const char kChromeUIAssistantOptInHost[] = "assistant-optin";
-const char kChromeUIAssistantOptInURL[] = "wootzapp://assistant-optin/";
+const char kChromeUIAssistantOptInURL[] = "chrome://assistant-optin/";
 const char kChromeUIAudioHost[] = "audio";
-const char kChromeUIAudioURL[] = "wootzapp://audio/";
+const char kChromeUIAudioURL[] = "chrome://audio/";
 const char kChromeUIBluetoothPairingHost[] = "bluetooth-pairing";
-const char kChromeUIBluetoothPairingURL[] = "wootzapp://bluetooth-pairing/";
+const char kChromeUIBluetoothPairingURL[] = "chrome://bluetooth-pairing/";
 const char kChromeUIBorealisInstallerHost[] = "borealis-installer";
-const char kChromeUIBorealisInstallerUrl[] = "wootzapp://borealis-installer";
+const char kChromeUIBorealisInstallerUrl[] = "chrome://borealis-installer";
 const char kChromeUICertificateManagerDialogURL[] =
-    "wootzapp://certificate-manager/";
+    "chrome://certificate-manager/";
 const char kChromeUICertificateManagerHost[] = "certificate-manager";
 const char kChromeUICloudUploadHost[] = "cloud-upload";
-const char kChromeUICloudUploadURL[] = "wootzapp://cloud-upload/";
+const char kChromeUICloudUploadURL[] = "chrome://cloud-upload/";
 const char kChromeUIConfirmPasswordChangeHost[] = "confirm-password-change";
 const char kChromeUIConfirmPasswordChangeUrl[] =
-    "wootzapp://confirm-password-change";
+    "chrome://confirm-password-change";
 const char kChromeUIConnectivityDiagnosticsAppURL[] =
-    "wootzapp://connectivity-diagnostics";
+    "chrome://connectivity-diagnostics";
 const char kChromeUICrostiniInstallerHost[] = "crostini-installer";
-const char kChromeUICrostiniInstallerUrl[] = "wootzapp://crostini-installer";
+const char kChromeUICrostiniInstallerUrl[] = "chrome://crostini-installer";
 const char kChromeUICrostiniUpgraderHost[] = "crostini-upgrader";
-const char kChromeUICrostiniUpgraderUrl[] = "wootzapp://crostini-upgrader";
+const char kChromeUICrostiniUpgraderUrl[] = "chrome://crostini-upgrader";
 const char kChromeUICryptohomeHost[] = "cryptohome";
-const char kChromeUICryptohomeURL[] = "wootzapp://cryptohome";
+const char kChromeUICryptohomeURL[] = "chrome://cryptohome";
 const char kChromeUIDeviceEmulatorHost[] = "device-emulator";
-const char kChromeUIDeviceEmulatorURL[] = "wootzapp://device-emulator";
-const char kChromeUIDiagnosticsAppURL[] = "wootzapp://diagnostics";
-const char kChromeUIEmojiPickerURL[] = "wootzapp://emoji-picker/";
+const char kChromeUIDeviceEmulatorURL[] = "chrome://device-emulator";
+const char kChromeUIDiagnosticsAppURL[] = "chrome://diagnostics";
+const char kChromeUIEmojiPickerURL[] = "chrome://emoji-picker/";
 const char kChromeUIEmojiPickerHost[] = "emoji-picker";
 const char kChromeUIEnterpriseReportingHost[] = "enterprise-reporting";
-const char kChromeUIEnterpriseReportingURL[] = "wootzapp://enterprise-reporting";
+const char kChromeUIEnterpriseReportingURL[] = "chrome://enterprise-reporting";
 const char kChromeUIExtendedUpdatesDialogHost[] = "extended-updates-dialog";
 const char kChromeUIExtendedUpdatesDialogURL[] =
-    "wootzapp://extended-updates-dialog";
-const char kChromeUIFirmwareUpdaterAppURL[] = "wootzapp://accessory-update";
+    "chrome://extended-updates-dialog";
+const char kChromeUIFirmwareUpdaterAppURL[] = "chrome://accessory-update";
 const char kChromeUIHealthdInternalsHost[] = "healthd-internals";
-const char kChromeUIHealthdInternalsURL[] = "wootzapp://healthd-internals";
+const char kChromeUIHealthdInternalsURL[] = "chrome://healthd-internals";
 const char kChromeUIInternetConfigDialogURL[] =
-    "wootzapp://internet-config-dialog/";
+    "chrome://internet-config-dialog/";
 const char kChromeUIInternetDetailDialogURL[] =
-    "wootzapp://internet-detail-dialog/";
+    "chrome://internet-detail-dialog/";
 const char kChromeUIInternetConfigDialogHost[] = "internet-config-dialog";
 const char kChromeUIInternetDetailDialogHost[] = "internet-detail-dialog";
 const char kChromeUIBorealisCreditsHost[] = "borealis-credits";
-const char kChromeUIBorealisCreditsURL[] = "wootzapp://borealis-credits/";
+const char kChromeUIBorealisCreditsURL[] = "chrome://borealis-credits/";
 const char kChromeUICrostiniCreditsHost[] = "crostini-credits";
-const char kChromeUICrostiniCreditsURL[] = "wootzapp://crostini-credits/";
+const char kChromeUICrostiniCreditsURL[] = "chrome://crostini-credits/";
 const char kChromeUILockScreenNetworkHost[] = "lock-network";
-const char kChromeUILockScreenNetworkURL[] = "wootzapp://lock-network";
+const char kChromeUILockScreenNetworkURL[] = "chrome://lock-network";
 const char kChromeUILockScreenStartReauthHost[] = "lock-reauth";
-const char kChromeUILockScreenStartReauthURL[] = "wootzapp://lock-reauth";
+const char kChromeUILockScreenStartReauthURL[] = "chrome://lock-reauth";
 const char kChromeUIManageMirrorSyncHost[] = "manage-mirrorsync";
-const char kChromeUIManageMirrorSyncURL[] = "wootzapp://manage-mirrorsync";
+const char kChromeUIManageMirrorSyncURL[] = "chrome://manage-mirrorsync";
 const char kChromeUIMobileSetupHost[] = "mobilesetup";
-const char kChromeUIMobileSetupURL[] = "wootzapp://mobilesetup/";
+const char kChromeUIMobileSetupURL[] = "chrome://mobilesetup/";
 const char kChromeUIMultiDeviceInternalsHost[] = "multidevice-internals";
 const char kChromeUIMultiDeviceInternalsURL[] =
-    "wootzapp://multidevice-internals";
+    "chrome://multidevice-internals";
 const char kChromeUIMultiDeviceSetupHost[] = "multidevice-setup";
-const char kChromeUIMultiDeviceSetupUrl[] = "wootzapp://multidevice-setup";
+const char kChromeUIMultiDeviceSetupUrl[] = "chrome://multidevice-setup";
 const char kChromeUINetworkHost[] = "network";
-const char kChromeUINetworkUrl[] = "wootzapp://network";
+const char kChromeUINetworkUrl[] = "chrome://network";
 const char kChromeUINotificationTesterHost[] = "notification-tester";
-const char kChromeUINotificationTesterURL[] = "wootzapp://notification-tester";
+const char kChromeUINotificationTesterURL[] = "chrome://notification-tester";
 const char kChromeUIOSCreditsHost[] = "os-credits";
-const char kChromeUIOSCreditsURL[] = "wootzapp://os-credits/";
+const char kChromeUIOSCreditsURL[] = "chrome://os-credits/";
 const char kChromeUIOfficeFallbackHost[] = "office-fallback";
-const char kChromeUIOfficeFallbackURL[] = "wootzapp://office-fallback/";
+const char kChromeUIOfficeFallbackURL[] = "chrome://office-fallback/";
 const char kChromeUIOobeHost[] = "oobe";
-const char kChromeUIOobeURL[] = "wootzapp://oobe/";
+const char kChromeUIOobeURL[] = "chrome://oobe/";
 const char kChromeUIParentAccessHost[] = "parent-access";
-const char kChromeUIParentAccessURL[] = "wootzapp://parent-access/";
+const char kChromeUIParentAccessURL[] = "chrome://parent-access/";
 const char kChromeUIPasswordChangeHost[] = "password-change";
-const char kChromeUIPasswordChangeUrl[] = "wootzapp://password-change";
-const char kChromeUIPrintManagementUrl[] = "wootzapp://print-management";
+const char kChromeUIPasswordChangeUrl[] = "chrome://password-change";
+const char kChromeUIPrintManagementUrl[] = "chrome://print-management";
 const char kChromeUIPowerHost[] = "power";
-const char kChromeUIPowerUrl[] = "wootzapp://power";
+const char kChromeUIPowerUrl[] = "chrome://power";
 const char kChromeUIRemoteManagementCurtainHost[] = "security-curtain";
-const char kChromeUIScanningAppURL[] = "wootzapp://scanning";
+const char kChromeUIScanningAppURL[] = "chrome://scanning";
 const char kChromeUISetTimeHost[] = "set-time";
-const char kChromeUISetTimeURL[] = "wootzapp://set-time/";
+const char kChromeUISetTimeURL[] = "chrome://set-time/";
 const char kChromeUISlowHost[] = "slow";
 const char kChromeUISlowTraceHost[] = "slow_trace";
-const char kChromeUISlowURL[] = "wootzapp://slow/";
+const char kChromeUISlowURL[] = "chrome://slow/";
 const char kChromeUISmbShareHost[] = "smb-share-dialog";
-const char kChromeUISmbShareURL[] = "wootzapp://smb-share-dialog/";
+const char kChromeUISmbShareURL[] = "chrome://smb-share-dialog/";
 const char kChromeUISmbCredentialsHost[] = "smb-credentials-dialog";
-const char kChromeUISmbCredentialsURL[] = "wootzapp://smb-credentials-dialog/";
+const char kChromeUISmbCredentialsURL[] = "chrome://smb-credentials-dialog/";
 const char kChromeUISysInternalsHost[] = "sys-internals";
-const char kChromeUISysInternalsUrl[] = "wootzapp://sys-internals";
+const char kChromeUISysInternalsUrl[] = "chrome://sys-internals";
 const char kChromeUIUntrustedCroshHost[] = "crosh";
 const char kChromeUIUntrustedCroshURL[] = "chrome-untrusted://crosh/";
 const char kChromeUIUntrustedTerminalHost[] = "terminal";
 const char kChromeUIUntrustedTerminalURL[] = "chrome-untrusted://terminal/";
 const char kChromeUIUserImageHost[] = "userimage";
-const char kChromeUIUserImageURL[] = "wootzapp://userimage/";
+const char kChromeUIUserImageURL[] = "chrome://userimage/";
 const char kChromeUIVcTrayTesterHost[] = "vc-tray-tester";
-const char kChromeUIVcTrayTesterURL[] = "wootzapp://vc-tray-tester";
+const char kChromeUIVcTrayTesterURL[] = "chrome://vc-tray-tester";
 const char kChromeUIVmHost[] = "vm";
-const char kChromeUIVmUrl[] = "wootzapp://vm";
+const char kChromeUIVmUrl[] = "chrome://vm";
 
 const char kChromeUIUrgentPasswordExpiryNotificationHost[] =
     "urgent-password-expiry-notification";
 const char kChromeUIUrgentPasswordExpiryNotificationUrl[] =
-    "wootzapp://urgent-password-expiry-notification/";
+    "chrome://urgent-password-expiry-notification/";
 
 // Keep alphabetized.
 
@@ -501,19 +501,19 @@ bool IsSystemWebUIHost(std::string_view host) {
 
 #if BUILDFLAG(IS_CHROMEOS)
 const char kChromeUIAppDisabledHost[] = "app-disabled";
-const char kChromeUIAppDisabledURL[] = "wootzapp://app-disabled";
+const char kChromeUIAppDisabledURL[] = "chrome://app-disabled";
 const char kChromeUIDlpInternalsHost[] = "dlp-internals";
-const char kChromeUIDlpInternalsURL[] = "wootzapp://dlp-internals";
-const char kChromeUIGpuURL[] = "wootzapp://gpu";
-const char kChromeUIHistogramsURL[] = "wootzapp://histograms";
+const char kChromeUIDlpInternalsURL[] = "chrome://dlp-internals";
+const char kChromeUIGpuURL[] = "chrome://gpu";
+const char kChromeUIHistogramsURL[] = "chrome://histograms";
 const char kChromeUIKerberosInBrowserHost[] = "kerberos-in-browser";
-const char kChromeUIKerberosInBrowserURL[] = "wootzapp://kerberos-in-browser";
-const char kChromeUILocationInternalsURL[] = "wootzapp://location-internals";
-const char kChromeUIOsFlagsAppURL[] = "wootzapp://flags/";
+const char kChromeUIKerberosInBrowserURL[] = "chrome://kerberos-in-browser";
+const char kChromeUILocationInternalsURL[] = "chrome://location-internals";
+const char kChromeUIOsFlagsAppURL[] = "chrome://flags/";
 const char kChromeUIOSSettingsHost[] = "os-settings";
-const char kChromeUIOsUrlAppURL[] = "wootzapp://internal/";
-const char kChromeUIOSSettingsURL[] = "wootzapp://os-settings/";
-const char kChromeUISystemURL[] = "wootzapp://system";
+const char kChromeUIOsUrlAppURL[] = "chrome://internal/";
+const char kChromeUIOSSettingsURL[] = "chrome://os-settings/";
+const char kChromeUISystemURL[] = "chrome://system";
 const char kOsUIComponentsURL[] = "os://components";
 const char kOsUIConnectivityDiagnosticsAppURL[] =
     "os://connectivity-diagnostics";
@@ -531,7 +531,7 @@ const char kOsUIVersionURL[] = "os://version";
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 const char kChromeUIWebUIJsErrorHost[] = "webuijserror";
-const char kChromeUIWebUIJsErrorURL[] = "wootzapp://webuijserror/";
+const char kChromeUIWebUIJsErrorURL[] = "chrome://webuijserror/";
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
@@ -542,12 +542,12 @@ const char kChromeUIConnectorsInternalsHost[] = "connectors-internals";
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
 const char kChromeUIDiscardsHost[] = "discards";
-const char kChromeUIDiscardsURL[] = "wootzapp://discards/";
+const char kChromeUIDiscardsURL[] = "chrome://discards/";
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
 const char kChromeUINearbyShareHost[] = "nearby";
-const char kChromeUINearbyShareURL[] = "wootzapp://nearby/";
+const char kChromeUINearbyShareURL[] = "chrome://nearby/";
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
@@ -564,20 +564,20 @@ const char kChromeUISandboxHost[] = "sandbox";
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
     (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 const char kChromeUIBrowserSwitchHost[] = "browser-switch";
-const char kChromeUIBrowserSwitchURL[] = "wootzapp://browser-switch/";
+const char kChromeUIBrowserSwitchURL[] = "chrome://browser-switch/";
 const char kChromeUIIntroHost[] = "intro";
-const char kChromeUIIntroURL[] = "wootzapp://intro";
+const char kChromeUIIntroURL[] = "chrome://intro";
 const char kChromeUIIntroDefaultBrowserSubPage[] = "default-browser";
-const char kChromeUIIntroDefaultBrowserURL[] = "wootzapp://intro/default-browser";
+const char kChromeUIIntroDefaultBrowserURL[] = "chrome://intro/default-browser";
 const char kChromeUIManagedUserProfileNoticeHost[] =
     "managed-user-profile-notice";
 const char kChromeUIManagedUserProfileNoticeUrl[] =
-    "wootzapp://managed-user-profile-notice/";
+    "chrome://managed-user-profile-notice/";
 const char kChromeUIProfileCustomizationHost[] = "profile-customization";
 const char kChromeUIProfileCustomizationURL[] =
-    "wootzapp://profile-customization";
+    "chrome://profile-customization";
 const char kChromeUIProfilePickerHost[] = "profile-picker";
-const char kChromeUIProfilePickerUrl[] = "wootzapp://profile-picker/";
+const char kChromeUIProfilePickerUrl[] = "chrome://profile-picker/";
 const char kChromeUIProfilePickerStartupQuery[] = "startup";
 #endif
 
@@ -593,12 +593,12 @@ const char kChromeUIPrintHost[] = "print";
 
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
 const char kChromeUITabStripHost[] = "tab-strip.top-chrome";
-const char kChromeUITabStripURL[] = "wootzapp://tab-strip.top-chrome";
+const char kChromeUITabStripURL[] = "chrome://tab-strip.top-chrome";
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
 const char kChromeUITabSearchHost[] = "tab-search.top-chrome";
-const char kChromeUITabSearchURL[] = "wootzapp://tab-search.top-chrome/";
+const char kChromeUITabSearchURL[] = "chrome://tab-search.top-chrome/";
 #endif
 
 const char kChromeUIWebRtcLogsHost[] = "webrtc-logs";
@@ -661,7 +661,7 @@ const char kCookiesSubPagePath[] = "/cookies";
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-const char kChromeUIWebAppSettingsURL[] = "wootzapp://app-settings/";
+const char kChromeUIWebAppSettingsURL[] = "chrome://app-settings/";
 const char kChromeUIWebAppSettingsHost[] = "app-settings";
 #endif
 
@@ -674,7 +674,7 @@ const char kChromeUICastFeedbackHost[] = "cast-feedback";
 #endif
 
 #if BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
-const char kChromeUILensURL[] = "wootzapp://lens/";
+const char kChromeUILensURL[] = "chrome://lens/";
 #endif
 
 // Extension sub pages.
@@ -704,6 +704,8 @@ const char* const kChromeHostURLs[] = {
     kChromeUIFamilyLinkUserInternalsHost,
     kChromeUIFlagsHost,
     kChromeUIGCMInternalsHost,
+    kChromeUIBookmarksHost,
+    kChromeUIDownloadsHost,
     kChromeUIHistoryHost,
     history_clusters_internals::kChromeUIHistoryClustersInternalsHost,
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -773,8 +775,8 @@ const char* const kChromeHostURLs[] = {
 #if !BUILDFLAG(IS_CHROMEOS)
     kChromeUIAppLauncherPageHost,
 #endif
-    kChromeUIBookmarksHost,
-    kChromeUIDownloadsHost,
+    // kChromeUIBookmarksHost,
+    // kChromeUIDownloadsHost,
     kChromeUIHelpHost,
     kChromeUIInspectHost,
     kChromeUINewTabPageHost,

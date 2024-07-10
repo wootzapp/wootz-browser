@@ -281,7 +281,7 @@ class OmniboxPedalTranslate : public OmniboxPedal {
                          IDS_ACC_OMNIBOX_PEDAL_TRANSLATE_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_TRANSLATE),
             // Fake URL to distinguish matches.
-            GURL("wootzapp://translate/pedals")) {}
+            GURL("chrome://translate/pedals")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {

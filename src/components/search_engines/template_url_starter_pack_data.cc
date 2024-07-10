@@ -48,7 +48,7 @@ const StarterPackEngine tabs = {
     // This search_url is a placeholder URL to make templateURL happy.
     // chrome://tabs does not currently exist and the tab search engine will
     // only provide suggestions from the OpenTabProvider.
-    .search_url = "wootzapp://tabs/?q={searchTerms}",
+    .search_url = "chrome://tabs/?q={searchTerms}",
     .destination_url = "http://support.google.com/chrome/?p=tab_search",
     .id = StarterPackID::kTabs,
     .type = SEARCH_ENGINE_STARTER_PACK_TABS,

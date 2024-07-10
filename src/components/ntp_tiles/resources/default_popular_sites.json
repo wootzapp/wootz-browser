@@ -31,12 +31,12 @@
     },
     {
         "large_icon_url": "https://cdn2.iconfinder.com/data/icons/minimalism/512/Chromium.png",
-        "title": "WootzApp Version",
-        "url": "wootzapp://flags"
+        "title": "Chrome Flags",
+        "url": "chrome://flags"
     },
     {
         "large_icon_url": "https://cdn2.iconfinder.com/data/icons/minimalism/512/Chromium.png",
-        "title": "WootzApp Version",
-        "url": "wootzapp://version/"
+        "title": "Chrome Version",
+        "url": "chrome://version/"
     }
 ]

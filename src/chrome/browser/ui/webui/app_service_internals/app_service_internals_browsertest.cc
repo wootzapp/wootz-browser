@@ -29,7 +29,7 @@ IN_PROC_BROWSER_TEST_F(AppServiceInternalsBrowserTest, LoadsWebUiPage) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   content::TestNavigationObserver observer(web_contents);
-  NavigateParams params(browser(), GURL("wootzapp://app-service-internals"),
+  NavigateParams params(browser(), GURL("chrome://app-service-internals"),
                         ui::PAGE_TRANSITION_LINK);
   ui_test_utils::NavigateToURL(&params);
   observer.WaitForNavigationFinished();

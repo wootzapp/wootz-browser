@@ -231,7 +231,7 @@ export class SettingsA11yPageElement extends SettingsA11yPageElementBase {
 
   // <if expr="is_chromeos">
   private onManageSystemAccessibilityFeaturesClick_() {
-    window.location.href = 'wootzapp://os-settings/osAccessibility';
+    window.location.href = 'chrome://os-settings/osAccessibility';
   }
   // </if>
 

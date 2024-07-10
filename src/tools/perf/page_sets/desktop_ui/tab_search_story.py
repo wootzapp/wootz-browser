@@ -172,21 +172,21 @@ class TabSearchRecentlyClosedStory(TabSearchStory):
 
 class TabSearchStoryRecentlyClosed10(TabSearchRecentlyClosedStory):
   NAME = 'tab_search:10_recently_closed'
-  URL_LIST = ['wootzapp://version?q={}'.format(i) for i in range(10)]
+  URL_LIST = ['chrome://version?q={}'.format(i) for i in range(10)]
   URL = URL_LIST[0]
   WAIT_FOR_NETWORK_QUIESCENCE = True
 
 
 class TabSearchStoryRecentlyClosed50(TabSearchRecentlyClosedStory):
   NAME = 'tab_search:50_recently_closed'
-  URL_LIST = ['wootzapp://version?q={}'.format(i) for i in range(50)]
+  URL_LIST = ['chrome://version?q={}'.format(i) for i in range(50)]
   URL = URL_LIST[0]
   WAIT_FOR_NETWORK_QUIESCENCE = True
 
 
 class TabSearchStoryRecentlyClosed100(TabSearchRecentlyClosedStory):
   NAME = 'tab_search:100_recently_closed'
-  URL_LIST = ['wootzapp://version?q={}'.format(i) for i in range(100)]
+  URL_LIST = ['chrome://version?q={}'.format(i) for i in range(100)]
   URL = URL_LIST[0]
   WAIT_FOR_NETWORK_QUIESCENCE = True
 

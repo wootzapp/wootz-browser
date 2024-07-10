@@ -58,7 +58,7 @@ Native Client comes in two flavors.
   Apps and Extensions installed via the `Chrome Web Store (CWS)
   <https://chrome.google.com/webstore/category/apps>`_ can use NaCl
   modules without additional prompting.
-  NaCl apps can also be installed from wootzapp://extensions or
+  NaCl apps can also be installed from chrome://extensions or
   the command-line during development,
   however, this is not a recommended distribution mechanism.
 

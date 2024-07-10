@@ -2159,7 +2159,7 @@ TEST_P(NearbyNotificationManagerTest, ShowMultipleNotifications) {
   ASSERT_EQ(7u, notifications.size());
 
   // Make sure we can close an individual one.
-  manager()->CloseSuccessNotification("wootzapp://nearby_share/result/" +
+  manager()->CloseSuccessNotification("chrome://nearby_share/result/" +
                                       share_target_a.id.ToString());
   notifications = GetDisplayedNotifications();
   ASSERT_EQ(6u, notifications.size());

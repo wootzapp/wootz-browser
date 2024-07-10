@@ -998,11 +998,11 @@ class WebUIUntrustedServiceWorkerContainerHostTest
 TEST_P(WebUIUntrustedServiceWorkerContainerHostTest,
        Register_RegistrationShouldFail) {
   ServiceWorkerRemoteContainerEndpoint remote_endpoint =
-      PrepareServiceWorkerClient(GURL("wootzapp://testwebui/"));
+      PrepareServiceWorkerClient(GURL("chrome://testwebui/"));
 
   ASSERT_TRUE(bad_messages_.empty());
-  Register(remote_endpoint.host_remote()->get(), GURL("wootzapp://testwebui/"),
-           GURL("wootzapp://testwebui/sw.js"));
+  Register(remote_endpoint.host_remote()->get(), GURL("chrome://testwebui/"),
+           GURL("chrome://testwebui/sw.js"));
   EXPECT_EQ(1u, bad_messages_.size());
 }
 
@@ -1048,11 +1048,11 @@ class WebUIServiceWorkerContainerHostTest
 
 TEST_P(WebUIServiceWorkerContainerHostTest, Register_RegistrationShouldFail) {
   ServiceWorkerRemoteContainerEndpoint remote_endpoint =
-      PrepareServiceWorkerClient(GURL("wootzapp://testwebui/"));
+      PrepareServiceWorkerClient(GURL("chrome://testwebui/"));
 
   ASSERT_TRUE(bad_messages_.empty());
-  Register(remote_endpoint.host_remote()->get(), GURL("wootzapp://testwebui/"),
-           GURL("wootzapp://testwebui/sw.js"));
+  Register(remote_endpoint.host_remote()->get(), GURL("chrome://testwebui/"),
+           GURL("chrome://testwebui/sw.js"));
   EXPECT_EQ(1u, bad_messages_.size());
 }
 

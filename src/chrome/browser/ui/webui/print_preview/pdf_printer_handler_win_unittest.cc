@@ -107,7 +107,7 @@ class PdfPrinterHandlerWinTest : public BrowserWithTestWindowTest {
 
     // Create a new tab
     chrome::NewTab(browser());
-    AddTab(browser(), GURL("wootzapp://print"));
+    AddTab(browser(), GURL("chrome://print"));
 
     // Create the PDF printer
     pdf_printer_ = std::make_unique<FakePdfPrinterHandler>(

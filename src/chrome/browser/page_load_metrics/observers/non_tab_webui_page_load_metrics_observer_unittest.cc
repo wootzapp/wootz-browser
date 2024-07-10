@@ -31,7 +31,7 @@ TEST_F(NonTabPageLoadMetricsObserverTest, RecordsHistogramsIfEmbedderIsWebUI) {
       base::Milliseconds(100);
   timing.paint_timing->largest_contentful_paint->largest_text_paint_size = 20u;
   PopulateRequiredTimingFields(&timing);
-  NavigateAndCommit(GURL("wootzapp://version"));
+  NavigateAndCommit(GURL("chrome://version"));
 
   tester()->SimulateTimingUpdate(timing);
   tester()->histogram_tester().ExpectUniqueTimeSample(
@@ -102,7 +102,7 @@ TEST_F(NonTabPageLoadMetricsObserverNonWebUITest,
       base::Milliseconds(100);
   timing.paint_timing->largest_contentful_paint->largest_text_paint_size = 20u;
   PopulateRequiredTimingFields(&timing);
-  NavigateAndCommit(GURL("wootzapp://version"));
+  NavigateAndCommit(GURL("chrome://version"));
 
   tester()->SimulateTimingUpdate(timing);
   tester()->histogram_tester().ExpectTotalCount(

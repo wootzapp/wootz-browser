@@ -96,8 +96,8 @@ export class PdfScriptingApi {
 
     window.addEventListener('message', event => {
       if (event.origin !==
-              'wootzapp-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai' &&
-          event.origin !== 'wootzapp://print') {
+              'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai' &&
+          event.origin !== 'chrome://print') {
         console.error(
             'Received message that was not from the extension: ' + event);
         return;

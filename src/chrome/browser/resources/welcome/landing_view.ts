@@ -82,7 +82,7 @@ export class LandingViewElement extends LandingViewElementBase {
     this.landingViewProxy_.recordExistingUser();
     if (this.signinAllowed_) {
       WelcomeBrowserProxyImpl.getInstance().handleActivateSignIn(
-          'wootzapp://welcome/returning-user');
+          'chrome://welcome/returning-user');
     } else {
       navigateTo(Routes.RETURNING_USER, 1);
     }

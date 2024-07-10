@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {PdfPlugin} from 'wootzapp://print/pdf/pdf_scripting_api.js';
-import {pdfCreateOutOfProcessPlugin} from 'wootzapp://print/pdf/pdf_scripting_api.js';
+import type {PdfPlugin} from 'chrome://print/pdf/pdf_scripting_api.js';
+import {pdfCreateOutOfProcessPlugin} from 'chrome://print/pdf/pdf_scripting_api.js';
 import {assert} from 'chrome://resources/js/assert.js';
 
 export type ViewportChangedCallback =
@@ -85,7 +85,7 @@ export class PluginProxyImpl implements PluginProxy {
     assert(!this.plugin_);
     const srcUrl = this.getPreviewUrl_(previewUid, index);
     this.plugin_ = pdfCreateOutOfProcessPlugin(
-        srcUrl, 'wootzapp://print/pdf/index_print.html');
+        srcUrl, 'chrome://print/pdf/index_print.html');
     this.plugin_!.classList.add('preview-area-plugin');
     // NOTE: The plugin's 'id' field must be set to 'pdf-viewer' since
     // chrome/renderer/printing/print_render_frame_helper.cc actually

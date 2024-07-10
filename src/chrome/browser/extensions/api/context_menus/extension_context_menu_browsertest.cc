@@ -362,7 +362,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionContextMenuLazyTest, Persistent) {
 
   // Open a tab to trigger the update.
   ASSERT_TRUE(
-      extensions::browsertest_util::AddTab(browser(), GURL("wootzapp:version")));
+      extensions::browsertest_util::AddTab(browser(), GURL("chrome:version")));
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
 }
 

@@ -18,7 +18,7 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "ui/base/page_transition_types.h"
 
-const char kWelcomeReturningUserUrl[] = "wootzapp://welcome/returning-user";
+const char kWelcomeReturningUserUrl[] = "chrome://welcome/returning-user";
 
 WelcomeHandler::WelcomeHandler(content::WebUI* web_ui)
     : profile_(Profile::FromWebUI(web_ui)),

@@ -194,7 +194,7 @@ class ChromeURLDataManagerWebUITrustedTypesTest
     enabled_features.push_back(user_notes::kUserNotes);
 
 #if !BUILDFLAG(IS_CHROMEOS)
-    if (GetParam() == std::string_view("wootzapp://welcome")) {
+    if (GetParam() == std::string_view("chrome://welcome")) {
       enabled_features.push_back(welcome::kForceEnabled);
     }
 #endif
@@ -257,7 +257,7 @@ class ChromeURLDataManagerWebUITrustedTypesTest
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitchASCII(ash::switches::kSamlPasswordChangeUrl,
                                     "http://password-change.example");
-    if (GetParam() == std::string_view("wootzapp://shimless-rma")) {
+    if (GetParam() == std::string_view("chrome://shimless-rma")) {
       command_line->AppendSwitchASCII(ash::switches::kLaunchRma, "");
     }
   }
@@ -302,127 +302,127 @@ IN_PROC_BROWSER_TEST_P(ChromeURLDataManagerWebUITrustedTypesTest,
 //  1) TrustedTypes violations (see NoTrustedTypesViolation test).
 //  2) Presence of TrustedTypes checks (see TrustedTypesEnabled test).
 static constexpr const char* const kChromeUrls[] = {
-    "wootzapp://accessibility",
+    "chrome://accessibility",
 // TODO:(https://crbug.com/1439754): Flakily crashes on ChromeOS.
 #if !BUILDFLAG(IS_CHROMEOS)
-    "wootzapp://app-service-internals",
+    "chrome://app-service-internals",
 #endif
-    "wootzapp://attribution-internals",
-    "wootzapp://autofill-internals",
+    "chrome://attribution-internals",
+    "chrome://autofill-internals",
     "wootzapp://bookmarks",
     "wootzapp://bookmarks-side-panel.top-chrome",
     "wootzapp://wootzapp-urls",
-    "wootzapp://components",
-    "wootzapp://connection-help",
-    "wootzapp://connection-monitoring-detected",
+    "chrome://components",
+    "chrome://connection-help",
+    "chrome://connection-monitoring-detected",
 // TODO(crbug.com/40913109): Re-enable this test
 #if !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
-    "wootzapp://credits",
+    "chrome://credits",
 #endif
-    "wootzapp://customize-chrome-side-panel.top-chrome",
-    "wootzapp://device-log",
+    "chrome://customize-chrome-side-panel.top-chrome",
+    "chrome://device-log",
     // TODO(crbug.com/40710256): Test failure due to excessive output.
     // "chrome://discards",
-    "wootzapp://download-internals",
+    "chrome://download-internals",
     "wootzapp://downloads",
-    "wootzapp://extensions",
-    "wootzapp://extensions-internals",
-    "wootzapp://flags",
-    "wootzapp://gcm-internals",
-    "wootzapp://gpu",
-    "wootzapp://histograms",
+    "chrome://extensions",
+    "chrome://extensions-internals",
+    "chrome://flags",
+    "chrome://gcm-internals",
+    "chrome://gpu",
+    "chrome://histograms",
     "wootzapp://history",
     "wootzapp://history-clusters-side-panel.top-chrome",
-    "wootzapp://identity-internals",
-    "wootzapp://indexeddb-internals",
-    "wootzapp://inspect",
-    "wootzapp://internals",
-    "wootzapp://internals/session-service",
-    "wootzapp://internals/user-education",
-    "wootzapp://interstitials/ssl",
-    "wootzapp://local-state",
-    "wootzapp://management",
-    "wootzapp://media-engagement",
-    "wootzapp://media-internals",
-    "wootzapp://media-router-internals",
-    "wootzapp://metrics-internals",
+    "chrome://identity-internals",
+    "chrome://indexeddb-internals",
+    "chrome://inspect",
+    "chrome://internals",
+    "chrome://internals/session-service",
+    "chrome://internals/user-education",
+    "chrome://interstitials/ssl",
+    "chrome://local-state",
+    "chrome://management",
+    "chrome://media-engagement",
+    "chrome://media-internals",
+    "chrome://media-router-internals",
+    "chrome://metrics-internals",
     // TODO(crbug.com/40185163): DCHECK failure
     // "chrome://memory-internals",
-    "wootzapp://net-export",
-    "wootzapp://net-internals",
-    "wootzapp://network-errors",
+    "chrome://net-export",
+    "chrome://net-internals",
+    "chrome://network-errors",
     "wootzapp://new-tab-page",
     "wootzapp://new-tab-page-third-party",
     "wootzapp://newtab",
-    "wootzapp://ntp-tiles-internals",
-    "wootzapp://omnibox",
-    "wootzapp://password-manager",
-    "wootzapp://password-manager-internals",
-    "wootzapp://policy",
-    "wootzapp://predictors",
-    "wootzapp://prefs-internals",
-    "wootzapp://privacy-sandbox-dialog/?debug",
-    "wootzapp://process-internals",
-    "wootzapp://quota-internals",
-    "wootzapp://read-later.top-chrome",
-    "wootzapp://reset-password",
-    "wootzapp://safe-browsing",
-    "wootzapp://serviceworker-internals",
-    "wootzapp://segmentation-internals",
+    "chrome://ntp-tiles-internals",
+    "chrome://omnibox",
+    "chrome://password-manager",
+    "chrome://password-manager-internals",
+    "chrome://policy",
+    "chrome://predictors",
+    "chrome://prefs-internals",
+    "chrome://privacy-sandbox-dialog/?debug",
+    "chrome://process-internals",
+    "chrome://quota-internals",
+    "chrome://read-later.top-chrome",
+    "chrome://reset-password",
+    "chrome://safe-browsing",
+    "chrome://serviceworker-internals",
+    "chrome://segmentation-internals",
     "wootzapp://settings",
-    "wootzapp://signin-internals",
-    "wootzapp://site-engagement",
-    "wootzapp://support-tool",
+    "chrome://signin-internals",
+    "chrome://site-engagement",
+    "chrome://support-tool",
     // TODO(crbug.com/40137561): Navigating to chrome://sync-confirmation and
     // quickly navigating away cause DCHECK failure.
     // "chrome://sync-confirmation",
-    "wootzapp://sync-internals",
-    "wootzapp://syncfs-internals",
-    "wootzapp://system",
-    "wootzapp://tab-search.top-chrome",
+    "chrome://sync-internals",
+    "chrome://syncfs-internals",
+    "chrome://system",
+    "chrome://tab-search.top-chrome",
     // TODO(crbug.com/40137562): Navigating to chrome://tab-strip and quickly
     // navigating away cause DCHECK failure.
     // "chrome://tab-strip",
-    "wootzapp://terms",
-    "wootzapp://topics-internals",
-    "wootzapp://translate-internals",
-    "wootzapp://ukm",
-    "wootzapp://usb-internals",
-    "wootzapp://user-actions",
-    "wootzapp://user-notes-side-panel.top-chrome",
-    "wootzapp://version",
-    "wootzapp://web-app-internals",
-    "wootzapp://webrtc-internals",
-    "wootzapp://webrtc-logs",
-    "wootzapp://webui-gallery",
-    "wootzapp://whats-new",
+    "chrome://terms",
+    "chrome://topics-internals",
+    "chrome://translate-internals",
+    "chrome://ukm",
+    "chrome://usb-internals",
+    "chrome://user-actions",
+    "chrome://user-notes-side-panel.top-chrome",
+    "chrome://version",
+    "chrome://web-app-internals",
+    "chrome://webrtc-internals",
+    "chrome://webrtc-logs",
+    "chrome://webui-gallery",
+    "chrome://whats-new",
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    "wootzapp://cast-feedback",
+    "chrome://cast-feedback",
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
-    "wootzapp://explore-sites-internals",
-    "wootzapp://internals/notifications",
-    "wootzapp://internals/query-tiles",
-    "wootzapp://offline-internals",
-    "wootzapp://snippets-internals",
-    "wootzapp://webapks",
+    "chrome://explore-sites-internals",
+    "chrome://internals/notifications",
+    "chrome://internals/query-tiles",
+    "chrome://offline-internals",
+    "chrome://snippets-internals",
+    "chrome://webapks",
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
     // TODO(crbug.com/40250441): Add CrOS-only WebUI URLs here as TrustedTypes
     // are deployed to more WebUIs.
 
-    "wootzapp://accessory-update",
-    "wootzapp://account-manager-error",
-    "wootzapp://account-migration-welcome",
-    "wootzapp://add-supervision/",
-    "wootzapp://app-disabled",
-    "wootzapp://camera-app/views/main.html",
-    "wootzapp://assistant-optin/",
-    "wootzapp://bluetooth-pairing",
-    "wootzapp://certificate-manager/",
+    "chrome://accessory-update",
+    "chrome://account-manager-error",
+    "chrome://account-migration-welcome",
+    "chrome://add-supervision/",
+    "chrome://app-disabled",
+    "chrome://camera-app/views/main.html",
+    "chrome://assistant-optin/",
+    "chrome://bluetooth-pairing",
+    "chrome://certificate-manager/",
 
     // Crashes because message handler is not registered outside of the dialog
     // for confirm password change UI.
@@ -430,79 +430,79 @@ static constexpr const char* const kChromeUrls[] = {
 
     // TODO(b/300875336): Navigating to chrome://cloud-upload causes an
     // assertion failure because there are no dialog args.
-    "wootzapp://cloud-upload",
+    "chrome://cloud-upload",
 
-    "wootzapp://connectivity-diagnostics",
-    "wootzapp://crostini-installer",
-    "wootzapp://crostini-upgrader",
-    "wootzapp://cryptohome",
-    "wootzapp://diagnostics",
-    "wootzapp://drive-internals",
-    "wootzapp://emoji-picker",
-    "wootzapp://family-link-user-internals",
-    "wootzapp://file-manager",
-    "wootzapp://help-app",
-    "wootzapp://linux-proxy-config",
-    "wootzapp://manage-mirrorsync",
-    "wootzapp://multidevice-internals",
-    "wootzapp://multidevice-setup",
-    "wootzapp://nearby",
-    "wootzapp://nearby-internals",
-    "wootzapp://network",
-    "wootzapp://office-fallback/",
-    "wootzapp://os-feedback",
-    "wootzapp-untrusted://os-feedback",
-    "wootzapp://os-settings",
-    "wootzapp://parent-access",
-    "wootzapp://password-change",
-    "wootzapp://personalization",
-    "wootzapp://power",
-    "wootzapp://print-management",
-    "wootzapp-untrusted://projector",
-    "wootzapp://proximity-auth/proximity_auth.html",
-    "wootzapp://scanning",
-    "wootzapp://set-time",
-    "wootzapp://shimless-rma",
-    "wootzapp://shortcut-customization",
-    "wootzapp://slow",
-    "wootzapp://smb-credentials-dialog/",
-    "wootzapp://smb-share-dialog/",
-    "wootzapp://urgent-password-expiry-notification/",
-    "wootzapp://sys-internals",
+    "chrome://connectivity-diagnostics",
+    "chrome://crostini-installer",
+    "chrome://crostini-upgrader",
+    "chrome://cryptohome",
+    "chrome://diagnostics",
+    "chrome://drive-internals",
+    "chrome://emoji-picker",
+    "chrome://family-link-user-internals",
+    "chrome://file-manager",
+    "chrome://help-app",
+    "chrome://linux-proxy-config",
+    "chrome://manage-mirrorsync",
+    "chrome://multidevice-internals",
+    "chrome://multidevice-setup",
+    "chrome://nearby",
+    "chrome://nearby-internals",
+    "chrome://network",
+    "chrome://office-fallback/",
+    "chrome://os-feedback",
+    "chrome-untrusted://os-feedback",
+    "chrome://os-settings",
+    "chrome://parent-access",
+    "chrome://password-change",
+    "chrome://personalization",
+    "chrome://power",
+    "chrome://print-management",
+    "chrome-untrusted://projector",
+    "chrome://proximity-auth/proximity_auth.html",
+    "chrome://scanning",
+    "chrome://set-time",
+    "chrome://shimless-rma",
+    "chrome://shortcut-customization",
+    "chrome://slow",
+    "chrome://smb-credentials-dialog/",
+    "chrome://smb-share-dialog/",
+    "chrome://urgent-password-expiry-notification/",
+    "chrome://sys-internals",
 #endif
 #if !BUILDFLAG(IS_CHROMEOS)
-    "wootzapp://apps",
-    "wootzapp://browser-switch",
-    "wootzapp://browser-switch/internals",
-    "wootzapp://profile-picker",
-    "wootzapp://welcome",
+    "chrome://apps",
+    "chrome://browser-switch",
+    "chrome://browser-switch/internals",
+    "chrome://profile-picker",
+    "chrome://welcome",
 #endif
 #if !BUILDFLAG(IS_CHROMEOS_ASH)
     // Note: Disabled because a DCHECK fires when directly visiting the URL.
     // "chrome://managed-user-profile-notice",
-    "wootzapp://intro",
-    "wootzapp://profile-customization/?debug",
-    "wootzapp://signin-email-confirmation",
+    "chrome://intro",
+    "chrome://profile-customization/?debug",
+    "chrome://signin-email-confirmation",
 #endif
 #if !BUILDFLAG(IS_CHROMEOS_LACROS)
-    "wootzapp://connectors-internals",
-    "wootzapp://crashes",
+    "chrome://connectors-internals",
+    "chrome://crashes",
 #endif
 #if !BUILDFLAG(IS_MAC)
-    "wootzapp://sandbox",
+    "chrome://sandbox",
 #endif  // !BUILDFLAG(IS_MAC)
 #if BUILDFLAG(ENABLE_NACL)
-    "wootzapp://nacl",
+    "chrome://nacl",
 #endif
 #if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_CHROMEOS_LACROS)
     // TODO(crbug.com/40772380): this test is flaky on mac.
-    "wootzapp://bluetooth-internals",
+    "chrome://bluetooth-internals",
 #endif
 #if BUILDFLAG(IS_WIN)
-    "wootzapp://conflicts",
+    "chrome://conflicts",
 #endif
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
-    "wootzapp://signin-dice-web-intercept.top-chrome/?debug",
+    "chrome://signin-dice-web-intercept.top-chrome/?debug",
     // Note: Disabled because a DCHECK fires when directly visiting the URL.
     // "chrome://signin-reauth",
 #endif
@@ -515,10 +515,10 @@ static constexpr const char* const kChromeUrls[] = {
 // "chrome://chrome-signin/?reason=5",
 #endif
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-    "wootzapp://webuijserror",
+    "chrome://webuijserror",
 #endif
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-    "wootzapp://print",
+    "chrome://print",
 #endif
 };
 

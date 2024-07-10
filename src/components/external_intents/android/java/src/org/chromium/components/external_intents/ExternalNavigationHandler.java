@@ -851,7 +851,7 @@ public class ExternalNavigationHandler {
     private boolean isLinkFromChromeInternalPage(ExternalNavigationParams params) {
         if (params.getReferrerUrl().getScheme().equals(UrlConstants.CHROME_SCHEME)
                 && UrlUtilities.isHttpOrHttps(params.getUrl())) {
-            if (debug()) Log.i(TAG, "Link from an internal wootzapp:// page");
+            if (debug()) Log.i(TAG, "Link from an internal chrome:// page");
             return true;
         }
         return false;

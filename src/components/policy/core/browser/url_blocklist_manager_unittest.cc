@@ -516,10 +516,10 @@ TEST_P(URLBlocklistManagerParamTest, DefaultBlocklistExceptions) {
 
   // Internal NTP and extension URLs are not blocked by the "*":
   EXPECT_TRUE(blocklist.IsURLBlocked(GURL("http://www.google.com")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp-extension://xyz")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome-extension://xyz")));
   EXPECT_FALSE(
-      blocklist.IsURLBlocked(GURL("wootzapp-search://most-visited/title.html")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp-native://ntp")));
+      blocklist.IsURLBlocked(GURL("chrome-search://most-visited/title.html")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome-native://ntp")));
 #if BUILDFLAG(IS_IOS)
   // Ensure that the NTP is not blocked on iOS by "*".
   // TODO(crbug.com/40686232): On iOS, the NTP can not be blocked even by
@@ -538,18 +538,18 @@ TEST_P(URLBlocklistManagerParamTest, DefaultBlocklistExceptions) {
 #endif
 
   // Unless they are explicitly on the blocklist:
-  blocked.Append("wootzapp-extension://*");
+  blocked.Append("chrome-extension://*");
   base::Value::List allowed;
-  allowed.Append("wootzapp-extension://abc");
+  allowed.Append("chrome-extension://abc");
   blocklist.Block(blocked);
   blocklist.Allow(allowed);
 
   EXPECT_TRUE(blocklist.IsURLBlocked(GURL("http://www.google.com")));
-  EXPECT_TRUE(blocklist.IsURLBlocked(GURL("wootzapp-extension://xyz")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp-extension://abc")));
+  EXPECT_TRUE(blocklist.IsURLBlocked(GURL("chrome-extension://xyz")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome-extension://abc")));
   EXPECT_FALSE(
-      blocklist.IsURLBlocked(GURL("wootzapp-search://most-visited/title.html")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp-native://ntp")));
+      blocklist.IsURLBlocked(GURL("chrome-search://most-visited/title.html")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome-native://ntp")));
 }
 
 TEST_P(URLBlocklistManagerParamTest, BlocklistBasicCoverage) {
@@ -563,7 +563,7 @@ TEST_P(URLBlocklistManagerParamTest, BlocklistBasicCoverage) {
   EXPECT_TRUE(IsMatch("file:*", "file:///usr/local/boot.txt"));
   EXPECT_TRUE(IsMatch("https://*", "https:///abc.txt"));
   EXPECT_TRUE(IsMatch("ftp://*", "ftp://ftp.txt"));
-  EXPECT_TRUE(IsMatch("wootzapp://*", "wootzapp:policy"));
+  EXPECT_TRUE(IsMatch("chrome://*", "chrome:policy"));
   EXPECT_TRUE(IsMatch("noscheme", "http://noscheme"));
   // Filter custom schemes.
   EXPECT_TRUE(IsMatch("custom://*", "custom://example_app"));
@@ -578,8 +578,8 @@ TEST_P(URLBlocklistManagerParamTest, BlocklistBasicCoverage) {
   EXPECT_FALSE(IsMatch(" wrong:*", " wrong://app"));
 
   // Ommitting the scheme matches most standard schemes.
-  EXPECT_TRUE(IsMatch("example.com", "wootzapp:example.com"));
-  EXPECT_TRUE(IsMatch("example.com", "wootzapp://example.com"));
+  EXPECT_TRUE(IsMatch("example.com", "chrome:example.com"));
+  EXPECT_TRUE(IsMatch("example.com", "chrome://example.com"));
   EXPECT_TRUE(IsMatch("example.com", "file://example.com/"));
   EXPECT_TRUE(IsMatch("example.com", "ftp://example.com"));
   EXPECT_TRUE(IsMatch("example.com", "http://example.com"));

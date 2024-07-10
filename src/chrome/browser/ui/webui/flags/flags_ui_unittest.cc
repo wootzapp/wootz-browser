@@ -24,12 +24,12 @@ TEST_F(FlagsUITest, IsDeprecatedUrl) {
     std::string url;
     bool is_deprecated;
   } expectations[] = {
-      {"wootzapp://flags", false},
-      {"wootzapp://flags/no/deprecated", false},
-      {"wootzapp://deprecated", false},
-      {"wootzapp://flags/deprecated", true},
-      {"wootzapp://flags/deprecated/", true},
-      {"wootzapp://flags//deprecated/yes?no", false},
+      {"chrome://flags", false},
+      {"chrome://flags/no/deprecated", false},
+      {"chrome://deprecated", false},
+      {"chrome://flags/deprecated", true},
+      {"chrome://flags/deprecated/", true},
+      {"chrome://flags//deprecated/yes?no", false},
   };
 
   for (const auto& expectation : expectations) {

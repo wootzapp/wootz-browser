@@ -242,7 +242,7 @@ TEST_F(ArcIntentHelperTest, TestOnOpenWebApp) {
 // Tests that OnOpenUrl does not open URLs with the 'chrome://' and equivalent
 // schemes like 'about:'.
 TEST_F(ArcIntentHelperTest, TestOnOpenUrl_ChromeScheme) {
-  instance_->OnOpenUrl("wootzapp://www.google.com");
+  instance_->OnOpenUrl("chrome://www.google.com");
   EXPECT_FALSE(test_open_url_delegate_->TakeLastOpenedUrl().is_valid());
 
   instance_->OnOpenUrl("wootzapp://settings");

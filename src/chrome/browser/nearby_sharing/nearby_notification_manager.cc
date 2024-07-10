@@ -58,13 +58,13 @@
 namespace {
 
 constexpr char kNearbyInProgressNotificationId[] =
-    "wootzapp://nearby_share/in_progress";
+    "chrome://nearby_share/in_progress";
 constexpr char kNearbyTransferResultNotificationIdPrefix[] =
-    "wootzapp://nearby_share/result/";
+    "chrome://nearby_share/result/";
 constexpr char kNearbyDeviceTryingToShareNotificationId[] =
-    "wootzapp://nearby_share/nearby_device_trying_to_share";
+    "chrome://nearby_share/nearby_device_trying_to_share";
 constexpr char kNearbyVisibilityReminderNotificationId[] =
-    "wootzapp://nearby_share/visibility_reminder";
+    "chrome://nearby_share/visibility_reminder";
 constexpr char kNearbyNotifier[] = "nearby";
 
 std::string CreateNotificationIdForShareTarget(

@@ -845,7 +845,7 @@ TEST_F(ManagePasswordsUIControllerTest, PasswordSubmittedToNonWebbyURL) {
   // Navigate to a non-webby URL, then see what happens!
   EXPECT_CALL(*controller(), OnUpdateBubbleAndIconVisibility());
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents(), GURL("wootzapp://sign-in"));
+      web_contents(), GURL("chrome://sign-in"));
 
   std::vector<PasswordForm> best_matches;
   auto test_form_manager =

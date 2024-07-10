@@ -160,8 +160,8 @@ Profile* CreateAdditionalProfile() {
 
 #if !BUILDFLAG(IS_CHROMEOS)
 
-const char kPasswordManagerId[] = "wootzapp://password-manager/";
-const char kPasswordManagerPWAUrl[] = "wootzapp://password-manager/?source=pwa";
+const char kPasswordManagerId[] = "chrome://password-manager/";
+const char kPasswordManagerPWAUrl[] = "chrome://password-manager/?source=pwa";
 
 std::unique_ptr<web_app::WebAppInstallInfo> CreatePasswordManagerWebAppInfo() {
   auto web_app_info = std::make_unique<web_app::WebAppInstallInfo>(

@@ -805,7 +805,7 @@ IN_PROC_BROWSER_TEST_P(LookalikeUrlNavigationThrottleBrowserTest,
 // Schemes other than HTTP and HTTPS should be ignored.
 IN_PROC_BROWSER_TEST_P(LookalikeUrlNavigationThrottleBrowserTest,
                        TopDomainChromeUrl_NoMatch) {
-  TestInterstitialNotShown(browser(), GURL("wootzapp://googlé.com"));
+  TestInterstitialNotShown(browser(), GURL("chrome://googlé.com"));
   test_helper()->CheckNoLookalikeUkm();
 }
 

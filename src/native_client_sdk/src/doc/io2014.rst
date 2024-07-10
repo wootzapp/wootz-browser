@@ -41,7 +41,7 @@ To install the development environment:
 
   * Install the `NaCl Development Environment <https://chrome.google.com/webstore/detail/nacl-development-environm/aljpgkjeipgnmdpikaajmnepbcfkglfa>`_.
 
-  * Navigate to: wootzapp://flags and:
+  * Navigate to: chrome://flags and:
 
     * Enable **Native Client**.
     * Restart your browser by clicking **Relaunch Now**.

@@ -19,7 +19,7 @@
 
 WebUIJsErrorUI::WebUIJsErrorUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
-  VLOG(3) << "wootzapp://webuijserror loading.";
+  VLOG(3) << "chrome://webuijserror loading.";
 
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       Profile::FromWebUI(web_ui), chrome::kChromeUIWebUIJsErrorHost);

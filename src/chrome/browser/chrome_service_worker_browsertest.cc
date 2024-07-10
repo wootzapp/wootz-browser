@@ -1194,17 +1194,17 @@ class ChromeWebUIServiceWorkerTest : public ChromeServiceWorkerTest {
 // fails.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerTest,
                        DisallowChromeSchemeInJavaScript) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
   auto result = CreateWebUIAndRegisterServiceWorkerInJavaScript(base_url);
   EXPECT_EQ(
       "Failed to register a ServiceWorker: The URL protocol of the "
-      "current origin ('wootzapp://dummyurl') is not supported.",
+      "current origin ('chrome://dummyurl') is not supported.",
       result);
 }
 
 // Tests that registering a service worker with a chrome:// URL fails.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerTest, DisallowChromeScheme) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
 
   // Registration should fail without the flag being set. See the tests
   // below, which set kEnableServiceWorkersForChromeScheme.
@@ -1253,7 +1253,7 @@ class ChromeWebUIServiceWorkerFlagTest : public ChromeWebUIServiceWorkerTest {
 // chrome:// URL fails even if the flag is enabled.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerFlagTest,
                        DisallowChromeSchemeInJavaScript) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
   auto result = CreateWebUIAndRegisterServiceWorkerInJavaScript(base_url);
   EXPECT_EQ(
       "Failed to register a ServiceWorker: The document is in an invalid "
@@ -1273,7 +1273,7 @@ IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerFlagTest,
 // Tests that registering a service worker with a chrome:// URL works
 // if the flag is enabled.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerFlagTest, AllowChromeScheme) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
   auto result = CreateWebUIAndRegisterServiceWorker(base_url);
   EXPECT_EQ(result, blink::ServiceWorkerStatusCode::kOk);
 }
@@ -1306,11 +1306,11 @@ class ChromeWebUIServiceWorkerUntrustedFlagTest
 // fails even if the untrusted flag is enabled.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerUntrustedFlagTest,
                        DisallowChromeSchemeInJavaScript) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
   auto result = CreateWebUIAndRegisterServiceWorkerInJavaScript(base_url);
   EXPECT_EQ(
       "Failed to register a ServiceWorker: The URL protocol of the current "
-      "origin ('wootzapp://dummyurl') is not supported.",
+      "origin ('chrome://dummyurl') is not supported.",
       result);
 }
 
@@ -1318,7 +1318,7 @@ IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerUntrustedFlagTest,
 // if the untrusted flag is enabled.
 IN_PROC_BROWSER_TEST_F(ChromeWebUIServiceWorkerUntrustedFlagTest,
                        DisallowChromeScheme) {
-  const GURL base_url("wootzapp://dummyurl");
+  const GURL base_url("chrome://dummyurl");
   auto result = CreateWebUIAndRegisterServiceWorker(base_url);
   EXPECT_EQ(result, blink::ServiceWorkerStatusCode::kErrorNetwork);
 }
