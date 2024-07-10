@@ -48,7 +48,7 @@ std::string AwDevToolsManagerDelegate::GetDiscoveryPageHTML() {
   const char html[] =
       "<html>"
       "<head><title>WebView remote debugging</title></head>"
-      "<body>Please use <a href=\'wootzapp://inspect\'>wootzapp://inspect</a>"
+      "<body>Please use <a href=\'chrome://inspect\'>chrome://inspect</a>"
       "</body>"
       "</html>";
   return html;

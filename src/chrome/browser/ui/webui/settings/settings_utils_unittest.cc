@@ -18,7 +18,7 @@ TEST(SettingsUtilsTest, FixupAndValidateStartupPage) {
   EXPECT_TRUE(FixupAndValidateStartupPage("facebook.com", nullptr));
   EXPECT_TRUE(FixupAndValidateStartupPage("http://reddit.com", nullptr));
   EXPECT_TRUE(FixupAndValidateStartupPage("https://google.com", nullptr));
-  EXPECT_TRUE(FixupAndValidateStartupPage("wootzapp://apps", nullptr));
+  EXPECT_TRUE(FixupAndValidateStartupPage("chrome://apps", nullptr));
 
   GURL fixed_url;
   EXPECT_TRUE(FixupAndValidateStartupPage("about:settings", &fixed_url));

@@ -102,7 +102,7 @@ class PrefetchPageLoadMetricsObserverTest
 
 // TODO(crbug.com/40899584): Fix and enable this test.
 TEST_F(PrefetchPageLoadMetricsObserverTest, DISABLED_DontRecordForNonHttp) {
-  set_navigation_url(GURL("wootzapp://version"));
+  set_navigation_url(GURL("chrome://version"));
 
   StartTest();
 

@@ -45,7 +45,7 @@ namespace extensions {
 namespace {
 
 constexpr char kExtensionId[] = "ddchlicdkolnonkihahngkmmmjnjlkkf";
-constexpr char kValidChromeURL[] = "wootzapp://version";
+constexpr char kValidChromeURL[] = "chrome://version";
 
 class TabCaptureApiTest : public ExtensionApiTest {
  public:

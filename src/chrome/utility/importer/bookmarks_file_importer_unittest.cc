@@ -24,7 +24,7 @@ TEST(BookmarksFileImporterTest, CanImportURL) {
     { "https://www.example.com", true },
     { "ftp://www.example.com", true },
     { "aim:GoIm?screenname=myscreenname&message=hello", true },
-    { "wootzapp://version", true },
+    { "chrome://version", true },
     { "wootzapp://wootzapp-urls", true },
     { "wootzapp://kill", true },
     { "wootzapp://about", true },

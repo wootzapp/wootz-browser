@@ -116,9 +116,9 @@ TEST_F(SupervisedUserURLFilterTest, Basic) {
   EXPECT_FALSE(IsURLAllowlisted("http://youtube.com/"));
 
   EXPECT_TRUE(IsURLAllowlisted("bogus://youtube.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("wootzapp://youtube.com/"));
-  EXPECT_TRUE(IsURLAllowlisted("wootzapp://extensions/"));
-  EXPECT_TRUE(IsURLAllowlisted("wootzapp-extension://foo/main.html"));
+  EXPECT_TRUE(IsURLAllowlisted("chrome://youtube.com/"));
+  EXPECT_TRUE(IsURLAllowlisted("chrome://extensions/"));
+  EXPECT_TRUE(IsURLAllowlisted("chrome-extension://foo/main.html"));
   EXPECT_TRUE(
       IsURLAllowlisted("file:///home/chronos/user/MyFiles/Downloads/img.jpg"));
 }
@@ -264,7 +264,7 @@ TEST_F(SupervisedUserURLFilterTest, UrlWithNonStandardUrlSchemeAllowed) {
   // Non-standard url scheme.
   EXPECT_TRUE(IsURLAllowlisted("file://example.com"));
   EXPECT_TRUE(IsURLAllowlisted("filesystem://80cols.com"));
-  EXPECT_TRUE(IsURLAllowlisted("wootzapp://example.com"));
+  EXPECT_TRUE(IsURLAllowlisted("chrome://example.com"));
   EXPECT_TRUE(IsURLAllowlisted("wtf://example.com"));
   EXPECT_TRUE(IsURLAllowlisted("gopher://example.com"));
 

@@ -151,11 +151,11 @@ public class PartnerBrowserCustomizationsUnitTest {
     public void testIsValidHomepage() {
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(
-                        new GURL("wootzapp-native://newtab/path#fragment")));
+                        new GURL("chrome-native://newtab/path#fragment")));
         Assert.assertTrue(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp-native://newtab/")));
+                PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome-native://newtab/")));
         Assert.assertTrue(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp-native://newtab")));
+                PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome-native://newtab")));
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://newtab")));
         Assert.assertTrue(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp:newtab")));
@@ -183,7 +183,7 @@ public class PartnerBrowserCustomizationsUnitTest {
 
         Assert.assertFalse(
                 PartnerBrowserCustomizations.isValidHomepage(
-                        new GURL("wootzapp-native://bookmarks")));
+                        new GURL("chrome-native://bookmarks")));
         Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("example.com")));
         Assert.assertFalse(
                 PartnerBrowserCustomizations.isValidHomepage(

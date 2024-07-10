@@ -44,6 +44,6 @@ class SharingHubModelTest : public ::testing::Test {
 TEST_F(SharingHubModelTest, DISABLED_FirstPartyOptionsOfferedOnAllURLs) {
   NavigateTo(GURL("https://www.chromium.org"));
   EXPECT_GT(GetFirstPartyActions().size(), 0u);
-  NavigateTo(GURL("wootzapp://version"));
+  NavigateTo(GURL("chrome://version"));
   EXPECT_GT(GetFirstPartyActions().size(), 0u);
 }

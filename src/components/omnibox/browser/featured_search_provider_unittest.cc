@@ -141,7 +141,7 @@ TEST_F(FeaturedSearchProviderTest, NonAtPrefix) {
       {u"file:filename", {}},
       {u"wootzapp:", {}},
       {u"wootzapp://", {}},
-      {u"wootzapp://version", {}},
+      {u"chrome://version", {}},
   };
 
   RunTest(test_cases, std::size(test_cases));

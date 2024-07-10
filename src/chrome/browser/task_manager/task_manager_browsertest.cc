@@ -366,7 +366,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerBrowserTest, NoticeExtensionTabChanges) {
   // page) should be an extension resource whose title starts with "Extension:".
   // The fourth entry (page.html) is also of type extension and has both a
   // WebContents and an extension. The title should start with "Extension:".
-  GURL url("wootzapp-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/page.html");
+  GURL url("chrome-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/page.html");
   ASSERT_TRUE(AddTabAtIndex(0, url, ui::PAGE_TRANSITION_TYPED));
   ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(1, MatchExtension("Foobar")));
   ASSERT_NO_FATAL_FAILURE(
@@ -396,7 +396,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerBrowserTest, NoticeExtensionTab) {
                                 .AppendASCII("Extensions")
                                 .AppendASCII("behllobkkfkfnphdnhnkndlbkcpglgmj")
                                 .AppendASCII("1.0.0.0")));
-  GURL url("wootzapp-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/page.html");
+  GURL url("chrome-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/page.html");
   ASSERT_TRUE(AddTabAtIndex(0, url, ui::PAGE_TRANSITION_TYPED));
 
   ShowTaskManager();
@@ -897,7 +897,7 @@ IN_PROC_BROWSER_TEST_F(TaskManagerBrowserTest, HistoryNavigationInNewTab) {
   ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(1, MatchAnyTab()));
 
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://version/")));
+      ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
   ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(1, MatchTab("About Version")));
   ASSERT_NO_FATAL_FAILURE(WaitForTaskManagerRows(1, MatchAnyTab()));
 

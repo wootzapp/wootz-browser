@@ -445,7 +445,7 @@ TEST_F(ExtensionsSitePermissionsPageViewUnitTest,
 
   // While the menu is open, navigate to an url where extension should not have
   // a site permissions page.
-  NavigateAndCommit("wootzapp://extensions");
+  NavigateAndCommit("chrome://extensions");
 
   // Menu should navigate back to main page since site permissions page should
   // not be visible for the new url.

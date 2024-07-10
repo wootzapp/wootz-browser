@@ -4,8 +4,8 @@
 
 import 'chrome://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
 
-import type {AuthCompletedCredentials, AuthParams} from 'wootzapp://wootzapp-signin/gaia_auth_host/authenticator.js';
-import {Authenticator} from 'wootzapp://wootzapp-signin/gaia_auth_host/authenticator.js';
+import type {AuthCompletedCredentials, AuthParams} from 'chrome://chrome-signin/gaia_auth_host/authenticator.js';
+import {Authenticator} from 'chrome://chrome-signin/gaia_auth_host/authenticator.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import type {PaperSpinnerLiteElement} from 'chrome://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';

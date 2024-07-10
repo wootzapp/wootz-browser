@@ -262,8 +262,8 @@ public class NavigationObserverUnitTest {
         // All types of NTP URLs.
         Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp://newtab")));
         Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp://newtab/")));
-        Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp-native://newtab")));
-        Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp-native://newtab/")));
+        Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("chrome-native://newtab")));
+        Assert.assertTrue(TabGroupSyncUtils.isSavableUrl(new GURL("chrome-native://newtab/")));
 
         // TODO(b/339225806): This is not savable. Maybe this should?
         Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp://new-tab-page")));
@@ -274,8 +274,8 @@ public class NavigationObserverUnitTest {
 
         // These URLs are not syncable.
         Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("ftp://foo.com")));
-        Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp://flags")));
-        Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("wootzapp://sync-internals")));
+        Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("chrome://flags")));
+        Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("chrome://sync-internals")));
         Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("chrome-untrusted://xyz")));
         Assert.assertFalse(TabGroupSyncUtils.isSavableUrl(new GURL("www.foo.com")));
     }

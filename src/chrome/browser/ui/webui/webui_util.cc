@@ -48,8 +48,8 @@ void SetJSModuleDefaults(content::WebUIDataSource* source) {
     source->OverrideContentSecurityPolicy(
         network::mojom::CSPDirectiveName::ImgSrc,
         "img-src chrome://resources chrome://theme chrome://image "
-        "wootzapp://favicon2 wootzapp://app-icon wootzapp://extension-icon "
-        "wootzapp://fileicon "
+        "chrome://favicon2 chrome://app-icon chrome://extension-icon "
+        "chrome://fileicon "
 #if BUILDFLAG(IS_CHROMEOS_ASH)
         "chrome://chromeos-asset chrome://userimage "
 #endif

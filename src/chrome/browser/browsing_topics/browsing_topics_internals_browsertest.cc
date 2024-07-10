@@ -37,9 +37,9 @@ namespace browsing_topics {
 
 namespace {
 
-const char kBrowsingTopicsInternalsUrl[] = "wootzapp://topics-internals/";
+const char kBrowsingTopicsInternalsUrl[] = "chrome://topics-internals/";
 const char kBrowsingTopicsInternalsConsentInfoUrl[] =
-    "wootzapp://topics-internals/#consent-info";
+    "chrome://topics-internals/#consent-info";
 
 class FixedBrowsingTopicsService
     : public browsing_topics::BrowsingTopicsService {

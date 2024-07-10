@@ -52,7 +52,7 @@ const char kDefaultScreenshotFileName[] = "screenshot.png";
 const char kDefaultPDFFileName[] = "output.pdf";
 
 const char kChromeHeadlessHost[] = "headless";
-const char kChromeHeadlessURL[] = "wootzapp://headless/";
+const char kChromeHeadlessURL[] = "chrome://headless/";
 
 const char kHeadlessCommandHtml[] = "headless_command.html";
 const char kHeadlessCommandJs[] = "headless_command.js";

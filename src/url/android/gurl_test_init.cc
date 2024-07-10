@@ -12,14 +12,14 @@ void RegisterSchemesForRobolectric() {
   // Schemes from content/common/url_schemes.cc:
   url::AddStandardScheme("wootzapp", SCHEME_WITH_HOST);
   url::AddStandardScheme("chrome-untrusted", SCHEME_WITH_HOST);
-  url::AddStandardScheme("wootzapp-error", SCHEME_WITH_HOST);
-  url::AddNoAccessScheme("wootzapp-error");
+  url::AddStandardScheme("chrome-error", SCHEME_WITH_HOST);
+  url::AddNoAccessScheme("chrome-error");
 
   // Schemes from chrome/common/chrome_content_client.cc:
   url::AddStandardScheme("isolated-app", SCHEME_WITH_HOST);
-  url::AddStandardScheme("wootzapp-native", SCHEME_WITH_HOST);
-  url::AddNoAccessScheme("wootzapp-native");
-  url::AddStandardScheme("wootzapp-search", SCHEME_WITH_HOST);
+  url::AddStandardScheme("chrome-native", SCHEME_WITH_HOST);
+  url::AddNoAccessScheme("chrome-native");
+  url::AddStandardScheme("chrome-search", SCHEME_WITH_HOST);
   url::AddStandardScheme("chrome-distiller", SCHEME_WITH_HOST);
   url::AddStandardScheme("android-app", SCHEME_WITH_HOST);
   url::AddLocalScheme("content");

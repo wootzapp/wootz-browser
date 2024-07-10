@@ -58,13 +58,13 @@ namespace {
 const char* kBypassBlocklistWildcardForSchemes[] = {
     // For internal extension URLs e.g. the Bookmark Manager and the File
     // Manager on Chrome OS.
-    "wootzapp-extension",
+    "chrome-extension",
 
     // NTP on Android.
-    "wootzapp-native",
+    "chrome-native",
 
     // NTP on other platforms.
-    "wootzapp-search",
+    "chrome-search",
 };
 
 #if BUILDFLAG(IS_IOS)

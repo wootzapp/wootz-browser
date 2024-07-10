@@ -1875,7 +1875,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySplit) {
   ASSERT_TRUE(ready_incognito.WaitUntilSatisfied());
 
   // Load a new tab in both browsers.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp:version")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
@@ -1885,7 +1885,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySplit) {
     // and replies with the URLs of the tabs.
     ready_regular.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["wootzapp://version/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["chrome://version/"])", tabs_listener.message());
   }
   {
     ExtensionTestMessageListener tabs_listener;
@@ -1925,7 +1925,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
   ASSERT_TRUE(ready_incognito.WaitUntilSatisfied());
 
   // Load a new tab in both browsers.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp:version")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
@@ -1935,7 +1935,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
     // and replies with the URLs of the tabs.
     ready_regular.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["wootzapp://version/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["chrome://version/"])", tabs_listener.message());
   }
   {
     ExtensionTestMessageListener tabs_listener;
@@ -1967,7 +1967,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySpanning) {
   ASSERT_TRUE(ready_listener.WaitUntilSatisfied());
 
   // Load a new tab in both browsers.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp:version")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
@@ -1976,7 +1976,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySpanning) {
   // and replies with the URLs of the tabs.
   ready_listener.Reply("");
   EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-  EXPECT_EQ(R"(["wootzapp://version/","wootzapp://about/"])",
+  EXPECT_EQ(R"(["chrome://version/","wootzapp://about/"])",
             tabs_listener.message());
 }
 
@@ -2003,7 +2003,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsOnUpdatedSplit) {
   ASSERT_TRUE(ready_incognito.WaitUntilSatisfied());
 
   // Load a new tab in both browsers.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp:version")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
@@ -2013,7 +2013,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsOnUpdatedSplit) {
     // and replies with the URLs of the tabs.
     ready_regular.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["wootzapp://version/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["chrome://version/"])", tabs_listener.message());
   }
   {
     ExtensionTestMessageListener tabs_listener;
@@ -2117,12 +2117,12 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
   ExtensionTestMessageListener tabs_listener;
 
   // Load a new tab in both browsers.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp:version")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-  EXPECT_EQ(R"(["wootzapp://version/","wootzapp://about/"])",
+  EXPECT_EQ(R"(["chrome://version/","wootzapp://about/"])",
             tabs_listener.message());
 }
 

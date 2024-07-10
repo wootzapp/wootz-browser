@@ -138,7 +138,7 @@ TEST_P(ExtensionWebRequestPermissionsWithHashRealTimeDependenceTest,
       {"blob:https://chrome.google.com/fc3f440b-78ed-469f-8af8-7a1717ff39ae",
        HIDE_ALL},
       // Unsupported scheme.
-      {"wootzapp://test/", HIDE_ALL},
+      {"chrome://test/", HIDE_ALL},
       // Unsupported scheme.
       {"chrome-untrusted://test/", HIDE_ALL},
       {"notregisteredscheme://www.foobar.com", HIDE_ALL},
@@ -379,7 +379,7 @@ TEST_F(ExtensionWebRequestPermissionsTest,
       create_main_frame_request_info(GURL("https://example.com/"))));
   EXPECT_TRUE(WebRequestPermissions::HideRequest(
       permission_helper,
-      create_main_frame_request_info(GURL("wootzapp://version/"))));
+      create_main_frame_request_info(GURL("chrome://version/"))));
   EXPECT_TRUE(WebRequestPermissions::HideRequest(
       permission_helper,
       create_main_frame_request_info(GURL("chrome-untrusted://test2/"))));

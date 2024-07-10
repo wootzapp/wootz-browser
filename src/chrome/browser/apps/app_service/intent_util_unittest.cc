@@ -404,10 +404,10 @@ TEST_F(IntentUtilsTest, CreateIntentFiltersForExtension_FileHandlers) {
   ASSERT_EQ(file_cond.condition_values.size(), 2u);
   EXPECT_EQ(file_cond.condition_values[0]->match_type, PatternMatchType::kGlob);
   EXPECT_EQ(file_cond.condition_values[0]->value,
-            R"(filesystem:wootzapp-extension://.*/.*\.html)");
+            R"(filesystem:chrome-extension://.*/.*\.html)");
   EXPECT_EQ(file_cond.condition_values[1]->match_type, PatternMatchType::kGlob);
   EXPECT_EQ(file_cond.condition_values[1]->value,
-            R"(filesystem:wootzapp://file-manager/.*\.html)");
+            R"(filesystem:chrome://file-manager/.*\.html)");
 
   // "any" filter - View action
   const IntentFilterPtr& mime_filter2 = filters[1];
@@ -425,11 +425,11 @@ TEST_F(IntentUtilsTest, CreateIntentFiltersForExtension_FileHandlers) {
   EXPECT_EQ(file_cond2.condition_values[0]->match_type,
             PatternMatchType::kGlob);
   EXPECT_EQ(file_cond2.condition_values[0]->value,
-            R"(filesystem:wootzapp-extension://.*/.*\..*)");
+            R"(filesystem:chrome-extension://.*/.*\..*)");
   EXPECT_EQ(file_cond2.condition_values[1]->match_type,
             PatternMatchType::kGlob);
   EXPECT_EQ(file_cond2.condition_values[1]->value,
-            R"(filesystem:wootzapp://file-manager/.*\..*)");
+            R"(filesystem:chrome://file-manager/.*\..*)");
 }
 
 class IntentUtilsForExtensionsTest : public IntentUtilsTest {

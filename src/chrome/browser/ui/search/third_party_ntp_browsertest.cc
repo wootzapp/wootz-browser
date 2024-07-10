@@ -65,7 +65,7 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, EmbeddedMostVisitedIframe) {
   content::TestNavigationObserver nav_observer(contents);
   const char* kScript = R"(
       const frame = document.createElement('iframe');
-      frame.src = 'wootzapp-search://most-visited/title.html?rid=1&fs=0';
+      frame.src = 'chrome-search://most-visited/title.html?rid=1&fs=0';
       document.body.appendChild(frame);
   )";
   ASSERT_TRUE(content::ExecJs(contents, kScript));
@@ -74,7 +74,7 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, EmbeddedMostVisitedIframe) {
   // Verify that the subframe exists and has the expected origin.
   content::RenderFrameHost* subframe = ChildFrameAt(contents, 0);
   ASSERT_TRUE(subframe);
-  EXPECT_EQ("wootzapp-search://most-visited",
+  EXPECT_EQ("chrome-search://most-visited",
             content::EvalJs(subframe, "window.origin"));
 }
 
@@ -143,6 +143,6 @@ IN_PROC_BROWSER_TEST_F(ThirdPartyNTPBrowserTest, VerifySiteInstance) {
 
   // Verify that NTP committed in remote NTP SiteInstance.
   EXPECT_EQ(
-      GURL("wootzapp-search://remote-ntp/"),
+      GURL("chrome-search://remote-ntp/"),
       web_contents->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
 }

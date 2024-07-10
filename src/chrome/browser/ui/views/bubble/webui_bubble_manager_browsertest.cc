@@ -99,7 +99,7 @@ class WebUIBubbleManagerBrowserTest : public InProcessBrowserTest {
   // WebContents under the ".top-chrome" pseudo-TLD will reuse the render
   // process.
   std::unique_ptr<WebUIBubbleManager> MakeBubbleManager(
-      GURL site_url = GURL("wootzapp://test.top-chrome")) {
+      GURL site_url = GURL("chrome://test.top-chrome")) {
     return WebUIBubbleManager::Create<TestWebUIController>(
         BrowserView::GetBrowserViewForBrowser(browser()), browser()->profile(),
         site_url, 1);
@@ -178,7 +178,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBubbleManagerBrowserTest, DISABLED_WarmupLevel) {
   // Use a different domain under .top-chrome so that the WebContents
   // is not reused if WebUIBubblePerProfilePersistence is enabled.
   std::unique_ptr<WebUIBubbleManager> another_bubble_manager =
-      MakeBubbleManager(GURL("wootzapp://test2.top-chrome"));
+      MakeBubbleManager(GURL("chrome://test2.top-chrome"));
   another_bubble_manager->ShowBubble();
   bubble_manager()->ShowBubble();
   EXPECT_EQ(bubble_manager()->contents_warmup_level(),

@@ -23,7 +23,7 @@ class CommerceBrowserUtilsTest : public testing::Test {
  protected:
   const std::string kHttpsUrl = "https://example.com/";
   const std::string kHttpUrl = "http://example.com/";
-  const std::string kChromeUrl = "wootzapp://example/";
+  const std::string kChromeUrl = "chrome://example/";
 
   TestingProfile* profile() { return profile_.get(); }
   std::unique_ptr<WebContents> CreateWebContentsAndCommitFakeUrl(

@@ -65,8 +65,8 @@ const std::vector<TestItem>& TestItems() {
               content::GetWebUIURLString(chrome::kChromeUINewTabHost),
       },
       {
-          GURL("wootzapp-extension://fooooooooooooooooooooooooooooooo/bar.html"),
-          "wootzapp-extension://fooooooooooooooooooooooooooooooo/bar.html",
+          GURL("chrome-extension://fooooooooooooooooooooooooooooooo/bar.html"),
+          "chrome-extension://fooooooooooooooooooooooooooooooo/bar.html",
       },
       {
           GURL(url::kAboutBlankURL),

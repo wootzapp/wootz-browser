@@ -231,7 +231,7 @@ TEST_F(PictureInPictureWindowManagerTest, CorrectTypesAreSupported) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   EXPECT_TRUE(
       PictureInPictureWindowManager::IsSupportedForDocumentPictureInPicture(
-          GURL("wootzapp-extension://foocom")));
+          GURL("chrome-extension://foocom")));
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
   EXPECT_TRUE(
       PictureInPictureWindowManager::IsSupportedForDocumentPictureInPicture(

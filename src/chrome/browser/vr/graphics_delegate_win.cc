@@ -32,7 +32,7 @@ void GraphicsDelegateWin::Initialize(base::OnceClosure on_initialized) {
   context_provider_ = base::MakeRefCounted<viz::ContextProviderCommandBuffer>(
       gpu_channel_host_, content::kGpuStreamIdDefault,
       content::kGpuStreamPriorityUI, gpu::kNullSurfaceHandle,
-      GURL(std::string("wootzapp://gpu/VrUiWin")), false /* automatic flushes */,
+      GURL(std::string("chrome://gpu/VrUiWin")), false /* automatic flushes */,
       false /* support locking */, gpu::SharedMemoryLimits::ForMailboxContext(),
       attributes, viz::command_buffer_metrics::ContextType::XR_COMPOSITING);
 

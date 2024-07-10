@@ -307,7 +307,7 @@ scoped_refptr<viz::ContextProviderCommandBuffer> CreateOffscreenContext(
   return base::MakeRefCounted<viz::ContextProviderCommandBuffer>(
       std::move(gpu_channel_host), stream_id, stream_priority,
       gpu::kNullSurfaceHandle,
-      GURL("wootzapp://gpu/RenderThreadImpl::CreateOffscreenContext/" +
+      GURL("chrome://gpu/RenderThreadImpl::CreateOffscreenContext/" +
            viz::command_buffer_metrics::ContextTypeToString(type)),
       automatic_flushes, support_locking, limits, attributes, type);
 }

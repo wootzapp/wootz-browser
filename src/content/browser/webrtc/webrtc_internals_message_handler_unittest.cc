@@ -70,11 +70,11 @@ class WebRtcInternalsMessageHandlerTest : public RenderViewHostTestHarness {
 
   // Unregister the existing WebUIConfig so that the test uses the test WebUI.
   ScopedWebUIConfigRegistration config_{
-      GURL(base::StrCat({"wootzapp://", kChromeUIWebRTCInternalsHost}))};
+      GURL(base::StrCat({"chrome://", kChromeUIWebRTCInternalsHost}))};
 };
 
 TEST_F(WebRtcInternalsMessageHandlerTest, DontRunJSBeforeNavigationCommitted) {
-  GURL webrtc_url(std::string("wootzapp://") + kChromeUIWebRTCInternalsHost);
+  GURL webrtc_url(std::string("chrome://") + kChromeUIWebRTCInternalsHost);
   GURL example_url("http://www.example.com/");
 
   WebRTCInternalsForTest webrtc_internals;

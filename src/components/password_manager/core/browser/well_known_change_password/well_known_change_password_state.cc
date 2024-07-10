@@ -50,11 +50,11 @@ CreateResourceRequestToWellKnownNonExistingResourceFor(
 "https://wicg.github.io/change-password-url/response-code-reliability.html#iana"
           trigger:
             "When the user clicks 'Change password' on "
-            "wootzapp://settings/passwords, or when they visit the "
+            "chrome://settings/passwords, or when they visit the "
             "[ORIGIN]/.well-known/change-password special URL, Chrome makes "
             "this additional request. Chrome Password manager shows a button "
             "with the link in the password checkup for compromised passwords "
-            "view (wootzapp://password-manager/checkup/compromised) and in a dialog when the "
+            "view (chrome://password-manager/checkup/compromised) and in a dialog when the "
             "user signs in using compromised credentials."
           data:
             "The request body is empty. No user data is included."

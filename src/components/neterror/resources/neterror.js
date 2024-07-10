@@ -4,7 +4,7 @@
 
 import 'chrome://resources/js/jstemplate_compiled.js';
 
-import {mobileNav} from 'wootzapp://interstitials/common/resources/interstitial_mobile_nav.js';
+import {mobileNav} from 'chrome://interstitials/common/resources/interstitial_mobile_nav.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 
 import {HIDDEN_CLASS} from './constants.js';

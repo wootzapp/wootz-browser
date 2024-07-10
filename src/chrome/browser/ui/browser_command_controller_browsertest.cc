@@ -388,7 +388,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
                        ExecuteProfileMenuAddNewProfile) {
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_ADD_NEW_PROFILE));
   profiles::testing::WaitForPickerLoadStop(
-      GURL("wootzapp://profile-picker/new-profile"));
+      GURL("chrome://profile-picker/new-profile"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
 }
 

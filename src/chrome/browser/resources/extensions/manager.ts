@@ -457,7 +457,7 @@ export class ExtensionsManagerElement extends ExtensionsManagerElementBase {
       case ExtensionType.SHARED_MODULE:
         return 'extensions_';
       case ExtensionType.THEME:
-        assertNotReached('Don\'t send themes to the wootzapp://extensions page');
+        assertNotReached('Don\'t send themes to the chrome://extensions page');
       default:
         assertNotReached();
     }

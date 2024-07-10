@@ -4222,7 +4222,7 @@ TEST_F(BluetoothBlueZTest, DeviceId) {
   EXPECT_EQ(0, device->GetDeviceID());
 
   // Unknown vendor specification identifier.
-  properties->modalias.ReplaceValue("wootzapp:v00E0p2400d0400");
+  properties->modalias.ReplaceValue("chrome:v00E0p2400d0400");
 
   EXPECT_EQ(BluetoothDevice::VENDOR_ID_UNKNOWN, device->GetVendorIDSource());
   EXPECT_EQ(0, device->GetVendorID());

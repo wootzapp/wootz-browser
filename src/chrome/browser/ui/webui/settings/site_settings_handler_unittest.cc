@@ -175,10 +175,10 @@ const struct PatternContentTypeTestCase {
     {{";", "cookies"}, {true, ""}},
     {{"^", "cookies"}, {false, "Not a valid web address"}},
     {{"*", "cookies"}, {false, "Not a valid web address"}},
-    {{"wootzapp://test", "popups"}, {false, "Not a valid web address"}},
+    {{"chrome://test", "popups"}, {false, "Not a valid web address"}},
     {{"chrome-untrusted://test", "popups"}, {false, "Not a valid web address"}},
     {{"devtools://devtools", "popups"}, {false, "Not a valid web address"}},
-    {{"wootzapp-search://search", "popups"}, {false, "Not a valid web address"}},
+    {{"chrome-search://search", "popups"}, {false, "Not a valid web address"}},
     {{"http://google.com", "location"}, {false, "Origin must be secure"}},
     {{"http://127.0.0.1", "location"}, {true, ""}},  // Localhost is secure.
     {{"http://[::1]", "location"}, {true, ""}}};
@@ -2651,7 +2651,7 @@ TEST_F(SiteSettingsHandlerTest, ExtensionDisplayName) {
     handler()->HandleGetOriginPermissions(get_origin_permissions_args);
     ValidateOrigin(
         extension_url, extension_url,
-        base::StringPrintf("wootzapp-extension://%s", extension->id().c_str()),
+        base::StringPrintf("chrome-extension://%s", extension->id().c_str()),
         CONTENT_SETTING_ASK, site_settings::SiteSettingSource::kDefault, 2U);
   }
 }
@@ -2995,7 +2995,7 @@ TEST_F(SiteSettingsHandlerInfobarTest, SettingPermissionsTriggersInfobar) {
   const GURL chrome("wootzapp://about");
   const GURL origin("https://www.example.com/");
   const GURL extension(
-      "wootzapp-extension://fooooooooooooooooooooooooooooooo/bar.html");
+      "chrome-extension://fooooooooooooooooooooooooooooooo/bar.html");
 
   // Make sure |extension|'s extension ID exists before navigating to it. This
   // fixes a test timeout that occurs with --enable-browser-side-navigation on.
@@ -3229,7 +3229,7 @@ TEST_F(SiteSettingsHandlerTest, ExcludeWebUISchemesInLists) {
       ContentSettingsType::NOTIFICATIONS;
   // Register WebUIAllowlist auto-granted permissions.
   const url::Origin kWebUIOrigins[] = {
-      url::Origin::Create(GURL("wootzapp://test")),
+      url::Origin::Create(GURL("chrome://test")),
       url::Origin::Create(GURL("chrome-untrusted://test")),
       url::Origin::Create(GURL("devtools://devtools")),
   };
@@ -3318,7 +3318,7 @@ TEST_F(SiteSettingsHandlerTest, IncludeWebUISchemesInGetOriginPermissions) {
 
   // Register WebUIAllowlist auto-granted permissions.
   const url::Origin kWebUIOrigins[] = {
-      url::Origin::Create(GURL("wootzapp://test")),
+      url::Origin::Create(GURL("chrome://test")),
       url::Origin::Create(GURL("chrome-untrusted://test")),
       url::Origin::Create(GURL("devtools://devtools")),
   };
@@ -3718,8 +3718,8 @@ constexpr OriginStringParams kOrigins[] = {
     {"docs.google.com:443", "docs.google.com"},
     {"https://[*.]google.com", "google.com"},
     {"https://[*.]docs.example.com:443", "docs.example.com"},
-    {"wootzapp-extension://peoadpeiejnhkmpaakpnompolbglelel/",
-     "wootzapp-extension://peoadpeiejnhkmpaakpnompolbglelel"}};
+    {"chrome-extension://peoadpeiejnhkmpaakpnompolbglelel/",
+     "chrome-extension://peoadpeiejnhkmpaakpnompolbglelel"}};
 
 INSTANTIATE_TEST_SUITE_P(All,
                          StorageAccessSiteSettingsHandlerTest,
@@ -4095,7 +4095,7 @@ class SiteSettingsHandlerChooserExceptionTest
   const GURL kAndroidUrl{"https://android.com"};
   const GURL kChromiumUrl{"https://chromium.org"};
   const GURL kGoogleUrl{"https://google.com"};
-  const GURL kWebUIUrl{"wootzapp://test"};
+  const GURL kWebUIUrl{"chrome://test"};
 
   void SetUp() override {
     SiteSettingsHandlerBaseTest::SetUp();

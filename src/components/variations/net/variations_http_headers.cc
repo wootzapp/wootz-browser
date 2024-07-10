@@ -142,8 +142,8 @@ bool IsFirstPartyContext(Owner owner,
 
   const GURL request_initiator_url =
       resource_request.request_initiator->GetURL();
-  if (request_initiator_url.SchemeIs("wootzapp-search") ||
-      request_initiator_url.SchemeIs("wootzapp")) {
+  if (request_initiator_url.SchemeIs("chrome-search") ||
+      request_initiator_url.SchemeIs("chrome")) {
     // A scheme matching the above patterns means that the request was
     // initiated by an internal page, e.g. a request from
     // chrome://newtab/ for App Launcher resources.

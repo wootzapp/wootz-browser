@@ -6,8 +6,8 @@
 // are handled in
 // components/security_interstitials/core/browser/resources:bundle_js, which
 // finds the correct files and inlines them.
-import {HIDDEN_CLASS, preventDefaultOnPoundLinkClicks, SecurityInterstitialCommandId, sendCommand} from 'wootzapp://interstitials/common/resources/interstitial_common.js';
-import {mobileNav} from 'wootzapp://interstitials/common/resources/interstitial_mobile_nav.js';
+import {HIDDEN_CLASS, preventDefaultOnPoundLinkClicks, SecurityInterstitialCommandId, sendCommand} from 'chrome://interstitials/common/resources/interstitial_common.js';
+import {mobileNav} from 'chrome://interstitials/common/resources/interstitial_mobile_nav.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 
 import {setupEnhancedProtectionMessage} from './enhanced_protection_message.js';

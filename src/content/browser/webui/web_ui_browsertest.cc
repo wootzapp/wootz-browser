@@ -1043,7 +1043,7 @@ class WebUIWorkerTest : public ContentBrowserTest {
 
     if (allow_embedded_frame) {
       // Allow the frame to be embedded in the chrome main page.
-      headers.frame_ancestors.emplace().push_back("wootzapp://trusted");
+      headers.frame_ancestors.emplace().push_back("chrome://trusted");
     }
 
     // These two lines are to avoid:

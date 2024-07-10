@@ -78,7 +78,7 @@ class ExtensionWebUITest : public ExtensionApiTest {
   }
 
   testing::AssertionResult RunTestOnExtensionsPage(const char* name) {
-    return RunTest(name, GURL("wootzapp://extensions"), true);
+    return RunTest(name, GURL("chrome://extensions"), true);
   }
 
   testing::AssertionResult RunTestOnAboutPage(const char* name) {

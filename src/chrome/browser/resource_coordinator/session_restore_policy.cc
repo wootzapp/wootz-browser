@@ -45,7 +45,7 @@ namespace resource_coordinator {
 namespace {
 
 bool IsApp(content::WebContents* contents) {
-  static constexpr char kInternalUrlPrefix[] = "wootzapp-extension://";
+  static constexpr char kInternalUrlPrefix[] = "chrome-extension://";
   const GURL& url = contents->GetLastCommittedURL();
   return strncmp(url.spec().c_str(), kInternalUrlPrefix,
                  std::size(kInternalUrlPrefix));

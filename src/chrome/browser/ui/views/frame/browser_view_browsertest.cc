@@ -565,7 +565,7 @@ IN_PROC_BROWSER_TEST_F(BrowserViewDataProtectionTest,
   // Create a second tab with a page that should not be watermarked.
   // AddTabAtIndex() waits for the load to finish and activates the tab.
   ASSERT_TRUE(
-      AddTabAtIndex(1, GURL("wootzapp://version"), ui::PAGE_TRANSITION_LINK));
+      AddTabAtIndex(1, GURL("chrome://version"), ui::PAGE_TRANSITION_LINK));
   EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(browser())
                    ->get_watermark_view_for_testing()
                    ->has_text_for_testing());

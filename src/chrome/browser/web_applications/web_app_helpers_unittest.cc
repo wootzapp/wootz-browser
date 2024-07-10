@@ -61,7 +61,7 @@ TEST(WebAppHelpers, GenerateManifestIdFromStartUrlOnly) {
 TEST(WebAppHelpers, IsValidWebAppUrl) {
   // TODO(crbug.com/40793595): Remove chrome-extension scheme.
   EXPECT_TRUE(IsValidWebAppUrl(
-      GURL("wootzapp-extension://oafaagfgbdpldilgjjfjocjglfbolmac")));
+      GURL("chrome-extension://oafaagfgbdpldilgjjfjocjglfbolmac")));
 
   EXPECT_TRUE(IsValidWebAppUrl(GURL("https://chromium.org")));
   EXPECT_TRUE(IsValidWebAppUrl(GURL("https://www.chromium.org")));
@@ -76,14 +76,14 @@ TEST(WebAppHelpers, IsValidWebAppUrl) {
 
   EXPECT_FALSE(IsValidWebAppUrl(GURL()));
   EXPECT_FALSE(IsValidWebAppUrl(GURL("ftp://www.chromium.org")));
-  EXPECT_FALSE(IsValidWebAppUrl(GURL("wootzapp://flags")));
+  EXPECT_FALSE(IsValidWebAppUrl(GURL("chrome://flags")));
   EXPECT_FALSE(IsValidWebAppUrl(GURL("about:blank")));
   EXPECT_FALSE(
       IsValidWebAppUrl(GURL("file://mhjfbmdgcfjbbpaeojofohoefgiehjai")));
-  EXPECT_FALSE(IsValidWebAppUrl(GURL("wootzapp://extensions")));
+  EXPECT_FALSE(IsValidWebAppUrl(GURL("chrome://extensions")));
   EXPECT_FALSE(
       IsValidWebAppUrl(GURL("filesystem:http://example.com/path/file.html")));
-  EXPECT_TRUE(IsValidWebAppUrl(GURL("wootzapp://password-manager")));
+  EXPECT_TRUE(IsValidWebAppUrl(GURL("chrome://password-manager")));
 }
 
 TEST(WebAppHelpers, ManifestIdEncoding) {

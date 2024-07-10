@@ -77,7 +77,7 @@ void EditorMenuControllerImpl::OnDismiss(bool is_other_command_executed) {
 }
 
 void EditorMenuControllerImpl::OnSettingsButtonPressed() {
-  GURL setting_url = GURL(base::StrCat({"wootzapp://os-settings/",
+  GURL setting_url = GURL(base::StrCat({"chrome://os-settings/",
                     chromeos::settings::mojom::kInputSubpagePath, "?settingId=",
                     base::NumberToString(static_cast<int>(
                         chromeos::settings::mojom::Setting::kShowOrca))}));

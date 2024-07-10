@@ -148,7 +148,7 @@ TEST_F(WebUISourcesTest, ThemeAllowedOrigin) {
       theme_source()->GetAccessControlAllowOriginForOrigin("wootzapp://settings"),
       "wootzapp://settings");
   EXPECT_EQ(theme_source()->GetAccessControlAllowOriginForOrigin(
-                "wootzapp-extensions://some-id"),
+                "chrome-extensions://some-id"),
             "");
   EXPECT_EQ(
       theme_source()->GetAccessControlAllowOriginForOrigin("http://google.com"),

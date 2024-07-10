@@ -341,7 +341,7 @@ base::Value::Dict GenerateCustomizedURL(
         /*success=*/false, /*result=*/std::string(), /*error_message=*/
         l10n_util::GetStringUTF8(IDS_SUPPORT_TOOL_SELECT_DATA_COLLECTOR_ERROR));
   }
-  GURL customized_url("wootzapp://support-tool");
+  GURL customized_url("chrome://support-tool");
   if (!case_id.empty()) {
     customized_url = net::AppendQueryParameter(
         customized_url, support_tool_ui::kSupportCaseIDQuery, case_id);

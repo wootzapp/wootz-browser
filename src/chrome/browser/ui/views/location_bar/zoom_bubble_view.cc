@@ -597,7 +597,7 @@ void ZoomBubbleView::ImageButtonPressed() {
   if (browser) {
     chrome::AddSelectedTabWithURL(
         browser,
-        GURL(base::StringPrintf("wootzapp://extensions?id=%s",
+        GURL(base::StringPrintf("chrome://extensions?id=%s",
                                 extension_info_.id.c_str())),
         ui::PAGE_TRANSITION_FROM_API);
   }

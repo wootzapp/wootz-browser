@@ -132,5 +132,5 @@ void FeedbackHandler::HandleShowSystemInfo(const base::Value::List& args) {
 
 void FeedbackHandler::HandleShowMetrics(const base::Value::List& args) {
   ShowChildPage(Profile::FromWebUI(web_ui()), dialog_,
-                GURL("wootzapp://histograms"), std::u16string());
+                GURL("chrome://histograms"), std::u16string());
 }

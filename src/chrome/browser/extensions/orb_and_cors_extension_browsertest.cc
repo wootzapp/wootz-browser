@@ -2361,7 +2361,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(actual_origin_header,
-              ::testing::Not(::testing::HasSubstr("wootzapp-extension")));
+              ::testing::Not(::testing::HasSubstr("chrome-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
@@ -2411,7 +2411,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(actual_origin_header,
-              ::testing::Not(::testing::HasSubstr("wootzapp-extension")));
+              ::testing::Not(::testing::HasSubstr("chrome-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
@@ -2454,7 +2454,7 @@ IN_PROC_BROWSER_TEST_F(OriginHeaderExtensionBrowserTest,
 
   // Regression test against https://crbug.com/944704.
   EXPECT_THAT(fetch_result,
-              ::testing::Not(::testing::HasSubstr("Origin: wootzapp-extension")));
+              ::testing::Not(::testing::HasSubstr("Origin: chrome-extension")));
 }
 
 IN_PROC_BROWSER_TEST_F(OrbAndCorsExtensionBrowserTest,

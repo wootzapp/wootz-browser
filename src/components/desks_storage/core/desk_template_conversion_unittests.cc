@@ -138,7 +138,7 @@ TEST_F(DeskTemplateConversionTest, ParseAdminTemplatePolicy) {
             browser_restore_data_zero->second.end());
   EXPECT_THAT(
       browser_restore_data_zero_window_one_it->second->browser_extra_info.urls,
-      testing::ElementsAre(GURL("wootzapp://version/"),
+      testing::ElementsAre(GURL("chrome://version/"),
                            GURL("https://dev.chromium.org/")));
 
   // Assert Desk Template one is correct.
@@ -237,7 +237,7 @@ TEST_F(DeskTemplateConversionTest, AdminTemplateConvertsCorrectly) {
             browser_restore_data->second.end());
   EXPECT_THAT(
       browser_restore_data_window_one_it->second->browser_extra_info.urls,
-      testing::ElementsAre(GURL("wootzapp://version/"),
+      testing::ElementsAre(GURL("chrome://version/"),
                            GURL("https://dev.chromium.org/")));
 }
 

@@ -29,10 +29,10 @@ namespace {
 
 const char kEmbedderAboutScheme[] = "wootzapp";
 const char16_t kEmbedderAboutScheme16[] = u"wootzapp";
-const char16_t kDefaultURL1[] = u"wootzapp://default1/";
-const char16_t kDefaultURL2[] = u"wootzapp://default2/";
+const char16_t kDefaultURL1[] = u"chrome://default1/";
+const char16_t kDefaultURL2[] = u"chrome://default2/";
 const char16_t kDefaultURL3[] = u"chrome://foo/";
-const char16_t kSubpageURL[] = u"wootzapp://subpage/";
+const char16_t kSubpageURL[] = u"chrome://subpage/";
 
 // Arbitrary host constants, chosen to start with the letters "b" and "me".
 const char16_t kHostBar[] = u"bar";

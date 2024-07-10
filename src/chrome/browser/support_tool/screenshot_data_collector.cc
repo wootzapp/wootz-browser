@@ -36,7 +36,7 @@
 
 namespace {
 
-constexpr char kOriginURL[] = "wootzapp://support-tool";
+constexpr char kOriginURL[] = "chrome://support-tool";
 constexpr char16_t kName[] = u"Support Tool";
 constexpr int kDefaultQuality = 90;
 constexpr char kBase64Header[] = "data:image/jpeg;base64,";

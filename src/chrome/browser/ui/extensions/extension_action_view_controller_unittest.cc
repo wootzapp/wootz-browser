@@ -651,7 +651,7 @@ TEST_F(ExtensionActionViewControllerUnitTest, RuntimeHostsTooltip) {
 TEST_F(ExtensionActionViewControllerUnitTest, ActiveTabIconAppearance) {
   const GURL kUnlistedHost("https://www.example.com");
   const GURL kGrantedHost("https://www.google.com");
-  const GURL kRestrictedHost("wootzapp://extensions");
+  const GURL kRestrictedHost("chrome://extensions");
   static constexpr char16_t kWantsAccessTooltip[] =
       u"active tab\nWants access to this site";
   static constexpr char16_t kHasAccessTooltip[] =
@@ -743,7 +743,7 @@ TEST_F(ExtensionActionViewControllerUnitTest, GetSiteInteractionWithActiveTab) {
 
   // Now navigate to a restricted URL. Clicking the extension won't give access
   // here, so the page interaction status should be "none".
-  NavigateAndCommitActiveTab(GURL("wootzapp://extensions"));
+  NavigateAndCommitActiveTab(GURL("chrome://extensions"));
   EXPECT_EQ(SiteInteraction::kNone,
             controller->GetSiteInteraction(web_contents));
   controller->ExecuteUserAction(

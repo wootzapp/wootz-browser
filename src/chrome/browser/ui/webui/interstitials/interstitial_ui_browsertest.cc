@@ -83,122 +83,122 @@ class InterstitialUITest : public InProcessBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, HomePage) {
-  TestInterstitial(GURL("wootzapp://interstitials"), "Interstitials");
+  TestInterstitial(GURL("chrome://interstitials"), "Interstitials");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, InvalidURLShouldOpenHomePage) {
   // Invalid path should open the main page:
-  TestInterstitial(GURL("wootzapp://interstitials/--invalid--"), "Interstitials");
+  TestInterstitial(GURL("chrome://interstitials/--invalid--"), "Interstitials");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest,
                        InvalidURLMatchingStartOfValidURLShouldBeInvalid) {
   // Path that matches the first characters of another should be invalid
   // (and therefore open the main page).
-  TestInterstitial(GURL("wootzapp://interstitials/ssl--invalid--"),
+  TestInterstitial(GURL("chrome://interstitials/ssl--invalid--"),
                    "Interstitials");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, SSLInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/ssl"), "Privacy error",
+  TestInterstitial(GURL("chrome://interstitials/ssl"), "Privacy error",
                    IDS_SSL_V2_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, MITMSoftwareInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/mitm-software-ssl"),
+  TestInterstitial(GURL("chrome://interstitials/mitm-software-ssl"),
                    "Privacy error", IDS_MITM_SOFTWARE_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, PinnedCertInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/ssl?type=hpkp_failure"),
+  TestInterstitial(GURL("chrome://interstitials/ssl?type=hpkp_failure"),
                    "Privacy error",
                    u"NET::ERR_SSL_PINNED_KEY_NOT_IN_CERT_CHAIN");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, CTInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/ssl?type=ct_failure"),
+  TestInterstitial(GURL("chrome://interstitials/ssl?type=ct_failure"),
                    "Privacy error",
                    u"NET::ERR_CERTIFICATE_TRANSPARENCY_REQUIRED");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, EnterpriseBlockInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/enterprise-block"),
+  TestInterstitial(GURL("chrome://interstitials/enterprise-block"),
                    "Blocked by Admin", IDS_ENTERPRISE_BLOCK_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, EnterpriseWarnInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/enterprise-warn"),
+  TestInterstitial(GURL("chrome://interstitials/enterprise-warn"),
                    "Admin warning", IDS_ENTERPRISE_WARN_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, MalwareInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/safebrowsing?type=malware"),
+  TestInterstitial(GURL("chrome://interstitials/safebrowsing?type=malware"),
                    "Security error", IDS_SAFEBROWSING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, PhishingInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/safebrowsing?type=phishing"),
+  TestInterstitial(GURL("chrome://interstitials/safebrowsing?type=phishing"),
                    "Security error", IDS_SAFEBROWSING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, UnwantedSoftwareInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/safebrowsing?type=unwanted"),
+  TestInterstitial(GURL("chrome://interstitials/safebrowsing?type=unwanted"),
                    "Security error", IDS_SAFEBROWSING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, MalwareInterstitialQuiet) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/quietsafebrowsing?type=malware"),
+      GURL("chrome://interstitials/quietsafebrowsing?type=malware"),
       "Security error", IDS_MALWARE_WEBVIEW_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, PhishingInterstitialQuiet) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/quietsafebrowsing?type=phishing"),
+      GURL("chrome://interstitials/quietsafebrowsing?type=phishing"),
       "Security error", IDS_PHISHING_WEBVIEW_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, UnwantedSoftwareInterstitialQuiet) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/quietsafebrowsing?type=unwanted"),
+      GURL("chrome://interstitials/quietsafebrowsing?type=unwanted"),
       "Security error", IDS_HARMFUL_WEBVIEW_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, BillingInterstitialQuiet) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/quietsafebrowsing?type=billing"),
+      GURL("chrome://interstitials/quietsafebrowsing?type=billing"),
       "Page may charge money", IDS_BILLING_WEBVIEW_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, ClientsideMalwareInterstitial) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/safebrowsing?type=clientside_malware"),
+      GURL("chrome://interstitials/safebrowsing?type=clientside_malware"),
       "Security error", IDS_SAFEBROWSING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, ClientsidePhishingInterstitial) {
   TestInterstitial(
-      GURL("wootzapp://interstitials/safebrowsing?type=clientside_phishing"),
+      GURL("chrome://interstitials/safebrowsing?type=clientside_phishing"),
       "Security error", IDS_SAFEBROWSING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, BillingInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/safebrowsing?type=billing"),
+  TestInterstitial(GURL("chrome://interstitials/safebrowsing?type=billing"),
                    "Page may charge money", IDS_BILLING_HEADING);
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, CaptivePortalInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/captiveportal"),
+  TestInterstitial(GURL("chrome://interstitials/captiveportal"),
                    "Connect to network");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, CaptivePortalInterstitialWifi) {
-  TestInterstitial(GURL("wootzapp://interstitials/captiveportal?is_wifi=1"),
+  TestInterstitial(GURL("chrome://interstitials/captiveportal?is_wifi=1"),
                    "Connect to Wi-Fi");
 }
 
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, BlockedInterceptionInterstitial) {
-  TestInterstitial(GURL("wootzapp://interstitials/blocked-interception"),
+  TestInterstitial(GURL("chrome://interstitials/blocked-interception"),
                    "Your activity on example.com is being monitored",
                    u"Anything you type");
 }
@@ -209,9 +209,9 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialBackButton) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://interstitials")));
+      ui_test_utils::NavigateToURL(browser(), GURL("chrome://interstitials")));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL("wootzapp://interstitials/ssl")));
+                                           GURL("chrome://interstitials/ssl")));
   content::TestNavigationObserver navigation_observer(web_contents);
   chrome::GoBack(browser(), WindowOpenDisposition::CURRENT_TAB);
   navigation_observer.Wait();
@@ -223,7 +223,7 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialBackButton) {
 // Tests that view-source: works correctly on chrome://interstitials.
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialViewSource) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("view-source:wootzapp://interstitials/")));
+      browser(), GURL("view-source:chrome://interstitials/")));
   int found;
   std::u16string expected_title = u"<title>Interstitials</title>";
   found = ui_test_utils::FindInPage(
@@ -248,7 +248,7 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest, InterstitialViewSource) {
 IN_PROC_BROWSER_TEST_F(InterstitialUITest,
                        MAYBE_InterstitialWithPathViewSource) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), GURL("view-source:wootzapp://interstitials/ssl")));
+      browser(), GURL("view-source:chrome://interstitials/ssl")));
   int found;
   std::u16string expected_title = u"<title>Privacy error</title";
   found = ui_test_utils::FindInPage(
@@ -265,7 +265,7 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest,
 IN_PROC_BROWSER_TEST_F(InterstitialUITest, UseCorrectWebContents) {
   int current_tab = browser()->tab_strip_model()->active_index();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL("wootzapp://interstitials/ssl")));
+                                           GURL("chrome://interstitials/ssl")));
   // Duplicate the tab and close it.
   chrome::DuplicateTab(browser());
   EXPECT_NE(current_tab, browser()->tab_strip_model()->active_index());

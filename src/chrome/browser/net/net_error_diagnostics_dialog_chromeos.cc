@@ -12,7 +12,7 @@
 namespace {
 void LaunchDiagnosticsAppAtConnectivityScreen(Profile* profile) {
   std::string diagnostics_connectivity_url = {
-      "wootzapp://diagnostics/?connectivity"};
+      "chrome://diagnostics/?connectivity"};
   ash::SystemAppLaunchParams params;
   params.url = GURL(diagnostics_connectivity_url);
   LaunchSystemWebAppAsync(profile, ash::SystemWebAppType::DIAGNOSTICS, params);

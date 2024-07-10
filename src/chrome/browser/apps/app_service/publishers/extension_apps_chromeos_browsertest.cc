@@ -120,7 +120,7 @@ class ExtensionAppsChromeOsBrowserTest
         storage::CreateFileSystemContextForTesting(
             /*quota_manager_proxy=*/nullptr, base::FilePath());
     auto file_system_url = file_system_context->CreateCrackedFileSystemURL(
-        blink::StorageKey::CreateFromStringForTesting("wootzapp://file-manager"),
+        blink::StorageKey::CreateFromStringForTesting("chrome://file-manager"),
         storage::kFileSystemTypeTest, file_path);
 
     // Update the intent with the file.

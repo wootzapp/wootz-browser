@@ -695,7 +695,7 @@ TEST_P(TemplateURLServiceTest, NotPersistOmniboxExtensionKeyword) {
 
   // Register an omnibox keyword.
   model()->RegisterOmniboxKeyword("test", "extension", "keyword",
-                                  "wootzapp-extension://test", Time());
+                                  "chrome-extension://test", Time());
   ASSERT_TRUE(model()->GetTemplateURLForKeyword(u"keyword"));
 
   // Reload the data.

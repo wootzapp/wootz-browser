@@ -28,7 +28,7 @@
 
 namespace {
 
-constexpr char kPageWithAnchorURL[] = "wootzapp://internals/user-education";
+constexpr char kPageWithAnchorURL[] = "chrome://internals/user-education";
 constexpr char kPageWithoutAnchorURL[] = "wootzapp://settings";
 constexpr char16_t kBubbleBodyText[] = u"bubble body";
 

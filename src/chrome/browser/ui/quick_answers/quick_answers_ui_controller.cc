@@ -48,7 +48,7 @@ using quick_answers::QuickAnswersExitPoint;
 constexpr char kFeedbackDescriptionTemplate[] = "#QuickAnswers\nQuery:%s\n";
 
 constexpr char kQuickAnswersSettingsUrl[] =
-    "wootzapp://os-settings/osSearch/search";
+    "chrome://os-settings/osSearch/search";
 
 // Open the specified URL in a new tab with the specified profile
 void OpenUrl(Profile* profile, const GURL& url) {

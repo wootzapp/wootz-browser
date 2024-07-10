@@ -621,7 +621,7 @@ TEST_P(SavedTabGroupModelTest, MergeTabsFromModel) {
   SavedTabGroupTab tab1 = saved_tab_group_model_->Get(id_1_)->saved_tabs()[0];
   SavedTabGroupTab tab2 = SavedTabGroupTab::FromSpecifics(*tab1.ToSpecifics());
   tab2.SetTitle(u"Updated Title");
-  tab2.SetURL(GURL("wootzapp://updated_url"));
+  tab2.SetURL(GURL("chrome://updated_url"));
 
   SavedTabGroupTab merged_tab = SavedTabGroupTab::FromSpecifics(
       *saved_tab_group_model_->MergeTab(*tab2.ToSpecifics()));

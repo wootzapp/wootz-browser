@@ -456,8 +456,8 @@ TEST_F(RenderProcessHostWebUIUnitTest,
   ScopedWebUIConfigRegistration config_registration2(
       std::make_unique<TestWebUIConfig>("second-host"));
 
-  const GURL kWebUI1("wootzapp://test-host/");
-  const GURL kWebUI2("wootzapp://second-host/");
+  const GURL kWebUI1("chrome://test-host/");
+  const GURL kWebUI2("chrome://second-host/");
 
   // Gets a RenderProcessHost for an unmatched service worker.
   scoped_refptr<SiteInstanceImpl> sw_site_instance1 =
@@ -478,7 +478,7 @@ TEST_F(RenderProcessHostWebUIUnitTest, DontReuseServiceWorkerProcessForWebUrl) {
   ScopedWebUIConfigRegistration config_registration1(
       std::make_unique<TestWebUIConfig>("test-host"));
 
-  const GURL kWebUI1("wootzapp://test-host/");
+  const GURL kWebUI1("chrome://test-host/");
 
   // Gets a RenderProcessHost for an unmatched service worker.
   scoped_refptr<SiteInstanceImpl> sw_site_instance1 =
@@ -512,7 +512,7 @@ TEST_F(RenderProcessHostWebUIUnitTest,
        DontReuseServiceWorkerProcessForSameWebUI) {
   ScopedWebUIConfigRegistration config_registration(
       std::make_unique<TestWebUIConfig>("test-host"));
-  const GURL kUrl("wootzapp://test-host");
+  const GURL kUrl("chrome://test-host");
 
   // Gets a RenderProcessHost for a service worker.
   scoped_refptr<SiteInstanceImpl> sw_site_instance1 =

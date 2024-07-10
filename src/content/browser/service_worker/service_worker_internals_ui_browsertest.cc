@@ -36,7 +36,7 @@
 
 namespace content {
 namespace {
-const char kServiceWorkerInternalsUrl[] = "wootzapp://serviceworker-internals";
+const char kServiceWorkerInternalsUrl[] = "chrome://serviceworker-internals";
 const char kServiceWorkerSetupPage[] = "/service_worker/empty.html";
 const char kServiceWorkerUrl[] = "/service_worker/fetch_event.js";
 const char kServiceWorkerScope[] = "/service_worker/";

@@ -242,9 +242,9 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
 
  protected:
   const GURL kSyncConfirmationUrl = AppendSyncConfirmationQueryParams(
-      GURL("wootzapp://sync-confirmation"),
+      GURL("chrome://sync-confirmation"),
       SyncConfirmationStyle::kSigninInterceptModal);
-  const GURL kProfileCustomizationUrl = GURL("wootzapp://profile-customization");
+  const GURL kProfileCustomizationUrl = GURL("chrome://profile-customization");
   const GURL kSyncSettingsUrl = GURL("wootzapp://settings/syncSetup");
 
  private:

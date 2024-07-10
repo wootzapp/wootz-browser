@@ -679,7 +679,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_with_domain.get()),
             policy::EnterpriseManagementAuthority::CLOUD);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">profile is managed</a> by "
+        u"Your <a href=\"chrome://management\">profile is managed</a> by "
         u"example.com",
         chrome::GetManagedUiWebUILabel(profile_with_domain.get()));
 
@@ -689,7 +689,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_with_hosted_domain),
             policy::EnterpriseManagementAuthority::CLOUD);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">profile is managed</a> by "
+        u"Your <a href=\"chrome://management\">profile is managed</a> by "
         u"hosteddomain.com",
         chrome::GetManagedUiWebUILabel(profile_with_hosted_domain));
   }
@@ -700,7 +700,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
         policy::ManagementServiceFactory::GetForProfile(profile.get()),
         policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile.get()));
 
@@ -710,7 +710,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_with_domain.get()),
             policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile_with_domain.get()));
 
@@ -720,7 +720,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_with_hosted_domain),
             policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile_with_hosted_domain));
 
@@ -730,7 +730,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_supervised.get()),
             policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile_supervised.get()));
   }
@@ -741,7 +741,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
         policy::ManagementServiceFactory::GetForProfile(profile.get()),
         policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile.get()));
 
@@ -752,8 +752,8 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
             policy::EnterpriseManagementAuthority::CLOUD |
                 policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
-        u"organization and your <a href=\"wootzapp://management\">profile is "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
+        u"organization and your <a href=\"chrome://management\">profile is "
         u"managed</a> by example.com",
         chrome::GetManagedUiWebUILabel(profile_with_domain.get()));
 
@@ -764,8 +764,8 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
             policy::EnterpriseManagementAuthority::CLOUD |
                 policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
-        u"organization and your <a href=\"wootzapp://management\">profile is "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
+        u"organization and your <a href=\"chrome://management\">profile is "
         u"managed</a> by hosteddomain.com",
         chrome::GetManagedUiWebUILabel(profile_with_hosted_domain));
 
@@ -775,7 +775,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_supervised.get()),
             policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by your "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by your "
         u"organization",
         chrome::GetManagedUiWebUILabel(profile_supervised.get()));
   }
@@ -789,7 +789,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
         policy::ManagementServiceFactory::GetForProfile(profile.get()),
         policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by "
         u"example.com",
         chrome::GetManagedUiWebUILabel(profile.get()));
 
@@ -800,7 +800,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
             policy::EnterpriseManagementAuthority::CLOUD |
                 policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser and profile are "
+        u"Your <a href=\"chrome://management\">browser and profile are "
         u"managed</a> by example.com",
         chrome::GetManagedUiWebUILabel(profile_with_domain.get()));
 
@@ -811,9 +811,9 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
             policy::EnterpriseManagementAuthority::CLOUD |
                 policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by "
         u"example.com "
-        u"and your <a href=\"wootzapp://management\">profile is "
+        u"and your <a href=\"chrome://management\">profile is "
         u"managed</a> by hosteddomain.com",
         chrome::GetManagedUiWebUILabel(profile_with_hosted_domain));
 
@@ -823,7 +823,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTest, GetManagedUiWebUILabelEnterprise) {
                 profile_supervised.get()),
             policy::EnterpriseManagementAuthority::DOMAIN_LOCAL);
     EXPECT_EQ(
-        u"Your <a href=\"wootzapp://management\">browser is managed</a> by "
+        u"Your <a href=\"chrome://management\">browser is managed</a> by "
         u"example.com",
         chrome::GetManagedUiWebUILabel(profile_supervised.get()));
   }
@@ -1014,7 +1014,7 @@ IN_PROC_BROWSER_TEST_F(ManagedUiTestCros, GetManagedUiWebUILabel) {
 
   EXPECT_EQ(
       u"Your <a target=\"_blank\" "
-      u"href=\"wootzapp://management\">WootzApp device is "
+      u"href=\"chrome://management\">Chrome device is "
       u"managed</a> by example.com",
       chrome::GetDeviceManagedUiWebUILabel());
 }

@@ -493,7 +493,7 @@ IN_PROC_BROWSER_TEST_F(AppBannerManagerDesktopBrowserTestForPasswordManagerPage,
     ASSERT_TRUE(ui_test_utils::NavigateToURL(
         browser(),
         GURL(base::StrCat(
-            {"wootzapp://", password_manager::kChromeUIPasswordManagerHost}))));
+            {"chrome://", password_manager::kChromeUIPasswordManagerHost}))));
     run_loop.Run();
   }
 

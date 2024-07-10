@@ -145,7 +145,7 @@ IN_PROC_BROWSER_TEST_P(BrowsingContextGroupSwapBrowserTest, Coop_Navigation) {
 IN_PROC_BROWSER_TEST_P(BrowsingContextGroupSwapBrowserTest,
                        Security_Navigation) {
   GURL regular_page(https_server()->GetURL("a.test", "/title1.html"));
-  GURL webui_page("wootzapp://ukm");
+  GURL webui_page("chrome://ukm");
 
   BrowsingContextGroupSwapObserver swap_observer(shell()->web_contents());
   ASSERT_TRUE(NavigateToURL(shell(), regular_page));

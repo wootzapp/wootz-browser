@@ -326,11 +326,11 @@ IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
       "web_accessible/nonaccessible_link_resource.html"));
   ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
       browser(), nonaccessible_linked_resource, 1);
-  EXPECT_EQ("wootzapp-error://chromewebdata/",
+  EXPECT_EQ("chrome-error://chromewebdata/",
             content::EvalJs(web_contents, "document.URL"));
   EXPECT_EQ(content::PAGE_TYPE_ERROR,
             controller.GetLastCommittedEntry()->GetPageType());
-  GURL invalid_url("wootzapp-extension://invalid/");
+  GURL invalid_url("chrome-extension://invalid/");
   EXPECT_EQ(invalid_url,
             web_contents->GetPrimaryMainFrame()->GetLastCommittedURL());
 
@@ -403,7 +403,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
       browser()->tab_strip_model()->GetActiveWebContents();
 
   GURL private_page(
-      "wootzapp-extension://kegmjfcnjamahdnldjmlpachmpielcdk/private.html");
+      "chrome-extension://kegmjfcnjamahdnldjmlpachmpielcdk/private.html");
   ASSERT_TRUE(content::ExecJs(web_contents, "navigateFrameNow()"));
   EXPECT_TRUE(WaitForLoadStop(web_contents));
   EXPECT_NE(private_page, web_contents->GetLastCommittedURL());
@@ -509,7 +509,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
 IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
                        WebNavigationToNonExistentExtension) {
   const GURL non_existent_extension_url(
-      "wootzapp-extension://aaaaabbbbbcccccdddddeeeeefffffgg/blah.png");
+      "chrome-extension://aaaaabbbbbcccccdddddeeeeefffffgg/blah.png");
 
   OpenUrlInLocalFrameAndVerifyNavigationBlocked(non_existent_extension_url);
 }
@@ -756,7 +756,7 @@ IN_PROC_BROWSER_TEST_F(
 
   GURL inaccessible_resource =
       extension->GetResourceURL("inaccessible-iframe-contents.html");
-  GURL url_blocked_by_renderer("wootzapp-extension://invalid/");
+  GURL url_blocked_by_renderer("chrome-extension://invalid/");
 
   OpenUrlInSubFrameAndVerifyBackNavigationBlocked(
       inaccessible_resource, "local-frame", url_blocked_by_renderer);
@@ -769,7 +769,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
                        NavigationToInvalidExtensionPage) {
   std::string url =
-      base::StringPrintf("wootzapp-extension://%s/manifest.json",
+      base::StringPrintf("chrome-extension://%s/manifest.json",
                          crx_file::id_util::GenerateId("foo").c_str());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url)));
 

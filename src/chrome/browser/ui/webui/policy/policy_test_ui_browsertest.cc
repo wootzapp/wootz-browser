@@ -168,7 +168,7 @@ IN_PROC_BROWSER_TEST_P(PolicyTestPageVisibilityTest,
                        TestPageVisibleWhenEnabled) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   // Enable or disable managed profile as needed.
   policy::ScopedManagementServiceOverrideForTesting browser_management(
@@ -276,7 +276,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestHandlerTest,
                        HandleSetAndRevertLocalTestPolicies) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   std::unique_ptr<PolicyUIHandler> handler = SetUpHandler();
   const std::string jsonString =
@@ -405,7 +405,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestHandlerTest,
 IN_PROC_BROWSER_TEST_F(PolicyTestHandlerTest, FilterSensitivePolicies) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   std::unique_ptr<PolicyUIHandler> handler = SetUpHandler();
   const std::string jsonString =
@@ -449,7 +449,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestHandlerTest,
                        PRE_PRE_ApplyTestPoliciesAfterRestart) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   std::unique_ptr<PolicyUIHandler> handler = SetUpHandler();
 
@@ -475,7 +475,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestHandlerTest,
                        PRE_ApplyTestPoliciesAfterRestart) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   const policy::PolicyNamespace chrome_namespace(policy::POLICY_DOMAIN_CHROME,
                                                  std::string());
@@ -754,7 +754,7 @@ class PolicyTestUITest : public PlatformBrowserTest {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestRowAddedWhenAddPolicyClicked) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -766,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestRowAddedWhenAddPolicyClicked) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestRowDeletedWhenRemoveClicked) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -788,7 +788,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestRowDeletedWhenRemoveClicked) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestPresetAutofill) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -853,7 +853,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, GetSchema) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestExtensionPoliciesIncluded) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
 
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
@@ -861,7 +861,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestExtensionPoliciesIncluded) {
 
   base::Value schema = PolicyUI::GetSchema(GetProfile());
   base::Value chrome_policy_names(base::Value::Type::LIST);
-  for (const auto [key, _] : *schema.GetDict().FindDict("wootzapp")) {
+  for (const auto [key, _] : *schema.GetDict().FindDict("chrome")) {
     chrome_policy_names.GetList().Append(key);
   }
   base::Value extension_policy_names(base::Value::Type::LIST);
@@ -884,7 +884,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestExtensionPoliciesIncluded) {
             .map(e => e.innerText)
       )";
   EXPECT_EQ(
-      base::Value(base::Value::List().Append("wootzapp").Append(kExtensionId)),
+      base::Value(base::Value::List().Append("Chrome").Append(kExtensionId)),
       content::EvalJs(web_contents(), getNamespacesFromSelect));
 
   // Get list of available policies from the <datalist>. They should initially
@@ -928,7 +928,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestExtensionPoliciesIncluded) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestSchemaChangeReflected) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
 
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
@@ -936,7 +936,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestSchemaChangeReflected) {
 
   base::Value schema = PolicyUI::GetSchema(GetProfile());
   base::Value chrome_policy_names(base::Value::Type::LIST);
-  for (const auto [key, _] : *schema.GetDict().FindDict("wootzapp")) {
+  for (const auto [key, _] : *schema.GetDict().FindDict("chrome")) {
     chrome_policy_names.GetList().Append(key);
   }
   base::Value extension_policy_names(base::Value::Type::LIST);
@@ -959,7 +959,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestSchemaChangeReflected) {
             .map(e => e.innerText)
       )";
   EXPECT_EQ(
-      base::Value(base::Value::List().Append("wootzapp").Append(kExtensionId)),
+      base::Value(base::Value::List().Append("Chrome").Append(kExtensionId)),
       content::EvalJs(web_contents(), getNamespacesFromSelect));
 
   // Delete the extension from the schema. It should disappear from the
@@ -967,14 +967,14 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestSchemaChangeReflected) {
   auto* registry = GetProfile()->GetPolicySchemaRegistryService()->registry();
   registry->UnregisterComponent(
       policy::PolicyNamespace(policy::POLICY_DOMAIN_EXTENSIONS, kExtensionId));
-  EXPECT_EQ(base::Value(base::Value::List().Append("wootzapp")),
+  EXPECT_EQ(base::Value(base::Value::List().Append("Chrome")),
             content::EvalJs(web_contents(), getNamespacesFromSelect));
 }
 
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestPolicyNameChangesInputType) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -1011,7 +1011,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestPolicyNameChangesInputType) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestErrorStateWhenNameNotSelected) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -1058,7 +1058,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestErrorStateWhenNameNotSelected) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestIncorrectValueTypeRaisesError) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));
@@ -1136,7 +1136,7 @@ IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestIncorrectValueTypeRaisesError) {
 IN_PROC_BROWSER_TEST_F(PolicyTestUITest, TestClearPoliciesButton) {
   if (!policy::utils::IsPolicyTestingEnabled(/*pref_service=*/nullptr,
                                              chrome::GetChannel())) {
-    GTEST_SKIP() << "wootzapp://policy/test not allowed on this build.";
+    GTEST_SKIP() << "chrome://policy/test not allowed on this build.";
   }
   ASSERT_TRUE(content::NavigateToURL(web_contents(),
                                      GURL(chrome::kChromeUIPolicyTestURL)));

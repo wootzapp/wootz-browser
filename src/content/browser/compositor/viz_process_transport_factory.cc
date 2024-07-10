@@ -79,7 +79,7 @@ scoped_refptr<viz::ContextProviderCommandBuffer> CreateContextProvider(
   gpu::SharedMemoryLimits memory_limits =
       gpu::SharedMemoryLimits::ForDisplayCompositor();
 
-  GURL url("wootzapp://gpu/VizProcessTransportFactory::CreateContextProvider");
+  GURL url("chrome://gpu/VizProcessTransportFactory::CreateContextProvider");
   return base::MakeRefCounted<viz::ContextProviderCommandBuffer>(
       std::move(gpu_channel_host), kGpuStreamIdDefault, kGpuStreamPriorityUI,
       gpu::kNullSurfaceHandle, std::move(url), kAutomaticFlushes,

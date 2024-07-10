@@ -37,7 +37,7 @@ using GetPendingReportsCallback = base::OnceCallback<void(
     std::vector<AggregationServiceStorage::RequestAndId>)>;
 
 constexpr char kPrivateAggregationInternalsUrl[] =
-    "wootzapp://private-aggregation-internals/";
+    "chrome://private-aggregation-internals/";
 
 const std::u16string kCompleteTitle = u"Complete";
 

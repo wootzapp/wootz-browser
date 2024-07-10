@@ -298,7 +298,7 @@ IN_PROC_BROWSER_TEST_P(IntentPickerIconBrowserTest,
 
   const GURL in_scope_url =
       https_server().GetURL(GetAppUrlHost(), GetInScopeUrlPath());
-  GURL chrome_pages_url("wootzapp://version");
+  GURL chrome_pages_url("chrome://version");
   std::string app_name = "test_name";
 
   views::Button* intent_picker_view = GetIntentPickerIcon();

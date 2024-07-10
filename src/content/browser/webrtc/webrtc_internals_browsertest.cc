@@ -379,7 +379,7 @@ class WebRtcInternalsBrowserTest : public ContentBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest, AddAndRemovePeerConnection) {
-  GURL url("wootzapp://webrtc-internals");
+  GURL url("chrome://webrtc-internals");
   EXPECT_TRUE(NavigateToURL(shell(), url));
 
   // Add two PeerConnections and then remove them.
@@ -402,7 +402,7 @@ IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest, AddAndRemovePeerConnection) {
 }
 
 IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest, UpdateAllPeerConnections) {
-  GURL url("wootzapp://webrtc-internals");
+  GURL url("chrome://webrtc-internals");
   EXPECT_TRUE(NavigateToURL(shell(), url));
 
   PeerConnectionEntry pc_0(1, 0);
@@ -433,7 +433,7 @@ IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest,
   ExpectTitle("OK");
 
   // Open webrtc-internals in the second window.
-  GURL url2("wootzapp://webrtc-internals");
+  GURL url2("chrome://webrtc-internals");
   Shell* shell2 = CreateBrowser();
   EXPECT_TRUE(NavigateToURL(shell2, url2));
 
@@ -494,7 +494,7 @@ IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(WebRtcInternalsBrowserTest, UpdateMedia) {
-  GURL url("wootzapp://webrtc-internals");
+  GURL url("chrome://webrtc-internals");
   EXPECT_TRUE(NavigateToURL(shell(), url));
 
   UserMediaRequestEntry request1(1, 1, "origin", "ac", "vc");

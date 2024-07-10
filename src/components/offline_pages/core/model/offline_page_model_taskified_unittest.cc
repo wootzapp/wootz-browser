@@ -789,8 +789,8 @@ TEST_F(OfflinePageModelTaskifiedTest, CanSaveURL) {
   EXPECT_TRUE(OfflinePageModel::CanSaveURL(GURL("https://foo")));
   EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("file:///foo")));
   EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("data:image/png;base64,ab")));
-  EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("wootzapp://version")));
-  EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("wootzapp-native://newtab/")));
+  EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("chrome://version")));
+  EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("chrome-native://newtab/")));
   EXPECT_FALSE(OfflinePageModel::CanSaveURL(GURL("/invalid/url.mhtml")));
 }
 

@@ -1891,7 +1891,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
 // Register prefs applicable to all profiles.
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
-  TRACE_EVENT0("browser", "wootzapp::RegisterProfilePrefs");
+  TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
   // User prefs. Please keep this list alphabetized.
   AccessibilityLabelsService::RegisterProfilePrefs(registry);
   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);

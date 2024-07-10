@@ -166,11 +166,11 @@ class WebUIMainFrameObserverTest : public RenderViewHostTestHarness {
   static constexpr char16_t kSourceURL16[] = u"chrome://here.is.error/bad.js";
   static constexpr char kPageURL8[] = "chrome://here.is.error/index.html";
   static constexpr char kStackTrace8[] =
-      "at badFunction (wootzapp://page/my.js:20:30)\n"
-      "at poorCaller (wootzapp://page/my.js:50:10)\n";
+      "at badFunction (chrome://page/my.js:20:30)\n"
+      "at poorCaller (chrome://page/my.js:50:10)\n";
   static constexpr char16_t kStackTrace16[] =
-      u"at badFunction (wootzapp://page/my.js:20:30)\n"
-      u"at poorCaller (wootzapp://page/my.js:50:10)\n";
+      u"at badFunction (chrome://page/my.js:20:30)\n"
+      u"at poorCaller (chrome://page/my.js:50:10)\n";
 };
 
 constexpr char WebUIMainFrameObserverTest::kMessage8[];
@@ -266,26 +266,26 @@ TEST_F(WebUIMainFrameObserverTest, URLPathIsPreservedOtherPartsRemoved) {
   };
   const URLTest kTests[] = {
       // No path still has no path.
-      {u"wootzapp://version", "wootzapp://version/"},
-      {u"wootzapp://version/", "wootzapp://version/"},
+      {u"chrome://version", "chrome://version/"},
+      {u"chrome://version/", "chrome://version/"},
       // Path is kept.
-      {u"wootzapp://discards/graph", "wootzapp://discards/graph"},
-      {u"wootzapp://discards/graph/", "wootzapp://discards/graph/"},
+      {u"chrome://discards/graph", "chrome://discards/graph"},
+      {u"chrome://discards/graph/", "chrome://discards/graph/"},
       // Longer paths are kept.
-      {u"wootzapp://discards/graph/a/b/c/d", "wootzapp://discards/graph/a/b/c/d"},
+      {u"chrome://discards/graph/a/b/c/d", "chrome://discards/graph/a/b/c/d"},
       // Queries are removed, with or without a path.
       {u"wootzapp://bookmarks/?q=chromium", "wootzapp://bookmarks/"},
       {u"wootzapp://bookmarks/add?q=chromium", "wootzapp://bookmarks/add"},
       {u"wootzapp://bookmarks/add/?q=chromium", "wootzapp://bookmarks/add/"},
       // Fragments are removed, with or without a path.
-      {u"wootzapp://flags/#tab-groups", "wootzapp://flags/"},
-      {u"wootzapp://flags/available/#tab-groups", "wootzapp://flags/available/"},
+      {u"chrome://flags/#tab-groups", "chrome://flags/"},
+      {u"chrome://flags/available/#tab-groups", "chrome://flags/available/"},
       // Queries & fragments are removed.
       {u"wootzapp://bookmarks/add?q=chromium#code", "wootzapp://bookmarks/add"},
       // User name and password are removed. (It's weird to have a user name or
       // password on a chrome URL, but otherwise we get blocked by the
       // no-non-chrome-URLs check)
-      {u"wootzapp://chronos:test0000@version/Home", "wootzapp://version/Home"},
+      {u"chrome://chronos:test0000@version/Home", "chrome://version/Home"},
   };
 
   for (const URLTest& test : kTests) {
@@ -330,8 +330,8 @@ TEST_F(WebUIMainFrameObserverTest, ErrorsNotReportedForNonChromeURLs) {
   NavigateToPage();
   const char16_t* const kNonChromeSourceURLs[] = {
       u"chrome-untrusted://media-app",
-      u"wootzapp-error://chromewebdata/",
-      u"wootzapp-extension://abc123/",
+      u"chrome-error://chromewebdata/",
+      u"chrome-extension://abc123/",
       u"about:blank",
   };
 

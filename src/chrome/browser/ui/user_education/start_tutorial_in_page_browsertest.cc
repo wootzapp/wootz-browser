@@ -26,7 +26,7 @@
 
 namespace {
 
-const char kStartingPageURL[] = "wootzapp://whats-new/";
+const char kStartingPageURL[] = "chrome://whats-new/";
 const char kTargetPageURL[] = "wootzapp://settings/";
 const ui::ElementIdentifier kHelpBubbleAnchorId =
     kWebUIIPHDemoElementIdentifier;

@@ -142,7 +142,7 @@ void CreateContextProviderAfterGpuChannelEstablished(
   auto context_provider =
       base::MakeRefCounted<viz::ContextProviderCommandBuffer>(
           std::move(gpu_channel_host), stream_id, stream_priority, handle,
-          GURL(std::string("wootzapp://gpu/Compositor::CreateContextProvider")),
+          GURL(std::string("chrome://gpu/Compositor::CreateContextProvider")),
           automatic_flushes, support_locking, shared_memory_limits, attributes,
           viz::command_buffer_metrics::ContextType::UNKNOWN);
   std::move(callback).Run(std::move(context_provider));
@@ -564,7 +564,7 @@ void CompositorImpl::OnGpuChannelEstablished(
       base::MakeRefCounted<viz::ContextProviderCommandBuffer>(
           std::move(gpu_channel_host), stream_id, stream_priority,
           gpu::kNullSurfaceHandle,
-          GURL(std::string("wootzapp://gpu/CompositorImpl::") +
+          GURL(std::string("chrome://gpu/CompositorImpl::") +
                std::string("CompositorContextProvider")),
           automatic_flushes, support_locking,
           GetCompositorContextSharedMemoryLimits(root_window_),

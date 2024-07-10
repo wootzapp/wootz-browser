@@ -1079,7 +1079,7 @@ base::Value WebApp::AsDebugValueWithOnlyPlatformAgnosticFields() const {
   root.Set("additional_search_terms", ConvertList(additional_search_terms_));
 
   root.Set("app_service_icon_url",
-           base::StrCat({"wootzapp://app-icon/", app_id_, "/32"}));
+           base::StrCat({"chrome://app-icon/", app_id_, "/32"}));
 
   root.Set("app_size_in_bytes", OptionalToStringValue(app_size_in_bytes_));
 

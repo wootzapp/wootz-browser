@@ -126,7 +126,7 @@ TEST_F(HistoryUtilTest, CanChangeToURLWebUI) {
       {"wootzapp://bookmarks", "wootzapp://bookmarks/test_loader.html", true},
       {"wootzapp://bookmarks/test_loader.html", "wootzapp://bookmarks", true},
       {"wootzapp://history", "wootzapp://bookmarks", false},
-      {"wootzapp-error://history", "wootzapp://bookmarks", false},
+      {"chrome-error://history", "wootzapp://bookmarks", false},
       {"about:blank", "wootzapp://bookmarks", false},
       {"about:srcdoc", "wootzapp://bookmarks", false},
       {"about:blank?query#hash", "wootzapp://bookmarks", false},

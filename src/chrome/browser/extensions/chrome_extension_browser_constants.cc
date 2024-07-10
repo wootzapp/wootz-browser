@@ -12,7 +12,7 @@ const char kRuntimeHostPermissionsHelpURL[] =
 
 // The link to the site permissions settings page.
 const char kExtensionsSitePermissionsURL[] =
-    "wootzapp://extensions/sitePermissions";
+    "chrome://extensions/sitePermissions";
 
 // The link to the help article for click to script, which contains info on
 // enabling extensions to request access to the current site through the
