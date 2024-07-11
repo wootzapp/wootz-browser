@@ -527,7 +527,7 @@ TEST_P(URLBlocklistManagerParamTest, DefaultBlocklistExceptions) {
   // "about:newtab" as its URL which is not recognized and filtered by the
   // URLBlocklist code.
   EXPECT_FALSE(blocklist.IsURLBlocked(GURL("about:newtab")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome://newtab")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp://newtab")));
   if (use_standard_compliant_non_special_scheme_url_parsing_) {
     // When the feature is enabled, the host part in non-special URLs can be
     // recognized.

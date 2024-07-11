@@ -446,7 +446,7 @@ IN_PROC_BROWSER_TEST_F(HistoryBrowserTest, InvalidSchemeNoHistory) {
       ui_test_utils::NavigateToURL(browser(), GURL("view-source:about:blank")));
   ExpectEmptyHistory();
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://about")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://about")));
   ExpectEmptyHistory();
 
   content::WebUIConfigMap::GetInstance().AddUntrustedWebUIConfig(

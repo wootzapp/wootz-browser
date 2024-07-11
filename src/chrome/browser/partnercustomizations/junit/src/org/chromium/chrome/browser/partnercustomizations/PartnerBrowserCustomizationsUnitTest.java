@@ -157,8 +157,8 @@ public class PartnerBrowserCustomizationsUnitTest {
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome-native://newtab")));
         Assert.assertTrue(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome://newtab")));
-        Assert.assertTrue(PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome:newtab")));
+                PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://newtab")));
+        Assert.assertTrue(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp:newtab")));
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("http://example.com")));
         Assert.assertTrue(
@@ -171,15 +171,15 @@ public class PartnerBrowserCustomizationsUnitTest {
                 PartnerBrowserCustomizations.isValidHomepage(
                         new GURL("about:newtab/path#fragment")));
         Assert.assertFalse(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome://newtab--not")));
+                PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://newtab--not")));
         Assert.assertFalse(
                 PartnerBrowserCustomizations.isValidHomepage(
                         UrlFormatter.fixupUrl("about:newtab--not")));
         Assert.assertFalse(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome://history")));
-        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome://")));
-        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome:")));
-        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome")));
+                PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://history")));
+        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://")));
+        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp:")));
+        Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp")));
 
         Assert.assertFalse(
                 PartnerBrowserCustomizations.isValidHomepage(

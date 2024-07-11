@@ -497,7 +497,7 @@ IN_PROC_BROWSER_TEST_F(KeyboardAccessTest, BackForwardKeys) {
   // Navigate to create some history.
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser(), GURL("chrome://version/")));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://about/")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://about/")));
 
   std::u16string before_back;
   ASSERT_TRUE(ui_test_utils::GetCurrentTabTitle(browser(), &before_back));

@@ -40,7 +40,7 @@ AllocationRecorderBrowserTest::AllocationRecorderBrowserTest() = default;
 AllocationRecorderBrowserTest::~AllocationRecorderBrowserTest() = default;
 
 void AllocationRecorderBrowserTest::CrashRendererProcess() {
-  const GURL crash_url("chrome://crash");
+  const GURL crash_url("wootzapp://crash");
 
   auto* const web_contents = chrome_test_utils::GetActiveWebContents(this);
 

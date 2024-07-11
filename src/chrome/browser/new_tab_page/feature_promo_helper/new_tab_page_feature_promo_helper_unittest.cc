@@ -25,7 +25,7 @@ class NewTabPageFeaturePromoHelperTest : public BrowserWithTestWindowTest {
     iph_feature_list_.InitAndEnableFeatures(
         {feature_engagement::kIPHDesktopCustomizeChromeFeature});
 
-    AddTab(browser(), GURL("chrome://newtab"));
+    AddTab(browser(), GURL("wootzapp://newtab"));
     tab_ = browser()->tab_strip_model()->GetActiveWebContents();
 
     helper_ = std::make_unique<NewTabPageFeaturePromoHelper>();

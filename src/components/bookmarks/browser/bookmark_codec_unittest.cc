@@ -476,7 +476,7 @@ TEST_F(BookmarkCodecTest, DecodeModel) {
 
     EXPECT_EQ(9, actual_folder_c1->children()[0]->id());
     EXPECT_FALSE(actual_folder_c1->children()[0]->is_folder());
-    EXPECT_EQ(GURL("chrome://settings/"),
+    EXPECT_EQ(GURL("wootzapp://settings/"),
               actual_folder_c1->children()[0]->url());
     EXPECT_EQ(u"Settings", actual_folder_c1->children()[0]->GetTitle());
     EXPECT_EQ(

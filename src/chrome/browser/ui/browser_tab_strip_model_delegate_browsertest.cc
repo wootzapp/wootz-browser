@@ -48,7 +48,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabStripModelDelegateTest, MoveTabsToNewWindow) {
       std::make_unique<BrowserTabStripModelDelegate>(browser());
 
   GURL url1("chrome://version");
-  GURL url2("chrome://about");
+  GURL url2("wootzapp://about");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
 
   // Moving a tab from a single tab window to a new tab window is a no-op.
@@ -100,7 +100,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTabStripModelDelegateTest,
       std::make_unique<BrowserTabStripModelDelegate>(browser());
 
   GURL url1("chrome://version");
-  GURL url2("chrome://about");
+  GURL url2("wootzapp://about");
   GURL url3("chrome://terms");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1));
 

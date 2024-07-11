@@ -330,7 +330,7 @@ class ConnectorsServiceExemptURLsTest
 TEST_P(ConnectorsServiceExemptURLsTest, WebUI) {
   auto* service = ConnectorsServiceFactory::GetForBrowserContext(profile_);
   for (const char* url :
-       {"chrome://settings", "chrome://help-app/background",
+       {"wootzapp://settings", "wootzapp://help-app/background",
         "chrome://foo/bar/baz.html", "chrome://foo/bar/baz.html?param=value"}) {
     auto settings = service->GetAnalysisSettings(GURL(url), connector());
     ASSERT_FALSE(settings.has_value());

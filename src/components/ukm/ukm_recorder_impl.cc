@@ -126,7 +126,7 @@ GURL SanitizeURL(const GURL& url) {
   remove_params.ClearPassword();
   // chrome:// and about: URLs params are never used for navigation, only to
   // prepopulate data on the page, so don't include their params.
-  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("chrome")) {
+  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("wootzapp")) {
     remove_params.ClearQuery();
   }
   if (url.SchemeIs(kExtensionScheme)) {

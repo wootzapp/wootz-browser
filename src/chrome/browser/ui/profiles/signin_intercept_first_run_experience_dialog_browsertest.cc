@@ -245,7 +245,7 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
       GURL("chrome://sync-confirmation"),
       SyncConfirmationStyle::kSigninInterceptModal);
   const GURL kProfileCustomizationUrl = GURL("chrome://profile-customization");
-  const GURL kSyncSettingsUrl = GURL("chrome://settings/syncSetup");
+  const GURL kSyncSettingsUrl = GURL("wootzapp://settings/syncSetup");
 
  private:
   testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;

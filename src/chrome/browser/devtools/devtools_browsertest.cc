@@ -1759,7 +1759,7 @@ IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest,
 IN_PROC_BROWSER_TEST_F(DevToolsExtensionTest, MAYBE_CantInspectNewTabPage) {
   LoadExtension("can_inspect_url");
   RunTest("waitForTestResultsAsMessage",
-          base::StrCat({kArbitraryPage, "#chrome://newtab/"}));
+          base::StrCat({kArbitraryPage, "#wootzapp://newtab/"}));
 }
 
 // TODO(crbug.com/40943634): Re-enable the test once it is fixed.
@@ -2986,8 +2986,8 @@ IN_PROC_BROWSER_TEST_F(DevToolsTest, MAYBE_TestOpenInNewTabFilter) {
       {"view-source:http://chromium.org", "about:blank"},
       {"file:///", "about:blank"},
       {"about://gpu", "about:blank"},
-      {"chrome://gpu", "about:blank"},
-      {"chrome://crash", "about:blank"},
+      {"wootzapp://gpu", "about:blank"},
+      {"wootzapp://crash", "about:blank"},
       {"", "about:blank"},
   };
 

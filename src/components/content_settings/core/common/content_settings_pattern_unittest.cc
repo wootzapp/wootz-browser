@@ -1064,8 +1064,8 @@ TEST(ContentSettingsPatternTest, ToRepresentativeUrl) {
   EXPECT_EQ(Pattern("http://example.com:8080").ToRepresentativeUrl(),
             GURL("http://example.com:8080"));
 
-  EXPECT_EQ(Pattern("chrome://settings").ToRepresentativeUrl(),
-            GURL("chrome://settings"));
+  EXPECT_EQ(Pattern("wootzapp://settings").ToRepresentativeUrl(),
+            GURL("wootzapp://settings"));
 
   EXPECT_EQ(Pattern("file:///*").ToRepresentativeUrl(), GURL());
   EXPECT_EQ(Pattern("file:///foo/bar/example.txt").ToRepresentativeUrl(),

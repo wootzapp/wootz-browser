@@ -45,7 +45,7 @@ Otherwise: Writes command-line file.
 '''
   parser.add_argument('--name', required=True,
                       help='Name of file where to store flags on the device.')
-  parser.add_argument('-e', '--executable', dest='executable', default='chrome',
+  parser.add_argument('-e', '--executable', dest='executable', default='wootzapp',
                       help='(deprecated) No longer used.')
   script_common.AddEnvironmentArguments(parser)
   script_common.AddDeviceArguments(parser)

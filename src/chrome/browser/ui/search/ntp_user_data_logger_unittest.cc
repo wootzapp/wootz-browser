@@ -94,7 +94,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldRecordNumberOfTiles) {
   base::HistogramTester histogram_tester;
 
   // Ensure non-zero statistics.
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   const base::TimeDelta delta = base::Milliseconds(73);
 
@@ -116,7 +116,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldRecordNumberOfTiles) {
 }
 
 TEST_F(NTPUserDataLoggerTest, ShouldNotRecordImpressionsBeforeAllTilesLoaded) {
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   base::HistogramTester histogram_tester;
 
@@ -142,7 +142,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldNotRecordImpressionsBeforeAllTilesLoaded) {
 }
 
 TEST_F(NTPUserDataLoggerTest, ShouldRecordImpressions) {
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   base::HistogramTester histogram_tester;
 
@@ -220,7 +220,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldRecordImpressions) {
 }
 
 TEST_F(NTPUserDataLoggerTest, ShouldNotRecordRepeatedImpressions) {
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   base::HistogramTester histogram_tester;
 
@@ -275,7 +275,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldNotRecordRepeatedImpressions) {
 }
 
 TEST_F(NTPUserDataLoggerTest, ShouldNotRecordImpressionsForBinsBeyondMax) {
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   base::HistogramTester histogram_tester;
 
@@ -321,7 +321,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldNotRecordImpressionsForBinsBeyondMax) {
 }
 
 TEST_F(NTPUserDataLoggerTest, ShouldRecordNavigations) {
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   {
     base::HistogramTester histogram_tester;
@@ -468,7 +468,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldRecordNavigations) {
 TEST_F(NTPUserDataLoggerTest, ShouldRecordMostVisitedLoadTime) {
   base::HistogramTester histogram_tester;
 
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   base::TimeDelta delta_tiles_loaded = base::Milliseconds(100);
 
@@ -504,7 +504,7 @@ TEST_F(NTPUserDataLoggerTest, ShouldRecordImpressionsAge) {
   base::HistogramTester histogram_tester;
 
   // Ensure non-zero statistics.
-  TestNTPUserDataLogger logger(GURL("chrome://newtab/"));
+  TestNTPUserDataLogger logger(GURL("wootzapp://newtab/"));
 
   constexpr base::TimeDelta delta = base::Milliseconds(0);
 

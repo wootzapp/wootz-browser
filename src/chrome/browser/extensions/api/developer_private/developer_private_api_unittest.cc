@@ -1642,7 +1642,7 @@ TEST_F(DeveloperPrivateApiUnitTest, GrantHostPermission) {
                        /*should_succeed=*/false, kInvalidHostError);
 
   // Cannot grant chrome:-scheme URLs.
-  GURL chrome_host("chrome://settings/*");
+  GURL chrome_host("wootzapp://settings/*");
   RunAddHostPermission(profile(), *extension, chrome_host.spec(),
                        /*should_succeed=*/false, kInvalidHostError);
 

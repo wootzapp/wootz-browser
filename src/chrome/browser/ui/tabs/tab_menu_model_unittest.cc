@@ -126,7 +126,7 @@ TEST_F(TabMenuModelTest, CommerceProductSpecsInvalidScheme) {
       content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
 
   content::WebContentsTester::For(chrome_web_contents.get())
-      ->NavigateAndCommit(GURL("chrome://bookmarks"));
+      ->NavigateAndCommit(GURL("wootzapp://bookmarks"));
 
   tab_strip->AppendWebContents(std::move(chrome_web_contents), true);
   chrome::NewTab(browser());

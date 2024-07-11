@@ -29,7 +29,7 @@
 namespace {
 
 constexpr char kPageWithAnchorURL[] = "chrome://internals/user-education";
-constexpr char kPageWithoutAnchorURL[] = "chrome://settings";
+constexpr char kPageWithoutAnchorURL[] = "wootzapp://settings";
 constexpr char16_t kBubbleBodyText[] = u"bubble body";
 
 // This should be short enough that tests that *expect* the operation to time

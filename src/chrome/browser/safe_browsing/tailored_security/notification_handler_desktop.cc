@@ -44,9 +44,9 @@ namespace {
 const char kTailoredSecurityUnconsentedPromotionNotificationId[] =
     "TailoredSecurityUnconsentedPromotionNotification";
 const char kTailoredSecurityNotifierId[] =
-    "chrome://settings/security/notification/id-notifier";
+    "wootzapp://settings/security/notification/id-notifier";
 const char kTailoredSecurityNotificationOrigin[] =
-    "chrome://settings/security?q=enhanced";
+    "wootzapp://settings/security?q=enhanced";
 
 void LogUnconsentedOutcome(TailoredSecurityOutcome outcome) {
   base::UmaHistogramEnumeration(

@@ -17,7 +17,7 @@ function sendLoadTime(time) {
         url: location.href,
         time: time,
       },
-      'chrome://new-tab-page');
+      'wootzapp://new-tab-page');
 }
 
 function onImageLoad() {

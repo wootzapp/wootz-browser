@@ -326,7 +326,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabUtilBrowserTest,
 IN_PROC_BROWSER_TEST_F(ExtensionTabUtilBrowserTest, RecordNavigationScheme) {
   const std::string kHttpUrl("http://example.com");
   const std::string kHttpsUrl("https://example.com");
-  const std::string kChromeUrl("chrome://settings");
+  const std::string kChromeUrl("wootzapp://settings");
   const std::string kFileUrl("file:///etc/passwd");
   const std::string kOtherUrl("data:,test");
   struct {

@@ -1427,7 +1427,7 @@ TEST_F(IdpNetworkRequestManagerTest, FetchClientMetadataValidUrls) {
 
 TEST_F(IdpNetworkRequestManagerTest, FetchClientMetadataInvalidUrls) {
   // Non-HTTP(S) URLs should not be allowed.
-  const std::string privacy_policy_url = "chrome://settings";
+  const std::string privacy_policy_url = "wootzapp://settings";
   const std::string terms_of_service_url = "file:///Users/you/file.html";
   const std::string brand_icon_url = "about:blank";
 

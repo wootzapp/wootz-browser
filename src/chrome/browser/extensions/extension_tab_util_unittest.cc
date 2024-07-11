@@ -129,7 +129,7 @@ TEST_F(ChromeExtensionNavigationTest, PrepareURLForNavigation) {
   // A kill URL should return false and set the error. There are several
   // different potential kill URLs and this just checks one of them.
   {
-    const std::string kKillURL("chrome://crash");
+    const std::string kKillURL("wootzapp://crash");
     auto url = ExtensionTabUtil::PrepareURLForNavigation(
         kKillURL, extension.get(), browser_context());
     EXPECT_THAT(url, base::test::ErrorIs(tabs_constants::kNoCrashBrowserError));
@@ -137,7 +137,7 @@ TEST_F(ChromeExtensionNavigationTest, PrepareURLForNavigation) {
   // Hang URLs and other similar debug urls should also return false and set the
   // error.
   {
-    const std::string kHangURL("chrome://hang");
+    const std::string kHangURL("wootzapp://hang");
     auto url = ExtensionTabUtil::PrepareURLForNavigation(
         kHangURL, extension.get(), browser_context());
     ASSERT_FALSE(url.has_value());

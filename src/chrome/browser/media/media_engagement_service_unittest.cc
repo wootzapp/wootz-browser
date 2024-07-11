@@ -325,7 +325,7 @@ TEST_P(MediaEngagementServiceTest, RestrictedToHTTPAndHTTPS) {
   std::vector<url::Origin> origins = {
       url::Origin::Create(GURL("ftp://www.google.com/")),
       url::Origin::Create(GURL("file://blah")),
-      url::Origin::Create(GURL("chrome://")),
+      url::Origin::Create(GURL("wootzapp://")),
       url::Origin::Create(GURL("about://config")),
       url::Origin::Create(GURL("http://example.com")),
       url::Origin::Create(GURL("https://example.com")),

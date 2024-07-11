@@ -610,7 +610,7 @@ class TabImpl implements Tab {
                 }
             }
 
-            if ("chrome://java-crash/".equals(params.getUrl())) {
+            if ("wootzapp://java-crash/".equals(params.getUrl())) {
                 return handleJavaCrash();
             }
 
