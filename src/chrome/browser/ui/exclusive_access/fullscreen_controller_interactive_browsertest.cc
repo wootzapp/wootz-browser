@@ -291,7 +291,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
   ASSERT_NO_FATAL_FAILURE(ToggleTabFullscreen(true));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
 
   ASSERT_FALSE(browser()->window()->IsFullscreen());
 }
@@ -303,7 +303,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
   ASSERT_TRUE(embedded_test_server()->Start());
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
 
   ASSERT_NO_FATAL_FAILURE(ToggleTabFullscreen(true));
 
@@ -335,7 +335,7 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(embedded_test_server()->Start());
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
 
   ASSERT_NO_FATAL_FAILURE(ToggleBrowserFullscreen(true));
   ASSERT_NO_FATAL_FAILURE(ToggleTabFullscreen(true));
@@ -555,7 +555,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
   ASSERT_TRUE(IsPointerLocked());
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
 
   ASSERT_FALSE(IsPointerLocked());
 }

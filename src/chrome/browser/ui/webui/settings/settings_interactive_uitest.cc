@@ -111,7 +111,7 @@ IN_PROC_BROWSER_TEST_F(SettingsInteractiveUiTest,
   const std::string cookie_row_selector =
       is_3pcd ? "cr-link-row#trackingProtectionLinkRow"
               : "cr-link-row#thirdPartyCookiesLinkRow";
-  const GURL cookie_setting_url("chrome://settings/privacy");
+  const GURL cookie_setting_url("wootzapp://settings/privacy");
   const WebContentsInteractionTestUtil::DeepQuery cookies_link_row = {
       "settings-ui", "settings-main", "settings-basic-page",
       "settings-privacy-page", cookie_row_selector};
@@ -180,7 +180,7 @@ IN_PROC_BROWSER_TEST_F(ThemeSettingsInteractiveUiTest,
   UNCALLED_MOCK_CALLBACK(ui::InteractionSequence::CompletedCallback, completed);
   UNCALLED_MOCK_CALLBACK(ui::InteractionSequence::AbortedCallback, aborted);
 
-  const GURL appearance_setting_url("chrome://settings/appearance");
+  const GURL appearance_setting_url("wootzapp://settings/appearance");
   const WebContentsInteractionTestUtil::DeepQuery reset_to_default_btn = {
       "settings-ui", "settings-main", "settings-basic-page",
       "settings-appearance-page", "cr-button#useDefault"};

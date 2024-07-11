@@ -70,7 +70,7 @@ const char* kBypassBlocklistWildcardForSchemes[] = {
 #if BUILDFLAG(IS_IOS)
 // The two schemes used on iOS for the NTP.
 constexpr char kIosNtpAboutScheme[] = "about";
-constexpr char kIosNtpChromeScheme[] = "chrome";
+constexpr char kIosNtpChromeScheme[] = "wootzapp";
 // The host string used on iOS for the NTP.
 constexpr char kIosNtpHost[] = "newtab";
 #endif

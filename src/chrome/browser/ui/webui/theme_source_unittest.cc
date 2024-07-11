@@ -145,8 +145,8 @@ TEST_F(WebUISourcesTest, ThemeSourceColorsCSS) {
 
 TEST_F(WebUISourcesTest, ThemeAllowedOrigin) {
   EXPECT_EQ(
-      theme_source()->GetAccessControlAllowOriginForOrigin("chrome://settings"),
-      "chrome://settings");
+      theme_source()->GetAccessControlAllowOriginForOrigin("wootzapp://settings"),
+      "wootzapp://settings");
   EXPECT_EQ(theme_source()->GetAccessControlAllowOriginForOrigin(
                 "chrome-extensions://some-id"),
             "");

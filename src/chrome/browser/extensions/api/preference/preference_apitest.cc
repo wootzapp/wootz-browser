@@ -350,7 +350,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionPreferenceApiTest, OnChangeSplit) {
       profile_->GetPrimaryOTRProfile(/*create_if_needed=*/true));
 
   // Open an incognito window.
-  OpenURLOffTheRecord(profile_, GURL("chrome://newtab/"));
+  OpenURLOffTheRecord(profile_, GURL("wootzapp://newtab/"));
 
   // changeDefault listeners.
   ExtensionTestMessageListener listener1("changeDefault regular ready",
@@ -492,7 +492,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionPreferenceApiTest,
   SetCookieControlsMode(prefs, CookieControlsMode::kBlockThirdParty);
 
   // Open an incognito window.
-  OpenURLOffTheRecord(profile_, GURL("chrome://newtab/"));
+  OpenURLOffTheRecord(profile_, GURL("wootzapp://newtab/"));
   EXPECT_TRUE(profile_->HasPrimaryOTRProfile());
 
   extensions::ResultCatcher catcher;

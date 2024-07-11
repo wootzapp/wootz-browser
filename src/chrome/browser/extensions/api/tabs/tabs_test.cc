@@ -2640,7 +2640,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, TabsUpdate_WebToAboutNewTab) {
   // definitely undesirable for http-initiated navigations (see r818969), but
   // it is less clear what should happen in extension-initiated navigations.
   GURL about_newtab_url = GURL("about:newtab");
-  GURL chrome_newtab_url = GURL("chrome://new-tab-page/");
+  GURL chrome_newtab_url = GURL("wootzapp://new-tab-page/");
 
   // Navigate a tab to an extension page.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), extension_url));

@@ -51,7 +51,7 @@ inline constexpr char kAdvancedProtectionDownloadLearnMoreURL[] =
 
 // "Chrome Settings" URL for website notifications linked out from OSSettings.
 inline constexpr char kAppNotificationsBrowserSettingsURL[] =
-    "chrome://settings/content/notifications";
+    "wootzapp://settings/content/notifications";
 
 // "Learn more" URL for Battery Saver Mode.
 inline constexpr char kBatterySaverModeLearnMoreUrl[] =
@@ -63,15 +63,15 @@ inline constexpr char kBluetoothAdapterOffHelpURL[] =
 
 // "Chrome Settings" URL for website camera access permissions.
 inline constexpr char kBrowserCameraPermissionsSettingsURL[] =
-    "chrome://settings/content/camera";
+    "wootzapp://settings/content/camera";
 
 // "Chrome Settings" URL for website location access permissions.
 inline constexpr char kBrowserLocationPermissionsSettingsURL[] =
-    "chrome://settings/content/location";
+    "wootzapp://settings/content/location";
 
 // "Chrome Settings" URL for website microphone access permissions.
 inline constexpr char kBrowserMicrophonePermissionsSettingsURL[] =
-    "chrome://settings/content/microphone";
+    "wootzapp://settings/content/microphone";
 
 // "Learn more" URL shown in the dialog to enable cloud services for Cast.
 inline constexpr char kCastCloudServicesHelpURL[] =
@@ -418,11 +418,11 @@ inline constexpr char kPrivacyLearnMoreURL[] =
 
 // "Chrome Settings" URL for Ad Topics page
 inline constexpr char kPrivacySandboxAdTopicsURL[] =
-    "chrome://settings/adPrivacy/interests";
+    "wootzapp://settings/adPrivacy/interests";
 
 // "Chrome Settings" URL for Managing Topics page
 inline constexpr char kPrivacySandboxManageTopicsURL[] =
-    "chrome://settings/adPrivacy/interests/manage";
+    "wootzapp://settings/adPrivacy/interests/manage";
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 // The Privacy Sandbox homepage.

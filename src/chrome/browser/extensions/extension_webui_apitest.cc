@@ -84,7 +84,7 @@ class ExtensionWebUITest : public ExtensionApiTest {
   testing::AssertionResult RunTestOnAboutPage(const char* name) {
     // chrome://about is an innocuous page that doesn't have any bindings.
     // Tests should fail.
-    return RunTest(name, GURL("chrome://about"), false);
+    return RunTest(name, GURL("wootzapp://about"), false);
   }
 };
 

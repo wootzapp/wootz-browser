@@ -104,7 +104,7 @@ TEST_F(DomDistillerViewerTest, TestCreatingInvalidViewRequest) {
                         kEntryIdKey, "abc-def"),
                     view_request_delegate.get());
   // Specify an internal Chrome page.
-  CreateViewRequest(GetDistillerViewUrlFromUrl("chrome://settings/"),
+  CreateViewRequest(GetDistillerViewUrlFromUrl("wootzapp://settings/"),
                     view_request_delegate.get());
   // Specify a recursive URL.
   CreateViewRequest(GetDistillerViewUrlFromUrl(

@@ -13,7 +13,7 @@ TEST(SettingsUtilsTest, FixupAndValidateStartupPage) {
   EXPECT_FALSE(FixupAndValidateStartupPage(std::string(), nullptr));
   EXPECT_FALSE(FixupAndValidateStartupPage("   ", nullptr));
   EXPECT_FALSE(FixupAndValidateStartupPage("^&*@)^)", nullptr));
-  EXPECT_FALSE(FixupAndValidateStartupPage("chrome://quit", nullptr));
+  EXPECT_FALSE(FixupAndValidateStartupPage("wootzapp://quit", nullptr));
 
   EXPECT_TRUE(FixupAndValidateStartupPage("facebook.com", nullptr));
   EXPECT_TRUE(FixupAndValidateStartupPage("http://reddit.com", nullptr));
@@ -22,7 +22,7 @@ TEST(SettingsUtilsTest, FixupAndValidateStartupPage) {
 
   GURL fixed_url;
   EXPECT_TRUE(FixupAndValidateStartupPage("about:settings", &fixed_url));
-  EXPECT_EQ("chrome://settings/", fixed_url.spec());
+  EXPECT_EQ("wootzapp://settings/", fixed_url.spec());
 }
 
 }  // namespace settings_utils

@@ -833,7 +833,7 @@ TEST_F(OmniboxViewViewsTest, SelectAllOnReactivateTabAfterDeleteAll) {
   // be longer than the first (to trigger the bug).
   auto web_contents2 =
       content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
-  const GURL url_2("chrome://history/");
+  const GURL url_2("wootzapp://history/");
   EXPECT_GT(url_2.spec().size(), url_1.spec().size());
   // Notice the url is set before ResetDisplayTexts(), this matches what
   // actually happens in code.

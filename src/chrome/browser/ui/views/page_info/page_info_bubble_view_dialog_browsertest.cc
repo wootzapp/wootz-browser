@@ -154,7 +154,7 @@ class PageInfoBubbleViewDialogBrowserTest : public DialogBrowserTest {
     constexpr char kTrackingProtection3pcLimited[] =
         "TrackingProtection3pcLimited";
 
-    const GURL internal_url("chrome://settings");
+    const GURL internal_url("wootzapp://settings");
     const GURL internal_extension_url("chrome-extension://example");
     const GURL file_url("file:///Users/homedirname/folder/file.pdf");
     // Note the following two URLs are not really necessary to get the different

@@ -38,7 +38,7 @@ TEST(SchemeLoggerTest, TestLogScheme) {
       {"chrome-search:foo", UrlScheme::kChromeSearch},
       {"devtools://devtools", UrlScheme::kDevTools},
       {"chrome-error://", UrlScheme::kChromeError},
-      {"chrome://settings", UrlScheme::kChrome},
+      {"wootzapp://settings", UrlScheme::kChrome},
       {"chrome-untrusted://", UrlScheme::kChromeUntrusted},
       {"view-source:foo/", UrlScheme::kViewSource},
       {"externalfile:foo/", UrlScheme::kExternalFile},

@@ -120,7 +120,7 @@ IN_PROC_BROWSER_TEST_P(CookiesApiTest, CookiesEventsSpanning) {
   // incognito cookie store. Otherwise, the chrome.cookies.set operation is just
   // ignored and we won't be notified about a newly set cookie for which we want
   // to test whether the storeId is set correctly.
-  OpenURLOffTheRecord(browser()->profile(), GURL("chrome://newtab/"));
+  OpenURLOffTheRecord(browser()->profile(), GURL("wootzapp://newtab/"));
   ASSERT_TRUE(RunTest("cookies/events_spanning",
                       /*allow_in_incognito=*/true))
       << message_;

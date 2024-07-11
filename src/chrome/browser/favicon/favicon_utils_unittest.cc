@@ -28,7 +28,7 @@ TEST(FaviconUtilsTest, ShouldThemifyFavicon) {
       content::NavigationEntry::Create();
   const GURL unthemeable_url("http://mail.google.com");
   const GURL themeable_virtual_url("chrome://feedback/");
-  const GURL themeable_url("chrome://new-tab-page/");
+  const GURL themeable_url("wootzapp://new-tab-page/");
 
   entry->SetVirtualURL(themeable_virtual_url);
   entry->SetURL(themeable_url);

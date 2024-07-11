@@ -188,7 +188,7 @@ TEST_F(PermissionsParserTest, HostPermissionsKeyInvalidScheme) {
       manifest_keys::kHostPermissions, "chrome://extensions/"));
   expected_warnings.push_back(ErrorUtils::FormatErrorMessage(
       manifest_errors::kInvalidPermissionScheme,
-      manifest_keys::kOptionalHostPermissions, "chrome://settings/"));
+      manifest_keys::kOptionalHostPermissions, "wootzapp://settings/"));
 
   scoped_refptr<Extension> extension(LoadAndExpectWarnings(
       "host_permissions_key_invalid_scheme.json", expected_warnings));

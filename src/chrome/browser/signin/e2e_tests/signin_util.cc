@@ -60,7 +60,7 @@ void SignInFunctions::SignInFromWeb(const TestAccount& test_account,
 
 void SignInFunctions::SignInFromSettings(const TestAccount& test_account,
                                          int previously_signed_in_accounts) {
-  GURL settings_url("chrome://settings");
+  GURL settings_url("wootzapp://settings");
   Browser* browser = browser_.Run();
   ASSERT_TRUE(add_tab_function_.Run(0, settings_url,
                                     ui::PageTransition::PAGE_TRANSITION_TYPED));
@@ -111,7 +111,7 @@ void SignInFunctions::SignOutFromWeb() {
 }
 
 void SignInFunctions::TurnOffSync() {
-  GURL settings_url("chrome://settings");
+  GURL settings_url("wootzapp://settings");
   ASSERT_TRUE(add_tab_function_.Run(0, settings_url,
                                     ui::PageTransition::PAGE_TRANSITION_TYPED));
   SignInTestObserver observer(identity_manager(browser_.Run()),

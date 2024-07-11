@@ -598,7 +598,7 @@ IN_PROC_BROWSER_TEST_F(ExternallyManagedAppManagerBrowserTest,
   // The installer falls back to installing a web app of the original URL.
   EXPECT_EQ(url, registrar().GetAppStartUrl(app_id.value()));
   EXPECT_NE(app_id,
-            registrar().FindAppWithUrlInScope(GURL("chrome://settings")));
+            registrar().FindAppWithUrlInScope(GURL("wootzapp://settings")));
 }
 
 // Test that adding a web app without a manifest while using the

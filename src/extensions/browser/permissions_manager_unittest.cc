@@ -427,7 +427,7 @@ TEST_F(PermissionsManagerUnittest, CanUserSelectSiteAccess_AllUrls) {
 
   // Verify "on click", "on site" and "on all sites" cannot be selected for a
   // restricted url.
-  const GURL chrome_url("chrome://settings");
+  const GURL chrome_url("wootzapp://settings");
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,
                                                  UserSiteAccess::kOnClick));
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,

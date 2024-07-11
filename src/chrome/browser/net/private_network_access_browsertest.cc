@@ -1221,7 +1221,7 @@ IN_PROC_BROWSER_TEST_F(PrivateNetworkAccessWithFeatureEnabledBrowserTest,
   // however so we load chrome://new-tab-page that embeds chrome-untrusted://
   // frame(s) by default.
   EXPECT_TRUE(
-      content::NavigateToURL(web_contents(), GURL("chrome://new-tab-page")));
+      content::NavigateToURL(web_contents(), GURL("wootzapp://new-tab-page")));
   content::RenderFrameHost* iframe = ChildFrameAt(web_contents(), 0);
   ASSERT_TRUE(iframe);
   EXPECT_TRUE(iframe->GetLastCommittedURL().SchemeIs(

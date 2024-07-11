@@ -100,7 +100,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTab) {
     // will call chrome.test.sendMessage('controlled by first').
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(),
         extension->id()));
@@ -139,7 +139,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTabMultiple) {
     // the new tab page should be controlled by the second extension.
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(),
         extension2_id));
@@ -155,7 +155,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTabMultiple) {
     // The page should still be controlled by the second extension.
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(),
         extension2_id));
@@ -184,7 +184,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTabMultiple) {
     // The page should still be controlled by the second extension.
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(), extension2_id));
     EXPECT_TRUE(listener.WaitUntilSatisfied());
@@ -198,7 +198,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTabMultiple) {
   {
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(),
         extension1_id));
@@ -221,7 +221,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest,
     // the new tab page should be controlled by the second extension.
     ExtensionTestMessageListener listener;
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab/")));
     EXPECT_TRUE(ExtensionControlsPage(
         browser()->tab_strip_model()->GetActiveWebContents(),
         extension2_id));
@@ -254,7 +254,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideNewTabIncognito) {
   // Navigate an incognito tab to the new tab page.  We should get the actual
   // new tab page because we can't load chrome-extension URLs in incognito.
   Browser* otr_browser =
-      OpenURLOffTheRecord(browser()->profile(), GURL("chrome://newtab/"));
+      OpenURLOffTheRecord(browser()->profile(), GURL("wootzapp://newtab/"));
   WebContents* tab = otr_browser->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(tab->GetController().GetVisibleEntry());
   EXPECT_FALSE(tab->GetController().GetVisibleEntry()->GetURL().
@@ -319,7 +319,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, MAYBE_OverrideHistory) {
     // Navigate to the history page.  The overridden history page
     // will call chrome.test.notifyPass() .
     ASSERT_TRUE(
-        ui_test_utils::NavigateToURL(browser(), GURL("chrome://history/")));
+        ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://history/")));
     ASSERT_TRUE(catcher.GetNextResult());
   }
 }
