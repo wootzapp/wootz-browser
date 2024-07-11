@@ -220,21 +220,56 @@ void ThrottleMessageHandler::LoadNetworkThrottlingSettings() {
     GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
 }
 
-void ThrottleMessageHandler::OnURLLoadComplete(std::unique_ptr<std::string> response_body) {
-  std::string data = response_body ? std::move(*response_body) : "";
-  LOG(ERROR) << "Response Data: " << data;
-}
-
 // Example function to call a POST request
 void ThrottleMessageHandler::LogHistoryData(content::WebUI* web_ui) {
-  Profile* profile = Profile::FromWebUI(web_ui);
-  scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
-    profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess();
+    auto resource_request = std::make_unique<network::ResourceRequest>();
+    resource_request->url = GURL("https://api-staging-0.gotartifact.com/v2/users/authentication/signin");
+    resource_request->method = "POST";
 
-  std::string body = R"({
-      "email" : "jayadmin@gmail.com",
-      "password" : "123123"
-  })";
+    resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+    resource_request->load_flags = net::LOAD_BYPASS_CACHE |
+                                 net::LOAD_DISABLE_CACHE |
+                                 net::LOAD_DO_NOT_SAVE_COOKIES;
+
+    LOG(ERROR)<< "HELLLOO : LogHistoryData"<<" ";
+    Profile* profile = Profile::FromWebUI(web_ui);
+
+    scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
+      profile->GetDefaultStoragePartition()
+          ->GetURLLoaderFactoryForBrowserProcess();
+
+    net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation("artifact_api", R"(
+        semantics {
+          sender: "Artifact API"
+          description: "Accessing Artifact API to authenticate a user."
+          trigger: "Whenever the network throttling settings are changed."
+          data: "Email and password for authentication."
+          destination: OTHER
+        }
+        policy {
+          cookies_allowed: NO
+          setting: "This request cannot be disabled by settings."
+          policy_exception_justification: "Not implemented."
+        })");
+
+    simple_loader = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
+
+    std::string request_body = R"({"email":"jayadmin@gmail.com","password":"123123"})";
+    simple_loader->AttachStringForUpload(request_body, "application/json");
+
+    simple_loader->DownloadToString(
+      loader_factory.get(),
+      base::BindOnce(&ThrottleMessageHandler::OnURLLoadComplete,
+                     base::Unretained(this)),
+      1024 * 1024);
+}
+
+void ThrottleMessageHandler::OnURLLoadComplete(
+    std::unique_ptr<std::string> response_body) {
+  std::string data = response_body ? std::move(*response_body) : "";
+
+  LOG(ERROR)<< "HELLLOO : OnURLLoadComplete"<<" ";
+  LOG(ERROR) << data;
 }
 
 

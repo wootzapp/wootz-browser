@@ -19,6 +19,7 @@ group("resources") {
   public_deps = [
     "data_sharing_internals:resources",
     "segmentation_internals:resources",
+    "hello_world:resources",
   ]
 
   if (!is_android) {
@@ -300,6 +301,7 @@ repack("dev_ui_paks") {
     "$root_gen_dir/chrome/memory_internals_resources.pak",
     "$root_gen_dir/chrome/net_internals_resources.pak",
     "$root_gen_dir/chrome/throttle_resources.pak",
+    "$root_gen_dir/chrome/hello_world_resources.pak",
     "$root_gen_dir/chrome/omnibox_resources.pak",
     "$root_gen_dir/chrome/predictors_resources.pak",
     "$root_gen_dir/chrome/privacy_sandbox_internals_resources.pak",

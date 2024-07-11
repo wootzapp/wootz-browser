@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Brave Rewards</title>
+  <link rel="stylesheet" href="hello_world.css" type="text/css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api-staging-0.gotartifact.com;">
+  <meta http-equiv="Content-Security-Policy" content="connect-src *;">
+
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <img src="https://brave.com/wp-content/uploads/2020/01/brave-logo-white.svg" class="icon" alt="Brave Logo">
+        <h1>Brave Rewards</h1>
+      </div>
+      <div class="header-right">
+        <button class="button">Reset</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Manage Brave Ads</h2>
+      <div class="section-content">
+        <p>Control what kinds of Brave Ads you see and how often. <a href="#">Learn more</a></p>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-content">
+        <p>Ready to start earning? Connect or create an account with one of our partners.</p>
+        <button id="connectButton" class="button-connect" style="width:auto;">Connect account</button>
+      </div>
+    </div>
+    <div class="section">
+      <h3>Total ads received this month</h3>
+      <div class="section-list">
+        <span class="section-list-label">New tab page ads</span>
+        <span class="section-list-value">0</span>
+        <label class="switch">
+          <input type="checkbox">
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="section-list">
+        <span class="section-list-label">Notification ads</span>
+        <span class="section-list-value">0</span>
+        <label class="switch">
+          <input type="checkbox" checked>
+          <span class="slider round"></span>
+        </label>
+      </div>
+      <div class="section-list">
+        <span class="section-list-label">Brave News ads</span>
+        <span class="section-list-value">0</span>
+      </div>
+    </div>
+  </div>
+  <div id="id01" class="modal">
+    <form id="loginForm" class="modal-content animate" action="javascript:void(0);" method="post">
+      <div class="imgcontainer">
+        <span onclick="document.getElementById('id01').style.display='none'" class="close" title="Close Modal">&times;</span>
+        <img src="img_avatar2.png" alt="Avatar" class="avatar">
+      </div>
+      <div class="container">
+        <label for="uname"><b>Username</b></label>
+        <input type="text" placeholder="Enter Username" name="uname" required>
+        <label for="psw"><b>Password</b></label>
+        <input type="password" placeholder="Enter Password" name="psw" required>
+        <button type="submit">Login</button>
+        <label>
+          <input type="checkbox" checked="checked" name="remember"> Remember me
+        </label>
+      </div>
+      <div class="container" style="background-color:#f1f1f1">
+        <button type="button" onclick="document.getElementById('id01').style.display='none'" class="cancelbtn">Cancel</button>
+        <span class="psw">Forgot <a href="#">password?</a></span>
+      </div>
+    </form>
+  </div>
+  <script src="reaward.js"></script>
+
+</body>
+</html>

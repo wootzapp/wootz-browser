@@ -141,6 +141,8 @@ extern const char kChromeUINetInternalsHost[];
 extern const char kChromeUINetInternalsURL[];
 extern const char kChromeUIThrottleHost[];
 extern const char kChromeUIThrottleURL[];
+extern const char kChromeUIHelloWorldHost[];
+extern const char kChromeUIHelloWorldURL[];
 extern const char kChromeUINewTabHost[];
 extern const char kChromeUINewTabPageHost[];
 extern const char kChromeUINewTabPageURL[];
