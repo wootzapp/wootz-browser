@@ -9,19 +9,22 @@ found in the LICENSE file.
     android:id="@+id/control_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_gravity="bottom"
     android:minHeight="@dimen/control_container_height" >
 
     <view
         class="org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer$ToolbarViewResourceFrameLayout"
         android:id="@+id/toolbar_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" >
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom" >
 
         <ViewStub
             android:id="@+id/toolbar_stub"
             android:layout_width="match_parent"
             android:layout_marginTop="@dimen/tab_strip_height"
-            android:layout_height="@dimen/toolbar_height_no_shadow" />
+            android:layout_height="@dimen/toolbar_height_no_shadow" 
+            android:layout_gravity="bottom"/>
 
         <ImageView
             android:id="@+id/toolbar_hairline"
@@ -30,6 +33,7 @@ found in the LICENSE file.
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/control_container_height"
             android:scaleType="fitXY"
+            android:layout_gravity="bottom"
             android:importantForAccessibility="no" />
 
         <ViewStub
@@ -38,6 +42,7 @@ found in the LICENSE file.
             android:visibility="gone"
             android:layout_marginTop="@dimen/tab_strip_height"
             android:layout_width="match_parent"
+            android:layout_gravity="bottom"
             android:layout_height="@dimen/toolbar_height_no_shadow"
             android:layout="@layout/find_toolbar" />
     </view>
@@ -48,7 +53,7 @@ found in the LICENSE file.
         android:layout_width="@dimen/find_in_page_popup_width"
         android:layout_height="@dimen/find_in_page_popup_height"
         android:layout_marginEnd="@dimen/find_in_page_popup_margin_end"
-        android:layout_gravity="end|top"
+        android:layout_gravity="end|bottom"
         android:layout="@layout/find_toolbar" />
 
     <ViewStub
@@ -57,6 +62,7 @@ found in the LICENSE file.
         android:layout_width="match_parent"
         android:layout_marginTop="@dimen/tab_strip_height"
         android:layout_height="@dimen/toolbar_height_no_shadow"
+        android:layout_gravity="bottom"
         android:layout="@layout/drag_drop_target_view" />
 
     <ViewStub
@@ -64,6 +70,7 @@ found in the LICENSE file.
         android:layout_width="match_parent"
         android:layout_marginTop="@dimen/tab_strip_height"
         android:layout_height="@dimen/toolbar_height_no_shadow"
+        android:layout_gravity="bottom"
         android:inflatedId="@+id/tab_switcher_toolbar"
         android:layout="@layout/tab_switcher_toolbar" />
 </org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer>

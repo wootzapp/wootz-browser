@@ -74,7 +74,7 @@ found in the LICENSE file.
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="-4dp"
-            android:layout_gravity="start|bottom"
+            android:layout_gravity="start|top"
             android:inflatedId="@+id/bottombar"
             android:layout="@layout/custom_tabs_bottombar" />
 
@@ -95,7 +95,7 @@ found in the LICENSE file.
             android:id="@+id/omnibox_results_container_stub"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:layout_anchor="@id/control_container"
+            app:layout_gravity="bottom"
             android:inflatedId="@+id/omnibox_results_container"
             app:layout="@layout/omnibox_results_container" />
 
@@ -105,6 +105,7 @@ found in the LICENSE file.
             android:layout_width="match_parent"
             android:layout_height="@dimen/toolbar_height_no_shadow"
             android:background="@android:color/black"
+            android:layout_gravity="bottom"
             android:visibility="gone" />
 
         <ViewStub
@@ -118,13 +119,23 @@ found in the LICENSE file.
         <ViewStub
             android:id="@+id/control_container_stub"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content" 
+            android:layout_gravity="bottom"/>
+
+        <org.chromium.ui.AsyncViewStub
+            android:id="@+id/omnibox_results_container_stub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_anchorGravity="@id/control_container_stub"
+            android:inflatedId="@+id/omnibox_results_container"
+            app:layout="@layout/omnibox_results_container" />
 
         <ViewStub
             android:id="@+id/tab_switcher_view_holder_stub"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:inflatedId="@+id/tab_switcher_view_holder"
+            android:layout_gravity="bottom"
             android:layout="@layout/tab_switcher_view_holder" />
 
         <ViewStub
@@ -132,14 +143,15 @@ found in the LICENSE file.
             android:layout_width="@dimen/tab_hover_card_width"
             android:layout_height="wrap_content"
             android:inflatedId="@+id/tab_hover_card_holder"
-            android:layout="@layout/tab_hover_card_holder" />
+            android:layout="@layout/tab_hover_card_holder"
+            android:layout_gravity="bottom" />
 
         <org.chromium.components.messages.MessageContainer
             android:id="@+id/message_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:visibility="gone"
-            android:layout_gravity="start|top"
+            android:layout_gravity="start|bottom"
             android:focusable="true" />
 
         <ViewStub
@@ -147,6 +159,7 @@ found in the LICENSE file.
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inflatedId="@+id/status_indicator"
+            android:layout_gravity="bottom"
             android:layout="@layout/status_indicator_container" />
 
         <ViewStub
@@ -161,6 +174,7 @@ found in the LICENSE file.
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:inflatedId="@+id/page_insights_hub_container"
+            android:layout_gravity="bottom"
             android:layout="@layout/page_insights_hub_container" />
 
         <FrameLayout

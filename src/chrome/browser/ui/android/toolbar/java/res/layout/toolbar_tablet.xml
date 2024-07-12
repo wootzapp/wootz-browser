@@ -17,13 +17,14 @@ found in the LICENSE file.
     android:layout_height="@dimen/toolbar_height_no_shadow"
     android:layout_marginTop="@dimen/tab_strip_height"
     android:background="@macro/default_bg_color"
-     >
+    android:layout_gravity="bottom">
 
     <LinearLayout
         android:id="@+id/toolbar_tablet_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="horizontal" >
+        android:orientation="horizontal" 
+        android:layout_gravity="bottom">
 
         <org.chromium.chrome.browser.toolbar.home_button.HomeButton
             android:id="@+id/home_button"
@@ -34,6 +35,7 @@ found in the LICENSE file.
             app:menuMaxWidth="@dimen/home_button_list_menu_width"
             app:menuPositionedAtEnd="false"
             app:menuVerticalOverlapAnchor="false"
+            android:layout_gravity="bottom"
             app:tint="@color/default_icon_color_tint_list" />
 
         <org.chromium.ui.widget.ChromeImageButton
@@ -41,12 +43,14 @@ found in the LICENSE file.
             style="@style/ToolbarHoverableButton"
             android:src="@drawable/btn_back"
             android:contentDescription="@string/accessibility_toolbar_btn_back"
+            android:layout_gravity="bottom"
             app:tint="@color/default_icon_color_tint_list" />
 
         <org.chromium.ui.widget.ChromeImageButton
             android:id="@+id/forward_button"
             style="@style/ToolbarHoverableButton"
             android:src="@drawable/btn_forward"
+            android:layout_gravity="bottom"
             android:contentDescription="@string/accessibility_toolbar_btn_forward"
             app:tint="@color/default_icon_color_tint_list" />
 
@@ -55,6 +59,7 @@ found in the LICENSE file.
             android:id="@+id/refresh_button"
             android:src="@drawable/btn_reload_stop"
             android:contentDescription="@string/accessibility_btn_refresh"
+            android:layout_gravity="bottom"
             app:tint="@color/default_icon_color_tint_list"
             style="@style/ToolbarHoverableButton" />
 
@@ -71,6 +76,7 @@ found in the LICENSE file.
             android:id="@+id/optional_button_stub"
             android:inflatedId="@+id/optional_toolbar_button"
             android:layout="@layout/optional_toolbar_button"
+            android:layout_gravity="bottom"
             style="@style/ToolbarButton"
             android:paddingStart="8dp"
             android:visibility="gone" />
@@ -80,7 +86,7 @@ found in the LICENSE file.
             style="@style/ToolbarHoverableButton"
             android:background="@drawable/toolbar_tab_switcher_button_ripple"
             android:paddingStart="@dimen/toolbar_tab_switcher_button_padding"
-            android:layout_gravity="top"
+            android:layout_gravity="bottom"
             android:contentDescription="@string/accessibility_toolbar_btn_tabswitcher_toggle_default"
             android:visibility="visible"
             app:menuMaxWidth="@dimen/tab_switcher_menu_width"

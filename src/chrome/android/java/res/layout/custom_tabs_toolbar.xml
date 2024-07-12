@@ -11,14 +11,16 @@ found in the LICENSE file.
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/toolbar"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/custom_tabs_control_container_height">
+    android:layout_height="@dimen/custom_tabs_control_container_height"
+    android:layout_gravity="bottom" >
     <LinearLayout
         android:id="@+id/close_minimize_layout"
         android:layout_height="wrap_content"
         android:layout_width="wrap_content"
         android:layout_marginEnd="42dp"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:layout_gravity="bottom" >
         <ImageButton
             android:id="@+id/close_button"
             style="@style/ToolbarButton"
