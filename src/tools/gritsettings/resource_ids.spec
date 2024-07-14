@@ -600,13 +600,17 @@
     "META": {"sizes": {"includes": [30]}},
     "includes": [4780],
   },
-   "<(SHARED_INTERMEDIATE_DIR)chrome/browser/resources/wootz_react_app/resources.grd": {
+  "chrome/browser/resources/wootz_react_app/build/wootz_react_app_resources.grd": {
     "META": {"sizes": {"includes": [20]}},
     "includes": [4790],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/suggest_internals/resources.grd": {
     "META": {"sizes": {"includes": [10]}},
     "includes": [4800],
+  },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/rewards/rewards_resources.grd": {
+    "META": {"sizes": {"includes": [20]}},
+    "includes": [4810],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/quota_internals/quota_internals_resources.grd": {
     "META": {"sizes": {"includes": [20]}},
