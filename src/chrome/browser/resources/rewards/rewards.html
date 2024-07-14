@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="rewards.css">
+  <title>WootzApp Rewards</title>
+</head>
+<body>
+  <div class="card">
+    <h1>Welcome to WootzApp Rewards</h1>
+  </div>
+  <div class="ads-management">
+    <h2>Manage WootzApp Ads</h2>
+    <div class="connect">
+      <p>Ready to start earning? Connect or create an account with one of our partners.</p>
+      <button id="connectButton">Connect Account</button>
+      <button id="getUserProfileButton" style="display: none;">Get User XP</button>
+    </div>
+  </div>
+  <div id="loginStatus"></div>
+  <button id="logoutButton" style="display: none;">Logout</button>
+
+  <div id="id01" class="modal">
+    <div class="modal-content">
+      <div class="container">
+        <span class="close">&times;</span>
+        <h2>Login</h2>
+        <form id="loginForm">
+          <label for="uname"><b>Email</b></label>
+          <input type="text" placeholder="Enter Email" name="uname" required>
+          <label for="psw"><b>Password</b></label>
+          <input type="password" placeholder="Enter Password" name="psw" required>
+          <button type="submit">Submit</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="rewards.js"></script>
+</body>
+</html>
