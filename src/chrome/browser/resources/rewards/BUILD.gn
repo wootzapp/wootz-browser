@@ -27,6 +27,9 @@ generate_grd("build_grd") {
   input_files = [
     "rewards.js",
     "rewards.css",
+    "dist/chain.js",
+    "dist/client.js",
+    "dist/wallet.js",
   ]
   input_files_base_dir = rebase_path(".", "//")
   deps = [ ":preprocess" ]
