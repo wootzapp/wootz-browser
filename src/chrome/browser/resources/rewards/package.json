@@ -1,0 +1,14 @@
+{
+  "name": "rewards",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "typescript": "^4.5.4",
+    "thirdweb": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.10"
+  }
+}

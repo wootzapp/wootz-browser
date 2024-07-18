@@ -18,6 +18,12 @@
 #include "base/strings/string_util.h"
 #include "base/types/expected.h"
 #include "base/values.h"
+#include "chrome/browser/prefs/browser_prefs.h"
+#include "components/prefs/pref_service.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "chrome/browser/history/history_service_factory.h"
+#include "components/history/core/browser/history_service.h"
+#include "components/history/core/browser/history_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/pref_names.h"
@@ -25,7 +31,6 @@
 #include "chrome/grit/rewards_resources.h"
 #include "chrome/grit/rewards_resources_map.h"
 #include "components/prefs/pref_member.h"
-#include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
@@ -66,47 +71,36 @@ void CreateAndAddRewardsHTMLSource(Profile* profile) {
     source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ConnectSrc,
       "connect-src 'self'  wootzapp://resources wootzapp://theme;");
-  source->AddString("message", "Hello World!");
-
+    source->AddString("message", "Hello World!");
 }
 
-
-class RewardsMessageHandler : public content::WebUIMessageHandler {
-public:
-    explicit RewardsMessageHandler(content::WebUI* web_ui);
-
-    RewardsMessageHandler(const RewardsMessageHandler&) = delete;
-    RewardsMessageHandler& operator=(const RewardsMessageHandler&) = delete;
-
-    ~RewardsMessageHandler() override = default;
-
-protected:
-    // WebUIMessageHandler implementation:
-    void RegisterMessages() override;
-    void OnJavascriptDisallowed() override;
-
-private:
-    void LoginWallet(const base::Value::List& args);
-    void LogUrl(const base::Value::List& args);
-    void Encrypt(const base::Value::List& args);
-    void GetUserProfile(const base::Value::List& args);
-    void OnURLLoadComplete(std::unique_ptr<std::string> response_body);
-    void OnGetUserProfileComplete(std::unique_ptr<std::string> response_body);
-
-    raw_ptr<content::WebUI> web_ui_;
-    std::unique_ptr<network::SimpleURLLoader> simple_loader;
-    base::WeakPtrFactory<RewardsMessageHandler> weak_factory_{this};
-};
+}  // namespace
 
 RewardsMessageHandler::RewardsMessageHandler(content::WebUI* web_ui)
-    : web_ui_(web_ui) {}
+    : web_ui_(web_ui), weak_factory_(this) {
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    history::HistoryService* history_service =
+        HistoryServiceFactory::GetForProfile(profile, ServiceAccessType::EXPLICIT_ACCESS);
+    if (history_service) {
+        history_service->AddObserver(this);
+    }
+}
+
+RewardsMessageHandler::~RewardsMessageHandler() {
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    history::HistoryService* history_service =
+        HistoryServiceFactory::GetForProfile(profile, ServiceAccessType::EXPLICIT_ACCESS);
+    if (history_service) {
+        history_service->RemoveObserver(this);
+    }
+}
 
 void RewardsMessageHandler::RegisterMessages() {
     DCHECK_CURRENTLY_ON(BrowserThread::UI);
     web_ui_->RegisterMessageCallback(
         "loginWallet",
         base::BindRepeating(&RewardsMessageHandler::LoginWallet,
-                            base::Unretained(this))); 
+                            base::Unretained(this)));
     web_ui_->RegisterMessageCallback(
         "logUrl",
         base::BindRepeating(&RewardsMessageHandler::LogUrl,
@@ -132,15 +126,14 @@ void RewardsMessageHandler::LoginWallet(const base::Value::List& args) {
 
     resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     resource_request->load_flags = net::LOAD_BYPASS_CACHE |
-                                 net::LOAD_DISABLE_CACHE |
-                                 net::LOAD_DO_NOT_SAVE_COOKIES;
+                                   net::LOAD_DISABLE_CACHE |
+                                   net::LOAD_DO_NOT_SAVE_COOKIES;
 
-    LOG(ERROR)<< "HELLLOO : login"<<" ";
+    LOG(ERROR) << "HELLLOO : login";
+
     Profile* profile = Profile::FromWebUI(web_ui_);
-
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
-      profile->GetDefaultStoragePartition()
-          ->GetURLLoaderFactoryForBrowserProcess();
+        profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess();
 
     net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation("artifact_api", R"(
         semantics {
@@ -162,10 +155,10 @@ void RewardsMessageHandler::LoginWallet(const base::Value::List& args) {
     simple_loader->AttachStringForUpload(request_body, "application/json");
 
     simple_loader->DownloadToString(
-      loader_factory.get(),
-      base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
-                     base::Unretained(this)),
-      1024 * 1024);
+        loader_factory.get(),
+        base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
+                       base::Unretained(this)),
+        1024 * 1024);
 }
 
 void RewardsMessageHandler::LogUrl(const base::Value::List& args) {
@@ -175,15 +168,14 @@ void RewardsMessageHandler::LogUrl(const base::Value::List& args) {
 
     resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     resource_request->load_flags = net::LOAD_BYPASS_CACHE |
-                                 net::LOAD_DISABLE_CACHE |
-                                 net::LOAD_DO_NOT_SAVE_COOKIES;
+                                   net::LOAD_DISABLE_CACHE |
+                                   net::LOAD_DO_NOT_SAVE_COOKIES;
 
-    LOG(ERROR)<< "Logging URL"<<" ";
+    LOG(ERROR) << "Logging URL";
+
     Profile* profile = Profile::FromWebUI(web_ui_);
-
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
-      profile->GetDefaultStoragePartition()
-          ->GetURLLoaderFactoryForBrowserProcess();
+        profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess();
 
     net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation("artifact_api_log", R"(
         semantics {
@@ -201,17 +193,15 @@ void RewardsMessageHandler::LogUrl(const base::Value::List& args) {
 
     simple_loader = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
 
-    std::string token = args[0].GetString();
     std::string url = args[1].GetString();
-
     std::string request_body = R"({"encrypted_url":")" + url + R"("})";
     simple_loader->AttachStringForUpload(request_body, "application/json");
 
     simple_loader->DownloadToString(
-      loader_factory.get(),
-      base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
-                     base::Unretained(this)),
-      1024 * 1024);
+        loader_factory.get(),
+        base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
+                       base::Unretained(this)),
+        1024 * 1024);
 }
 
 void RewardsMessageHandler::Encrypt(const base::Value::List& args) {
@@ -221,15 +211,14 @@ void RewardsMessageHandler::Encrypt(const base::Value::List& args) {
 
     resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     resource_request->load_flags = net::LOAD_BYPASS_CACHE |
-                                 net::LOAD_DISABLE_CACHE |
-                                 net::LOAD_DO_NOT_SAVE_COOKIES;
+                                   net::LOAD_DISABLE_CACHE |
+                                   net::LOAD_DO_NOT_SAVE_COOKIES;
 
-    LOG(ERROR)<< "Encrypting Data"<<" ";
+    LOG(ERROR) << "Encrypting Data";
+
     Profile* profile = Profile::FromWebUI(web_ui_);
-
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
-      profile->GetDefaultStoragePartition()
-          ->GetURLLoaderFactoryForBrowserProcess();
+        profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess();
 
     net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation("artifact_api_encrypt", R"(
         semantics {
@@ -247,18 +236,27 @@ void RewardsMessageHandler::Encrypt(const base::Value::List& args) {
 
     simple_loader = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
 
-    std::string token = args[0].GetString();
     std::string secret = args[1].GetString();
     std::string data = args[2].GetString();
-
     std::string request_body = R"({"rawData":")" + data + R"(","secretKey":")" + secret + R"("})";
     simple_loader->AttachStringForUpload(request_body, "application/json");
 
     simple_loader->DownloadToString(
-      loader_factory.get(),
-      base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
-                     base::Unretained(this)),
-      1024 * 1024);
+        loader_factory.get(),
+        base::BindOnce(&RewardsMessageHandler::OnURLLoadComplete,
+                       base::Unretained(this)),
+        1024 * 1024);
+}
+
+void RewardsMessageHandler::SendStoredApiResponse() {
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    PrefService* prefs = profile->GetPrefs();
+    std::string stored_response = prefs->GetString(prefs::kRewardsApiResponse);
+
+    if (!stored_response.empty()) {
+        base::Value response(stored_response);
+        web_ui_->CallJavascriptFunctionUnsafe("handleResponse", response);
+    }
 }
 
 void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
@@ -268,15 +266,14 @@ void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
 
     resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     resource_request->load_flags = net::LOAD_BYPASS_CACHE |
-                                 net::LOAD_DISABLE_CACHE |
-                                 net::LOAD_DO_NOT_SAVE_COOKIES;
+                                   net::LOAD_DISABLE_CACHE |
+                                   net::LOAD_DO_NOT_SAVE_COOKIES;
 
-    LOG(ERROR)<< "Getting User Profile"<<" ";
+    LOG(ERROR) << "Getting User Profile";
+
     Profile* profile = Profile::FromWebUI(web_ui_);
-
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
-      profile->GetDefaultStoragePartition()
-          ->GetURLLoaderFactoryForBrowserProcess();
+        profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess();
 
     net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation("artifact_api_profile", R"(
         semantics {
@@ -298,20 +295,22 @@ void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
     resource_request->headers.SetHeader("Authorization", "Bearer " + token);
 
     simple_loader->DownloadToString(
-      loader_factory.get(),
-      base::BindOnce(&RewardsMessageHandler::OnGetUserProfileComplete,
-                     base::Unretained(this)),
-      1024 * 1024);
+        loader_factory.get(),
+        base::BindOnce(&RewardsMessageHandler::OnGetUserProfileComplete,
+                       base::Unretained(this)),
+        1024 * 1024);
 }
 
 void RewardsMessageHandler::OnURLLoadComplete(
     std::unique_ptr<std::string> response_body) {
     std::string data = response_body ? std::move(*response_body) : "";
 
-    LOG(ERROR) << "Response from API: ";
-    LOG(ERROR) << data;
+    LOG(ERROR) << "Response from API: " << data;
 
-    // Send the response back to the frontend
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    PrefService* prefs = profile->GetPrefs();
+    prefs->SetString(prefs::kRewardsApiResponse, data);
+
     base::Value response(data);
     web_ui_->CallJavascriptFunctionUnsafe("handleResponse", response);
 }
@@ -320,15 +319,26 @@ void RewardsMessageHandler::OnGetUserProfileComplete(
     std::unique_ptr<std::string> response_body) {
     std::string data = response_body ? std::move(*response_body) : "";
 
-    LOG(ERROR) << "Response from GetUserProfile API: ";
-    LOG(ERROR) << data;
+    LOG(ERROR) << "Response from GetUserProfile API: " << data;
 
     // Send the response back to the frontend
     base::Value response(data);
     web_ui_->CallJavascriptFunctionUnsafe("handleProfileResponse", response);
 }
 
-}  // namespace
+void RewardsMessageHandler::OnURLVisited(history::HistoryService* history_service,
+                                         const history::URLRow& url_row,
+                                         const history::VisitRow& visit_row) {
+    std::string latest_url = url_row.url().spec();
+    LOG(ERROR) << "Latest URL visited: " << latest_url;
+
+    // Call the function to send the stored API response to the frontend
+    SendStoredApiResponse();
+}
+
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+    registry->RegisterStringPref(prefs::kRewardsApiResponse, std::string("api_response"));
+}
 
 RewardsUI::RewardsUI(content::WebUI* web_ui)
     : WebUIController(web_ui) {
