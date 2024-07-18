@@ -13,6 +13,9 @@ You must have Git and Python installed already.
 Most development is done on Ubuntu. Other distros may or may not work; see the Linux instructions for some suggestions.
 
 Building the Android client on Windows or Mac is not supported and doesn't work.
+### Warning:
+Developers should **NOT** work in an existing Chromium directory to avoid potential conflicts.
+
 
 ### Installation Steps (building chromium):
 <hr/>
@@ -33,6 +36,7 @@ Create a chromium directory for the checkout and change to it (you can call this
 ```bash
 mkdir ~/chromium && cd ~/chromium
 fetch --nohooks --no-history android
+gclient sync --nohooks --revision src@refs/tags/127.0.6489.0 --reset --upstream -D --force --no-history
 ```
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
