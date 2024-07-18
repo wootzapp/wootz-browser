@@ -10,8 +10,7 @@ found in the LICENSE file.
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/control_container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:layout_gravity="bottom" >
+    android:layout_height="match_parent" >
 
     <org.chromium.ui.AsyncViewStub
             android:id="@+id/omnibox_results_container_stub"
@@ -28,7 +27,6 @@ found in the LICENSE file.
             android:background="@drawable/search_activity_bg"
             android:paddingStart="@dimen/toolbar_edge_padding"
             android:paddingEnd="@dimen/toolbar_edge_padding"
-            android:layout_gravity="bottom"
             android:clickable="true" >
 
         <org.chromium.chrome.browser.searchwidget.SearchActivityLocationBarLayout
@@ -46,7 +44,6 @@ found in the LICENSE file.
     <FrameLayout
             android:id="@+id/bottom_container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="bottom"/>
+            android:layout_height="match_parent" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

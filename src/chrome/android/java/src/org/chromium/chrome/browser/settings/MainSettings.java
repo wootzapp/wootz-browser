@@ -88,6 +88,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
     public static final String PREF_HOMEPAGE = "homepage";
     public static final String PREF_HOME_MODULES_CONFIG = "home_modules_config";
     public static final String PREF_TOOLBAR_SHORTCUT = "toolbar_shortcut";
+    
     public static final String PREF_UI_THEME = "ui_theme";
     public static final String PREF_PRIVACY = "privacy";
     public static final String PREF_SAFETY_CHECK = "safety_check";

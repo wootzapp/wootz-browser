@@ -68,6 +68,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.chromium.base.ContextUtils;
+import android.view.Gravity;
+import org.chromium.components.browser_ui.widget.CoordinatorLayoutForPointer;
 /**
  * This class is a singleton that holds utilities for warming up Chrome and prerendering urls
  * without creating the Activity.
@@ -414,6 +417,12 @@ public class WarmupManager {
                                     layoutInflater, R.layout.main, contentHolder);
             if (toolbarContainerId != ActivityUtils.NO_RESOURCE_ID) {
                 ViewStub stub = (ViewStub) mainView.findViewById(R.id.control_container_stub);
+                if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+                    CoordinatorLayoutForPointer.LayoutParams params = new CoordinatorLayoutForPointer.LayoutParams(
+                    CoordinatorLayoutForPointer.LayoutParams.MATCH_PARENT, CoordinatorLayoutForPointer.LayoutParams.WRAP_CONTENT);
+                    params.gravity = Gravity.START | Gravity.BOTTOM;
+                    stub.setLayoutParams(params);
+                }
                 stub.setLayoutResource(toolbarContainerId);
                 stub.inflate();
             }

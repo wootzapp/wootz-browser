@@ -389,6 +389,13 @@ public class CustomTabActivityNavigationController
                 IntentHandler.startChromeLauncherActivityForTrustedIntent(intent);
             } else {
                 mActivity.startActivity(intent, startActivityOptions);
+                
+                try {
+                    mActivity.startActivity(intent, startActivityOptions);
+                } catch (android.content.ActivityNotFoundException ex) {
+                   // avoid crashing.
+                }
+                
                 finish(FinishReason.OPEN_IN_BROWSER);
             }
         }

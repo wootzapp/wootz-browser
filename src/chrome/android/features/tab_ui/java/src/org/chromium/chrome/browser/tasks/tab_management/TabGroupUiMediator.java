@@ -50,6 +50,8 @@ import org.chromium.url.GURL;
 
 import java.util.List;
 
+import org.chromium.base.ContextUtils;
+
 /** A mediator for the TabGroupUi. Responsible for managing the internal state of the component. */
 public class TabGroupUiMediator implements BackPressHandler {
     /** An interface to control the TabGroupUi component. */
@@ -450,6 +452,9 @@ public class TabGroupUiMediator implements BackPressHandler {
      *     not, associated tabs from #getTabsToShowForID will be showing in the tab strip.
      */
     private void resetTabStripWithRelatedTabsForId(int id) {
+        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
+            id = Tab.INVALID_TAB_ID;
+
         if (!mTabModelSelector.isTabStateInitialized()) return;
 
         // TODO(crbug.com/40133857): We should be able to guard this call behind some checks so that

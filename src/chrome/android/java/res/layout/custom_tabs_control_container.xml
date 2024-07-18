@@ -10,19 +10,16 @@ found in the LICENSE file.
     android:id="@+id/control_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:minHeight="@dimen/custom_tabs_control_container_height"
-    android:layout_gravity="bottom"  >
+    android:minHeight="@dimen/custom_tabs_control_container_height" >
     <view
         class="org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer$ToolbarViewResourceFrameLayout"
         android:id="@+id/toolbar_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom">
+        android:layout_height="wrap_content">
         <ViewStub
             android:id="@+id/toolbar_stub"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/custom_tabs_control_container_height"
-            android:layout_gravity="bottom" />
+            android:layout_height="@dimen/custom_tabs_control_container_height" />
         <ImageView
             android:id="@+id/toolbar_hairline"
             android:src="@drawable/toolbar_hairline"
@@ -30,7 +27,6 @@ found in the LICENSE file.
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/custom_tabs_control_container_height"
             android:scaleType="fitXY"
-            android:layout_gravity="bottom"
             android:importantForAccessibility="no" />
         <ViewStub
             android:id="@+id/find_toolbar_stub"
@@ -38,7 +34,6 @@ found in the LICENSE file.
             android:visibility="gone"
             android:layout_marginTop="@dimen/tab_strip_height"
             android:layout_width="match_parent"
-            android:layout_gravity="bottom"
             android:layout_height="@dimen/custom_tabs_control_container_height"
             android:layout="@layout/find_toolbar" />
         <ViewStub
@@ -47,13 +42,13 @@ found in the LICENSE file.
             android:layout_width="@dimen/find_in_page_popup_width"
             android:layout_height="@dimen/find_in_page_popup_height"
             android:layout_marginEnd="@dimen/find_in_page_popup_margin_end"
-            android:layout_gravity="end|bottom"
+            android:layout_gravity="end|top"
             android:layout="@layout/find_toolbar" />
         <ViewStub
             android:id="@+id/topbar_stub"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="start|bottom"
+            android:layout_gravity="start|top"
             android:inflatedId="@+id/topbar"
             android:layout="@layout/custom_tabs_topbar" />
     </view>
