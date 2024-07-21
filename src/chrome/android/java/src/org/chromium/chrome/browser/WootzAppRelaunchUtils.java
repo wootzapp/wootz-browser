@@ -24,7 +24,7 @@ public class WootzAppRelaunchUtils {
             .setPositiveButton("Relaunch", new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog,int id) {
-                    MisesRelaunchUtilsJni.get().restart();
+                    WootzAppRelaunchUtilsJni.get().restart();
                     dialog.cancel();
                 }
             })
@@ -47,7 +47,7 @@ public class WootzAppRelaunchUtils {
                         new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int id) {
-                                MisesRelaunchUtilsJni.get().restart();
+                                WootzAppRelaunchUtilsJni.get().restart();
                                 dialog.cancel();
                             }
                         })
@@ -63,7 +63,7 @@ public class WootzAppRelaunchUtils {
     }
 
     public static void restart() {
-        MisesRelaunchUtilsJni.get().restart();
+        WootzAppRelaunchUtilsJni.get().restart();
     }
 
     @NativeMethods

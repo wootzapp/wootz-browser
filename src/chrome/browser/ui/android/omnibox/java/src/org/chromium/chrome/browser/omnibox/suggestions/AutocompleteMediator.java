@@ -75,6 +75,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Optional;
 
+import org.chromium.base.ContextUtils;
+
+
 /** Handles updating the model state for the currently visible omnibox suggestions. */
 class AutocompleteMediator
         implements OnSuggestionsReceivedListener,
@@ -1161,7 +1164,11 @@ class AutocompleteMediator
     @Override
     public void onSuggestionDropdownScroll() {
         mSuggestionsListScrolled = true;
-        mDelegate.setKeyboardVisibility(false, false);
+
+        if (!ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+                mDelegate.setKeyboardVisibility(false, false);
+            }
+
     }
 
     /**

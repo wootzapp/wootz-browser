@@ -294,7 +294,9 @@ public class ChromeTabModalPresenter extends TabModalPresenter
             return 0;
         int scrimVerticalMargin =
                 resources.getDimensionPixelSize(R.dimen.tab_modal_scrim_vertical_margin);
-        return provider.getTopControlsHeight() - scrimVerticalMargin;
+
+        return provider.getTopControlsHeightRealOffset() - scrimVerticalMargin;
+        
     }
 
     /**

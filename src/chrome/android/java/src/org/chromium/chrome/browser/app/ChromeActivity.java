@@ -252,6 +252,9 @@ import java.util.List;
 
 import android.view.Gravity;
 import org.chromium.components.browser_ui.widget.CoordinatorLayoutForPointer;
+
+import android.widget.ImageView;
+
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
  * and associated classes.
@@ -878,6 +881,18 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             int toolbarLayoutId = getToolbarLayoutId();
             if (toolbarLayoutId != ActivityUtils.NO_RESOURCE_ID && controlContainer != null) {
                 controlContainer.initWithToolbar(toolbarLayoutId);
+
+                ImageView shadowImage = findViewById(R.id.toolbar_hairline);
+                if (shadowImage != null) {
+                    // Invert the shadown if the top toolbar is at the bottom
+                    if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+                        ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams)shadowImage.getLayoutParams();
+                        marginParams.setMargins(marginParams.leftMargin, 0,
+                            marginParams.rightMargin, marginParams.bottomMargin);
+                        shadowImage.setLayoutParams(marginParams);
+                    }
+                }
+
             }
             onInitialLayoutInflationComplete();
         }

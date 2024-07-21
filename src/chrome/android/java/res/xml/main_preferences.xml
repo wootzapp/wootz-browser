@@ -118,10 +118,10 @@ found in the LICENSE file.
         android:order="21"
         android:title="@string/toolbar_shortcut"/>
     <org.chromium.components.browser_ui.settings.ChromeBasePreference
-        android:fragment="org.chromium.chrome.browser.settings.ToolbarSettings"
+        android:fragment="org.chromium.chrome.browser.toolbar.settings.ToolbarSettings"
         android:key="toolbar_options"
         android:order="22"
-        android:title="ToolBar Location Change"/>
+        android:title="@string/preferences_toolbar"/>
     <Preference
         android:fragment="org.chromium.chrome.browser.accessibility.settings.AccessibilitySettings"
         android:key="accessibility"

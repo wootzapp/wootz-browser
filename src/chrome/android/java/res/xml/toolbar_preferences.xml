@@ -10,8 +10,10 @@
 
     
    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference
-        android:key="enable_bottom_toolbar"
-        android:summary="Move address bar to the bottom"
-        android:title="Bottom toolbar" />
+     android:key="enable_bottom_toolbar"
+     android:summary="@string/accessibility_preferences_enable_bottom_toolbar_summary"
+     android:title="@string/accessibility_preferences_enable_bottom_toolbar_title" />
+
+        
     
 </PreferenceScreen>

@@ -61,6 +61,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.function.BooleanSupplier;
 
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import org.chromium.base.ContextUtils;
+
 /** Layout for the browser controls (omnibox, menu, tab strip, etc..). */
 public class ToolbarControlContainer extends OptimizedFrameLayout
         implements ControlContainer, DesktopWindowStateProvider.AppHeaderObserver {
@@ -121,6 +124,13 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     @Override
     public void initWithToolbar(int toolbarLayoutId) {
         try (TraceEvent te = TraceEvent.scoped("ToolbarControlContainer.initWithToolbar")) {
+
+            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+                // the top toolbar is docked at the bottom
+                CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)getLayoutParams();
+                layoutParams.gravity = Gravity.START | Gravity.BOTTOM;
+            }
+
             mToolbarContainer =
                     (ToolbarViewResourceFrameLayout) findViewById(R.id.toolbar_container);
             ViewStub toolbarStub = findViewById(R.id.toolbar_stub);

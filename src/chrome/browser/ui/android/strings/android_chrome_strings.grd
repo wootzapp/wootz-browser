@@ -2058,6 +2058,17 @@ Your Google account may have other forms of browsing history like searches and a
         Downloaded PDFs automatically open with <ph name="APP_NAME">%1$s<ex>Drive PDF Viewer</ex></ph>
       </message>
 
+      <!-- Toolbar Location -->
+      <message name="IDS_PREFERENCES_TOOLBAR" desc="Title for the Toolbar page. [CHAR_LIMIT=32]">
+        Toolbar Location
+      </message>
+      <message name="IDS_ACCESSIBILITY_PREFERENCES_ENABLE_BOTTOM_TOOLBAR_SUMMARY" desc="Summary for bottom Toolbar">
+       Move address bar to the bottom
+      </message>
+      <message name="IDS_ACCESSIBILITY_PREFERENCES_ENABLE_BOTTOM_TOOLBAR_TITLE" desc="Title for bottom toolbar">
+        Bottom toolbar
+      </message>
+
       <!-- About WootzApp preferences -->
       <message name="IDS_PREFS_ABOUT_WOOTZAPP" desc="Title for the About WootzApp page. [CHAR_LIMIT=32]">
         About WootzApp

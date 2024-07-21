@@ -50,6 +50,9 @@ import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import org.chromium.base.ContextUtils;
+
+
 /**
  * A {@link Layout} controller for the more complicated Chrome browser. This is currently a superset
  * of {@link LayoutManagerImpl}.
@@ -311,7 +314,12 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
-        return new ToolbarSwipeHandler(supportSwipeDown);
+
+        boolean move_top_toolbar =
+            ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false);
+        return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
+                                       supportSwipeDown && move_top_toolbar);
+
     }
 
     @Override
@@ -566,9 +574,11 @@ public class LayoutManagerChrome extends LayoutManagerImpl
         private static final float SWIPE_RANGE_DEG = 25;
 
         private final boolean mSupportSwipeDown;
+        private final boolean mSupportSwipeUp;
 
-        public ToolbarSwipeHandler(boolean supportSwipeDown) {
+        public ToolbarSwipeHandler(boolean supportSwipeDown, boolean supportSwipeUp) {
             mSupportSwipeDown = supportSwipeDown;
+            mSupportSwipeUp = supportSwipeUp;
         }
 
         @Override
@@ -599,6 +609,10 @@ public class LayoutManagerChrome extends LayoutManagerImpl
             if (mSupportSwipeDown && mScrollDirection == ScrollDirection.DOWN) {
                 RecordUserAction.record("MobileToolbarSwipeOpenStackView");
                 showLayout(LayoutType.TAB_SWITCHER, true);
+
+            } else if (mSupportSwipeUp && mScrollDirection == ScrollDirection.UP) {
+                showLayout(LayoutType.TAB_SWITCHER, true);
+
             } else if (mScrollDirection == ScrollDirection.LEFT
                     || mScrollDirection == ScrollDirection.RIGHT) {
                 startShowing(mToolbarSwipeLayout, true);
@@ -650,6 +664,9 @@ public class LayoutManagerChrome extends LayoutManagerImpl
                 direction = ScrollDirection.RIGHT;
             } else if (swipeAngle < 270 + SWIPE_RANGE_DEG && swipeAngle > 270 - SWIPE_RANGE_DEG) {
                 direction = ScrollDirection.DOWN;
+
+            } else if (swipeAngle < 90 + SWIPE_RANGE_DEG && swipeAngle > 90 - SWIPE_RANGE_DEG) {
+                direction = ScrollDirection.UP;
             }
 
             return direction;
@@ -664,7 +681,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl
                 return false;
             }
 
-            return direction == ScrollDirection.DOWN
+            return direction == ScrollDirection.UP
+                    || direction == ScrollDirection.DOWN
                     || direction == ScrollDirection.LEFT
                     || direction == ScrollDirection.RIGHT;
         }

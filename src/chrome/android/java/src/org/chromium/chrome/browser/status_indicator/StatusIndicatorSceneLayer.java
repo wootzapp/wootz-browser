@@ -19,6 +19,8 @@ import org.chromium.ui.resources.ResourceManager;
 
 import java.util.List;
 
+import org.chromium.base.ContextUtils;
+
 /**
  * A composited view that is positioned below the status bar and is persistent. Typically used to
  * relay status, e.g. indicate user is offline.
@@ -78,7 +80,12 @@ class StatusIndicatorSceneLayer extends SceneOverlayLayer implements SceneOverla
     @Override
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
-        final int offset = mBrowserControlsStateProvider.getTopControlsMinHeightOffset();
+
+        int offset = mBrowserControlsStateProvider.getTopControlsMinHeightOffset();
+        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+            offset = (int)viewport.bottom - offset;
+        }
+
         StatusIndicatorSceneLayerJni.get()
                 .updateStatusIndicatorLayer(
                         mNativePtr,

@@ -107,6 +107,8 @@ import org.chromium.url.GURL;
 
 import java.util.List;
 
+import org.chromium.base.ContextUtils;
+
 /** The mediator implements the logic to interact with the surfaces and caller. */
 class StartSurfaceMediator
         implements TabSwitcher.TabSwitcherViewObserver,
@@ -985,6 +987,9 @@ class StartSurfaceMediator
     }
 
     private void setTopMargin(int topMargin) {
+        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
+            topMargin = 0;
+
         mPropertyModel.set(TOP_MARGIN, topMargin);
     }
 

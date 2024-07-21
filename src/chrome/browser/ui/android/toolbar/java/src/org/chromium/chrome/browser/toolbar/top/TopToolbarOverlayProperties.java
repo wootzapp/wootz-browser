@@ -46,6 +46,12 @@ public class TopToolbarOverlayProperties {
     /** The current y offset of the top toolbar. */
     public static final WritableFloatPropertyKey CONTENT_OFFSET = new WritableFloatPropertyKey();
 
+    /** The current height of the main visible view. */
+    public static final WritableFloatPropertyKey VIEWPORT_HEIGHT = new WritableFloatPropertyKey();
+
+    /** The current height of the top toolbar. */
+    public static final WritableFloatPropertyKey TOOLBAR_HEIGHT = new WritableFloatPropertyKey();
+
     public static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 ANONYMIZE,
@@ -57,6 +63,8 @@ public class TopToolbarOverlayProperties {
                 URL_BAR_RESOURCE_ID,
                 VISIBLE,
                 X_OFFSET,
+                VIEWPORT_HEIGHT, 
+                TOOLBAR_HEIGHT,
                 CONTENT_OFFSET
             };
 }

@@ -398,6 +398,15 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
         anchorView.getLocationInWindow(tempLocation);
         int anchorViewX = tempLocation[0];
         int anchorViewY = tempLocation[1];
+    
+        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+            // moves the view offset up by the height of the popup
+            // anchorViewY -= popupHeight;
+            // fix it if it goes offscreen
+            if (anchorViewY <= negativeSoftwareVerticalOffset)
+                anchorViewY = negativeSoftwareVerticalOffset;
+        }
+
 
         int[] offsets = new int[2];
         // If we have a hardware menu button, locate the app menu closer to the estimated
@@ -591,6 +600,16 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                         - footerHeight
                         - headerHeight
                         - anchorViewImpactHeight;
+
+        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+            // use all available space
+            availableScreenSpace = appDimensions.height() - anchorViewImpactHeight;
+                // due to an Android Nougat bug the popup does not appear above the anchorview.
+                // the display is not pleasant, so we reduce the space
+                availableScreenSpace -= anchorView.getHeight();
+            
+        }
+
 
         if (mIsByPermanentButton) availableScreenSpace -= padding.top;
         if (availableScreenSpace <= 0 && sExceptionReporter != null) {

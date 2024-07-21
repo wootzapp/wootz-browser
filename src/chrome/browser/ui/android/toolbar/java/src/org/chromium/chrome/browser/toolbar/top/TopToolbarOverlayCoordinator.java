@@ -26,6 +26,9 @@ import org.chromium.ui.resources.ResourceManager;
 
 import java.util.List;
 
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+
+
 /** The public interface for the top toolbar texture component. */
 public class TopToolbarOverlayCoordinator implements SceneOverlay {
     /** The view state for this overlay. */
@@ -62,6 +65,11 @@ public class TopToolbarOverlayCoordinator implements SceneOverlay {
                                 TopToolbarOverlayProperties.CONTENT_OFFSET,
                                 browserControlsStateProvider.getContentOffset())
                         .with(TopToolbarOverlayProperties.ANONYMIZE, false)
+
+                         .with(TopToolbarOverlayProperties.VIEWPORT_HEIGHT, 0)
+                         .with(TopToolbarOverlayProperties.TOOLBAR_HEIGHT,
+                                 browserControlsStateProvider.getTopControlsHeight())
+
                         .build();
         mSceneLayer = new TopToolbarSceneLayer(resourceManagerSupplier);
         mChangeProcessor =
@@ -113,6 +121,9 @@ public class TopToolbarOverlayCoordinator implements SceneOverlay {
     @Override
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
+
+        mModel.set(TopToolbarOverlayProperties.VIEWPORT_HEIGHT, viewport.height());
+
         return mSceneLayer;
     }
 
