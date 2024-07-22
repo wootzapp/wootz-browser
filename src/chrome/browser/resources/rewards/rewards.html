@@ -7,25 +7,9 @@
   <title>WootzApp Rewards</title>
 </head>
 <body>
-  <div class="card">
-    <h1>Welcome to WootzApp Rewards</h1>
-  </div>
-  <div class="ads-management">
-    <h2>Manage WootzApp Ads</h2>
-    <div class="connect">
-      <p>Ready to start earning? Connect or create an account with one of our partners.</p>
-      <button id="connectButton">Connect Account</button>
-    </div>
-  </div>
-  <div id="loginStatus"></div>
-  <button id="logoutButton" style="display: none;">Logout</button>
-  <button id="getUserProfileButton" style="display: none;">Get User Profile</button>
-  <button id="loadWalletButton" style="display: none;">Load Wallet</button>
-
-  <div id="id01" class="modal">
+  <div id="loginPage" class="modal">
     <div class="modal-content">
       <div class="container">
-        <span class="close">&times;</span>
         <h2>Login</h2>
         <form id="loginForm">
           <label for="uname"><b>Email</b></label>
@@ -38,6 +22,51 @@
     </div>
   </div>
 
+  <div id="rewardsPage" style="display: none;">
+    <nav class="navbar">
+      <img src="./wootz.png" alt="WootzApp Logo" class="logo">
+      <span class="title">WootzApp Rewards</span>
+      <button id="userButton" class="user-button">User</button>
+    </nav>
+
+    <header class="card">
+      <h1>Manage WootzApp Rewards</h1>
+    </header>
+    <main class="ads-management">
+      <section>
+        <p>Control what kinds of WootzApp Rewards you see and how often. <a href="#">Learn more</a></p>
+      </section>
+      <section>
+        <h2>Partner Rewards</h2>
+        <div class="partner-card">
+          <h3>Artifact</h3>
+          <div class="rewards-details">
+            <p>Artifact Points: 1000</p>
+            <p>Artifact Wallet: 50</p>
+          </div>
+          <button>Watch An Ad</button>
+          <p>Refer A Friend Link: <a href="https://refer/11211">https://refer/11211</a></p>
+          <p><a href="#">See other Offers from Artifact</a></p>
+        </div>
+      </section>
+      <section>
+        <h2>Connect other partners</h2>
+        <button id="connectButton">Connect</button>
+      </section>
+      <section>
+        <h2>Total ads received this month</h2>
+        <div class="ads-stats">
+          <p>New tab page ads: 0</p>
+          <p>Notification ads: 0</p>
+          <p>WootzApp Rewards: 0</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./dist/client.js"></script>
+  <script src="./dist/chain.js"></script>
+  <script src="./dist/wallet.js"></script>
   <script src="rewards.js"></script>
 </body>
 </html>

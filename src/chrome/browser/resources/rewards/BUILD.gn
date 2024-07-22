@@ -30,6 +30,7 @@ generate_grd("build_grd") {
     "dist/chain.js",
     "dist/client.js",
     "dist/wallet.js",
+    "wootz.png"
   ]
   input_files_base_dir = rebase_path(".", "//")
   deps = [ ":preprocess" ]

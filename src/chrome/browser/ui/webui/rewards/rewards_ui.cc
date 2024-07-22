@@ -249,10 +249,10 @@ void RewardsMessageHandler::Encrypt(const base::Value::List& args) {
 }
 
 void RewardsMessageHandler::SendStoredApiResponse() {
-    Profile* profile = Profile::FromWebUI(web_ui_);
-    PrefService* prefs = profile->GetPrefs();
-    std::string stored_response = prefs->GetString(prefs::kRewardsApiResponse);
-
+    // Profile* profile = Profile::FromWebUI(web_ui_);
+    // PrefService* prefs = profile->GetPrefs();
+   std::string stored_response = R"({"success": true, "data": {"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImMxNTQwYWM3MWJiOTJhYTA2OTNjODI3MTkwYWNhYmU1YjA1NWNiZWMiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vYWR0ZXN0LTk2YWJlIiwiYXVkIjoiYWR0ZXN0LTk2YWJlIiwiYXV0aF90aW1lIjoxNzIxMzI5OTI3LCJ1c2VyX2lkIjoiR2VwRm1wVE5qQ1hIcVNzeXJJcW5hVmowUUU2MiIsInN1YiI6IkdlcEZtcFROakNYSHFTc3lySXFuYVZqMFFFNjIiLCJpYXQiOjE3MjEzMjk5MjcsImV4cCI6MTcyMTMzMzUyNywiZW1haWwiOiJqYXlhZG1pbkBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsiamF5YWRtaW5AZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoicGFzc3dvcmQifX0.nEYxsJ0c_-FQzTO3nQGLziZtLUIFayZko8AZaY_A7pMGvHGNWRO_jE4-p5khpmoQahqI3DZoEp6t_9IoMPxJqR8kpUu5AWfyegj7ZRfqqRYPjJ9bL8TTNpG9r6iUS_ILKi-8N1IfLUfTUUe7snkrkdHS7HMEMT8ouVimyyD_Mz2B7Ujtm-D6r4r-6m7_UK3uKAoqisTASrv4t8p73dOKLLHjslcT02A20J11xDwJdlgsNOBlDfIOI6heOMP640HhV3BtoB-Oe9xLwbDbSkeJcjXHBHNeTxaIhFlccnD-9NwVjbrt_cPJgij1WPQIvfsBE7cff9nCSBR0VNCZKlII5w"}})";
+    
     if (!stored_response.empty()) {
         base::Value response(stored_response);
         web_ui_->CallJavascriptFunctionUnsafe("handleResponse", response);
@@ -307,9 +307,9 @@ void RewardsMessageHandler::OnURLLoadComplete(
 
     LOG(ERROR) << "Response from API: " << data;
 
-    Profile* profile = Profile::FromWebUI(web_ui_);
-    PrefService* prefs = profile->GetPrefs();
-    prefs->SetString(prefs::kRewardsApiResponse, data);
+    // Profile* profile = Profile::FromWebUI(web_ui_);
+    // PrefService* prefs = profile->GetPrefs();
+    // prefs->SetString(prefs::kRewardsApiResponse, data);
 
     base::Value response(data);
     web_ui_->CallJavascriptFunctionUnsafe("handleResponse", response);
@@ -336,7 +336,7 @@ void RewardsMessageHandler::OnURLVisited(history::HistoryService* history_servic
     SendStoredApiResponse();
 }
 
-void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+void RewardsMessageHandler::RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
     registry->RegisterStringPref(prefs::kRewardsApiResponse, std::string("api_response"));
 }
 

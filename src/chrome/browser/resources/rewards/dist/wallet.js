@@ -4,24 +4,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
         function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.loadWallet = loadWallet;
-const chain_1 = require("./chain");
-const client_1 = require("./client");
-const wallets_1 = require("thirdweb/wallets");
-function loadWallet(token, encryptionKey) {
+window.loadWallet = function loadWallet(token, encryptionKey) {
     return __awaiter(this, void 0, void 0, function* () {
-        const wallet = (0, wallets_1.inAppWallet)();
+        const wallet = window.thirdwebWallets.inAppWallet();
         return wallet.connect({
-            client: client_1.client,
-            chain: chain_1.chain,
+            client: window.client,
+            chain: window.chain,
             strategy: 'jwt',
             jwt: token,
             encryptionKey: encryptionKey,
         });
     });
-}
+};

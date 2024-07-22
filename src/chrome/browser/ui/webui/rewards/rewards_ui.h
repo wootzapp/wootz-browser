@@ -50,5 +50,3 @@ class RewardsMessageHandler : public content::WebUIMessageHandler,
     std::unique_ptr<network::SimpleURLLoader> simple_loader;
     base::WeakPtrFactory<RewardsMessageHandler> weak_factory_{this};
 };
-
-void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
