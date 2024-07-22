@@ -2,15 +2,30 @@ class BrowserBridge {
     constructor() {}
 
     loginWallet(email, password) {
-        chrome.send('loginWallet', [email, password]);
+        // Bypass actual login
+        console.log('loginWallet called with:', email, password); // Placeholder
+        handleResponse(JSON.stringify({ success: true, data: { id_token: 'bypass_token' } }));
     }
 
     getUserProfile(token) {
-        chrome.send('getUserProfile', [token]);
+        // Bypass actual profile fetching
+        console.log('getUserProfile called with:', token); // Placeholder
+        handleProfileResponse(JSON.stringify({ success: true, data: { profile: 'User Profile Data' } }));
     }
 
-    loadWallet(token, encryptionKey) {
-        chrome.send('loadWallet', [token, encryptionKey]);
+    async loadWallet(token) {
+        const encryptionKey = '123123'; // Directly using the encryption key
+        try {
+            const result = await window.loadWallet(token, encryptionKey);
+            console.log('Wallet loaded successfully', result);
+            // Update the UI to show success message
+            displayMessage('Wallet loaded successfully', 'success');
+            displayResponse(result);
+        } catch (error) {
+            console.error('Error loading wallet:', error);
+            // Update the UI to show error message
+            displayMessage('Error loading wallet: ' + error.message, 'error');
+        }
     }
 
     static getInstance() {
@@ -21,24 +36,28 @@ class BrowserBridge {
     }
 }
 
-function encrypt(text) {
-    return btoa(text);
+function displayMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = type; // Add classes like 'success' or 'error' to style appropriately
+    messageDiv.style.display = 'block';
 }
 
-function decrypt(text) {
-    // Simple decryption for example purposes; replace with a proper decryption method
-    return atob(text);
+function displayResponse(response) {
+    const responseDiv = document.getElementById('response');
+    responseDiv.textContent = JSON.stringify(response, null, 2);
+    responseDiv.style.display = 'block';
 }
 
-// Define updateLoginStatus function
 function updateLoginStatus() {
     const loginStatus = document.getElementById('loginStatus');
     const connectButton = document.getElementById('connectButton');
     const logoutButton = document.getElementById('logoutButton');
     const getUserProfileButton = document.getElementById('getUserProfileButton');
     const loadWalletButton = document.getElementById('loadWalletButton');
-    const idToken = localStorage.getItem('id_token');
-    const userEmail = localStorage.getItem('user_email');
+    // Bypass actual token and email
+    const idToken = 'bypass_token';
+    const userEmail = 'bypass_email';
 
     // Clear the previous status
     while (loginStatus.firstChild) {
@@ -72,43 +91,52 @@ function updateLoginStatus() {
     }
 }
 
-// Define handleResponse function outside the event listener
 function handleResponse(response) {
-    const responseData = JSON.parse(response);
-    if (responseData.success) {
-        localStorage.setItem('id_token', responseData.data.id_token);
-        updateLoginStatus();
-        document.getElementById('id01').style.display = 'none';
-    } else {
-        const responseElement = document.createElement('p');
-        responseElement.style.color = 'red';
-        responseElement.textContent = responseData.error;
-        document.querySelector('.modal .container').appendChild(responseElement);
+    try {
+        const responseData = JSON.parse(response);
+        if (responseData.success) {
+            // Bypass saving the actual token
+            updateLoginStatus();
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('rewardsPage').style.display = 'block';
+        } else {
+            const responseElement = document.createElement('p');
+            responseElement.style.color = 'red';
+            responseElement.textContent = responseData.error;
+            document.querySelector('.modal .container').appendChild(responseElement);
+        }
+    } catch (error) {
+        console.error('Error parsing JSON response:', error);
+        displayMessage('Error parsing server response', 'error');
     }
 }
 
-// Define handleProfileResponse function
 function handleProfileResponse(response) {
-    const responseData = JSON.parse(response);
-    const profileDiv = document.createElement('div');
-    profileDiv.className = 'response-card';
-    
-    if (responseData.success) {
-        profileDiv.style.color = 'green';
+    try {
+        const responseData = JSON.parse(response);
+        const profileDiv = document.createElement('div');
+        profileDiv.className = 'response-card';
 
-        const profileDataPara = document.createElement('p');
-        profileDataPara.textContent = 'Profile Data:';
-        profileDiv.appendChild(profileDataPara);
+        if (responseData.success) {
+            profileDiv.style.color = 'green';
 
-        const profileDataPre = document.createElement('pre');
-        profileDataPre.textContent = JSON.stringify(responseData.data, null, 2);
-        profileDiv.appendChild(profileDataPre);
-    } else {
-        profileDiv.style.color = 'blue';
-        profileDiv.textContent = JSON.stringify(responseData);
+            const profileDataPara = document.createElement('p');
+            profileDataPara.textContent = 'Profile Data:';
+            profileDiv.appendChild(profileDataPara);
+
+            const profileDataPre = document.createElement('pre');
+            profileDataPre.textContent = JSON.stringify(responseData.data, null, 2);
+            profileDiv.appendChild(profileDataPre);
+        } else {
+            profileDiv.style.color = 'blue';
+            profileDiv.textContent = JSON.stringify(responseData);
+        }
+
+        document.body.appendChild(profileDiv);
+    } catch (error) {
+        console.error('Error parsing JSON response:', error);
+        displayMessage('Error parsing server response', 'error');
     }
-
-    document.body.appendChild(profileDiv);
 }
 
 // Expose the handleResponse and handleProfileResponse functions to the global scope
@@ -122,63 +150,137 @@ document.addEventListener('DOMContentLoaded', function () {
     const logoutButton = document.getElementById('logoutButton');
     const getUserProfileButton = document.getElementById('getUserProfileButton');
     const loadWalletButton = document.getElementById('loadWalletButton');
-    const modal = document.getElementById('id01');
+    const modal = document.getElementById('loginPage');
     const loginForm = document.getElementById('loginForm');
-    const closeSpan = document.querySelector('.close');
     const browserBridge = BrowserBridge.getInstance();
+    const userButton = document.getElementById('userButton');
 
-    connectButton.addEventListener('click', function () {
-        modal.style.display = 'block';
-    });
+    if (connectButton) {
+        connectButton.addEventListener('click', function () {
+            if (modal) modal.style.display = 'block';
+        });
+    }
 
-    window.addEventListener('click', function (event) {
-        if (event.target === modal) {
-            modal.style.display = 'none';
+    if (window) {
+        window.addEventListener('click', function (event) {
+            if (event.target === modal) {
+                if (modal) modal.style.display = 'none';
+            }
+        });
+    }
+
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const email = document.querySelector('input[name="uname"]').value;
+            const password = document.querySelector('input[name="psw"]').value;
+
+            localStorage.setItem('user_email', email);
+
+            browserBridge.loginWallet(email, password);
+        });
+    }
+
+    if (logoutButton) {
+        logoutButton.addEventListener('click', function() {
+            updateLoginStatus();
+            showLoginPage();
+        });
+    }
+
+    if (getUserProfileButton) {
+        getUserProfileButton.addEventListener('click', function() {
+            const idToken = 'bypass_token'; // Bypass for now
+            if (idToken) {
+                browserBridge.getUserProfile(idToken);
+            } else {
+                alert('Please log in first.');
+            }
+        });
+    }
+
+    if (loadWalletButton) {
+        loadWalletButton.addEventListener('click', async function() {
+            const idToken = 'bypass_token'; // Bypass for now
+            if (idToken) {
+                await browserBridge.loadWallet(idToken);
+            } else {
+                alert('Please log in first.');
+            }
+        });
+    }
+
+    if (userButton) {
+        userButton.addEventListener('click', function() {
+            const existingUserProfileSection = document.querySelector('.user-profile');
+            if (!existingUserProfileSection) {
+                createUserProfileSection();
+            }
+        });
+    }
+
+    showRewardsPage();
+});
+
+function showLoginPage() {
+    const loginPage = document.getElementById('loginPage');
+    const rewardsPage = document.getElementById('rewardsPage');
+    if (loginPage) loginPage.style.display = 'flex';
+    if (rewardsPage) rewardsPage.style.display = 'none';
+}
+
+function showRewardsPage() {
+    const loginPage = document.getElementById('loginPage');
+    const rewardsPage = document.getElementById('rewardsPage');
+    if (loginPage) loginPage.style.display = 'none';
+    if (rewardsPage) rewardsPage.style.display = 'block';
+}
+
+function createUserProfileSection() {
+    const userProfileSection = document.createElement('div');
+    userProfileSection.className = 'user-profile';
+
+    const tokenIdPara = document.createElement('p');
+    tokenIdPara.textContent = `Token ID: bypass_token`; // Bypass for now
+    userProfileSection.appendChild(tokenIdPara);
+
+    const getUserProfileButton = document.createElement('button');
+    getUserProfileButton.id = 'getUserProfileButton';
+    getUserProfileButton.textContent = 'Get Profile';
+    userProfileSection.appendChild(getUserProfileButton);
+
+    const loadWalletButton = document.createElement('button');
+    loadWalletButton.id = 'loadWalletButton';
+    loadWalletButton.textContent = 'Load Wallet';
+    userProfileSection.appendChild(loadWalletButton);
+
+    const logoutButton = document.createElement('button');
+    logoutButton.id = 'logoutButton';
+    logoutButton.textContent = 'Logout';
+    userProfileSection.appendChild(logoutButton);
+
+    document.body.appendChild(userProfileSection);
+
+    getUserProfileButton.addEventListener('click', function() {
+        const idToken = 'bypass_token'; // Bypass for now
+        if (idToken) {
+            BrowserBridge.getInstance().getUserProfile(idToken);
+        } else {
+            alert('Please log in first.');
         }
     });
 
-    closeSpan.addEventListener('click', function () {
-        modal.style.display = 'none';
-    });
-
-    loginForm.addEventListener('submit', function(event) {
-        event.preventDefault();
-
-        const email = document.querySelector('input[name="uname"]').value;
-        const password = document.querySelector('input[name="psw"]').value;
-
-        localStorage.setItem('user_email', email);
-        localStorage.setItem('encrypted_password', encrypt(password));
-
-        browserBridge.loginWallet(email, password);
+    loadWalletButton.addEventListener('click', async function() {
+        const idToken = 'bypass_token'; // Bypass for now
+        if (idToken) {
+            await BrowserBridge.getInstance().loadWallet(idToken);
+        } else {
+            alert('Please log in first.');
+        }
     });
 
     logoutButton.addEventListener('click', function() {
-        localStorage.removeItem('id_token');
-        localStorage.removeItem('user_email');
-        localStorage.removeItem('encrypted_password');
-        updateLoginStatus();
+        showLoginPage();
     });
-
-    getUserProfileButton.addEventListener('click', function() {
-        const idToken = localStorage.getItem('id_token');
-        if (idToken) {
-            browserBridge.getUserProfile(idToken);
-        } else {
-            alert('Please log in first.');
-        }
-    });
-
-    loadWalletButton.addEventListener('click', function() {
-        const idToken = localStorage.getItem('id_token');
-        const encryptedPassword = localStorage.getItem('encrypted_password');
-        if (idToken && encryptedPassword) {
-            const password = decrypt(encryptedPassword);
-            browserBridge.loadWallet(idToken, password);
-        } else {
-            alert('Please log in first.');
-        }
-    });
-
-    updateLoginStatus();
-});
+}
