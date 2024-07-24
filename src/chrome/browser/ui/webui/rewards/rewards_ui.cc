@@ -8,6 +8,8 @@
 #include "base/base64.h"
 #include "base/containers/to_value_list.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/command_line.h"
+#include "base/json/json_string_value_serializer.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/i18n/time_formatting.h"
@@ -16,6 +18,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/types/expected.h"
 #include "base/values.h"
 #include "chrome/browser/prefs/browser_prefs.h"
@@ -45,14 +48,17 @@
 #include "net/base/network_isolation_key.h"
 #include "net/base/schemeful_site.h"
 #include "net/base/load_flags.h"
+#include "net/base/url_util.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
+#include "net/http/http_response_headers.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
+#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "ui/resources/grit/webui_resources.h"
 #include "url/origin.h"
 #include "url/scheme_host_port.h"
-#include "net/traffic_annotation/network_traffic_annotation.h"
 
 using content::BrowserThread;
 using content::BrowserContext;
@@ -260,16 +266,25 @@ void RewardsMessageHandler::SendStoredApiResponse() {
 }
 
 void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
+    // Check if the args contain the expected token
+    if (args.empty() || !args[0].is_string()) {
+        LOG(ERROR) << "Invalid arguments for GetUserProfile";
+        return;
+    }
+
+    std::string token = args[0].GetString();
+    LOG(ERROR) << "HELLOO 1: Token - " << token;
+
     auto resource_request = std::make_unique<network::ResourceRequest>();
     resource_request->url = GURL("https://api-staging-0.gotartifact.com/v2/users/me");
     resource_request->method = "GET";
-
     resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     resource_request->load_flags = net::LOAD_BYPASS_CACHE |
                                    net::LOAD_DISABLE_CACHE |
                                    net::LOAD_DO_NOT_SAVE_COOKIES;
 
-    LOG(ERROR) << "Getting User Profile";
+    resource_request->headers.SetHeader(net::HttpRequestHeaders::kAuthorization, "Bearer " + token);
+    LOG(ERROR) << "HELLOO 2: Headers set";
 
     Profile* profile = Profile::FromWebUI(web_ui_);
     scoped_refptr<network::SharedURLLoaderFactory> loader_factory =
@@ -279,7 +294,7 @@ void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
         semantics {
           sender: "Artifact API"
           description: "Getting user profile."
-          trigger: "Whenever the network throttling settings are changed."
+          trigger: "User requests their profile."
           data: "None."
           destination: OTHER
         }
@@ -291,15 +306,25 @@ void RewardsMessageHandler::GetUserProfile(const base::Value::List& args) {
 
     simple_loader = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
 
-    std::string token = args[0].GetString();
-    resource_request->headers.SetHeader("Authorization", "Bearer " + token);
-
     simple_loader->DownloadToString(
         loader_factory.get(),
         base::BindOnce(&RewardsMessageHandler::OnGetUserProfileComplete,
                        base::Unretained(this)),
         1024 * 1024);
+
+    LOG(ERROR) << "HELLOO 3: Request sent";
 }
+
+void RewardsMessageHandler::OnGetUserProfileComplete(
+    std::unique_ptr<std::string> response_body) {
+    std::string data = response_body ? std::move(*response_body) : "";
+    LOG(ERROR) << "Response from GetUserProfile API: " << data;
+
+    // Send the response back to the frontend
+    base::Value response(data);
+    web_ui_->CallJavascriptFunctionUnsafe("handleProfileResponse", response);
+}
+
 
 void RewardsMessageHandler::OnURLLoadComplete(
     std::unique_ptr<std::string> response_body) {
@@ -313,17 +338,6 @@ void RewardsMessageHandler::OnURLLoadComplete(
 
     base::Value response(data);
     web_ui_->CallJavascriptFunctionUnsafe("handleResponse", response);
-}
-
-void RewardsMessageHandler::OnGetUserProfileComplete(
-    std::unique_ptr<std::string> response_body) {
-    std::string data = response_body ? std::move(*response_body) : "";
-
-    LOG(ERROR) << "Response from GetUserProfile API: " << data;
-
-    // Send the response back to the frontend
-    base::Value response(data);
-    web_ui_->CallJavascriptFunctionUnsafe("handleProfileResponse", response);
 }
 
 void RewardsMessageHandler::OnURLVisited(history::HistoryService* history_service,
