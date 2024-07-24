@@ -1,26 +1,19 @@
 body {
-  font-family: Arial, sans-serif;
+  font-family: 'Poppins', Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background-color: #f4f4f4;
+  background-color: #fff;
+  color: #000;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
-.modal {
+.login-page {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
-}
-
-.modal-content {
-  background-color: #fefefe;
-  padding: 20px;
-  border: 1px solid #888;
-  border-radius: 5px;
-  width: 90%;
-  max-width: 400px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  width: 100%;
 }
 
 .container {
@@ -38,7 +31,7 @@ input[type=text], input[type=password] {
 }
 
 button {
-  background-color: #4CAF50;
+  background-color: #000;
   color: white;
   padding: 15px 20px;
   border: none;
@@ -50,7 +43,7 @@ button {
 }
 
 button:hover {
-  background-color: #45a049;
+  background-color: #333;
 }
 
 .navbar {
@@ -72,27 +65,48 @@ button:hover {
   flex-grow: 1;
 }
 
-.navbar .user-button {
-  background-color: transparent;
+.navbar .hamburger-menu, .navbar .back-button {
+  background: none;
   border: none;
-  font-size: 18px;
+  font-size: 24px;
+  color: #000;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 60px;
+  right: 0;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.dropdown-menu button {
+  background: none;
+  border: none;
+  color: #000;
+  padding: 10px 20px;
+  text-align: left;
   cursor: pointer;
 }
 
-.card {
-  margin: 20px;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.header {
   text-align: center;
+  padding: 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #ccc;
 }
 
 .ads-management {
   margin: 20px;
   padding: 20px;
-  border: 1px solid #ccc;
+  border: none;
   border-radius: 5px;
   background-color: #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -123,51 +137,62 @@ button:hover {
   margin-top: 20px;
 }
 
-.message {
-  margin-top: 20px;
-  padding: 15px;
-  border-radius: 5px;
-  width: 90%;
-  max-width: 500px;
-  text-align: center;
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
 }
 
-.message.success {
-  background-color: #e9f7ef;
-  color: green;
-  border: 1px solid green;
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.message.error {
-  background-color: #f8d7da;
-  color: red;
-  border: 1px solid red;
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
 }
 
-.response {
-  margin-top: 20px;
-  padding: 15px;
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(14px);
+}
+
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+.profile-data {
+  padding: 20px;
+  background-color: #f9f9f9;
   border: 1px solid #ccc;
   border-radius: 5px;
-  background-color: #f4f4f4;
-  width: 90%;
-  max-width: 500px;
-}
-
-.user-profile {
-  margin-top: 20px;
-  padding: 15px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  background-color: #fff;
-  width: 90%;
-  max-width: 500px;
-}
-
-.user-profile p {
-  margin: 10px 0;
-}
-
-.user-profile button {
-  margin-top: 10px;
+  margin: 20px;
+  white-space: pre-wrap;
 }

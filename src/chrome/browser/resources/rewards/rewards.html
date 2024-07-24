@@ -7,29 +7,32 @@
   <title>WootzApp Rewards</title>
 </head>
 <body>
-  <div id="loginPage" class="modal">
-    <div class="modal-content">
-      <div class="container">
-        <h2>Login</h2>
-        <form id="loginForm">
-          <label for="uname"><b>Email</b></label>
-          <input type="text" placeholder="Enter Email" name="uname" required>
-          <label for="psw"><b>Password</b></label>
-          <input type="password" placeholder="Enter Password" name="psw" required>
-          <button type="submit">Submit</button>
-        </form>
-      </div>
+  <div id="loginPage" class="login-page">
+    <div class="container">
+      <h2>Login</h2>
+      <form id="loginForm">
+        <label for="uname"><b>Email</b></label>
+        <input type="text" placeholder="Enter Email" name="uname" required>
+        <label for="psw"><b>Password</b></label>
+        <input type="password" placeholder="Enter Password" name="psw" required>
+        <button type="submit">Submit</button>
+      </form>
     </div>
   </div>
 
   <div id="rewardsPage" style="display: none;">
     <nav class="navbar">
-      <img src="./wootz.png" alt="WootzApp Logo" class="logo">
+      <img src="wootz.png" alt="WootzApp Logo" class="logo">
       <span class="title">WootzApp Rewards</span>
-      <button id="userButton" class="user-button">User</button>
+      <button id="userButton" class="hamburger-menu">&#9776;</button>
+      <div id="dropdownMenu" class="dropdown-menu" style="display: none;">
+        <button id="logoutButton">Logout</button>
+        <button id="getUserProfileButton">Get Profile</button>
+        <button id="loadWalletButton">Load Wallet</button>
+      </div>
     </nav>
 
-    <header class="card">
+    <header class="header">
       <h1>Manage WootzApp Rewards</h1>
     </header>
     <main class="ads-management">
@@ -51,17 +54,38 @@
       </section>
       <section>
         <h2>Connect other partners</h2>
-        <button id="connectButton">Connect</button>
+        <button id="connectButton" class="dummy-button">Connect</button>
       </section>
       <section>
         <h2>Total ads received this month</h2>
         <div class="ads-stats">
           <p>New tab page ads: 0</p>
+          <label class="switch">
+            <input type="checkbox">
+            <span class="slider round"></span>
+          </label>
           <p>Notification ads: 0</p>
+          <label class="switch">
+            <input type="checkbox" checked>
+            <span class="slider round"></span>
+          </label>
           <p>WootzApp Rewards: 0</p>
+          <label class="switch">
+            <input type="checkbox">
+            <span class="slider round"></span>
+          </label>
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="profilePage" style="display: none;">
+    <nav class="navbar">
+      <img src="wootz.png" alt="WootzApp Logo" class="logo">
+      <span class="title">WootzApp Rewards - Profile</span>
+      <button id="backButton" class="back-button">&#8592; Back</button>
+    </nav>
+    <div id="profileData" class="profile-data"></div>
   </div>
 
   <script src="./dist/client.js"></script>

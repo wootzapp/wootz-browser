@@ -2,15 +2,11 @@ class BrowserBridge {
     constructor() {}
 
     loginWallet(email, password) {
-        // Bypass actual login
-        console.log('loginWallet called with:', email, password); // Placeholder
-        handleResponse(JSON.stringify({ success: true, data: { id_token: 'bypass_token' } }));
+        chrome.send('loginWallet', [email, password]);
     }
 
     getUserProfile(token) {
-        // Bypass actual profile fetching
-        console.log('getUserProfile called with:', token); // Placeholder
-        handleProfileResponse(JSON.stringify({ success: true, data: { profile: 'User Profile Data' } }));
+        chrome.send('getUserProfile', [token]);
     }
 
     async loadWallet(token) {
@@ -38,15 +34,19 @@ class BrowserBridge {
 
 function displayMessage(message, type) {
     const messageDiv = document.getElementById('message');
-    messageDiv.textContent = message;
-    messageDiv.className = type; // Add classes like 'success' or 'error' to style appropriately
-    messageDiv.style.display = 'block';
+    if (messageDiv) {
+        messageDiv.textContent = message;
+        messageDiv.className = `message ${type}`; // Add classes like 'success' or 'error' to style appropriately
+        messageDiv.style.display = 'block';
+    }
 }
 
 function displayResponse(response) {
     const responseDiv = document.getElementById('response');
-    responseDiv.textContent = JSON.stringify(response, null, 2);
-    responseDiv.style.display = 'block';
+    if (responseDiv) {
+        responseDiv.textContent = JSON.stringify(response, null, 2);
+        responseDiv.style.display = 'block';
+    }
 }
 
 function updateLoginStatus() {
@@ -55,16 +55,15 @@ function updateLoginStatus() {
     const logoutButton = document.getElementById('logoutButton');
     const getUserProfileButton = document.getElementById('getUserProfileButton');
     const loadWalletButton = document.getElementById('loadWalletButton');
-    // Bypass actual token and email
-    const idToken = 'bypass_token';
-    const userEmail = 'bypass_email';
+    const idToken = localStorage.getItem('id_token');
+    const userEmail = localStorage.getItem('user_email');
 
     // Clear the previous status
-    while (loginStatus.firstChild) {
+    while (loginStatus && loginStatus.firstChild) {
         loginStatus.removeChild(loginStatus.firstChild);
     }
 
-    if (idToken) {
+    if (idToken && loginStatus) {
         const responseCard = document.createElement('div');
         responseCard.className = 'response-card';
         responseCard.style.color = 'green';
@@ -79,15 +78,15 @@ function updateLoginStatus() {
 
         loginStatus.appendChild(responseCard);
 
-        connectButton.style.display = 'none';
-        logoutButton.style.display = 'block';
-        getUserProfileButton.style.display = 'block';
-        loadWalletButton.style.display = 'block';
+        if (connectButton) connectButton.style.display = 'none';
+        if (logoutButton) logoutButton.style.display = 'block';
+        if (getUserProfileButton) getUserProfileButton.style.display = 'block';
+        if (loadWalletButton) loadWalletButton.style.display = 'block';
     } else {
-        connectButton.style.display = 'block';
-        logoutButton.style.display = 'none';
-        getUserProfileButton.style.display = 'none';
-        loadWalletButton.style.display = 'none';
+        if (connectButton) connectButton.style.display = 'block';
+        if (logoutButton) logoutButton.style.display = 'none';
+        if (getUserProfileButton) getUserProfileButton.style.display = 'none';
+        if (loadWalletButton) loadWalletButton.style.display = 'none';
     }
 }
 
@@ -95,7 +94,7 @@ function handleResponse(response) {
     try {
         const responseData = JSON.parse(response);
         if (responseData.success) {
-            // Bypass saving the actual token
+            localStorage.setItem('id_token', responseData.data.id_token);
             updateLoginStatus();
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('rewardsPage').style.display = 'block';
@@ -114,25 +113,17 @@ function handleResponse(response) {
 function handleProfileResponse(response) {
     try {
         const responseData = JSON.parse(response);
-        const profileDiv = document.createElement('div');
-        profileDiv.className = 'response-card';
+        const profileDiv = document.getElementById('profileData');
 
-        if (responseData.success) {
-            profileDiv.style.color = 'green';
-
-            const profileDataPara = document.createElement('p');
-            profileDataPara.textContent = 'Profile Data:';
-            profileDiv.appendChild(profileDataPara);
-
-            const profileDataPre = document.createElement('pre');
-            profileDataPre.textContent = JSON.stringify(responseData.data, null, 2);
-            profileDiv.appendChild(profileDataPre);
-        } else {
-            profileDiv.style.color = 'blue';
-            profileDiv.textContent = JSON.stringify(responseData);
+        while (profileDiv.firstChild) {
+            profileDiv.removeChild(profileDiv.firstChild);
         }
 
-        document.body.appendChild(profileDiv);
+        const profileDataPre = document.createElement('pre');
+        profileDataPre.textContent = JSON.stringify(responseData, null, 2);
+        profileDiv.appendChild(profileDataPre);
+
+        showProfilePage();
     } catch (error) {
         console.error('Error parsing JSON response:', error);
         displayMessage('Error parsing server response', 'error');
@@ -154,10 +145,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.getElementById('loginForm');
     const browserBridge = BrowserBridge.getInstance();
     const userButton = document.getElementById('userButton');
+    const dropdownMenu = document.getElementById('dropdownMenu');
+    const backButton = document.getElementById('backButton');
 
     if (connectButton) {
         connectButton.addEventListener('click', function () {
-            if (modal) modal.style.display = 'block';
+            // Dummy action for the Connect button
+            alert('Connect button clicked');
         });
     }
 
@@ -172,6 +166,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (loginForm) {
         loginForm.addEventListener('submit', function(event) {
             event.preventDefault();
+            const submitButton = loginForm.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.textContent = 'Submitting...';
+            }
 
             const email = document.querySelector('input[name="uname"]').value;
             const password = document.querySelector('input[name="psw"]').value;
@@ -184,6 +182,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (logoutButton) {
         logoutButton.addEventListener('click', function() {
+            localStorage.removeItem('id_token');
+            localStorage.removeItem('user_email');
             updateLoginStatus();
             showLoginPage();
         });
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (getUserProfileButton) {
         getUserProfileButton.addEventListener('click', function() {
-            const idToken = 'bypass_token'; // Bypass for now
+            const idToken = localStorage.getItem('id_token');
             if (idToken) {
                 browserBridge.getUserProfile(idToken);
             } else {
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (loadWalletButton) {
         loadWalletButton.addEventListener('click', async function() {
-            const idToken = 'bypass_token'; // Bypass for now
+            const idToken = localStorage.getItem('id_token');
             if (idToken) {
                 await browserBridge.loadWallet(idToken);
             } else {
@@ -213,74 +213,50 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (userButton) {
         userButton.addEventListener('click', function() {
-            const existingUserProfileSection = document.querySelector('.user-profile');
-            if (!existingUserProfileSection) {
-                createUserProfileSection();
+            if (dropdownMenu.style.display === 'none' || dropdownMenu.style.display === '') {
+                dropdownMenu.style.display = 'block';
+            } else {
+                dropdownMenu.style.display = 'none';
             }
         });
     }
 
-    showRewardsPage();
+    if (backButton) {
+        backButton.addEventListener('click', function() {
+            showRewardsPage();
+        });
+    }
+
+    if (localStorage.getItem('id_token')) {
+        showRewardsPage();
+    } else {
+        showLoginPage();
+    }
 });
 
 function showLoginPage() {
     const loginPage = document.getElementById('loginPage');
     const rewardsPage = document.getElementById('rewardsPage');
+    const profilePage = document.getElementById('profilePage');
     if (loginPage) loginPage.style.display = 'flex';
     if (rewardsPage) rewardsPage.style.display = 'none';
+    if (profilePage) profilePage.style.display = 'none';
 }
 
 function showRewardsPage() {
     const loginPage = document.getElementById('loginPage');
     const rewardsPage = document.getElementById('rewardsPage');
+    const profilePage = document.getElementById('profilePage');
     if (loginPage) loginPage.style.display = 'none';
     if (rewardsPage) rewardsPage.style.display = 'block';
+    if (profilePage) profilePage.style.display = 'none';
 }
 
-function createUserProfileSection() {
-    const userProfileSection = document.createElement('div');
-    userProfileSection.className = 'user-profile';
-
-    const tokenIdPara = document.createElement('p');
-    tokenIdPara.textContent = `Token ID: bypass_token`; // Bypass for now
-    userProfileSection.appendChild(tokenIdPara);
-
-    const getUserProfileButton = document.createElement('button');
-    getUserProfileButton.id = 'getUserProfileButton';
-    getUserProfileButton.textContent = 'Get Profile';
-    userProfileSection.appendChild(getUserProfileButton);
-
-    const loadWalletButton = document.createElement('button');
-    loadWalletButton.id = 'loadWalletButton';
-    loadWalletButton.textContent = 'Load Wallet';
-    userProfileSection.appendChild(loadWalletButton);
-
-    const logoutButton = document.createElement('button');
-    logoutButton.id = 'logoutButton';
-    logoutButton.textContent = 'Logout';
-    userProfileSection.appendChild(logoutButton);
-
-    document.body.appendChild(userProfileSection);
-
-    getUserProfileButton.addEventListener('click', function() {
-        const idToken = 'bypass_token'; // Bypass for now
-        if (idToken) {
-            BrowserBridge.getInstance().getUserProfile(idToken);
-        } else {
-            alert('Please log in first.');
-        }
-    });
-
-    loadWalletButton.addEventListener('click', async function() {
-        const idToken = 'bypass_token'; // Bypass for now
-        if (idToken) {
-            await BrowserBridge.getInstance().loadWallet(idToken);
-        } else {
-            alert('Please log in first.');
-        }
-    });
-
-    logoutButton.addEventListener('click', function() {
-        showLoginPage();
-    });
+function showProfilePage() {
+    const loginPage = document.getElementById('loginPage');
+    const rewardsPage = document.getElementById('rewardsPage');
+    const profilePage = document.getElementById('profilePage');
+    if (loginPage) loginPage.style.display = 'none';
+    if (rewardsPage) rewardsPage.style.display = 'none';
+    if (profilePage) profilePage.style.display = 'block';
 }
