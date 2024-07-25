@@ -1,9 +1,9 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-package org.chromium.chrome.browser.crypto_wallet.adapters;
+package org.chromium.chrome.browser.wootz_wallet.adapters;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -17,9 +17,9 @@ import android.widget.ImageView;
 import android.widget.SpinnerAdapter;
 import android.widget.TextView;
 
-import org.chromium.brave_wallet.mojom.NetworkInfo;
+import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.crypto_wallet.util.Utils;
+import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;

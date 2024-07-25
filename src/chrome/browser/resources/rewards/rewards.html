@@ -8,6 +8,9 @@
 </head>
 <body>
   <div id="loginPage" class="login-page">
+    <nav class="navbar">
+      <img src="art1.png" alt="Artifact Logo" class="logo">
+    </nav>
     <div class="container">
       <h2>Login</h2>
       <form id="loginForm">
@@ -23,13 +26,6 @@
   <div id="rewardsPage" style="display: none;">
     <nav class="navbar">
       <img src="wootz.png" alt="WootzApp Logo" class="logo">
-      <span class="title">WootzApp Rewards</span>
-      <button id="userButton" class="hamburger-menu">&#9776;</button>
-      <div id="dropdownMenu" class="dropdown-menu" style="display: none;">
-        <button id="logoutButton">Logout</button>
-        <button id="getUserProfileButton">Get Profile</button>
-        <button id="loadWalletButton">Load Wallet</button>
-      </div>
     </nav>
 
     <header class="header">
@@ -77,14 +73,24 @@
         </div>
       </section>
     </main>
+    <footer class="footer">
+      <button id="getUserProfileButton" class="footer-button">Get Profile</button>
+      <button id="logoutButton" class="footer-button logout">Logout</button>
+    </footer>
   </div>
 
   <div id="profilePage" style="display: none;">
     <nav class="navbar">
-      <img src="wootz.png" alt="WootzApp Logo" class="logo">
-      <span class="title">WootzApp Rewards - Profile</span>
-      <button id="backButton" class="back-button">&#8592; Back</button>
+      <button id="backButton" class="back-button" style="background: none; border: none;">
+        <img src="back.svg" alt="Back" style="width: 50px; height: 50px;">
+      </button>
+      <span>Profile</span>
     </nav>
+    <div class="profile-header">
+      <div class="profile-circle"></div>
+      <h2 id="profileName"></h2>
+      <p id="profileUsername"></p>
+    </div>
     <div id="profileData" class="profile-data"></div>
   </div>
 

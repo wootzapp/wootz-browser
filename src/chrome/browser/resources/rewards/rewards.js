@@ -114,15 +114,48 @@ function handleProfileResponse(response) {
     try {
         const responseData = JSON.parse(response);
         const profileDiv = document.getElementById('profileData');
-
+        // Clear previous content
         while (profileDiv.firstChild) {
             profileDiv.removeChild(profileDiv.firstChild);
         }
 
-        const profileDataPre = document.createElement('pre');
-        profileDataPre.textContent = JSON.stringify(responseData, null, 2);
-        profileDiv.appendChild(profileDataPre);
+        // Create profile hero section
+        const profileHeader = document.querySelector('.profile-header');
+        profileHeader.querySelector('.profile-circle').style.backgroundImage = `url(${responseData.profile.avatar_uri || 'default-avatar.png'})`;
+        profileHeader.querySelector('#profileName').textContent = responseData.profile.display_name || '';
+        profileHeader.querySelector('#profileUsername').textContent = `@${responseData.profile.username || ''}`;
 
+        // Create profile data list
+        const profileList = document.createElement('ul');
+
+        // Helper function to create list items
+        const createListItem = (key, value) => {
+            if (value !== null && value !== '') {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${key}: ${value}`;
+                profileList.appendChild(listItem);
+            }
+        };
+
+        createListItem('Email', responseData.profile.email);
+        createListItem('Role', responseData.profile.role);
+        createListItem('Location', responseData.profile.location);
+        createListItem('Biography', responseData.profile.biography);
+        createListItem('Created At', responseData.profile.created_at);
+        createListItem('Omnikey ID', responseData.profile.omnikey_id);
+
+        // Handle nested objects
+        if (responseData.profile.affiliate_referral.length > 0) {
+            const affiliateList = document.createElement('ul');
+            responseData.profile.affiliate_referral.forEach(referral => {
+                const referralItem = document.createElement('li');
+                referralItem.textContent = `Reference ID: ${referral.reference_id}, Type: ${referral.reference_type}, Detail: ${JSON.stringify(referral.reference_detail)}`;
+                affiliateList.appendChild(referralItem);
+            });
+            profileList.appendChild(affiliateList);
+        }
+
+        profileDiv.appendChild(profileList);
         showProfilePage();
     } catch (error) {
         console.error('Error parsing JSON response:', error);
@@ -140,7 +173,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const connectButton = document.getElementById('connectButton');
     const logoutButton = document.getElementById('logoutButton');
     const getUserProfileButton = document.getElementById('getUserProfileButton');
-    const loadWalletButton = document.getElementById('loadWalletButton');
     const modal = document.getElementById('loginPage');
     const loginForm = document.getElementById('loginForm');
     const browserBridge = BrowserBridge.getInstance();
@@ -196,27 +228,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 browserBridge.getUserProfile(idToken);
             } else {
                 alert('Please log in first.');
-            }
-        });
-    }
-
-    if (loadWalletButton) {
-        loadWalletButton.addEventListener('click', async function() {
-            const idToken = localStorage.getItem('id_token');
-            if (idToken) {
-                await browserBridge.loadWallet(idToken);
-            } else {
-                alert('Please log in first.');
-            }
-        });
-    }
-
-    if (userButton) {
-        userButton.addEventListener('click', function() {
-            if (dropdownMenu.style.display === 'none' || dropdownMenu.style.display === '') {
-                dropdownMenu.style.display = 'block';
-            } else {
-                dropdownMenu.style.display = 'none';
             }
         });
     }

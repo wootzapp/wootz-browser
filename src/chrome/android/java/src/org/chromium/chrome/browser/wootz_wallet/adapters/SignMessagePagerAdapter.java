@@ -1,16 +1,16 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-package org.chromium.chrome.browser.crypto_wallet.adapters;
+package org.chromium.chrome.browser.wootz_wallet.adapters;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
-import org.chromium.brave_wallet.mojom.SignMessageRequest;
-import org.chromium.chrome.browser.crypto_wallet.fragments.dapps.DAppsMessageFragment;
+import org.chromium.wootz_wallet.mojom.SignMessageRequest;
+import org.chromium.chrome.browser.wootz_wallet.fragments.dapps.DAppsMessageFragment;
 
 import java.util.List;
 
