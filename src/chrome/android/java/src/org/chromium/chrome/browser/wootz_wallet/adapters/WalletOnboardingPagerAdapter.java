@@ -1,29 +1,29 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-package org.chromium.chrome.browser.crypto_wallet.adapters;
+package org.chromium.chrome.browser.wootz_wallet.adapters;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
-import org.chromium.brave_wallet.mojom.BraveWalletP3a;
-import org.chromium.brave_wallet.mojom.OnboardingAction;
-import org.chromium.chrome.browser.crypto_wallet.fragments.UnlockWalletFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingBackupWalletFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingConfirmationFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingCreatingWalletFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingFingerprintUnlockFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingInitWalletFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingNetworkSelectionFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingRecoveryPhraseFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingRestoreWalletFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingSecurePasswordFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingTermsOfUseFragment;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingVerifyRecoveryPhraseFragment;
+import org.chromium.wootz_wallet.mojom.WootzWalletP3a;
+import org.chromium.wootz_wallet.mojom.OnboardingAction;
+import org.chromium.chrome.browser.wootz_wallet.fragments.UnlockWalletFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingBackupWalletFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingConfirmationFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingCreatingWalletFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingFingerprintUnlockFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingInitWalletFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingNetworkSelectionFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingRecoveryPhraseFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingRestoreWalletFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingSecurePasswordFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingTermsOfUseFragment;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingVerifyRecoveryPhraseFragment;
 
 public class WalletOnboardingPagerAdapter extends FragmentStateAdapter {
     /** Wallet action types used to determine onboarding navigation sequence. */
@@ -46,7 +46,7 @@ public class WalletOnboardingPagerAdapter extends FragmentStateAdapter {
     private static final long TERMS_OF_USE_PASSWORD_CREATION_ID = 999;
     private static final long TERMS_OF_USE_RESTORE_ID = 998;
 
-    @NonNull private final BraveWalletP3a mBraveWalletP3A;
+    @NonNull private final WootzWalletP3a mWootzWalletP3A;
     private final boolean mRestartSetupAction;
     private final boolean mRestartRestoreAction;
 
@@ -54,11 +54,11 @@ public class WalletOnboardingPagerAdapter extends FragmentStateAdapter {
 
     public WalletOnboardingPagerAdapter(
             @NonNull final FragmentActivity fragmentActivity,
-            @NonNull final BraveWalletP3a braveWalletP3a,
+            @NonNull final WootzWalletP3a wootzWalletP3a,
             final boolean restartSetupAction,
             final boolean restartRestoreAction) {
         super(fragmentActivity);
-        mBraveWalletP3A = braveWalletP3a;
+        mWootzWalletP3A = wootzWalletP3a;
         mRestartSetupAction = restartSetupAction;
         mRestartRestoreAction = restartRestoreAction;
         mWalletAction = WalletAction.UNLOCK;
@@ -68,11 +68,11 @@ public class WalletOnboardingPagerAdapter extends FragmentStateAdapter {
         mWalletAction = walletAction;
 
         if (walletAction == WalletAction.ONBOARDING) {
-            mBraveWalletP3A.reportOnboardingAction(OnboardingAction.SHOWN);
+            mWootzWalletP3A.reportOnboardingAction(OnboardingAction.SHOWN);
         } else if (walletAction == WalletAction.PASSWORD_CREATION) {
-            mBraveWalletP3A.reportOnboardingAction(OnboardingAction.LEGAL_AND_PASSWORD);
+            mWootzWalletP3A.reportOnboardingAction(OnboardingAction.LEGAL_AND_PASSWORD);
         } else if (walletAction == WalletAction.ONBOARDING_RESTORE) {
-            mBraveWalletP3A.reportOnboardingAction(OnboardingAction.START_RESTORE);
+            mWootzWalletP3A.reportOnboardingAction(OnboardingAction.START_RESTORE);
         }
 
         notifyItemRangeChanged(0, getItemCount());

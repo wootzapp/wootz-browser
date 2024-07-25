@@ -1,9 +1,9 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-package org.chromium.chrome.browser.crypto_wallet.adapters;
+package org.chromium.chrome.browser.wootz_wallet.adapters;
 
 import android.content.Context;
 import android.graphics.ColorMatrix;
@@ -20,12 +20,12 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.chromium.brave_wallet.mojom.NetworkInfo;
+import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
-import org.chromium.chrome.browser.crypto_wallet.activities.NetworkSelectorActivity;
-import org.chromium.chrome.browser.crypto_wallet.util.NetworkUtils;
-import org.chromium.chrome.browser.crypto_wallet.util.Utils;
+import org.chromium.chrome.browser.wootz_wallet.activities.NetworkSelectorActivity;
+import org.chromium.chrome.browser.wootz_wallet.util.NetworkUtils;
+import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -225,11 +225,11 @@ public class NetworkSelectorAdapter extends RecyclerView.Adapter<RecyclerView.Vi
             mType = type;
             mNetworkInfo = null;
             if (mType == LABEL_PRIMARY_ITEM) {
-                mNetworkNameRes = R.string.brave_wallet_network_filter_primary;
+                mNetworkNameRes = R.string.wootz_wallet_network_filter_primary;
             } else if (mType == LABEL_SECONDARY_ITEM) {
-                mNetworkNameRes = R.string.brave_wallet_network_filter_secondary;
+                mNetworkNameRes = R.string.wootz_wallet_network_filter_secondary;
             } else if (mType == LABEL_TEST_ITEM) {
-                mNetworkNameRes = R.string.brave_wallet_network_filter_test;
+                mNetworkNameRes = R.string.wootz_wallet_network_filter_test;
             } else {
                 throw new IllegalStateException(
                         String.format("Network name not found for label type %d.", mType));

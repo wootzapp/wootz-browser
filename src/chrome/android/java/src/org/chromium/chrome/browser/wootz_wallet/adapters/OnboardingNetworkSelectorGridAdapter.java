@@ -1,9 +1,9 @@
-/* Copyright (c) 2024 The Brave Authors. All rights reserved.
+/* Copyright (c) 2024 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-package org.chromium.chrome.browser.crypto_wallet.adapters;
+package org.chromium.chrome.browser.wootz_wallet.adapters;
 
 import static androidx.recyclerview.widget.RecyclerView.NO_POSITION;
 
@@ -25,13 +25,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.checkbox.MaterialCheckBox;
 
-import org.chromium.brave_wallet.mojom.BraveWalletConstants;
-import org.chromium.brave_wallet.mojom.NetworkInfo;
+import org.chromium.wootz_wallet.mojom.WootzWalletConstants;
+import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
-import org.chromium.chrome.browser.crypto_wallet.fragments.onboarding.OnboardingNetworkSelectionFragment;
-import org.chromium.chrome.browser.crypto_wallet.util.NetworkUtils;
-import org.chromium.chrome.browser.crypto_wallet.util.Utils;
+import org.chromium.chrome.browser.wootz_wallet.fragments.onboarding.OnboardingNetworkSelectionFragment;
+import org.chromium.chrome.browser.wootz_wallet.util.NetworkUtils;
+import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,7 +64,7 @@ public class OnboardingNetworkSelectorGridAdapter
 
     private static final List<String> ALWAYS_SELECTED_CHAIN_IDS =
             Arrays.asList(
-                    BraveWalletConstants.MAINNET_CHAIN_ID, BraveWalletConstants.SOLANA_MAINNET);
+                    WootzWalletConstants.MAINNET_CHAIN_ID, WootzWalletConstants.SOLANA_MAINNET);
 
     private final List<NetworkInfo> mPrimaryNetworks;
     private final List<NetworkInfo> mSecondaryNetworks;
@@ -138,7 +138,7 @@ public class OnboardingNetworkSelectorGridAdapter
 
         mFeaturedNetworks = context.getString(R.string.wallet_featured);
         mPopularNetworks = context.getString(R.string.wallet_popular);
-        mSelectAll = context.getString(R.string.brave_wallet_select_all);
+        mSelectAll = context.getString(R.string.wootz_wallet_select_all);
 
         mHandler = new Handler(Looper.getMainLooper());
     }
