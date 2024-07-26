@@ -155,7 +155,7 @@ public class SignInPreference extends Preference
 
     private void setupSigninDisabledByPolicy() {
         setTitle(R.string.sync_promo_turn_on_sync);
-        setSummary(R.string.sign_in_to_chrome_disabled_summary);
+        setSummary(R.string.sign_in_to_wootzapp_disabled_summary);
         setFragment(null);
         setIcon(ManagedPreferencesUtils.getManagedByEnterpriseIconId());
         setViewEnabledAndShowAlertIcon(/* enabled= */ false, /* alertIconVisible= */ false);
@@ -190,7 +190,7 @@ public class SignInPreference extends Preference
                             ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)) {
                         AccountPickerBottomSheetStrings bottomSheetStrings =
                                 new AccountPickerBottomSheetStrings.Builder(
-                                                R.string.sign_in_to_chrome)
+                                                R.string.sign_in_to_wootzapp)
                                         .build();
                         SigninAndHistoryOptInActivityLauncherImpl.get()
                                 .launchActivityIfAllowed(

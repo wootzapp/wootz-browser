@@ -133,19 +133,19 @@ IN_PROC_BROWSER_TEST_F(ContentSettingBubbleModelMediaStreamTest,
 
   // The microphone bubble links to microphone exceptions.
   ManageMediaStreamSettings({PageSpecificContentSettings::kMicrophoneAccessed});
-  EXPECT_EQ(GURL("chrome://settings/contentExceptions#media-stream-mic"),
+  EXPECT_EQ(GURL("wootzapp://settings/contentExceptions#media-stream-mic"),
             GetActiveTab()->GetLastCommittedURL());
 
   // The bubble for both media devices links to the the first section of the
   // default media content settings, which is the microphone section.
   ManageMediaStreamSettings({PageSpecificContentSettings::kMicrophoneAccessed,
                              PageSpecificContentSettings::kCameraAccessed});
-  EXPECT_EQ(GURL("chrome://settings/content#media-stream-mic"),
+  EXPECT_EQ(GURL("wootzapp://settings/content#media-stream-mic"),
             GetActiveTab()->GetLastCommittedURL());
 
   // The camera bubble links to camera exceptions.
   ManageMediaStreamSettings({PageSpecificContentSettings::kCameraAccessed});
-  EXPECT_EQ(GURL("chrome://settings/contentExceptions#media-stream-camera"),
+  EXPECT_EQ(GURL("wootzapp://settings/contentExceptions#media-stream-camera"),
             GetActiveTab()->GetLastCommittedURL());
 }
 

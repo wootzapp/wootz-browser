@@ -2418,7 +2418,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, GetSizeForNewRenderView) {
   ASSERT_TRUE(https_test_server.Start());
 
   // Start with NTP.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
   ASSERT_EQ(BookmarkBar::HIDDEN, browser()->bookmark_bar_state());
   WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -2478,7 +2478,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, GetSizeForNewRenderView) {
 
   // Navigate from NTP to a non-NTP page, resizing WebContentsView while
   // navigation entry is pending.
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
   gfx::Size wcv_resize_insets(1, 1);
   observer.set_wcv_resize_insets(wcv_resize_insets);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
@@ -2698,7 +2698,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, TestActiveTabChangedUserAction) {
 
 IN_PROC_BROWSER_TEST_F(BrowserTest, TestNavEntryCommittedUserAction) {
   base::UserActionTester user_action_tester;
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome://newtab")));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("wootzapp://newtab")));
   EXPECT_EQ(user_action_tester.GetActionCount("NavEntryCommitted"), 1);
   EXPECT_EQ(user_action_tester.GetActionCount("NavEntryCommitted.SRP"), 0);
 }

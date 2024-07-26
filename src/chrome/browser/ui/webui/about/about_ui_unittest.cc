@@ -130,7 +130,7 @@ class ChromeOSTermsTest : public testing::Test {
     content::WebContents::Getter wc_getter;
     tested_html_source_->StartDataRequest(
         GURL(base::StrCat(
-            {"chrome://", chrome::kChromeUITermsHost, "/", request_url})),
+            {"wootzapp://", chrome::kChromeUITermsHost, "/", request_url})),
         std::move(wc_getter),
         base::BindOnce(&TestDataReceiver::OnDataReceived,
                        base::Unretained(data_receiver)));
@@ -209,7 +209,7 @@ class ChromeOSCreditsTest : public testing::Test {
   void StartRequest(TestDataReceiver* data_receiver) {
     content::WebContents::Getter wc_getter;
     tested_html_source_->StartDataRequest(
-        GURL(base::StrCat({"chrome://", chrome::kChromeUIOSCreditsHost, "/"})),
+        GURL(base::StrCat({"wootzapp://", chrome::kChromeUIOSCreditsHost, "/"})),
         std::move(wc_getter),
         base::BindOnce(&TestDataReceiver::OnDataReceived,
                        base::Unretained(data_receiver)));
@@ -306,7 +306,7 @@ class ChromeURLsTest : public testing::Test {
     content::WebContents::Getter wc_getter;
     tested_html_source_->StartDataRequest(
         GURL(base::StrCat(
-            {"chrome://", chrome::kChromeUIChromeURLsHost, "/", request_url})),
+            {"wootzapp://", chrome::kChromeUIChromeURLsHost, "/", request_url})),
         std::move(wc_getter),
         base::BindOnce(&TestDataReceiver::OnDataReceived,
                        base::Unretained(data_receiver)));

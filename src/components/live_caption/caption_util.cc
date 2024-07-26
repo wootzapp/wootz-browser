@@ -145,17 +145,17 @@ std::string GetCaptionSettingsUrl() {
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_LINUX)
-  return "chrome://settings/captions";
+  return "wootzapp://settings/captions";
 #endif  // BUILDFLAG(IS_LINUX)
 
 #if BUILDFLAG(IS_WIN)
   return base::win::GetVersion() >= base::win::Version::WIN10
-             ? "chrome://settings/accessibility"
-             : "chrome://settings/captions";
+             ? "wootzapp://settings/accessibility"
+             : "wootzapp://settings/captions";
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_MAC)
-  return "chrome://settings/accessibility";
+  return "wootzapp://settings/accessibility";
 #endif  // BUILDFLAG(IS_MAC)
 
   NOTREACHED_IN_MIGRATION();

@@ -336,7 +336,7 @@ TestOmniboxPedalClearBrowsingData::TestOmniboxPedalClearBrowsingData()
               IDS_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUGGESTION_CONTENTS,
               IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUFFIX,
               IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA),
-          GURL("chrome://settings/clearBrowserData")) {}
+          GURL("wootzapp://settings/clearBrowserData")) {}
 
 std::vector<OmniboxPedal::SynonymGroupSpec>
 TestOmniboxPedalClearBrowsingData::SpecifySynonymGroups(

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Ilayisha i-<ph name="LANG" /></translation>
 <translation id="1240903469550363138">Ukuze uqhubeke, i-<ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> izokwabelana ngegama lakho, ikheli le-imeyili, nesithombe sephrofayela nale sayithi. Bona <ph name="BEGIN_LINK1" />inqubomgomo yobumfihlo<ph name="END_LINK1" /> yale sayithi kanye <ph name="BEGIN_LINK2" />nemigomo yesevisi<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">Izilimi eziningi</translation>
-<translation id="1241792820757384812">Amaphasiwedi akho azosulwa Kumphathi Wephasiwedi We-Google ye-<ph name="CHROME_CHANNEL" />. Uzogcina ifayela lamaphasiwedi osanda kulidawuniloda.</translation>
+<translation id="1241792820757384812">Amaphasiwedi akho azosulwa Kumphathi Wephasiwedi We-Google ye-<ph name="WOOTZAPP_CHANNEL" />. Uzogcina ifayela lamaphasiwedi osanda kulidawuniloda.</translation>
 <translation id="1242883863226959074">idivayisi</translation>
 <translation id="124678866338384709">Vala ithebhu yamanje</translation>
 <translation id="1246905108078336582">Susa isiphakamiso kusukela kubhodi lokunamathisela?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Vala amathebhu we-incognito</translation>
 <translation id="1568636008098739136">Lalela leli khasi. Ukuze uhlele lesi sinqamuleli, thinta uphinde ubambe.</translation>
 <translation id="1571304935088121812">Kopisha igama lomsebenzisi</translation>
-<translation id="1584648915421894279">Njengamanje, amaphasiwedi alondolozwe kule divayisi awakwazi ukusetshenziswa eziteshini ze-Chrome. Ngemva kwe-Chrome 125, amaphasiwedi alondolozwe kudivayisi yakho we-Chrome kanye ne-<ph name="CHROME_CHANNEL" /> azohlanganiswa futhi angasetshenziswa kuwo womabili ama-app.</translation>
+<translation id="1584648915421894279">Njengamanje, amaphasiwedi alondolozwe kule divayisi awakwazi ukusetshenziswa eziteshini ze-Chrome. Ngemva kwe-Chrome 125, amaphasiwedi alondolozwe kudivayisi yakho we-Chrome kanye ne-<ph name="WOOTZAPP_CHANNEL" /> azohlanganiswa futhi angasetshenziswa kuwo womabili ama-app.</translation>
 <translation id="1592864538817356322">Ukuvikelwa okuvamile:</translation>
 <translation id="1594635596540195766">Izinto eziphakanyisiwe ezingu-<ph name="SUGGESTIONS_COUNT" /> ohlwini olungezansi.</translation>
 <translation id="1598163867407640634">Sebenzisa i-<ph name="SITE_ETLD_PLUS_ONE" /> nge-<ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ I-akhawunti yakho ye-Google ingaba namanye amafomu omlando okuphequlula afana no
 <translation id="4594952190837476234">Leli khasi elingaxhunyiwe kwi-inthanethi livele ngo-<ph name="CREATION_TIME" /> futhi lingahluka kusukela kunguqulo eku-inthanethi.</translation>
 <translation id="4595805675102978678">Iphutha le-Google Account</translation>
 <translation id="4601095002996233687">Ukuskena okujulile kokudawunilodwa okusolisayo.</translation>
-<translation id="4609429330876432068">Izinhlu zakho zamaphasiwedi alondoloziwe we-Chrome ne-<ph name="CHROME_CHANNEL" /> zihlanganisiwe. Usengagcwalisa ngokuzenzakalelayo wonke amaphasiwedi wakho alondoloziwe kuwo womabili ama-app.</translation>
+<translation id="4609429330876432068">Izinhlu zakho zamaphasiwedi alondoloziwe we-Chrome ne-<ph name="WOOTZAPP_CHANNEL" /> zihlanganisiwe. Usengagcwalisa ngokuzenzakalelayo wonke amaphasiwedi wakho alondoloziwe kuwo womabili ama-app.</translation>
 <translation id="4616150815774728855">Vula i-<ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Qinisekisa ukuthi nguwe</translation>
 <translation id="4634124774493850572">Sebenzisa iphasiwedi</translation>
@@ -1651,7 +1651,7 @@ Ukuze ushintshe le sethingi, <ph name="BEGIN_LINK" />sula idatha yakho ye-Chrome
 <translation id="927968626442779827">Sebenzisa Imodi elula ku-Google Chrome</translation>
 <translation id="928550791203542716">Ukulandela <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Sula umlando, amakhukhi, idatha yesayithi, inqolobane…</translation>
-<translation id="93533588269984624">Wonke amaphasiwedi azodawunilodwa kudivayisi yakho futhi asuswe ku-<ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Wonke amaphasiwedi azodawunilodwa kudivayisi yakho futhi asuswe ku-<ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Iphutha: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Faka umushwana wokungena</translation>
 <translation id="952301137339791907">Ikhasi elingezansi lemininingwane yekhasi livuliwe</translation>

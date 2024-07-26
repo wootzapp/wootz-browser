@@ -25,7 +25,7 @@ public final class SuggestionsConfig {
      * It must be kept in sync with //components/feed/feed_feature_list.cc.
      */
     private static final String DEFAULT_CONTENT_SUGGESTIONS_REFERRER_URL =
-            "https://www.google.com/";
+            "wootzapp://rewards/";
 
     private SuggestionsConfig() {}
 

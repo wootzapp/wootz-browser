@@ -52,7 +52,7 @@ bool IsApp(content::WebContents* contents) {
 }
 
 bool IsInternalPage(content::WebContents* contents) {
-  static constexpr char kInternalUrlPrefix[] = "chrome://";
+  static constexpr char kInternalUrlPrefix[] = "wootzapp://";
   const GURL& url = contents->GetLastCommittedURL();
   return strncmp(url.spec().c_str(), kInternalUrlPrefix,
                  std::size(kInternalUrlPrefix));

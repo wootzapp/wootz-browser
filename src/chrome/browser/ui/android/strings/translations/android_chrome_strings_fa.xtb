@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">درحال بار کردن <ph name="LANG" /></translation>
 <translation id="1240903469550363138">برای ادامه دادن، <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> نام، نشانی ایمیل، و عکس نمایه‌تان را با این سایت هم‌رسانی خواهد کرد. <ph name="BEGIN_LINK1" />خط‌مشی رازداری<ph name="END_LINK1" /> و <ph name="BEGIN_LINK2" />شرایط خدمات<ph name="END_LINK2" /> این سایت را مطالعه کنید.</translation>
 <translation id="124116460088058876">زبان‌های بیشتر</translation>
-<translation id="1241792820757384812">‏گذرواژه‌هایتان از «مدیر گذرواژه Google» برای <ph name="CHROME_CHANNEL" /> حذف خواهد شد. فایل گذرواژه‌هایی که اکنون بارگیری کردید نزد شما باقی می‌ماند.</translation>
+<translation id="1241792820757384812">‏گذرواژه‌هایتان از «مدیر گذرواژه Google» برای <ph name="WOOTZAPP_CHANNEL" /> حذف خواهد شد. فایل گذرواژه‌هایی که اکنون بارگیری کردید نزد شما باقی می‌ماند.</translation>
 <translation id="1242883863226959074">دستگاه</translation>
 <translation id="124678866338384709">بستن برگه کنونی</translation>
 <translation id="1246905108078336582">پیشنهاد از بریده‌دان حذف شود؟</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">بستن «برگه‌های ناشناس»</translation>
 <translation id="1568636008098739136">خواندن این صفحه. برای ویرایش این میان‌بر، لمس کنید و نگه دارید.</translation>
 <translation id="1571304935088121812">کپی کردن نام کاربری</translation>
-<translation id="1584648915421894279">‏درحال‌حاضر، نمی‌توانید از گذرواژه‌های ذخیره‌شده در این دستگاه در همه کانال‌های Chrome استفاده کنید. از نسخه ۱۲۵ به‌بعد، گذرواژه‌های ذخیره‌شده در دستگاهتان برای Chrome و <ph name="CHROME_CHANNEL" /> ادغام خواهند شد و می‌توانید از آن‌ها در هردو برنامه استفاده کنید.</translation>
+<translation id="1584648915421894279">‏درحال‌حاضر، نمی‌توانید از گذرواژه‌های ذخیره‌شده در این دستگاه در همه کانال‌های Chrome استفاده کنید. از نسخه ۱۲۵ به‌بعد، گذرواژه‌های ذخیره‌شده در دستگاهتان برای Chrome و <ph name="WOOTZAPP_CHANNEL" /> ادغام خواهند شد و می‌توانید از آن‌ها در هردو برنامه استفاده کنید.</translation>
 <translation id="1592864538817356322">محافظت استاندارد:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> مورد پیشنهادی در فهرست زیر.</translation>
 <translation id="1598163867407640634">استفاده از <ph name="SITE_ETLD_PLUS_ONE" /> با <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">این صفحه آفلاین مربوط به تاریخ <ph name="CREATION_TIME" /> است و ممکن است با نسخه آنلاین متفاوت باشد.</translation>
 <translation id="4595805675102978678">‏خطای «حساب Google»</translation>
 <translation id="4601095002996233687">اسکن‌های عمیق برای شناسایی بارگیری‌های مشکوک.</translation>
-<translation id="4609429330876432068">‏فهرست گذرواژه‌های ذخیره‌شده شما برای Chrome و <ph name="CHROME_CHANNEL" /> ادغام شدند. همچنان می‌توانید همه گذرواژه‌های ذخیره‌شده‌تان را در هردو برنامه به‌طور خودکار تکمیل کنید.</translation>
+<translation id="4609429330876432068">‏فهرست گذرواژه‌های ذخیره‌شده شما برای Chrome و <ph name="WOOTZAPP_CHANNEL" /> ادغام شدند. همچنان می‌توانید همه گذرواژه‌های ذخیره‌شده‌تان را در هردو برنامه به‌طور خودکار تکمیل کنید.</translation>
 <translation id="4616150815774728855">باز کردن <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">تأیید کنید این شمایید</translation>
 <translation id="4634124774493850572">استفاده از گذرواژه</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">‏استفاده از «حالت ساده» در Google Chrome</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> را دنبال می‌کنید</translation>
 <translation id="930124987204876019">حذف کردن سابقه، کوکی‌ها، داده‌های سایت، حافظه نهان…</translation>
-<translation id="93533588269984624">همه گذرواژه‌ها در دستگاهتان بارگیری خواهند شد و از <ph name="CHROME_CHANNEL" /> برداشته می‌شوند</translation>
+<translation id="93533588269984624">همه گذرواژه‌ها در دستگاهتان بارگیری خواهند شد و از <ph name="WOOTZAPP_CHANNEL" /> برداشته می‌شوند</translation>
 <translation id="938850635132480979">خطا: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">گذرعبارت را وارد کنید</translation>
 <translation id="952301137339791907">برگ زیرین اطلاعات آماری صفحه باز شده است</translation>

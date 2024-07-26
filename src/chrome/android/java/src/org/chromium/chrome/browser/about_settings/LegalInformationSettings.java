@@ -11,7 +11,7 @@ import androidx.preference.PreferenceFragmentCompat;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 
-/** Fragment to display legal information about Chrome. */
+/** Fragment to display legal information about WootzApp. */
 public class LegalInformationSettings extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String s) {

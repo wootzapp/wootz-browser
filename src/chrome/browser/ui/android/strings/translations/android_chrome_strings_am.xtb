@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" />ን በመጫን ላይ</translation>
 <translation id="1240903469550363138">ለመቀጠል <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> የእርስዎን ስም፣ ኢሜይል አድራሻ እና የመገለጫ ሥዕል ለዚህ ጣቢያ ያጋራል። የዚህ ጣቢያ <ph name="BEGIN_LINK1" />የግላዊነት መመሪያ<ph name="END_LINK1" /> እና <ph name="BEGIN_LINK2" />የአገልግሎት ውል<ph name="END_LINK2" /> ይመልከቱ።</translation>
 <translation id="124116460088058876">ተጨማሪ ቋንቋዎች</translation>
-<translation id="1241792820757384812">የእርስዎ የይለፍ ቃላት ለ<ph name="CHROME_CHANNEL" /> ከGoogle የይለፍ ቃል አስተዳዳሪ ይሰረዛሉ። አሁን ያወረዷቸውን የይለፍ ቃላት ፋይል ያቆያሉ።</translation>
+<translation id="1241792820757384812">የእርስዎ የይለፍ ቃላት ለ<ph name="WOOTZAPP_CHANNEL" /> ከGoogle የይለፍ ቃል አስተዳዳሪ ይሰረዛሉ። አሁን ያወረዷቸውን የይለፍ ቃላት ፋይል ያቆያሉ።</translation>
 <translation id="1242883863226959074">መሣሪያ</translation>
 <translation id="124678866338384709">የአሁኑን ትር ዝጋ</translation>
 <translation id="1246905108078336582">የአስተያየት ጥቆማ ከቅንጥብ ሰሌዳ ይወገድ?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ማንነት የማያሳውቁ ትሮችን ዝጋ</translation>
 <translation id="1568636008098739136">ይህን ገፅ ያዳምጡ። ይህን አቋራጭ ለማርትዕ ይንኩ እና ይያዙ።</translation>
 <translation id="1571304935088121812">የተጠቃሚ ስምን ቅዳ</translation>
-<translation id="1584648915421894279">በአሁን ጊዜ በዚህ መሣሪያ ላይ የተቀመጡ የይለፍ ቃላት በመላ የChrome ሰርጦች ላይ ጥቅም ላይ መዋል አይችሉም። ከChrome 125 በኋላ በመሣሪያዎ ላይ ለChrome እና ለ<ph name="CHROME_CHANNEL" /> የተቀመጡ የይለፍ ቃላ ይዋሃዳሉ እና በሁለቱም መተግበሪያዎች ላይ ጥቅም ላይ መዋል ይችላሉ።</translation>
+<translation id="1584648915421894279">በአሁን ጊዜ በዚህ መሣሪያ ላይ የተቀመጡ የይለፍ ቃላት በመላ የChrome ሰርጦች ላይ ጥቅም ላይ መዋል አይችሉም። ከChrome 125 በኋላ በመሣሪያዎ ላይ ለChrome እና ለ<ph name="WOOTZAPP_CHANNEL" /> የተቀመጡ የይለፍ ቃላ ይዋሃዳሉ እና በሁለቱም መተግበሪያዎች ላይ ጥቅም ላይ መዋል ይችላሉ።</translation>
 <translation id="1592864538817356322">መደበኛ ጥበቃ፦</translation>
 <translation id="1594635596540195766">ከታች ባለው ዝርዝር ውስጥ <ph name="SUGGESTIONS_COUNT" /> በአስተያየት የተጠቆሙ ንጥሎች።</translation>
 <translation id="1598163867407640634">በ<ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> አማካኝነት <ph name="SITE_ETLD_PLUS_ONE" />ን ይጠቀሙ</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ይህ የ<ph name="CREATION_TIME" />  የመስመር ውጭ ገፅ ከመስመር ላይ ስሪቱ የተለየ ሊሆን ይችላል።</translation>
 <translation id="4595805675102978678">የGoogle መለያ ስህተት</translation>
 <translation id="4601095002996233687">ለሚያጠራጥሩ ውርዶች በጥልቀት የሚደረጉ ቅኝቶች።</translation>
-<translation id="4609429330876432068">ለChrome እና ለ<ph name="CHROME_CHANNEL" /> የተቀመጡ የይለፍ ቃላት ዝርዝርዎ ተዋህዷል። በሁለቱም መተግበሪያዎች ላይ ሁሉንም የተቀመጡ የይለፍ ቃላትዎ በራስ-ሰር መሙላት ይችላሉ።</translation>
+<translation id="4609429330876432068">ለChrome እና ለ<ph name="WOOTZAPP_CHANNEL" /> የተቀመጡ የይለፍ ቃላት ዝርዝርዎ ተዋህዷል። በሁለቱም መተግበሪያዎች ላይ ሁሉንም የተቀመጡ የይለፍ ቃላትዎ በራስ-ሰር መሙላት ይችላሉ።</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" />ን ይክፈቱ</translation>
 <translation id="4619564267100705184">እርስዎ መሆንዎን ያረጋግጡ</translation>
 <translation id="4634124774493850572">የይለፍ ቃል ይጠቀሙ</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">በGoogle Chrome ላይ ቀላል ሁነታን ይጠቀሙ</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" />ን በመከተል ላይ</translation>
 <translation id="930124987204876019">ታሪክ፣ ኩኪዎች፣ የጣቢያ ውሂብ፣ መሸጎጫን ሰርዝ…</translation>
-<translation id="93533588269984624">ሁሉም የይለፍ ቃላት በመሣሪያዎ ላይ ይወርዳሉ እና ከ<ph name="CHROME_CHANNEL" /> ይወገዳሉ</translation>
+<translation id="93533588269984624">ሁሉም የይለፍ ቃላት በመሣሪያዎ ላይ ይወርዳሉ እና ከ<ph name="WOOTZAPP_CHANNEL" /> ይወገዳሉ</translation>
 <translation id="938850635132480979">ስህተት፦ <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">የይለፍ ሐረግ ያስገቡ</translation>
 <translation id="952301137339791907">የገጽ ግንዛቤዎች የግርጌ ሉህ ተከፍቷል</translation>

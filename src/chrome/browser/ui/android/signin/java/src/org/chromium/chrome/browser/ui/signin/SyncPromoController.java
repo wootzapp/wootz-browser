@@ -625,7 +625,7 @@ public class SyncPromoController {
     // The difference between the 2 will just be the avatar and the behavior of the primary button.
     private void setupColdState(PersonalizedSigninPromoView view) {
         final Context context = view.getContext();
-        view.getImage().setImageResource(R.drawable.chrome_sync_logo);
+        view.getImage().setImageResource(R.drawable.wootzapp_sync_logo);
         setImageSize(context, view, R.dimen.signin_promo_cold_state_image_size);
 
         view.getTitle().setText(mTitleStringId);

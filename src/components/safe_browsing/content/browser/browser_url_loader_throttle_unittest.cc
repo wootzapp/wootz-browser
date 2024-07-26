@@ -581,7 +581,7 @@ TEST_P(SBBrowserUrlLoaderThrottleTest, VerifyDefer_DoesNotDeferOnKnownSafeUrl) {
 
   bool defer = false;
   network::ResourceRequest request;
-  request.url = GURL("chrome://new-tab-page");
+  request.url = GURL("wootzapp://new-tab-page");
   throttle_->WillStartRequest(&request, &defer);
   task_environment_.RunUntilIdle();
 

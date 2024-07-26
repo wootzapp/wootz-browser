@@ -44,7 +44,7 @@ using testing::ReturnArg;
 namespace {
 
 const int kDummyTaskId = 1;
-const char kDummyPrefix[] = "chrome://any-host/";
+const char kDummyPrefix[] = "wootzapp://any-host/";
 
 }  // namespace
 
@@ -284,7 +284,7 @@ TEST_F(FaviconSourceTestWithFavicon2Format,
 TEST_F(FaviconSourceTestWithFavicon2Format,
        ShouldNotQueryHistoryUiFaviconRequestHandlerIfHasNotHistoryUiOrigin) {
   content::WebContentsTester::For(test_web_contents_.get())
-      ->SetLastCommittedURL(GURL("chrome://non-history-url"));
+      ->SetLastCommittedURL(GURL("wootzapp://non-history-url"));
 
   EXPECT_CALL(*mock_history_ui_favicon_request_handler_,
               GetRawFaviconForPageURL)

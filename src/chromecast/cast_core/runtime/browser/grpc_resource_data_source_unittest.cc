@@ -14,11 +14,11 @@ namespace chromecast {
 class GrpcResourceDataSourceTest : public ::testing::Test {
  public:
   GrpcResourceDataSourceTest()
-      : grpc_resource_data_source_("chrome", true, nullptr) {}
+      : grpc_resource_data_source_("wootzapp", true, nullptr) {}
 
  protected:
   std::string GetMimeType(const std::string& path) {
-    const GURL url("chrome://chrome/" + path);
+    const GURL url("wootzapp://wootzapp/" + path);
     return grpc_resource_data_source_.GetMimeType(url);
   }
 
@@ -50,7 +50,7 @@ TEST_F(GrpcResourceDataSourceTest, GetMimeTypeSuccess) {
 
 TEST_F(GrpcResourceDataSourceTest,
        GetAccessControlAllowOriginForOriginAllowedOrigin) {
-  EXPECT_EQ(GetAccessControlAllowOriginForOrigin("chrome://"), "chrome://");
+  EXPECT_EQ(GetAccessControlAllowOriginForOrigin("wootzapp://"), "wootzapp://");
 }
 
 TEST_F(GrpcResourceDataSourceTest,

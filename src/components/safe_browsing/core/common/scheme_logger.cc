@@ -41,7 +41,7 @@ const std::map<std::string, UrlScheme>& GetSchemeOptions() {
           // From content/public/common/url_constants.cc
           {"devtools", UrlScheme::kDevTools},
           {"chrome-error", UrlScheme::kChromeError},
-          {"chrome", UrlScheme::kChrome},
+          {"wootzapp", UrlScheme::kChrome},
           {"chrome-untrusted", UrlScheme::kChromeUntrusted},
           {"view-source", UrlScheme::kViewSource},
           {"externalfile", UrlScheme::kExternalFile},

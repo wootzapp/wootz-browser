@@ -245,7 +245,7 @@ TEST_F(ArcIntentHelperTest, TestOnOpenUrl_ChromeScheme) {
   instance_->OnOpenUrl("chrome://www.google.com");
   EXPECT_FALSE(test_open_url_delegate_->TakeLastOpenedUrl().is_valid());
 
-  instance_->OnOpenUrl("chrome://settings");
+  instance_->OnOpenUrl("wootzapp://settings");
   EXPECT_FALSE(test_open_url_delegate_->TakeLastOpenedUrl().is_valid());
 
   instance_->OnOpenUrl("about:");
@@ -279,7 +279,7 @@ TEST_F(ArcIntentHelperTest, TestOnOpenAppWithIntent) {
   EXPECT_TRUE(test_open_url_delegate_->TakeLastOpenedUrl().is_valid());
   EXPECT_FALSE(test_open_url_delegate_->TakeLastOpenedIntent().is_null());
 
-  instance_->OnOpenAppWithIntent(GURL("chrome://settings"),
+  instance_->OnOpenAppWithIntent(GURL("wootzapp://settings"),
                                  mojom::LaunchIntent::New());
   EXPECT_FALSE(test_open_url_delegate_->TakeLastOpenedUrl().is_valid());
   EXPECT_TRUE(test_open_url_delegate_->TakeLastOpenedIntent().is_null());

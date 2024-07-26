@@ -23,7 +23,7 @@
 namespace {
 
 const char kAllSitesContentSettingsUrl[] =
-    "chrome://settings/content/all?sort=data-stored";
+    "wootzapp://settings/content/all?sort=data-stored";
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.

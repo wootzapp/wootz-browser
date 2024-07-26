@@ -2992,7 +2992,7 @@ TEST_F(SiteSettingsHandlerInfobarTest, SettingPermissionsTriggersInfobar) {
       "https://www.example.com/with/path/blah#heading";
   const GURL foo("http://foo");
   const GURL origin_anchor(origin_anchor_string);
-  const GURL chrome("chrome://about");
+  const GURL chrome("wootzapp://about");
   const GURL origin("https://www.example.com/");
   const GURL extension(
       "chrome-extension://fooooooooooooooooooooooooooooooo/bar.html");

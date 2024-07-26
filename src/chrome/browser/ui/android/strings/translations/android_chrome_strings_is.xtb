@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Hleður <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Til að halda áfram mun <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> deila nafni þínu, netfangi og prófílmynd með þessu vefsvæði. Sjá <ph name="BEGIN_LINK1" />persónuverndarstefnu<ph name="END_LINK1" /> og <ph name="BEGIN_LINK2" />þjónustuskilmála<ph name="END_LINK2" /> vefsvæðisins.</translation>
 <translation id="124116460088058876">Fleiri tungumál</translation>
-<translation id="1241792820757384812">Aðgangsorðunum þínum verður eytt úr Google-aðgangsorðastjórnun fyrir <ph name="CHROME_CHANNEL" />. Þú munt halda aðgangsorðaskránni sem þú varst að sækja.</translation>
+<translation id="1241792820757384812">Aðgangsorðunum þínum verður eytt úr Google-aðgangsorðastjórnun fyrir <ph name="WOOTZAPP_CHANNEL" />. Þú munt halda aðgangsorðaskránni sem þú varst að sækja.</translation>
 <translation id="1242883863226959074">tæki</translation>
 <translation id="124678866338384709">Loka núverandi flipa</translation>
 <translation id="1246905108078336582">Fjarlægja tillögu af klippiborði?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Loka huliðsflipum</translation>
 <translation id="1568636008098739136">Hlusta á þessa síðu Haltu flýtileiðinni inni til að breyta henni.</translation>
 <translation id="1571304935088121812">Afrita notandanafn</translation>
-<translation id="1584648915421894279">Eins og stendur er ekki hægt að nota aðgangsorð sem eru vistuð í þessu tæki á öllum Chrome-rásum. Frá útgáfu Chrome 125 verða aðgangsorð sem eru vistuð í tækinu fyrir Chrome og <ph name="CHROME_CHANNEL" /> sameinuð og hægt verður að nota þau í báðum forritunum.</translation>
+<translation id="1584648915421894279">Eins og stendur er ekki hægt að nota aðgangsorð sem eru vistuð í þessu tæki á öllum Chrome-rásum. Frá útgáfu Chrome 125 verða aðgangsorð sem eru vistuð í tækinu fyrir Chrome og <ph name="WOOTZAPP_CHANNEL" /> sameinuð og hægt verður að nota þau í báðum forritunum.</translation>
 <translation id="1592864538817356322">Hefðbundin vörn:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> ráðlögð atriði á lista fyrir neðan.</translation>
 <translation id="1598163867407640634">Notaðu <ph name="SITE_ETLD_PLUS_ONE" /> með <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Google reikningurinn þinn kann að vera með annars konar vefskoðunarferil, sv
 <translation id="4594952190837476234">Þessi síða án nettengingar er frá <ph name="CREATION_TIME" /> og hún gæti verið frábrugðin útgáfunni sem er á netinu.</translation>
 <translation id="4595805675102978678">Villa í Google-reikningi</translation>
 <translation id="4601095002996233687">Ítarleg leit að grunsamlegu niðurhali.</translation>
-<translation id="4609429330876432068">Listarnir yfir vistuð aðgangsorð í Chrome og <ph name="CHROME_CHANNEL" /> voru sameinaðir. Þú getur enn fyllt öll vistuð aðgangsorð út sjálfkrafa í báðum forritunum.</translation>
+<translation id="4609429330876432068">Listarnir yfir vistuð aðgangsorð í Chrome og <ph name="WOOTZAPP_CHANNEL" /> voru sameinaðir. Þú getur enn fyllt öll vistuð aðgangsorð út sjálfkrafa í báðum forritunum.</translation>
 <translation id="4616150815774728855">Opna <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Staðfestu hver þú ert</translation>
 <translation id="4634124774493850572">Nota aðgangsorð</translation>
@@ -1651,7 +1651,7 @@ Til að breyta þessari stillingu skaltu <ph name="BEGIN_LINK" />eyða Chrome-g�
 <translation id="927968626442779827">Nota Léttútgáfu í Google Chrome</translation>
 <translation id="928550791203542716">Fylgist með <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Eyddu ferli, fótsporum, vefsvæðagögnum, skyndiminni…</translation>
-<translation id="93533588269984624">Öll aðgangsorð verða sótt í tækið þitt og fjarlægð úr <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Öll aðgangsorð verða sótt í tækið þitt og fjarlægð úr <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Villa: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Sláðu inn aðgangsorð</translation>
 <translation id="952301137339791907">Blað neðst með síðuinnsýn er opið.</translation>

@@ -235,7 +235,7 @@ IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabPageId);
 
   RunTestSequence(
-      AddInstrumentedTab(kNewTabPageId, GURL("chrome://new-tab-page")),
+      AddInstrumentedTab(kNewTabPageId, GURL("wootzapp://new-tab-page")),
       StartTutorial(kNewTabPageId), CheckWebUIHelpBubbleIsShowing(true),
       CancelTutorial(kNewTabPageId), CheckWebUIHelpBubbleIsShowing(false),
       StartTutorial(kNewTabPageId), CheckWebUIHelpBubbleIsShowing(true));
@@ -246,7 +246,7 @@ IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
                        StartTutorialTwiceInARow) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabPageId);
   RunTestSequence(
-      AddInstrumentedTab(kNewTabPageId, GURL("chrome://new-tab-page")),
+      AddInstrumentedTab(kNewTabPageId, GURL("wootzapp://new-tab-page")),
       StartTutorial(kNewTabPageId), CheckWebUIHelpBubbleIsShowing(true),
       // This should cancel the previous tutorial and close the help bubble so
       // that the new tutorial can start immediately.

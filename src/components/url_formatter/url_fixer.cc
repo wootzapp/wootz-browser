@@ -36,7 +36,7 @@ const char* home_directory_override = nullptr;
 namespace {
 
 // Hardcode these constants to avoid dependences on //chrome and //content.
-const char kChromeUIScheme[] = "chrome";
+const char kChromeUIScheme[] = "wootzapp";
 const char kDevToolsScheme[] = "devtools";
 const char kChromeUIDefaultHost[] = "version";
 const char kViewSourceScheme[] = "view-source";

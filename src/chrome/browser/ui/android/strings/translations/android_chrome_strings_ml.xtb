@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> ലോഡ് ചെയ്യുന്നു</translation>
 <translation id="1240903469550363138">തുടരാൻ, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> നിങ്ങളുടെ പേരും ഇമെയിൽ വിലാസവും പ്രൊഫൈൽ ചിത്രവും ഈ സൈറ്റുമായി പങ്കിടും. ഈ സൈറ്റിന്റെ <ph name="BEGIN_LINK1" />സ്വകാര്യതാ നയവും<ph name="END_LINK1" /> <ph name="BEGIN_LINK2" />സേവന നിബന്ധനകളും<ph name="END_LINK2" /> കാണുക.</translation>
 <translation id="124116460088058876">കൂടുതൽ ഭാഷകൾ</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> എന്നതിനുള്ള Google Password Manager-ൽ നിന്ന് നിങ്ങളുടെ പാസ്‌വേഡുകൾ ഇല്ലാതാക്കും. ഇപ്പോൾ ഡൗൺലോഡ് ചെയ്ത, പാസ്‌വേഡുകളുടെ ഫയൽ നിങ്ങൾ നിലനിർത്തും.</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> എന്നതിനുള്ള Google Password Manager-ൽ നിന്ന് നിങ്ങളുടെ പാസ്‌വേഡുകൾ ഇല്ലാതാക്കും. ഇപ്പോൾ ഡൗൺലോഡ് ചെയ്ത, പാസ്‌വേഡുകളുടെ ഫയൽ നിങ്ങൾ നിലനിർത്തും.</translation>
 <translation id="1242883863226959074">ഉപകരണം</translation>
 <translation id="124678866338384709">നിലവിലെ ടാബ് അടയ്‌ക്കുക</translation>
 <translation id="1246905108078336582">ക്ലിപ്പ്ബോർഡിൽ നിന്ന് നിർദ്ദേശം നീക്കം ചെയ്യണോ?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">അദൃശ്യ ടാബുകൾ അടയ്‌ക്കുക</translation>
 <translation id="1568636008098739136">ഈ പേജ് കേൾക്കുക. ഈ കുറുക്കുവഴി എഡിറ്റ് ചെയ്യാൻ, സ്‌പർശിച്ചുപിടിക്കുക.</translation>
 <translation id="1571304935088121812">ഉപയോക്തൃനാമം പകർത്തുക</translation>
-<translation id="1584648915421894279">ഇപ്പോൾ ഈ ഉപകരണത്തിൽ സംരക്ഷിച്ചിരിക്കുന്ന പാസ്‌വേഡുകൾ Chrome ചാനലുകളിൽ ഉടനീളം ഉപയോഗിക്കാനാകില്ല. Chrome 125-ന് ശേഷമുള്ള പതിപ്പുകളിൽ, Chrome-നും <ph name="CHROME_CHANNEL" /> എന്നതിനും സംരക്ഷിച്ചിരിക്കുന്ന പാസ്‌വേഡുകൾ ലയിപ്പിക്കും, അവ രണ്ട് ആപ്പുകളിലും ഉപയോഗിക്കാം.</translation>
+<translation id="1584648915421894279">ഇപ്പോൾ ഈ ഉപകരണത്തിൽ സംരക്ഷിച്ചിരിക്കുന്ന പാസ്‌വേഡുകൾ Chrome ചാനലുകളിൽ ഉടനീളം ഉപയോഗിക്കാനാകില്ല. Chrome 125-ന് ശേഷമുള്ള പതിപ്പുകളിൽ, Chrome-നും <ph name="WOOTZAPP_CHANNEL" /> എന്നതിനും സംരക്ഷിച്ചിരിക്കുന്ന പാസ്‌വേഡുകൾ ലയിപ്പിക്കും, അവ രണ്ട് ആപ്പുകളിലും ഉപയോഗിക്കാം.</translation>
 <translation id="1592864538817356322">സ്‌റ്റാൻഡേർഡ് പരിരക്ഷ:</translation>
 <translation id="1594635596540195766">ചുവടെയുള്ള ലിസ്റ്റിൽ <ph name="SUGGESTIONS_COUNT" /> ഇനങ്ങൾ നിർദ്ദേശിച്ചിരിക്കുന്നു.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> എന്ന അക്കൗണ്ട് നൽകി <ph name="SITE_ETLD_PLUS_ONE" /> ഉപയോഗിക്കുക</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ഈ ഓഫ്‌ലൈൻ പേജ് <ph name="CREATION_TIME" /> -ന് സൃഷ്‌ടിച്ചതാണ്, അതിനാൽ ഓൺലൈൻ പതിപ്പിൽ നിന്ന് വ്യത്യസ്തമായിരിക്കാം.</translation>
 <translation id="4595805675102978678">Google Account-ൽ പിശക്</translation>
 <translation id="4601095002996233687">സംശയാസ്പദമായ ഡൗൺലോഡുകൾക്കായി വിശദമായ സ്കാനുകൾ.</translation>
-<translation id="4609429330876432068">Chrome, <ph name="CHROME_CHANNEL" /> എന്നിവയ്ക്കുള്ള നിങ്ങളുടെ, സംരക്ഷിച്ച പാസ്‌വേഡുകളുടെ ലിസ്‌റ്റുകൾ ലയിപ്പിച്ചു. നിങ്ങൾക്ക് തുടർന്നും രണ്ട് ആപ്പുകളിലും നിങ്ങളുടെ സംരക്ഷിച്ച പാസ്‌വേഡുകളെല്ലാം സ്വയമേവ പൂരിപ്പിക്കാനാകും.</translation>
+<translation id="4609429330876432068">Chrome, <ph name="WOOTZAPP_CHANNEL" /> എന്നിവയ്ക്കുള്ള നിങ്ങളുടെ, സംരക്ഷിച്ച പാസ്‌വേഡുകളുടെ ലിസ്‌റ്റുകൾ ലയിപ്പിച്ചു. നിങ്ങൾക്ക് തുടർന്നും രണ്ട് ആപ്പുകളിലും നിങ്ങളുടെ സംരക്ഷിച്ച പാസ്‌വേഡുകളെല്ലാം സ്വയമേവ പൂരിപ്പിക്കാനാകും.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> തുറക്കുക</translation>
 <translation id="4619564267100705184">ഇത് നിങ്ങൾ തന്നെയാണെന്ന് പരിശോധിച്ചുറപ്പിക്കുക</translation>
 <translation id="4634124774493850572">പാസ്‌വേഡ് ഉപയോഗിക്കുക</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chrome-ൽ ലൈറ്റ് മോഡ് ഉപയോഗിക്കൂ</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> പിന്തുടരുന്നു</translation>
 <translation id="930124987204876019">ചരിത്രവും കുക്കികളും സൈറ്റ് ഡാറ്റയും കാഷെയും ഇല്ലാതാക്കുക…</translation>
-<translation id="93533588269984624">എല്ലാ പാസ്‌വേഡുകളും നിങ്ങളുടെ ഉപകരണത്തിൽ ഡൗൺലോഡ് ചെയ്യും, <ph name="CHROME_CHANNEL" /> എന്നതിൽ നിന്ന് നീക്കം ചെയ്യും</translation>
+<translation id="93533588269984624">എല്ലാ പാസ്‌വേഡുകളും നിങ്ങളുടെ ഉപകരണത്തിൽ ഡൗൺലോഡ് ചെയ്യും, <ph name="WOOTZAPP_CHANNEL" /> എന്നതിൽ നിന്ന് നീക്കം ചെയ്യും</translation>
 <translation id="938850635132480979">പിശക്: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">പാസ്ഫ്രെയ്‍സ് നല്‍കുക</translation>
 <translation id="952301137339791907">പേജ് ഉൾക്കാഴ്‌ചകളുടെ ബോട്ടം ഷീറ്റ് തുറന്നു</translation>

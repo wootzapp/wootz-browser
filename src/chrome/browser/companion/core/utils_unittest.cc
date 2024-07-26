@@ -56,9 +56,9 @@ TEST_F(CompanionCoreUtilsTest, ImageUploadURLForCompanion) {
 
 TEST_F(CompanionCoreUtilsTest, IsSafeURLFromCompanion) {
   EXPECT_TRUE(IsSafeURLFromCompanion(GURL("https://www.google.com/")));
-  EXPECT_TRUE(IsSafeURLFromCompanion(GURL("chrome://settings/syncSetup")));
+  EXPECT_TRUE(IsSafeURLFromCompanion(GURL("wootzapp://settings/syncSetup")));
   EXPECT_FALSE(IsSafeURLFromCompanion(GURL("chrome-untrusted://terminal")));
-  EXPECT_FALSE(IsSafeURLFromCompanion(GURL("chrome://history")));
+  EXPECT_FALSE(IsSafeURLFromCompanion(GURL("wootzapp://history")));
   EXPECT_FALSE(IsSafeURLFromCompanion(
       GURL("data:text/html,<script>window.location.href = "
            "\"https://www.maliciousurl.com\";</script>")));

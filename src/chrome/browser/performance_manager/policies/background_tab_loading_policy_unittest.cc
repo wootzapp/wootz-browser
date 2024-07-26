@@ -484,7 +484,7 @@ TEST_F(BackgroundTabLoadingPolicyTest, ScoreAndScheduleTabLoad) {
 
   //  Internal page
   page_nodes.push_back(CreateNode<performance_manager::PageNodeImpl>(
-      WebContentsProxy(), std::string(), GURL("chrome://newtab"),
+      WebContentsProxy(), std::string(), GURL("wootzapp://newtab"),
       performance_manager::PagePropertyFlags{},
       base::TimeTicks::Now() - base::Seconds(1)));
   policy()->SetSiteDataReaderForPageNode(page_nodes.back().get(),
@@ -495,7 +495,7 @@ TEST_F(BackgroundTabLoadingPolicyTest, ScoreAndScheduleTabLoad) {
 
   //  Page with notification permission
   page_nodes.push_back(CreateNode<performance_manager::PageNodeImpl>(
-      WebContentsProxy(), std::string(), GURL("chrome://newtab"),
+      WebContentsProxy(), std::string(), GURL("wootzapp://newtab"),
       performance_manager::PagePropertyFlags{},
       base::TimeTicks::Now() - base::Seconds(1)));
   policy()->SetSiteDataReaderForPageNode(page_nodes.back().get(),

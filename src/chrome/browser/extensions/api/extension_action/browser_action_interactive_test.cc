@@ -345,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(BrowserActionInteractiveTest,
   listener.set_extension_id(extension->id());
 
   Browser* incognito_browser =
-      OpenURLOffTheRecord(profile(), GURL("chrome://newtab/"));
+      OpenURLOffTheRecord(profile(), GURL("wootzapp://newtab/"));
   EXPECT_TRUE(listener.WaitUntilSatisfied());
   EXPECT_EQ(std::string("opened"), listener.message());
   auto test_util = ExtensionActionTestHelper::Create(incognito_browser);

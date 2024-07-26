@@ -636,7 +636,7 @@ bool GpuDataManagerImplPrivate::GpuAccessAllowed(std::string* reason) const {
                 "through commandline switch --disable-gpu and "
                 "--disable-software-rasterizer.";
           } else if (hardware_disabled_explicitly_) {
-            *reason += "in chrome://settings.";
+            *reason += "in wootzapp://settings.";
           } else {
             *reason += "due to frequent crashes.";
           }

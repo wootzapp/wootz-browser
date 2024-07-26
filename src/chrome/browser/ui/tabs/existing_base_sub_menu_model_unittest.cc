@@ -89,7 +89,7 @@ class ExistingBaseSubMenuModelTest : public BrowserWithTestWindowTest {
 
   void SetUp() override {
     BrowserWithTestWindowTest::SetUp();
-    AddTab(browser(), GURL("chrome://newtab"));
+    AddTab(browser(), GURL("wootzapp://newtab"));
     test_delegate_ = std::make_unique<TestDelegate>();
     test_model_ = std::make_unique<TestModel>(test_delegate_.get(),
                                               browser()->tab_strip_model());

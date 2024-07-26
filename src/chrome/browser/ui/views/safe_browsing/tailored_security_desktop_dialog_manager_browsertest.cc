@@ -28,7 +28,7 @@
 namespace {
 
 const char kEnhancedProtectionSettingsUrl[] =
-    "chrome://settings/security?q=enhanced";
+    "wootzapp://settings/security?q=enhanced";
 
 // A struct of test parameters that can be used by parameterized tests.
 struct TestParam {

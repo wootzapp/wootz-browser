@@ -348,8 +348,8 @@ export class SettingsCreditCardEditDialogElement extends
     // The location differs for AmEx and non-AmEx cards, so we have to get
     // the first two digits of the card number for AmEx cards before we can
     // update the icon.
-    return this.isCardAmex_() ? 'chrome://settings/images/cvc_amex.svg' :
-                                'chrome://settings/images/cvc.svg';
+    return this.isCardAmex_() ? 'wootzapp://settings/images/cvc_amex.svg' :
+                                'wootzapp://settings/images/cvc.svg';
   }
 
   private checkIfCvcStorageIsAvailable_(cvcStorageToggleEnabled: boolean):

@@ -2567,7 +2567,7 @@ public class AwContents implements SmartClipProvider {
             return (UrlScheme.JAVASCRIPT_SCHEME);
         } else if (url.startsWith("about:")) {
             return (UrlScheme.ABOUT_SCHEME);
-        } else if (url.startsWith("chrome:")) {
+        } else if (url.startsWith("wootzapp:")) {
             return (UrlScheme.CHROME_SCHEME);
         } else if (url.startsWith("blob:")) {
             return (UrlScheme.BLOB_SCHEME);
