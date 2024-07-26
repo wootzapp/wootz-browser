@@ -733,7 +733,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -793,7 +793,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
 
   Browser* new_browser = BrowserAddedWaiter(/*total_count=*/2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 }
 
@@ -1326,7 +1326,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1465,7 +1465,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1516,7 +1516,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::CONFIGURE_SYNC_FIRST);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/syncSetup"),
+  WaitForLoadStop(GURL("wootzapp://settings/syncSetup"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1621,7 +1621,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   // Check expectations when the profile creation flow is done.
@@ -1695,7 +1695,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 
   // Check expectations when the profile creation flow is closes.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -1932,7 +1932,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
   WaitForFirstNonEmptyPaint(
-      GURL("chrome://newtab/"),
+      GURL("wootzapp://newtab/"),
       new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -1968,7 +1968,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
   WaitForFirstNonEmptyPaint(
-      GURL("chrome://newtab/"),
+      GURL("wootzapp://newtab/"),
       new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -2002,7 +2002,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   OpenProfileFromPicker(other_path, /*open_settings=*/true);
   // Browser for the profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/manageProfile"),
+  WaitForLoadStop(GURL("wootzapp://settings/manageProfile"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
   WaitForPickerClosed();
@@ -2013,7 +2013,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
                        OpenURL_PickerClosed) {
   ASSERT_EQ(1u, BrowserList::GetInstance()->size());
-  const GURL kTargetURL("chrome://settings/help");
+  const GURL kTargetURL("wootzapp://settings/help");
   // Create a profile.
   base::FilePath profile_path = CreateNewProfileWithoutBrowser();
   // Open the picker.
@@ -2044,7 +2044,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   OpenGuestFromPicker();
   // Browser for the guest profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab"),
+  WaitForLoadStop(GURL("wootzapp://newtab"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_TRUE(new_browser->profile()->IsGuestSession());
   WaitForPickerClosed();
@@ -2273,7 +2273,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2331,7 +2331,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       /*choice=*/signin::SIGNIN_CHOICE_NEW_PROFILE);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2395,7 +2395,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       ->SyncConfirmationUIClosed(LoginUIService::CONFIGURE_SYNC_FIRST);
 
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://settings/syncSetup"),
+  WaitForLoadStop(GURL("wootzapp://settings/syncSetup"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   WaitForPickerClosed();
 
@@ -2546,7 +2546,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
 
   // Browser for a pre-existing profile is displayed.
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
   EXPECT_EQ(new_browser->profile()->GetPath(), other_path);
 
@@ -2771,7 +2771,7 @@ IN_PROC_BROWSER_TEST_P(ProfilePickerCreationFlowEphemeralProfileBrowserTest,
   LoginUIServiceFactory::GetForProfile(profile_being_created)
       ->SyncConfirmationUIClosed(LoginUIService::ABORT_SYNC);
   Browser* new_browser = BrowserAddedWaiter(2u).Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
+  WaitForLoadStop(GURL("wootzapp://newtab/"),
                   new_browser->tab_strip_model()->GetActiveWebContents());
 
   WaitForPickerClosed();

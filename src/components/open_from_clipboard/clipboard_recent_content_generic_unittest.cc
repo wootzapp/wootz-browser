@@ -67,7 +67,7 @@ class HasDataCallbackWaiter {
 
 }  // namespace
 
-const char kChromeUIScheme[] = "chrome";
+const char kChromeUIScheme[] = "wootzapp";
 
 class ClipboardRecentContentGenericTest : public testing::Test {
  protected:
@@ -103,7 +103,7 @@ TEST_F(ClipboardRecentContentGenericTest, RecognizesURLs) {
       {"https://another-example.com/", true},
       {"http://example.com/with-path/", true},
       {"about:version", true},
-      {"chrome://urls", true},
+      {"wootzapp://urls", true},
       {"data:,Hello%2C%20World!", true},
       // Certain schemes are not eligible to be suggested.
       {"ftp://example.com/", true},

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Se încarcă <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Pentru a continua, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> va permite accesul site-ului la numele, adresa de e-mail și fotografia ta de profil. Consultă <ph name="BEGIN_LINK1" />politica de confidențialitate<ph name="END_LINK1" /> și <ph name="BEGIN_LINK2" />termenii și condițiile<ph name="END_LINK2" /> site-ului.</translation>
 <translation id="124116460088058876">Mai multe limbi</translation>
-<translation id="1241792820757384812">Parolele se vor șterge din Managerul de parole Google pentru <ph name="CHROME_CHANNEL" />. Vei păstra fișierul cu parole pe care tocmai l-ai descărcat.</translation>
+<translation id="1241792820757384812">Parolele se vor șterge din Managerul de parole Google pentru <ph name="WOOTZAPP_CHANNEL" />. Vei păstra fișierul cu parole pe care tocmai l-ai descărcat.</translation>
 <translation id="1242883863226959074">dispozitiv</translation>
 <translation id="124678866338384709">Închide fila actuală</translation>
 <translation id="1246905108078336582">Elimini sugestia din clipboard?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Închide filele incognito</translation>
 <translation id="1568636008098739136">Ascultă pagina. Pentru a edita comanda rapidă, atinge-o lung.</translation>
 <translation id="1571304935088121812">Copiază numele de utilizator</translation>
-<translation id="1584648915421894279">Momentan, parolele salvate pe acest dispozitiv nu pot fi folosite pe canalele Chrome. După versiunea Chrome 125, parolele salvate pe dispozitiv pentru Chrome și <ph name="CHROME_CHANNEL" /> vor fi îmbinate și pot fi folosite în ambele aplicații.</translation>
+<translation id="1584648915421894279">Momentan, parolele salvate pe acest dispozitiv nu pot fi folosite pe canalele Chrome. După versiunea Chrome 125, parolele salvate pe dispozitiv pentru Chrome și <ph name="WOOTZAPP_CHANNEL" /> vor fi îmbinate și pot fi folosite în ambele aplicații.</translation>
 <translation id="1592864538817356322">Protecție standard:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> elemente sugerate în lista de mai jos.</translation>
 <translation id="1598163867407640634">Folosește <ph name="SITE_ETLD_PLUS_ONE" /> cu <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Contul Google poate să ofere alte forme ale istoricului de navigare, cum ar fi 
 <translation id="4594952190837476234">Această pagină offline este din data de <ph name="CREATION_TIME" /> și poate fi diferită de versiunea online.</translation>
 <translation id="4595805675102978678">Eroare de Cont Google</translation>
 <translation id="4601095002996233687">Scanări detaliate pentru descărcările suspecte.</translation>
-<translation id="4609429330876432068">Listele de parole salvate pentru Chrome și <ph name="CHROME_CHANNEL" /> au fost îmbinate. Poți în continuare să completezi automat toate parolele salvate în ambele aplicații.</translation>
+<translation id="4609429330876432068">Listele de parole salvate pentru Chrome și <ph name="WOOTZAPP_CHANNEL" /> au fost îmbinate. Poți în continuare să completezi automat toate parolele salvate în ambele aplicații.</translation>
 <translation id="4616150815774728855">Deschide <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Confirmă-ți identitatea</translation>
 <translation id="4634124774493850572">Folosește parola</translation>
@@ -1651,7 +1651,7 @@ Pentru a modifica această setare, <ph name="BEGIN_LINK" />șterge datele Chrome
 <translation id="927968626442779827">Folosește modul Lite în Google Chrome</translation>
 <translation id="928550791203542716">Urmărești <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Șterge istoricul, cookie-urile, datele privind site-urile, memoria cache…</translation>
-<translation id="93533588269984624">Toate parolele vor fi descărcate pe dispozitiv și șterse din <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Toate parolele vor fi descărcate pe dispozitiv și șterse din <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Eroare: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Introdu expresia de acces</translation>
 <translation id="952301137339791907">Foaia paginii Statistici din partea de jos este deschisă</translation>

@@ -122,7 +122,7 @@ IN_PROC_BROWSER_TEST_F(BrowserGuestSessionNavigatorTest,
   // Navigate to the settings page.
   NavigateParams params(MakeNavigateParams(incognito_browser));
   params.disposition = WindowOpenDisposition::SINGLETON_TAB;
-  params.url = GURL("chrome://settings");
+  params.url = GURL("wootzapp://settings");
   params.window_action = NavigateParams::SHOW_WINDOW;
   params.path_behavior = NavigateParams::IGNORE_AND_NAVIGATE;
   Navigate(&params);
@@ -132,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(BrowserGuestSessionNavigatorTest,
   EXPECT_EQ(incognito_browser, params.browser);
   EXPECT_EQ(2, incognito_browser->tab_strip_model()->count());
   EXPECT_EQ(
-      GURL("chrome://settings"),
+      GURL("wootzapp://settings"),
       incognito_browser->tab_strip_model()->GetActiveWebContents()->GetURL());
 }
 
@@ -153,7 +153,7 @@ IN_PROC_BROWSER_TEST_F(BrowserGuestSessionNavigatorTest,
     // Navigate to the settings page.
     NavigateParams params(MakeNavigateParams(browser()));
     params.disposition = WindowOpenDisposition::NEW_POPUP;
-    params.url = GURL("chrome://settings");
+    params.url = GURL("wootzapp://settings");
     params.window_action = NavigateParams::SHOW_WINDOW;
     params.path_behavior = NavigateParams::IGNORE_AND_NAVIGATE;
     params.browser = browser();
@@ -178,7 +178,7 @@ IN_PROC_BROWSER_TEST_F(BrowserGuestSessionNavigatorTest,
     // Navigate to the settings page.
     NavigateParams params(MakeNavigateParams(browser()));
     params.disposition = WindowOpenDisposition::NEW_POPUP;
-    params.url = GURL("chrome://settings");
+    params.url = GURL("wootzapp://settings");
     params.window_action = NavigateParams::SHOW_WINDOW;
     params.path_behavior = NavigateParams::IGNORE_AND_NAVIGATE;
     params.browser = browser();

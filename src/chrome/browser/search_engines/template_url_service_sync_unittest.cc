@@ -2683,7 +2683,7 @@ TEST_F(TemplateURLServiceSyncTest, MergeStarterPackEngine) {
   TemplateURLData data;
   data.SetShortName(u"Bookmarks");
   data.SetKeyword(u"@bookmarks");
-  data.SetURL("chrome://bookmarks/?q={searchTerms}");
+  data.SetURL("wootzapp://bookmarks/?q={searchTerms}");
   data.starter_pack_id = TemplateURLStarterPackData::kBookmarks;
   data.date_created = Time::FromTimeT(100);
   data.last_modified = Time::FromTimeT(100);
@@ -2694,7 +2694,7 @@ TEST_F(TemplateURLServiceSyncTest, MergeStarterPackEngine) {
   TemplateURLData invalid_data;
   invalid_data.SetShortName(u"Invalid starter pack");
   invalid_data.SetKeyword(u"@invalid");
-  invalid_data.SetURL("chrome://bookmarks/?q={searchTerms}");
+  invalid_data.SetURL("wootzapp://bookmarks/?q={searchTerms}");
   invalid_data.starter_pack_id = TemplateURLStarterPackData::kMaxStarterPackID;
   invalid_data.date_created = Time::FromTimeT(100);
   invalid_data.last_modified = Time::FromTimeT(100);

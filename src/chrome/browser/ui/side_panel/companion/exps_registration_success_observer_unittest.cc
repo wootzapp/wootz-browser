@@ -122,7 +122,7 @@ TEST_F(ExpsRegistrationSuccessObserverTest, IPHNotShownForChromeUrls) {
   SetupExpsObserver();
 
   EXPECT_CALL(*exps_observer_, ShowIPH()).Times(0);
-  NavigateAndCommit(GURL("chrome://newtab"));
+  NavigateAndCommit(GURL("wootzapp://newtab"));
 }
 
 TEST_F(ExpsRegistrationSuccessObserverTest, IPHNotShownIfCscNotPinned) {

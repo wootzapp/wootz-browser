@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Učitavanje jezika <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Da nastavite, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> će dijeliti vaše ime i prezime, adresu e-pošte, adresu i sliku profila s ovom web lokacijom. Pogledajte <ph name="BEGIN_LINK1" />pravila privatnosti<ph name="END_LINK1" /> i <ph name="BEGIN_LINK2" />uslove korištenja usluge<ph name="END_LINK2" /> ove web lokacije.</translation>
 <translation id="124116460088058876">Više jezika</translation>
-<translation id="1241792820757384812">Lozinke će se izbrisati s Google upravitelja lozinki za <ph name="CHROME_CHANNEL" />. Zadržat ćete fajl lozinki koji ste upravo preuzeli.</translation>
+<translation id="1241792820757384812">Lozinke će se izbrisati s Google upravitelja lozinki za <ph name="WOOTZAPP_CHANNEL" />. Zadržat ćete fajl lozinki koji ste upravo preuzeli.</translation>
 <translation id="1242883863226959074">uređaj</translation>
 <translation id="124678866338384709">Zatvori trenutnu karticu</translation>
 <translation id="1246905108078336582">Ukloniti prijedlog iz međumemorije?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Zatvori anonimne kartice</translation>
 <translation id="1568636008098739136">Poslušajte ovu stranicu. Dodirnite i zadržite da uredite ovu prečicu.</translation>
 <translation id="1571304935088121812">Kopiranje korisničkog imena</translation>
-<translation id="1584648915421894279">Trenutno se lozinke koje su sačuvane na uređaju ne mogu koristiti na Chromeovim kanalima. Nakon Chromeove verzije 125 lozinke sačuvane na vašem uređaju za Chrome i kanal <ph name="CHROME_CHANNEL" /> će se spojiti i moći će se koristiti u obje aplikacije.</translation>
+<translation id="1584648915421894279">Trenutno se lozinke koje su sačuvane na uređaju ne mogu koristiti na Chromeovim kanalima. Nakon Chromeove verzije 125 lozinke sačuvane na vašem uređaju za Chrome i kanal <ph name="WOOTZAPP_CHANNEL" /> će se spojiti i moći će se koristiti u obje aplikacije.</translation>
 <translation id="1592864538817356322">Standardna zaštita:</translation>
 <translation id="1594635596540195766">Broj predloženih stavki u listi u nastavku: <ph name="SUGGESTIONS_COUNT" />.</translation>
 <translation id="1598163867407640634">Koristite web lokaciju <ph name="SITE_ETLD_PLUS_ONE" /> s pružaocem identiteta <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Vaš Google račun može imati druge oblike historije pregledanja kao što su pr
 <translation id="4594952190837476234">Stranica van mreže je od <ph name="CREATION_TIME" /> i može se razlikovati od verzije koja je na mreži.</translation>
 <translation id="4595805675102978678">Greška u vezi s Google računom</translation>
 <translation id="4601095002996233687">Detaljna skeniranja radi provjere sumnjivih preuzimanja.</translation>
-<translation id="4609429330876432068">Liste sačuvanih lozinki za Chrome i kanal <ph name="CHROME_CHANNEL" /> su spojene. I dalje možete automatski popunjavati sve sačuvane lozinke u obje aplikacije.</translation>
+<translation id="4609429330876432068">Liste sačuvanih lozinki za Chrome i kanal <ph name="WOOTZAPP_CHANNEL" /> su spojene. I dalje možete automatski popunjavati sve sačuvane lozinke u obje aplikacije.</translation>
 <translation id="4616150815774728855">Otvori <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Potvrdite identitet</translation>
 <translation id="4634124774493850572">Koristi lozinku</translation>
@@ -1651,7 +1651,7 @@ Da promijenite ovu postavku, <ph name="BEGIN_LINK" />izbrišite podatke Chromea 
 <translation id="927968626442779827">Koristite Jednostavni način rada u Google Chromeu</translation>
 <translation id="928550791203542716">Pratite web lokaciju <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Brisanje historije, kolačića, podataka web lokacija, keš memorije…</translation>
-<translation id="93533588269984624">Sve lozinke će se preuzeti na uređaj i ukloniti iz preglednika <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Sve lozinke će se preuzeti na uređaj i ukloniti iz preglednika <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Greška: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Unesite pristupni izraz</translation>
 <translation id="952301137339791907">Donja tabela uvida u stranicu je otvorena</translation>

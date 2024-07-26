@@ -1411,7 +1411,7 @@ TEST_P(TemplateURLServiceTest, RepairStarterPackEngines) {
 
   // The keyword for bookmarks wasn't reverted.
   EXPECT_EQ(u"trash", bookmarks->short_name());
-  EXPECT_EQ("chrome://bookmarks/?q={searchTerms}", bookmarks->url());
+  EXPECT_EQ("wootzapp://bookmarks/?q={searchTerms}", bookmarks->url());
 
   // @history was repaired, verify that the NORMAL built-in engine is still back
   // even though the @history extension outranks the built-in engine.

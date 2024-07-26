@@ -291,7 +291,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderBrowserTest, EmbedderTrigger_ChromeUrl) {
   GURL url = embedded_test_server()->GetURL("/empty.html");
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(), url));
 
-  GURL prerender_url("chrome://new-tab-page");
+  GURL prerender_url("wootzapp://new-tab-page");
   ASSERT_FALSE(prerender_url.SchemeIsHTTPOrHTTPS());
 
   // Start embedder triggered prerendering.

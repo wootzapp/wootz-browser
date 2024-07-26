@@ -368,7 +368,7 @@ PageDiscardingHelper::CanDiscardResult PageDiscardingHelper::CanDiscard(
   // discard extensions or other PageNode that don't correspond to a tab.
   const GURL& main_frame_url = page_node->GetMainFrameUrl();
   bool is_web_page_or_internal_page =
-      main_frame_url.SchemeIsHTTPOrHTTPS() || main_frame_url.SchemeIs("chrome");
+      main_frame_url.SchemeIsHTTPOrHTTPS() || main_frame_url.SchemeIs("wootzapp");
   if (!is_web_page_or_internal_page) {
     return CanDiscardResult::kProtected;
   }

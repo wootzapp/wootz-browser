@@ -812,7 +812,7 @@ public class FeedSurfaceMediator
         SyncPromoController.resetNtpSyncPromoLimitsIfHiddenForTooLong();
         // TODO(crbug.com/41493776): Update the bottom sheet subtitle string.
         AccountPickerBottomSheetStrings bottomSheetStrings =
-                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome).build();
+                new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp).build();
         SyncPromoController promoController =
                 new SyncPromoController(
                         mProfile,

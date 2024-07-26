@@ -26,7 +26,7 @@ build_webui("build") {
   ]
 
   ts_path_mappings =
-      [ "chrome://history-clusters-side-panel.top-chrome/shared/*|" +
+      [ "wootzapp://history-clusters-side-panel.top-chrome/shared/*|" +
         rebase_path(
             "$root_gen_dir/chrome/browser/resources/side_panel/shared/tsc/*",
             target_gen_dir) ]

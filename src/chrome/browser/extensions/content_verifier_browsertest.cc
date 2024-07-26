@@ -446,7 +446,7 @@ IN_PROC_BROWSER_TEST_F(ContentVerifierTestWithForcedHashes,
   // Navigate to a new tab. This should fire the event listener (ensuring the
   // extension was active).
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("chrome://newtab"),
+      browser(), GURL("wootzapp://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
   ASSERT_TRUE(event_listener.WaitUntilSatisfied());

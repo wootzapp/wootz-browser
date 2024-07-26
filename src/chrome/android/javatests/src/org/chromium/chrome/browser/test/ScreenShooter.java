@@ -118,7 +118,7 @@ public class ScreenShooter extends TestWatcher {
     private static final String ORIENTATION_FILTER = "Orientation";
     private static final String ANDROID_VERSION_FILTER = "Android Version";
     private static final String CHROME_VERSION_FILTER = "Chrome Version";
-    private static final String CHROME_CHANNEL_FILTER = "Chrome Channel";
+    private static final String WOOTZAPP_CHANNEL_FILTER = "Chrome Channel";
     private static final String LOCALE_FILTER = "Locale";
     // UPLOAD_TIME_FILTER is reserved for use by the Clank UI Catalogue uploader.
     private static final String UPLOAD_TIME_FILTER = "Upload Time";
@@ -136,7 +136,7 @@ public class ScreenShooter extends TestWatcher {
         ORIENTATION_FILTER,
         ANDROID_VERSION_FILTER,
         CHROME_VERSION_FILTER,
-        CHROME_CHANNEL_FILTER,
+        WOOTZAPP_CHANNEL_FILTER,
         LOCALE_FILTER,
         UPLOAD_TIME_FILTER
     };
@@ -221,7 +221,7 @@ public class ScreenShooter extends TestWatcher {
         if (VersionInfo.isOfficialBuild()) {
             channelName = channelName + " Official";
         }
-        setFilterValue(filters, CHROME_CHANNEL_FILTER, channelName);
+        setFilterValue(filters, WOOTZAPP_CHANNEL_FILTER, channelName);
         setFilterValue(filters, LOCALE_FILTER, Locale.getDefault().toString());
 
         Map<String, String> metadata = new HashMap<>();

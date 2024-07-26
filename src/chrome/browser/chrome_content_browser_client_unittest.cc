@@ -258,16 +258,16 @@ TEST_F(ChromeContentBrowserClientWindowTest, ShouldStayInParentProcessForNTP) {
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
       GURL("chrome-search://foo/"), site_instance->GetSiteURL()));
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome://new-tab-page"), site_instance->GetSiteURL()));
+      GURL("wootzapp://new-tab-page"), site_instance->GetSiteURL()));
 
   site_instance = content::SiteInstance::CreateForURL(
-      browser()->profile(), GURL("chrome://new-tab-page"));
+      browser()->profile(), GURL("wootzapp://new-tab-page"));
 
   // chrome://new-tab-page is an NTP replacing local-ntp and supports OOPIFs.
   // ShouldStayInParentProcessForNTP() should only return true for NTPs hosted
   // under the chrome-search: scheme.
   EXPECT_FALSE(client.ShouldStayInParentProcessForNTP(
-      GURL("chrome://new-tab-page"), site_instance->GetSiteURL()));
+      GURL("wootzapp://new-tab-page"), site_instance->GetSiteURL()));
 
   // For now, we also allow chrome-search://most-visited to stay in 1P NTP,
   // chrome://new-tab-page.  We should consider tightening this to only allow
@@ -957,7 +957,7 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectHelpURL) {
   const GURL help_url(chrome::kChromeUIHelpURL);
   GURL dest_url = help_url;
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
-  EXPECT_EQ(GURL("chrome://settings/help"), dest_url);
+  EXPECT_EQ(GURL("wootzapp://settings/help"), dest_url);
 
   base::Value::List list;
   list.Append(static_cast<int>(policy::SystemFeature::kBrowserSettings));

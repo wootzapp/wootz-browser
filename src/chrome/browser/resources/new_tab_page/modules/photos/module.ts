@@ -67,7 +67,7 @@ export class PhotosModuleElement extends I18nMixin
       customArtworkUrl_: {
         type: String,
         value: () => {
-          return `chrome://new-tab-page/modules/photos/images/img0${
+          return `wootzapp://new-tab-page/modules/photos/images/img0${
               loadTimeData.getString('photosModuleCustomArtWork')}_240x236.svg`;
         },
       },

@@ -959,7 +959,7 @@ void AboutHandler::OnRegulatoryLabelTextRead(
   std::string image_path =
       label_dir_path.AppendASCII(kRegulatoryLabelImageFilename).MaybeAsASCII();
   std::string url =
-      base::StrCat({"chrome://", chrome::kChromeOSAssetHost, "/", image_path});
+      base::StrCat({"wootzapp://", chrome::kChromeOSAssetHost, "/", image_path});
   regulatory_info.Set("url", url);
 
   ResolveJavascriptCallback(base::Value(callback_id), regulatory_info);

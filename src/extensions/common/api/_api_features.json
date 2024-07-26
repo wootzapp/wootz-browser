@@ -295,7 +295,7 @@
     "contexts": ["webui"],
     "matches": [
       "chrome://extensions/*",
-      "chrome://settings/*"
+      "wootzapp://settings/*"
     ]
   }, {
     "channel": "stable",
@@ -337,7 +337,7 @@
     "contexts": ["webui"],
     "matches": [
       "chrome://apps/*",
-      "chrome://bookmarks/*",
+      "wootzapp://bookmarks/*",
       "chrome://bookmarks-side-panel.top-chrome/*",
       "chrome://customize-chrome-side-panel.top-chrome/*",
       "chrome://shopping-insights-side-panel.top-chrome/*",
@@ -346,14 +346,14 @@
       "chrome://extensions/*",
       "chrome://file-manager/*",
       "chrome://help-app/*",
-      "chrome://history/*",
-      "chrome://new-tab-page/*",
+      "wootzapp://history/*",
+      "wootzapp://new-tab-page/*",
       "chrome://os-settings/*",
       "chrome://password-manager/*",
       "chrome://personalization/*",
       "chrome://profile-picker/*",
       "chrome://read-later.top-chrome/*",
-      "chrome://settings/*",
+      "wootzapp://settings/*",
       "chrome://sync-confirmation/*",
       "chrome://tab-search.top-chrome/*",
       "chrome://tab-strip.top-chrome/*",

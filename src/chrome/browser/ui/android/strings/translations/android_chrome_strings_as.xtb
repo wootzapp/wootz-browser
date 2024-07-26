@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> ল’ড কৰি থকা হৈছে</translation>
 <translation id="1240903469550363138">অব্যাহত ৰাখিবলৈ, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />এ আপোনাৰ নাম, ইমেইল, ঠিকনা আৰু প্ৰ’ফাইল চিত্ৰ এই ছাইটটোৰ সৈতে শ্বেয়াৰ কৰিব। এই ছাইটটোৰ <ph name="BEGIN_LINK1" />গোপনীয়তাৰ নীতি<ph name="END_LINK1" /> আৰু <ph name="BEGIN_LINK2" />সেৱাৰ চৰ্তাৱলী<ph name="END_LINK2" /> চাওক।</translation>
 <translation id="124116460088058876">অধিক ভাষা</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" />ৰ বাবে আপোনাৰ পাছৱৰ্ডসমূহ Google Password Managerৰ পৰা মচি পেলোৱা হ’ব। আপুনি এইমাত্ৰ ডাউনল’ড কৰা পাছৱৰ্ড ফাইলটো ৰাখিব।</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" />ৰ বাবে আপোনাৰ পাছৱৰ্ডসমূহ Google Password Managerৰ পৰা মচি পেলোৱা হ’ব। আপুনি এইমাত্ৰ ডাউনল’ড কৰা পাছৱৰ্ড ফাইলটো ৰাখিব।</translation>
 <translation id="1242883863226959074">ডিভাইচ</translation>
 <translation id="124678866338384709">বর্তমানৰ টেবটো বন্ধ কৰক</translation>
 <translation id="1246905108078336582">ক্লিপব’ৰ্ডৰ পৰা পৰামৰ্শ আঁতৰাবনে?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ইনক’গনিট’ টেবসমূহ বন্ধ কৰক</translation>
 <translation id="1568636008098739136">এই পৃষ্ঠাটো শুনক। এই শ্বৰ্টকাটটো সম্পাদনা কৰিবলৈ, স্পৰ্শ কৰি ধৰি ৰাখক।</translation>
 <translation id="1571304935088121812">ব্যৱহাৰকাৰীৰ নামটোৰ প্ৰতিলিপি কৰক</translation>
-<translation id="1584648915421894279">এই মুহূৰ্তত, এই ডিভাইচত ছেভ কৰি থোৱা পাছৱৰ্ডসমূহ Chromeৰ চেনেলসমূহত ব্যৱহাৰ কৰিব নোৱাৰি। Chrome 125ৰ পাছত, আপোনাৰ ডিভাইচত Chrome আৰু <ph name="CHROME_CHANNEL" />ৰ বাবে ছেভ কৰি থোৱা পাছৱৰ্ডসমূহ একত্ৰিত কৰা হ’ব আৰু সেইসমূহ দুয়োটা এপতে ব্যৱহাৰ কৰিব পৰা যাব।</translation>
+<translation id="1584648915421894279">এই মুহূৰ্তত, এই ডিভাইচত ছেভ কৰি থোৱা পাছৱৰ্ডসমূহ Chromeৰ চেনেলসমূহত ব্যৱহাৰ কৰিব নোৱাৰি। Chrome 125ৰ পাছত, আপোনাৰ ডিভাইচত Chrome আৰু <ph name="WOOTZAPP_CHANNEL" />ৰ বাবে ছেভ কৰি থোৱা পাছৱৰ্ডসমূহ একত্ৰিত কৰা হ’ব আৰু সেইসমূহ দুয়োটা এপতে ব্যৱহাৰ কৰিব পৰা যাব।</translation>
 <translation id="1592864538817356322">মান্য সুৰক্ষা:</translation>
 <translation id="1594635596540195766">তলৰ সূচীখনত <ph name="SUGGESTIONS_COUNT" /> টা পৰামৰ্শ হিচাপে আগবঢ়োৱা বস্তু আছে।</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" />ৰ জৰিয়তে <ph name="SITE_ETLD_PLUS_ONE" /> ব্যৱহাৰ কৰক</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">এই অফলাইন পৃষ্ঠাটো <ph name="CREATION_TIME" />ৰ আৰু এই পৃষ্ঠাটো অনলাইন সংস্কৰণতকৈ বেলেগ হ’ব পাৰে।</translation>
 <translation id="4595805675102978678">Google একাউণ্ট সম্পৰ্কীয় আসোঁৱাহ</translation>
 <translation id="4601095002996233687">সন্দেহজনক ডাউনল’ডৰ বাবে বিস্তাৰিত স্কেনৰ সুবিধা</translation>
-<translation id="4609429330876432068">Chrome আৰু <ph name="CHROME_CHANNEL" />ৰ বাবে ছেভ কৰি থোৱা আপোনাৰ পাছৱৰ্ডৰ সূচীসমূহ একত্ৰিত কৰা হৈছে। আপুনি দুয়োটা এপতে আপোনাৰ আটাইবোৰ ছেভ কৰি থোৱা পাছৱৰ্ড তথাপি স্বয়ংক্ৰিয়ভাৱে পূৰ কৰিব পাৰিব।</translation>
+<translation id="4609429330876432068">Chrome আৰু <ph name="WOOTZAPP_CHANNEL" />ৰ বাবে ছেভ কৰি থোৱা আপোনাৰ পাছৱৰ্ডৰ সূচীসমূহ একত্ৰিত কৰা হৈছে। আপুনি দুয়োটা এপতে আপোনাৰ আটাইবোৰ ছেভ কৰি থোৱা পাছৱৰ্ড তথাপি স্বয়ংক্ৰিয়ভাৱে পূৰ কৰিব পাৰিব।</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> খোলক</translation>
 <translation id="4619564267100705184">এয়া আপুনিয়েই বুলি সত্যাপন কৰক</translation>
 <translation id="4634124774493850572">পাছৱৰ্ড দিয়ক</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chromeত লাইট ম’ড ব্যৱহাৰ কৰক</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> ফ’ল’ কৰি থকা হৈছে</translation>
 <translation id="930124987204876019">ইতিহাস, কুকি, ছাইটৰ ডেটা, কেশ্ব মচক…</translation>
-<translation id="93533588269984624">আটাইবোৰ পাছৱৰ্ড আপোনাৰ ডিভাইচত ডাউনল’ড কৰা হ’ব আৰু <ph name="CHROME_CHANNEL" />ৰ পৰা আঁতৰোৱা হ’ব</translation>
+<translation id="93533588269984624">আটাইবোৰ পাছৱৰ্ড আপোনাৰ ডিভাইচত ডাউনল’ড কৰা হ’ব আৰু <ph name="WOOTZAPP_CHANNEL" />ৰ পৰা আঁতৰোৱা হ’ব</translation>
 <translation id="938850635132480979">আসোঁৱাহ: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">পাছফ্ৰেজ দিয়ক</translation>
 <translation id="952301137339791907">পৃষ্ঠাৰ অন্তৰ্দৃষ্টি থকা তলৰ শ্বীটখন খোলা আছে</translation>

@@ -1877,7 +1877,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySplit) {
   // Load a new tab in both browsers.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser_incognito, GURL("chrome:about")));
+      ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   {
     ExtensionTestMessageListener tabs_listener;
@@ -1892,7 +1892,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySplit) {
     // Reply to the original message and wait for the return message.
     ready_incognito.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["chrome://about/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["wootzapp://about/"])", tabs_listener.message());
   }
 }
 
@@ -1927,7 +1927,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
   // Load a new tab in both browsers.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser_incognito, GURL("chrome:about")));
+      ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   {
     ExtensionTestMessageListener tabs_listener;
@@ -1942,7 +1942,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
     // Reply to the original message and wait for the return message.
     ready_incognito.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["chrome://about/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["wootzapp://about/"])", tabs_listener.message());
   }
 }
 
@@ -1969,14 +1969,14 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsQuerySpanning) {
   // Load a new tab in both browsers.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser_incognito, GURL("chrome:about")));
+      ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   ExtensionTestMessageListener tabs_listener;
   // The extension waits for the reply to the "ready" sendMessage call
   // and replies with the URLs of the tabs.
   ready_listener.Reply("");
   EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-  EXPECT_EQ(R"(["chrome://version/","chrome://about/"])",
+  EXPECT_EQ(R"(["chrome://version/","wootzapp://about/"])",
             tabs_listener.message());
 }
 
@@ -2005,7 +2005,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsOnUpdatedSplit) {
   // Load a new tab in both browsers.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser_incognito, GURL("chrome:about")));
+      ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   {
     ExtensionTestMessageListener tabs_listener;
@@ -2021,7 +2021,7 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest, TabsOnUpdatedSplit) {
     // and replies with the URLs of the tabs.
     ready_incognito.Reply("");
     EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-    EXPECT_EQ(R"(["chrome://about/"])", tabs_listener.message());
+    EXPECT_EQ(R"(["wootzapp://about/"])", tabs_listener.message());
   }
 }
 
@@ -2119,10 +2119,10 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerBasedBackgroundTest,
   // Load a new tab in both browsers.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("chrome:version")));
   ASSERT_TRUE(
-      ui_test_utils::NavigateToURL(browser_incognito, GURL("chrome:about")));
+      ui_test_utils::NavigateToURL(browser_incognito, GURL("wootzapp:about")));
 
   EXPECT_TRUE(tabs_listener.WaitUntilSatisfied());
-  EXPECT_EQ(R"(["chrome://version/","chrome://about/"])",
+  EXPECT_EQ(R"(["chrome://version/","wootzapp://about/"])",
             tabs_listener.message());
 }
 

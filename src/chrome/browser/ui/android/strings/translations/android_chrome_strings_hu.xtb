@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Betöltés: <ph name="LANG" /></translation>
 <translation id="1240903469550363138">A folytatáshoz a(z) <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> megosztja az Ön nevét, e-mail-címét és profilképét ezzel a webhellyel. Tekintse át a webhely <ph name="BEGIN_LINK1" />adatvédelmi irányelveit<ph name="END_LINK1" /> és <ph name="BEGIN_LINK2" />általános szerződési feltételeit<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">További nyelvek…</translation>
-<translation id="1241792820757384812">Jelszavai törlődnek a <ph name="CHROME_CHANNEL" /> verziójával használt Google Jelszókezelőből. A most letöltött jelszófájl nem törlődik.</translation>
+<translation id="1241792820757384812">Jelszavai törlődnek a <ph name="WOOTZAPP_CHANNEL" /> verziójával használt Google Jelszókezelőből. A most letöltött jelszófájl nem törlődik.</translation>
 <translation id="1242883863226959074">eszközén</translation>
 <translation id="124678866338384709">Az aktuális lap bezárása</translation>
 <translation id="1246905108078336582">Eltávolítja a javaslatot a vágólapról?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Inkognitó lapok bezárása</translation>
 <translation id="1568636008098739136">Oldal meghallgatása. A gyorsparancs szerkesztéséhez tartsa lenyomva.</translation>
 <translation id="1571304935088121812">Felhasználónév másolása</translation>
-<translation id="1584648915421894279">Az eszközre mentett jelszavak jelenleg nem használhatók a Chrome-csatornákban. A Chrome 125-ös verziója után az eszközre mentett Chrome- és <ph name="CHROME_CHANNEL" />-jelszavakat a rendszer összevonja, és ezek a jelszavak mindkét alkalmazásban használhatók lesznek.</translation>
+<translation id="1584648915421894279">Az eszközre mentett jelszavak jelenleg nem használhatók a Chrome-csatornákban. A Chrome 125-ös verziója után az eszközre mentett Chrome- és <ph name="WOOTZAPP_CHANNEL" />-jelszavakat a rendszer összevonja, és ezek a jelszavak mindkét alkalmazásban használhatók lesznek.</translation>
 <translation id="1592864538817356322">Normál védelem:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> javasolt elem az alábbi listában.</translation>
 <translation id="1598163867407640634">Használja a(z) <ph name="SITE_ETLD_PLUS_ONE" /> webhelyet a következővel: <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -696,7 +696,7 @@ Előfordulhat, hogy Google-fiókjában (a <ph name="BEGIN_LINK" />myactivity.goo
 <translation id="4594952190837476234">Az offline oldal létrehozási ideje: <ph name="CREATION_TIME" />. Az oldal eltérhet az online változattól.</translation>
 <translation id="4595805675102978678">Hiba a Google-fiókkal</translation>
 <translation id="4601095002996233687">Mélyreható vizsgálatok a gyanús letöltött tartalmak ellenőrzéséhez.</translation>
-<translation id="4609429330876432068">A Chrome-hoz és a <ph name="CHROME_CHANNEL" /> verzióhoz mentett jelszavainak listáit a rendszer egyesítette. Az összes mentett jelszavát továbbra is kitöltheti automatikusan mindkét alkalmazásban.</translation>
+<translation id="4609429330876432068">A Chrome-hoz és a <ph name="WOOTZAPP_CHANNEL" /> verzióhoz mentett jelszavainak listáit a rendszer egyesítette. Az összes mentett jelszavát továbbra is kitöltheti automatikusan mindkét alkalmazásban.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> megnyitása</translation>
 <translation id="4619564267100705184">Igazolja személyazonosságát</translation>
 <translation id="4634124774493850572">Jelszó használata</translation>
@@ -1669,7 +1669,7 @@ A beállítás módosításához <ph name="BEGIN_LINK" />törölje a fiókjában
 <translation id="927968626442779827">Használja az Egyszerűsített módot a Google Chrome-ban</translation>
 <translation id="928550791203542716">A(z) <ph name="SITE_NAME" /> webhely követve</translation>
 <translation id="930124987204876019">Előzmények, cookie-k, webhelyadatok, gyorsítótár törlése…</translation>
-<translation id="93533588269984624">A rendszer az összes jelszót letölti az eszközre, és eltávolítja a <ph name="CHROME_CHANNEL" /> böngészőből</translation>
+<translation id="93533588269984624">A rendszer az összes jelszót letölti az eszközre, és eltávolítja a <ph name="WOOTZAPP_CHANNEL" /> böngészőből</translation>
 <translation id="938850635132480979">Hiba: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Összetett jelszó megadása</translation>
 <translation id="952301137339791907">Az oldalstatisztikák alsó lapja meg van nyitva</translation>

@@ -984,7 +984,7 @@ TEST_F(PermissionContextBaseTests, TestVirtualURLDifferentOrigin) {
 }
 
 TEST_F(PermissionContextBaseTests, TestVirtualURLNotHTTP) {
-  TestVirtualURL(GURL("chrome://foo"), GURL("chrome://newtab"),
+  TestVirtualURL(GURL("chrome://foo"), GURL("wootzapp://newtab"),
                  CONTENT_SETTING_ASK,
                  content::PermissionStatusSource::UNSPECIFIED);
 }

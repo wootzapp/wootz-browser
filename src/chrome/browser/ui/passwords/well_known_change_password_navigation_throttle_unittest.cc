@@ -79,7 +79,7 @@ TEST_F(WellKnownChangePasswordNavigationThrottleTest,
       .url = GURL("https://google.com/.well-known/change-password"),
       .page_transition = ui::PAGE_TRANSITION_LINK,
       .initiator_origin =
-          url::Origin::Create(GURL("chrome://settings/passwords/check")),
+          url::Origin::Create(GURL("wootzapp://settings/passwords/check")),
   }));
 
   EXPECT_TRUE(CreateNavigationThrottle({
@@ -113,7 +113,7 @@ TEST_F(WellKnownChangePasswordNavigationThrottleTest,
   url = GURL("https://google.com/foo");
   EXPECT_FALSE(CreateNavigationThrottle({url}));
 
-  url = GURL("chrome://settings/");
+  url = GURL("wootzapp://settings/");
   EXPECT_FALSE(CreateNavigationThrottle({url}));
 
   url = GURL("mailto:?subject=test");

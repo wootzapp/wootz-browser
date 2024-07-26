@@ -262,12 +262,12 @@ TEST(StartupTabProviderTest, GetCommandLineTabs) {
   // Exceptional settings page.
   {
     base::CommandLine command_line(
-        {CMD_ARG(""), CMD_ARG("chrome://settings/resetProfileSettings")});
+        {CMD_ARG(""), CMD_ARG("wootzapp://settings/resetProfileSettings")});
     StartupTabProviderImpl instance;
     StartupTabs output =
         instance.GetCommandLineTabs(command_line, base::FilePath(), &profile);
     ASSERT_EQ(1u, output.size());
-    EXPECT_EQ(GURL("chrome://settings/resetProfileSettings"), output[0].url);
+    EXPECT_EQ(GURL("wootzapp://settings/resetProfileSettings"), output[0].url);
 
     EXPECT_EQ(CommandLineTabsPresent::kYes,
               instance.HasCommandLineTabs(command_line, base::FilePath()));
@@ -276,7 +276,7 @@ TEST(StartupTabProviderTest, GetCommandLineTabs) {
   // chrome://settings/ page handling.
   {
     base::CommandLine command_line(
-        {CMD_ARG(""), CMD_ARG("chrome://settings/syncSetup")});
+        {CMD_ARG(""), CMD_ARG("wootzapp://settings/syncSetup")});
     StartupTabProviderImpl instance;
     StartupTabs output =
         instance.GetCommandLineTabs(command_line, base::FilePath(), &profile);
@@ -285,7 +285,7 @@ TEST(StartupTabProviderTest, GetCommandLineTabs) {
 #if BUILDFLAG(IS_CHROMEOS)
     // On Chrome OS (ash-chrome), settings page is allowed to be specified.
     ASSERT_EQ(1u, output.size());
-    EXPECT_EQ(GURL("chrome://settings/syncSetup"), output[0].url);
+    EXPECT_EQ(GURL("wootzapp://settings/syncSetup"), output[0].url);
 
     EXPECT_EQ(CommandLineTabsPresent::kYes, has_tabs);
 #else
@@ -369,7 +369,7 @@ TEST_F(StartupTabProviderPrivacySandboxTest,
   // dialog, no additional tab should be added.
   auto output = StartupTabProviderImpl::GetPrivacySandboxTabsForState(
       registry(), GURL(chrome::kChromeUINewTabPageURL),
-      {{StartupTab(GURL("chrome://newtab"))}});
+      {{StartupTab(GURL("wootzapp://newtab"))}});
   ASSERT_EQ(0U, output.size());
 }
 

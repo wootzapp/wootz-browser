@@ -112,7 +112,7 @@ public class LightweightFirstRunActivity extends FirstRunActivityBase
                         (view) -> showInfoPage(R.string.chrome_additional_terms_of_service_url));
         NoUnderlineClickableSpan clickableGooglePrivacySpan =
                 new NoUnderlineClickableSpan(
-                        this, (view) -> showInfoPage(R.string.google_privacy_policy_url));
+                        this, (view) -> showInfoPage(R.string.wootzapp_privacy_policy_url));
         String associatedAppName =
                 IntentUtils.safeGetStringExtra(getIntent(), EXTRA_ASSOCIATED_APP_NAME);
         if (associatedAppName == null) {

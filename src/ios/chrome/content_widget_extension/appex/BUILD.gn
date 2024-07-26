@@ -38,7 +38,7 @@ ios_appex_bundle("appex") {
   }
 
   extra_substitutions = [
-    "CHROME_CHANNEL_SCHEME=$url_channel_scheme",
+    "WOOTZAPP_CHANNEL_SCHEME=$url_channel_scheme",
     "CHROMIUM_SHORT_NAME=$chromium_short_name",
   ]
 

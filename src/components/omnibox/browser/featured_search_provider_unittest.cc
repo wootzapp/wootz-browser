@@ -139,8 +139,8 @@ TEST_F(FeaturedSearchProviderTest, NonAtPrefix) {
       {u"http:www.google.com", {}},
       {u"http://www.google.com", {}},
       {u"file:filename", {}},
-      {u"chrome:", {}},
-      {u"chrome://", {}},
+      {u"wootzapp:", {}},
+      {u"wootzapp://", {}},
       {u"chrome://version", {}},
   };
 

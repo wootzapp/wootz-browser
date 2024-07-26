@@ -274,14 +274,14 @@ TEST_F(WebUIMainFrameObserverTest, URLPathIsPreservedOtherPartsRemoved) {
       // Longer paths are kept.
       {u"chrome://discards/graph/a/b/c/d", "chrome://discards/graph/a/b/c/d"},
       // Queries are removed, with or without a path.
-      {u"chrome://bookmarks/?q=chromium", "chrome://bookmarks/"},
-      {u"chrome://bookmarks/add?q=chromium", "chrome://bookmarks/add"},
-      {u"chrome://bookmarks/add/?q=chromium", "chrome://bookmarks/add/"},
+      {u"wootzapp://bookmarks/?q=chromium", "wootzapp://bookmarks/"},
+      {u"wootzapp://bookmarks/add?q=chromium", "wootzapp://bookmarks/add"},
+      {u"wootzapp://bookmarks/add/?q=chromium", "wootzapp://bookmarks/add/"},
       // Fragments are removed, with or without a path.
       {u"chrome://flags/#tab-groups", "chrome://flags/"},
       {u"chrome://flags/available/#tab-groups", "chrome://flags/available/"},
       // Queries & fragments are removed.
-      {u"chrome://bookmarks/add?q=chromium#code", "chrome://bookmarks/add"},
+      {u"wootzapp://bookmarks/add?q=chromium#code", "wootzapp://bookmarks/add"},
       // User name and password are removed. (It's weird to have a user name or
       // password on a chrome URL, but otherwise we get blocked by the
       // no-non-chrome-URLs check)
@@ -303,7 +303,7 @@ TEST_F(WebUIMainFrameObserverTest, URLPathIsPreservedOtherPartsRemoved) {
 
 TEST_F(WebUIMainFrameObserverTest, PageURLAlsoRedacted) {
   constexpr char kPageWithQueryAndFragment[] =
-      "chrome://bookmarks/add?q=chromium#code";
+      "wootzapp://bookmarks/add?q=chromium#code";
   NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL(kPageWithQueryAndFragment));
   CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
@@ -311,7 +311,7 @@ TEST_F(WebUIMainFrameObserverTest, PageURLAlsoRedacted) {
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
   EXPECT_EQ(processor_->error_report_count(), 1);
-  EXPECT_EQ(processor_->last_error_report().page_url, "chrome://bookmarks/add");
+  EXPECT_EQ(processor_->last_error_report().page_url, "wootzapp://bookmarks/add");
 }
 
 TEST_F(WebUIMainFrameObserverTest, ErrorsNotReportedInOtherFrames) {
