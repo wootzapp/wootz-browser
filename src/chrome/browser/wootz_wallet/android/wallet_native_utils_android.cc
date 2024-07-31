@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -6,10 +6,10 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/logging.h"
-#include "brave/browser/brave_wallet/brave_wallet_service_factory.h"
-#include "brave/build/android/jni_headers/WalletNativeUtils_jni.h"
-#include "brave/components/brave_wallet/browser/brave_wallet_service.h"
-#include "brave/components/decentralized_dns/core/utils.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "chrome/build/android/jni_headers/WalletNativeUtils_jni.h"
+#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "chrome/components/decentralized_dns/core/utils.h"
 #include "chrome/browser/profiles/profile.h"
 
 namespace chrome {
@@ -21,10 +21,10 @@ static void JNI_WalletNativeUtils_ResetWallet(
   auto* profile = Profile::FromJavaObject(profile_android);
   DCHECK(profile);
 
-  auto* brave_wallet_service =
-      brave_wallet::BraveWalletServiceFactory::GetServiceForContext(profile);
-  if (brave_wallet_service) {
-    brave_wallet_service->Reset();
+  auto* wootz_wallet_service =
+      wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile);
+  if (wootz_wallet_service) {
+    wootz_wallet_service->Reset();
   }
 }
 
