@@ -1,14 +1,14 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "brave/browser/brave_wallet/brave_wallet_service_factory.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 
 #include "base/android/jni_android.h"
-#include "brave/build/android/jni_headers/BraveWalletServiceFactory_jni.h"
-#include "brave/components/brave_wallet/browser/brave_wallet_service.h"
-#include "brave/components/brave_wallet/common/brave_wallet.mojom.h"
+#include "chrome/build/android/jni_headers/WootzWalletServiceFactory_jni.h"
+#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "chrome/browser/profiles/profile.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 
@@ -21,63 +21,63 @@ jlong BindWalletService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
   auto* profile = Profile::FromJavaObject(profile_android);
-  if (auto* brave_wallet_service =
-          brave_wallet::BraveWalletServiceFactory::GetServiceForContext(
+  if (auto* wootz_wallet_service =
+          wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
               profile)) {
     mojo::PendingRemote<T> pending;
-    brave_wallet_service->Bind(pending.InitWithNewPipeAndPassReceiver());
+    wootz_wallet_service->Bind(pending.InitWithNewPipeAndPassReceiver());
     return static_cast<jlong>(pending.PassPipe().release().value());
   }
   return static_cast<jlong>(mojo::kInvalidHandleValue);
 }
 }  // namespace
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToBraveWalletService(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToWootzWalletService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::BraveWalletService>(
+  return BindWalletService<wootz_wallet::mojom::WootzWalletService>(
       env, profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToBraveWalletP3A(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToWootzWalletP3A(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::BraveWalletP3A>(
+  return BindWalletService<wootz_wallet::mojom::WootzWalletP3A>(
       env, profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToJsonRpcService(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToJsonRpcService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::JsonRpcService>(
+  return BindWalletService<wootz_wallet::mojom::JsonRpcService>(
       env, profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToKeyringService(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToKeyringService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::KeyringService>(
+  return BindWalletService<wootz_wallet::mojom::KeyringService>(
       env, profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToTxService(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToTxService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::TxService>(env,
+  return BindWalletService<wootz_wallet::mojom::TxService>(env,
                                                            profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToEthTxManagerProxy(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToEthTxManagerProxy(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::EthTxManagerProxy>(
+  return BindWalletService<wootz_wallet::mojom::EthTxManagerProxy>(
       env, profile_android);
 }
 
-static jlong JNI_BraveWalletServiceFactory_GetInterfaceToSolanaTxManagerProxy(
+static jlong JNI_WootzWalletServiceFactory_GetInterfaceToSolanaTxManagerProxy(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  return BindWalletService<brave_wallet::mojom::SolanaTxManagerProxy>(
+  return BindWalletService<wootz_wallet::mojom::SolanaTxManagerProxy>(
       env, profile_android);
 }
 

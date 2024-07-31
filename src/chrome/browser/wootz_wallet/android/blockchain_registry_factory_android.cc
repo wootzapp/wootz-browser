@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -8,10 +8,10 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/version.h"
-#include "brave/build/android/jni_headers/BlockchainRegistryFactory_jni.h"
-#include "brave/components/brave_wallet/browser/blockchain_registry.h"
-#include "brave/components/brave_wallet/browser/brave_wallet_constants.h"
-#include "brave/components/brave_wallet/browser/wallet_data_files_installer.h"
+#include "chrome/build/android/jni_headers/BlockchainRegistryFactory_jni.h"
+#include "chrome/components/wootz_wallet/browser/blockchain_registry.h"
+#include "chrome/components/wootz_wallet/browser/wootz_wallet_constants.h"
+#include "chrome/components/wootz_wallet/browser/wallet_data_files_installer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 
@@ -19,7 +19,7 @@ namespace chrome {
 namespace android {
 static jlong JNI_BlockchainRegistryFactory_GetInterfaceToBlockchainRegistry(
     JNIEnv* env) {
-  auto pending = brave_wallet::BlockchainRegistry::GetInstance()->MakeRemote();
+  auto pending = wootz_wallet::BlockchainRegistry::GetInstance()->MakeRemote();
 
   return static_cast<jlong>(pending.PassPipe().release().value());
 }
@@ -31,10 +31,10 @@ JNI_BlockchainRegistryFactory_GetTokensIconsLocation(
   auto* profile = Profile::FromJavaObject(profile_android);
 
   std::optional<base::Version> version =
-      brave_wallet::GetLastInstalledWalletVersion();
+      wootz_wallet::GetLastInstalledWalletVersion();
   if (version) {
     base::FilePath path = profile->GetPath().DirName();
-    path = path.AppendASCII(brave_wallet::kWalletBaseDirectory);
+    path = path.AppendASCII(wootz_wallet::kWalletBaseDirectory);
     path = path.AppendASCII(version->GetString());
     path = path.AppendASCII("images");
 
