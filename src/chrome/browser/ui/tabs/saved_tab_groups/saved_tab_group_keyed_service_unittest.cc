@@ -958,7 +958,7 @@ TEST_F(SavedTabGroupKeyedServiceUnitTest,
       service()->model()->Get(group_id)->saved_guid();
 
   // Add a tab to the saved group.
-  const SavedTabGroupTab added_tab(GURL("chrome://settings"), u"New Tab",
+  const SavedTabGroupTab added_tab(GURL("wootzapp://settings"), u"New Tab",
                                    saved_group_id, /*position=*/0);
   service()->model()->AddTabToGroupFromSync(saved_group_id, added_tab);
 
@@ -990,7 +990,7 @@ TEST_F(SavedTabGroupKeyedServiceUnitTest,
       saved_group->saved_tabs().at(0).saved_tab_guid();
 
   // Navigate the saved tab.
-  const GURL url = GURL("chrome://settings");
+  const GURL url = GURL("wootzapp://settings");
   SavedTabGroupTab navigated_tab = *saved_group->GetTab(saved_tab_id);
   navigated_tab.SetURL(url);
   navigated_tab.SetTitle(u"Example Page");

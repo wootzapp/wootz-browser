@@ -10,7 +10,7 @@ namespace url {
 // Does not directly reference //content or //chrome to save on compile times.
 void RegisterSchemesForRobolectric() {
   // Schemes from content/common/url_schemes.cc:
-  url::AddStandardScheme("chrome", SCHEME_WITH_HOST);
+  url::AddStandardScheme("wootzapp", SCHEME_WITH_HOST);
   url::AddStandardScheme("chrome-untrusted", SCHEME_WITH_HOST);
   url::AddStandardScheme("chrome-error", SCHEME_WITH_HOST);
   url::AddNoAccessScheme("chrome-error");

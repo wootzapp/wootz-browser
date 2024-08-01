@@ -56,7 +56,7 @@ const char kClientIdName[] = "Client ID";
 
 const struct ChannelMap {
   const char* chromecast_channel;
-  const ::metrics::SystemProfileProto::Channel chrome_channel;
+  const ::metrics::SystemProfileProto::Channel WOOTZAPP_CHANNEL;
 } kMetricsChannelMap[] = {
     {"canary-channel", ::metrics::SystemProfileProto::CHANNEL_CANARY},
     {"dev-channel", ::metrics::SystemProfileProto::CHANNEL_DEV},
@@ -73,7 +73,7 @@ const struct ChannelMap {
 
   for (const auto& channel_map : kMetricsChannelMap) {
     if (channel_name.compare(channel_map.chromecast_channel) == 0)
-      return channel_map.chrome_channel;
+      return channel_map.WOOTZAPP_CHANNEL;
   }
 
   // Any non-empty channel name is considered beta channel

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Բեռնվում է <ph name="LANG" /> լեզվի փաթեթը</translation>
 <translation id="1240903469550363138">Շարունակելու համար <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ընկերությունը կփոխանցի ձեր անունը, էլ․ հասցեն և պրոֆիլի նկարը այս կայքին։ Ծանոթացեք այս կայքի <ph name="BEGIN_LINK1" />գաղտնիության քաղաքականությանը<ph name="END_LINK1" /> և <ph name="BEGIN_LINK2" />օգտագործման պայմաններին<ph name="END_LINK2" />։</translation>
 <translation id="124116460088058876">Այլ լեզուներ</translation>
-<translation id="1241792820757384812">Ձեր գաղտնաբառերը կջնջվեն Google գաղտնաբառերի կառավարչից <ph name="CHROME_CHANNEL" />-ում։ Գաղտնաբառերով ֆայլը, որը հենց նոր ներբեռնեցիք, կպահպանվի։</translation>
+<translation id="1241792820757384812">Ձեր գաղտնաբառերը կջնջվեն Google գաղտնաբառերի կառավարչից <ph name="WOOTZAPP_CHANNEL" />-ում։ Գաղտնաբառերով ֆայլը, որը հենց նոր ներբեռնեցիք, կպահպանվի։</translation>
 <translation id="1242883863226959074">սարք</translation>
 <translation id="124678866338384709">Փակել ընթացիկ ներդիրը</translation>
 <translation id="1246905108078336582">Հեռացնե՞լ առաջարկը սեղմատախտակից:</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Փակել ինկոգնիտո ներդիրները</translation>
 <translation id="1568636008098739136">Հնչեցնել այս էջը։ Այս դյուրանցումը փոփոխելու համար հպեք դրան և պահեք։</translation>
 <translation id="1571304935088121812">Պատճենել օգտանունը</translation>
-<translation id="1584648915421894279">Ներկայումս այս սարքում պահված գաղտնաբառերը հնարավոր չէ օգտագործել Chrome-ի տարբերակներում։ Chrome-ի տարբերակ 125-ի թողարկումից հետո Chrome-ի և <ph name="CHROME_CHANNEL" />-ի համար ձեր սարքում պահված գաղտնաբառերը կմիավորվեն և կարող են օգտագործվել երկու հավելվածներում։</translation>
+<translation id="1584648915421894279">Ներկայումս այս սարքում պահված գաղտնաբառերը հնարավոր չէ օգտագործել Chrome-ի տարբերակներում։ Chrome-ի տարբերակ 125-ի թողարկումից հետո Chrome-ի և <ph name="WOOTZAPP_CHANNEL" />-ի համար ձեր սարքում պահված գաղտնաբառերը կմիավորվեն և կարող են օգտագործվել երկու հավելվածներում։</translation>
 <translation id="1592864538817356322">Սովորական պաշտպանություն՝</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> առաջարկվող տարր ներքևի ցուցակում։</translation>
 <translation id="1598163867407640634">Օգտագործեք <ph name="SITE_ETLD_PLUS_ONE" /> կայքը <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> հաշվով</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">Այս էջը պահվել է <ph name="CREATION_TIME" />-ին, և կարող է տարբերվել առցանց տարբերակից։</translation>
 <translation id="4595805675102978678">Google հաշվի սխալ</translation>
 <translation id="4601095002996233687">Կասկածելի ներբեռնումների մանրակրկիտ սկանավորում։</translation>
-<translation id="4609429330876432068">Պահված գաղտնաբառերի ձեր ցանկերը Chrome-ի և <ph name="CHROME_CHANNEL" />-ի համար միավորվել են։ Դուք նախկինի պես կարող եք ինքնալրացնել ձեր բոլոր պահված գաղտնաբառերը երկու հավելվածներում։</translation>
+<translation id="4609429330876432068">Պահված գաղտնաբառերի ձեր ցանկերը Chrome-ի և <ph name="WOOTZAPP_CHANNEL" />-ի համար միավորվել են։ Դուք նախկինի պես կարող եք ինքնալրացնել ձեր բոլոր պահված գաղտնաբառերը երկու հավելվածներում։</translation>
 <translation id="4616150815774728855">Բացել <ph name="WEBAPK_NAME" /> հավելվածը</translation>
 <translation id="4619564267100705184">Հաստատեք ձեր ինքնությունը</translation>
 <translation id="4634124774493850572">Օգտագործել գաղտնաբառը</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Փորձեք Lite ռեժիմը Google Chrome-ում</translation>
 <translation id="928550791203542716">Դուք բաժանորդագրվեցիք <ph name="SITE_NAME" /> կայքին</translation>
 <translation id="930124987204876019">Ջնջել պատմությունը, քուքիները, կայքի տվյալները, քեշը…</translation>
-<translation id="93533588269984624">Բոլոր գաղտնաբառերը կներբեռնվեն ձեր սարքում և կհեռացվեն <ph name="CHROME_CHANNEL" />-ից</translation>
+<translation id="93533588269984624">Բոլոր գաղտնաբառերը կներբեռնվեն ձեր սարքում և կհեռացվեն <ph name="WOOTZAPP_CHANNEL" />-ից</translation>
 <translation id="938850635132480979">Սխալ՝ <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Մուտքագրեք անցաբառը</translation>
 <translation id="952301137339791907">Էջի վիճակագրության ներքևի էկրանը բացված է</translation>

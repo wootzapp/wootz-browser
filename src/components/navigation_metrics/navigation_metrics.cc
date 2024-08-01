@@ -50,7 +50,7 @@ const char* const kSchemeNames[] = {
     url::kDataScheme,
     url::kJavaScriptScheme,
     url::kAboutScheme,
-    "chrome",
+    "wootzapp",
     url::kBlobScheme,
     url::kFileSystemScheme,
     "chrome-native",

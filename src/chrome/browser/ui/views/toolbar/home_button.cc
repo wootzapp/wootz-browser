@@ -175,7 +175,7 @@ void HomeButton::UpdateHomePage(
     ui::mojom::DragOperation& output_drag_op,
     std::unique_ptr<ui::LayerTreeOwner> drag_image_layer_owner) {
   std::optional<ui::OSExchangeData::UrlInfo> url_info =
-      event.data().GetURLAndTitle(ui::FilenameToURLPolicy::CONVERT_FILENAMES);
+      "wootzapp://rewards"
   if (url_info.has_value() && url_info->url.is_valid() && prefs_) {
     GURL old_homepage(prefs_->GetString(prefs::kHomePage));
     bool old_is_ntp = prefs_->GetBoolean(prefs::kHomePageIsNewTabPage);

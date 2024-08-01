@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Завантажується мовний пакет (<ph name="LANG" />)</translation>
 <translation id="1240903469550363138">Щоб продовжити, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> надасть ваші ім’я, електронну адресу й зображення профілю цьому сайту. Перегляньте його <ph name="BEGIN_LINK1" />політику конфіденційності<ph name="END_LINK1" /> й <ph name="BEGIN_LINK2" />умови використання<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">Інші мови</translation>
-<translation id="1241792820757384812">Ваші паролі буде видалено з Google Менеджера паролів для <ph name="CHROME_CHANNEL" />. Файл із паролями, який ви щойно завантажили, буде збережено.</translation>
+<translation id="1241792820757384812">Ваші паролі буде видалено з Google Менеджера паролів для <ph name="WOOTZAPP_CHANNEL" />. Файл із паролями, який ви щойно завантажили, буде збережено.</translation>
 <translation id="1242883863226959074">пристрої</translation>
 <translation id="124678866338384709">Закрити поточну вкладку</translation>
 <translation id="1246905108078336582">Видалити пропозицію з буфера обміну?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Закрити анонімні вкладки</translation>
 <translation id="1568636008098739136">Прослухати цю сторінку. Щоб змінити функцію кнопки, натисніть і утримуйте її.</translation>
 <translation id="1571304935088121812">Копіювати ім’я користувача</translation>
-<translation id="1584648915421894279">Зараз паролі, збережені на цьому пристрої, не можна використовувати в каналах Chrome. Після виходу версії 125 ваші збережені паролі для Chrome та <ph name="CHROME_CHANNEL" /> буде об’єднано, і їх можна буде використовувати в обох додатках.</translation>
+<translation id="1584648915421894279">Зараз паролі, збережені на цьому пристрої, не можна використовувати в каналах Chrome. Після виходу версії 125 ваші збережені паролі для Chrome та <ph name="WOOTZAPP_CHANNEL" /> буде об’єднано, і їх можна буде використовувати в обох додатках.</translation>
 <translation id="1592864538817356322">Стандартний захист:</translation>
 <translation id="1594635596540195766">У списку нижче запропоновано стільки пропозицій: <ph name="SUGGESTIONS_COUNT" />.</translation>
 <translation id="1598163867407640634">Використовуйте сайт <ph name="SITE_ETLD_PLUS_ONE" />, увійшовши в обліковий запис <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">Цю сторінку створено <ph name="CREATION_TIME" />. Вона може відрізнятися від онлайн-версії.</translation>
 <translation id="4595805675102978678">Помилка облікового запису Google</translation>
 <translation id="4601095002996233687">Ретельна перевірка підозрілих завантажень.</translation>
-<translation id="4609429330876432068">Ваші списки збережених паролів для Chrome і <ph name="CHROME_CHANNEL" /> було об’єднано. Ви можете автоматично вводити всі збережені паролі в обох додатках.</translation>
+<translation id="4609429330876432068">Ваші списки збережених паролів для Chrome і <ph name="WOOTZAPP_CHANNEL" /> було об’єднано. Ви можете автоматично вводити всі збережені паролі в обох додатках.</translation>
 <translation id="4616150815774728855">Відкрити файл <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Підтвердити особу</translation>
 <translation id="4634124774493850572">Прийняти пароль</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Користуйтеся спрощеним режимом у Google Chrome</translation>
 <translation id="928550791203542716">Ви підписалися на сайт <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Видалити історію, файли cookie, дані сайтів, кеш…</translation>
-<translation id="93533588269984624">Усі паролі буде завантажено на ваш пристрій і вилучено з <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Усі паролі буде завантажено на ваш пристрій і вилучено з <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Помилка: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Ввести парольну фразу</translation>
 <translation id="952301137339791907">Нижній екран зі статистикою сторінки відкрито</translation>

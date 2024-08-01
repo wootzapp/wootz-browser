@@ -43,8 +43,8 @@ const StringWithRedaction kStringsWithRedactions[] = {
      "aaaaaaaa [SSID=(SSID: 1)]aaaaa", PIIType::kSSID},
     {"chrome://resources/foo",  // Secure chrome resource, exempt.
      "chrome://resources/foo", PIIType::kNone},
-    {"chrome://settings/crisper.js",  // Exempt settings URLs.
-     "chrome://settings/crisper.js", PIIType::kNone},
+    {"wootzapp://settings/crisper.js",  // Exempt settings URLs.
+     "wootzapp://settings/crisper.js", PIIType::kNone},
     // Exempt first party extension.
     {"chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",
      "chrome-extension://nkoccljplnhpfnfiajclkommnmllphnl/foobar.js",

@@ -69,7 +69,7 @@ public class SyncPromoControllerTest {
     private static final int MAX_SIGN_IN_PROMO_IMPRESSIONS = 10;
 
     private static final AccountPickerBottomSheetStrings BOTTOM_SHEET_STRINGS =
-            new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_chrome).build();
+            new AccountPickerBottomSheetStrings.Builder(R.string.sign_in_to_wootzapp).build();
 
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.LENIENT);

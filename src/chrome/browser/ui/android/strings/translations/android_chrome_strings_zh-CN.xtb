@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">正在加载<ph name="LANG" /></translation>
 <translation id="1240903469550363138">如果您继续，<ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> 会将您的姓名、电子邮件地址和个人资料照片提供给此网站。具体请参阅此网站的<ph name="BEGIN_LINK1" />隐私权政策<ph name="END_LINK1" />和<ph name="BEGIN_LINK2" />服务条款<ph name="END_LINK2" />。</translation>
 <translation id="124116460088058876">更多语言</translation>
-<translation id="1241792820757384812">系统将从 <ph name="CHROME_CHANNEL" />的 Google 密码管理工具中删除您的密码。您可以保留刚刚下载的密码文件。</translation>
+<translation id="1241792820757384812">系统将从 <ph name="WOOTZAPP_CHANNEL" />的 Google 密码管理工具中删除您的密码。您可以保留刚刚下载的密码文件。</translation>
 <translation id="1242883863226959074">设备</translation>
 <translation id="124678866338384709">关闭当前标签页</translation>
 <translation id="1246905108078336582">从剪贴板中移除建议？</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">关闭无痕式标签页</translation>
 <translation id="1568636008098739136">读出此网页的内容。如要修改此快捷方式，请轻触并按住这里。</translation>
 <translation id="1571304935088121812">复制用户名</translation>
-<translation id="1584648915421894279">目前，此设备上保存的密码无法跨 Chrome 渠道使用。Chrome 125 之后，您设备上分别为 Chrome 和 <ph name="CHROME_CHANNEL" />保存的密码将会合并，在这两个应用内均可使用。</translation>
+<translation id="1584648915421894279">目前，此设备上保存的密码无法跨 Chrome 渠道使用。Chrome 125 之后，您设备上分别为 Chrome 和 <ph name="WOOTZAPP_CHANNEL" />保存的密码将会合并，在这两个应用内均可使用。</translation>
 <translation id="1592864538817356322">标准保护：</translation>
 <translation id="1594635596540195766">下方列表中有 <ph name="SUGGESTIONS_COUNT" /> 项建议的内容。</translation>
 <translation id="1598163867407640634">通过 <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> 使用 <ph name="SITE_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">此离线网页是在 <ph name="CREATION_TIME" />创建的，可能与在线版本有所不同。</translation>
 <translation id="4595805675102978678">Google 账号错误</translation>
 <translation id="4601095002996233687">针对可疑的下载内容进行深入扫描。</translation>
-<translation id="4609429330876432068">您在 Chrome 和 <ph name="CHROME_CHANNEL" />中保存的密码的列表已合并。您仍可在这两个应用内自动填充所有已保存的密码。</translation>
+<translation id="4609429330876432068">您在 Chrome 和 <ph name="WOOTZAPP_CHANNEL" />中保存的密码的列表已合并。您仍可在这两个应用内自动填充所有已保存的密码。</translation>
 <translation id="4616150815774728855">打开<ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">请验证是您本人在操作</translation>
 <translation id="4634124774493850572">使用密码</translation>
@@ -1649,7 +1649,7 @@
 <translation id="927968626442779827">使用 Google Chrome 的精简模式</translation>
 <translation id="928550791203542716">已关注<ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">删除历史记录、Cookie、网站数据、缓存内容…</translation>
-<translation id="93533588269984624">所有密码都将下载到您的设备上，并且会从 <ph name="CHROME_CHANNEL" />中移除</translation>
+<translation id="93533588269984624">所有密码都将下载到您的设备上，并且会从 <ph name="WOOTZAPP_CHANNEL" />中移除</translation>
 <translation id="938850635132480979">错误：<ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">请输入密码</translation>
 <translation id="952301137339791907">显示网页数据洞见的底部工作表已打开</translation>

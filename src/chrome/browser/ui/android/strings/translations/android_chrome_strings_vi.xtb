@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Đang tải <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Để tiếp tục, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> sẽ chia sẻ tên, địa chỉ email và ảnh hồ sơ của bạn với trang web này. Xem <ph name="BEGIN_LINK1" />chính sách quyền riêng tư<ph name="END_LINK1" /> và <ph name="BEGIN_LINK2" />điều khoản dịch vụ<ph name="END_LINK2" /> của trang web này.</translation>
 <translation id="124116460088058876">Ngôn ngữ khác</translation>
-<translation id="1241792820757384812">Mật khẩu của bạn sẽ bị xoá khỏi Trình quản lý mật khẩu của Google trên <ph name="CHROME_CHANNEL" />. Bạn sẽ giữ tệp mật khẩu mà bạn vừa tải xuống.</translation>
+<translation id="1241792820757384812">Mật khẩu của bạn sẽ bị xoá khỏi Trình quản lý mật khẩu của Google trên <ph name="WOOTZAPP_CHANNEL" />. Bạn sẽ giữ tệp mật khẩu mà bạn vừa tải xuống.</translation>
 <translation id="1242883863226959074">thiết bị</translation>
 <translation id="124678866338384709">Đóng thẻ hiện tại</translation>
 <translation id="1246905108078336582">Xóa nội dung đề xuất khỏi bảng nhớ tạm?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Đóng các thẻ Ẩn danh</translation>
 <translation id="1568636008098739136">Nghe trang này. Để chỉnh sửa lối tắt này, hãy chạm và giữ lối tắt.</translation>
 <translation id="1571304935088121812">Sao chép tên người dùng</translation>
-<translation id="1584648915421894279">Hiện tại, bạn không thể sử dụng mật khẩu đã lưu trên thiết bị này cho các kênh Chrome. Sau Chrome 125, mật khẩu bạn lưu trên thiết bị cho Chrome và <ph name="CHROME_CHANNEL" /> sẽ được hợp nhất và dùng được trong cả hai ứng dụng.</translation>
+<translation id="1584648915421894279">Hiện tại, bạn không thể sử dụng mật khẩu đã lưu trên thiết bị này cho các kênh Chrome. Sau Chrome 125, mật khẩu bạn lưu trên thiết bị cho Chrome và <ph name="WOOTZAPP_CHANNEL" /> sẽ được hợp nhất và dùng được trong cả hai ứng dụng.</translation>
 <translation id="1592864538817356322">Chế độ bảo vệ thông thường:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> mục được đề xuất trong danh sách bên dưới.</translation>
 <translation id="1598163867407640634">Sử dụng <ph name="SITE_ETLD_PLUS_ONE" /> bằng tài khoản <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Tài khoản Google của bạn có thể có các dạng nhật ký duyệt web
 <translation id="4594952190837476234">Trang ngoại tuyến này được tạo từ lúc <ph name="CREATION_TIME" /> và có thể khác với phiên bản trực tuyến.</translation>
 <translation id="4595805675102978678">Lỗi Tài khoản Google</translation>
 <translation id="4601095002996233687">Quét kỹ càng để tìm nội dung tải xuống đáng ngờ.</translation>
-<translation id="4609429330876432068">Danh sách mật khẩu mà bạn lưu cho Chrome và <ph name="CHROME_CHANNEL" /> đã được hợp nhất. Bạn vẫn có thể chọn tự động điền tất cả mật khẩu đã lưu trên cả hai ứng dụng.</translation>
+<translation id="4609429330876432068">Danh sách mật khẩu mà bạn lưu cho Chrome và <ph name="WOOTZAPP_CHANNEL" /> đã được hợp nhất. Bạn vẫn có thể chọn tự động điền tất cả mật khẩu đã lưu trên cả hai ứng dụng.</translation>
 <translation id="4616150815774728855">Mở <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Xác minh danh tính của bạn</translation>
 <translation id="4634124774493850572">Sử dụng mật khẩu</translation>
@@ -1651,7 +1651,7 @@ Ví dụ: một số trang web có thể phản hồi yêu cầu này bằng cá
 <translation id="927968626442779827">Dùng Chế độ thu gọn trên Google Chrome</translation>
 <translation id="928550791203542716">Đang theo dõi <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Xoá nhật ký, cookie, dữ liệu trang web, bộ nhớ đệm…</translation>
-<translation id="93533588269984624">Tất cả mật khẩu sẽ được tải xuống thiết bị của bạn và bị xoá khỏi <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Tất cả mật khẩu sẽ được tải xuống thiết bị của bạn và bị xoá khỏi <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Lỗi: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Nhập cụm mật khẩu</translation>
 <translation id="952301137339791907">Đã mở bảng thông tin chi tiết về trang ở dưới cùng</translation>

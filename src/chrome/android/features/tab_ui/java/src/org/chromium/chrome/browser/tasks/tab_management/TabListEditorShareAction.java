@@ -182,7 +182,7 @@ public class TabListEditorShareAction extends TabListEditorAction {
                         R.dimen.tab_list_editor_share_sheet_preview_thumbnail_padding);
         Drawable drawable =
                 new InsetDrawable(
-                        AppCompatResources.getDrawable(context, R.drawable.chrome_sync_logo),
+                        AppCompatResources.getDrawable(context, R.drawable.wootzapp_sync_logo),
                         (int) padding);
 
         // Create a custom share intent and receiver to assess if another app receives the share

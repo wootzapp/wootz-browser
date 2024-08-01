@@ -53,7 +53,7 @@
 <translation id="1240288207750131269">Memuatkan <ph name="LANG" /></translation>
 <translation id="1240903469550363138">Untuk meneruskan, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> akan berkongsi nama, alamat e-mel dan gambar profil anda dengan laman ini. Lihat <ph name="BEGIN_LINK1" />dasar privasi<ph name="END_LINK1" /> dan <ph name="BEGIN_LINK2" />syarat perkhidmatan<ph name="END_LINK2" /> laman ini.</translation>
 <translation id="124116460088058876">Lagi bahasa</translation>
-<translation id="1241792820757384812">Kata laluan anda akan dipadamkan daripada Google Password Manager untuk <ph name="CHROME_CHANNEL" />. Anda akan menyimpan fail kata laluan yang baru anda muat turun.</translation>
+<translation id="1241792820757384812">Kata laluan anda akan dipadamkan daripada Google Password Manager untuk <ph name="WOOTZAPP_CHANNEL" />. Anda akan menyimpan fail kata laluan yang baru anda muat turun.</translation>
 <translation id="1242883863226959074">peranti</translation>
 <translation id="124678866338384709">Tutup tab semasa</translation>
 <translation id="1246905108078336582">Alih keluar cadangan daripada papan keratan?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Tutup tab Inkognito</translation>
 <translation id="1568636008098739136">Dengar halaman ini. Untuk mengedit pintasan ini, sentuh dan tahan butang.</translation>
 <translation id="1571304935088121812">Salin nama pengguna</translation>
-<translation id="1584648915421894279">Pada masa ini, kata laluan yang disimpan pada peranti ini tidak boleh digunakan merentas saluran Chrome. Selepas Chrome 125, kata laluan yang disimpan pada peranti anda untuk Chrome dan <ph name="CHROME_CHANNEL" /> akan digabungkan dan boleh digunakan pada kedua-dua apl.</translation>
+<translation id="1584648915421894279">Pada masa ini, kata laluan yang disimpan pada peranti ini tidak boleh digunakan merentas saluran Chrome. Selepas Chrome 125, kata laluan yang disimpan pada peranti anda untuk Chrome dan <ph name="WOOTZAPP_CHANNEL" /> akan digabungkan dan boleh digunakan pada kedua-dua apl.</translation>
 <translation id="1592864538817356322">Perlindungan standard:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> item yang dicadangkan dalam senarai di bawah.</translation>
 <translation id="1598163867407640634">Gunakan <ph name="SITE_ETLD_PLUS_ONE" /> dengan <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ Google Account anda mungkin mempunyai sejarah penyemakan imbas dalam bentuk lain
 <translation id="4594952190837476234">Halaman luar talian ini dari <ph name="CREATION_TIME" /> dan mungkin berbeza daripada versi dalam talian.</translation>
 <translation id="4595805675102978678">Ralat Google Account</translation>
 <translation id="4601095002996233687">Imbasan secara mendalam untuk muat turun yang mencurigakan.</translation>
-<translation id="4609429330876432068">Senarai kata laluan anda yang disimpan untuk Chrome dan <ph name="CHROME_CHANNEL" /> telah digabungkan. Anda masih dapat membuat autolengkap semua kata laluan anda yang disimpan pada kedua-dua apl.</translation>
+<translation id="4609429330876432068">Senarai kata laluan anda yang disimpan untuk Chrome dan <ph name="WOOTZAPP_CHANNEL" /> telah digabungkan. Anda masih dapat membuat autolengkap semua kata laluan anda yang disimpan pada kedua-dua apl.</translation>
 <translation id="4616150815774728855">Buka <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Sahkan orang itu ialah anda</translation>
 <translation id="4634124774493850572">Gunakan kata laluan</translation>
@@ -1651,7 +1651,7 @@ Untuk menukar tetapan ini, <ph name="BEGIN_LINK" />padamkan data Chrome dalam ak
 <translation id="927968626442779827">Gunakan mod Ringkas pada Google Chrome</translation>
 <translation id="928550791203542716">Mengikuti <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Padamkan sejarah, kuki, data laman, cache…</translation>
-<translation id="93533588269984624">Semua kata laluan akan dimuat turun pada peranti anda dan dialih keluar daripada <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Semua kata laluan akan dimuat turun pada peranti anda dan dialih keluar daripada <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Ralat: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Masukkan frasa laluan</translation>
 <translation id="952301137339791907">Helaian bawah cerapan halaman dibuka</translation>

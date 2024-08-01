@@ -568,7 +568,7 @@ TEST_F(ZeroSuggestProviderTest, AllowZeroPrefixSuggestionsRequestEligibility) {
     // Zero-suggest is generally not allowed for invalid or non-HTTP(S) URLs.
     base::HistogramTester histogram_tester;
     AutocompleteInput on_focus_ineligible_url_input =
-        OnFocusInputForWeb("chrome://history");
+        OnFocusInputForWeb("wootzapp://history");
     EXPECT_EQ(
         ZeroSuggestProvider::ResultType::kNone,
         ZeroSuggestProvider::ResultTypeToRun(on_focus_ineligible_url_input));

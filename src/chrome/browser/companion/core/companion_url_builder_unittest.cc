@@ -319,7 +319,7 @@ TEST_F(CompanionUrlBuilderTest, NonProtobufParams) {
 
 TEST_F(CompanionUrlBuilderTest, ValidPageUrls) {
   VerifyPageUrlSent(GURL(kValidUrl), true);
-  VerifyPageUrlSent(GURL("chrome://new-tab"), false);
+  VerifyPageUrlSent(GURL("wootzapp://new-tab"), false);
   VerifyPageUrlSent(GURL("https://192.168.0.1"), false);
   VerifyPageUrlSent(GURL("https://localhost:8888"), false);
 }

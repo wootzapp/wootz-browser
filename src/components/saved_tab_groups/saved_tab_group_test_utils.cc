@@ -80,7 +80,7 @@ SavedTabGroup CreateTestSavedTabGroup() {
   SavedTabGroupTab tab1 =
       CreateSavedTabGroupTab("www.google.com", u"Google", id, /*position=*/0);
   SavedTabGroupTab tab2 =
-      CreateSavedTabGroupTab("chrome://newtab", u"new tab", id, /*position=*/1);
+      CreateSavedTabGroupTab("wootzapp://newtab", u"new tab", id, /*position=*/1);
 
   tab1.SetFavicon(gfx::Image());
   tab2.SetFavicon(gfx::Image());

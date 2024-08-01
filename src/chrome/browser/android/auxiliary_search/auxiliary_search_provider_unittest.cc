@@ -126,7 +126,7 @@ TEST_F(AuxiliarySearchProviderTest, QueryBookmarks_nativePageShouldBeFiltered) {
       GURL(chrome::kChromeUINativeNewTabURL),
       GURL("content://content_url"),
       GURL("about:about_url"),
-      GURL("chrome://chrome_url"),
+      GURL("wootzapp://wootzapp_url"),
       GURL("javascript:javascript_url"),
       GURL("file://file_url"),
       GURL("invalidscheme://invalidscheme_url")};

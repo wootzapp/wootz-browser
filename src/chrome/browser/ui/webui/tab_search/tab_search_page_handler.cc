@@ -628,7 +628,7 @@ void TabSearchPageHandler::OpenHelpPage() {
 
 void TabSearchPageHandler::OpenSyncSettings() {
   Browser* browser = chrome::FindLastActive();
-  GURL settings_url("chrome://settings/syncSetup/advanced");
+  GURL settings_url("wootzapp://settings/syncSetup/advanced");
   NavigateParams params(browser, settings_url,
                         ui::PageTransition::PAGE_TRANSITION_LINK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;

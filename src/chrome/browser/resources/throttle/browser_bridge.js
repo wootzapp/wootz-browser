@@ -26,10 +26,23 @@ export class BrowserBridge {
    * @param {number} packetLoss Percentage of packets lost (between 0 and 1).
    * @returns {Promise} A promise that resolves when the action is complete.
    */
-  sendSetNetworkThrottling(offline, latency, downloadThroughput, uploadThroughput, packetLoss) {
-    console.log(`Setting network throttling conditions: HELLO  ${offline}, ${latency}`)
 
-    chrome.send('setNetworkThrottling', [offline, latency, downloadThroughput, uploadThroughput, packetLoss,0.0]);
+  sendSetNetworkThrottling(settings) {
+    return sendWithPromise('setNetworkThrottling',
+      settings.offline,
+      settings.latency,
+      settings.downloadThroughput,
+      settings.uploadThroughput,
+      settings.packetLoss,
+      settings.packetQueueLength);
+  }
+  /**
+   * Fetches the saved network throttling settings.
+   * @returns {Promise<Object>} A promise that resolves to the saved settings.
+   */
+  getNetworkThrottlingSettings() {
+    return sendWithPromise('getNetworkThrottlingSettings');
+
   }
 
  /**

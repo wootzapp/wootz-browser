@@ -905,7 +905,7 @@ IN_PROC_BROWSER_TEST_P(KeepAliveURLBrowserTest,
 IN_PROC_BROWSER_TEST_P(KeepAliveURLBrowserTest,
                        ReceiveUnSafeRedirectAfterPageUnload) {
   const std::string method = GetParam();
-  const char unsafe_redirect_target[] = "chrome://settings";
+  const char unsafe_redirect_target[] = "wootzapp://settings";
   auto request_handler =
       std::move(RegisterRequestHandlers({kKeepAliveEndpoint})[0]);
   ASSERT_TRUE(server()->Start());

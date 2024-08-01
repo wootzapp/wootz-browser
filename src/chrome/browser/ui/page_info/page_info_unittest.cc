@@ -1612,7 +1612,7 @@ TEST_F(PageInfoTest, AboutBlankPage) {
 // custom and simpler bubble is shown, so no need to test.
 #if BUILDFLAG(IS_ANDROID)
 TEST_F(PageInfoTest, InternalPage) {
-  SetURL("chrome://bookmarks");
+  SetURL("wootzapp://bookmarks");
   SetDefaultUIExpectations(mock_ui());
   EXPECT_EQ(PageInfo::SITE_CONNECTION_STATUS_INTERNAL_PAGE,
             page_info()->site_connection_status());

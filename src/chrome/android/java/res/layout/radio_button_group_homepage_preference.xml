@@ -35,7 +35,7 @@ found in the LICENSE file.
         android:id="@+id/radio_button_chrome_ntp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:primaryText="@string/options_homepage_chrome_homepage" />
+        app:primaryText="@string/options_homepage_wootzapp_homepage" />
 
     <org.chromium.components.browser_ui.widget.RadioButtonWithEditText
         android:id="@+id/radio_button_uri_edit"

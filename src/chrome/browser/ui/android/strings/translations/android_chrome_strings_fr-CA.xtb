@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> en cours de chargement…</translation>
 <translation id="1240903469550363138">Pour continuer, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> partagera votre nom, votre adresse de courriel et votre photo de profil avec ce site. Consultez la <ph name="BEGIN_LINK1" />politique de confidentialité<ph name="END_LINK1" /> et les <ph name="BEGIN_LINK2" />conditions d'utilisation<ph name="END_LINK2" /> de ce site.</translation>
 <translation id="124116460088058876">Plus de langues</translation>
-<translation id="1241792820757384812">Vos mots de passe seront supprimés du gestionnaire de mots de passe Google pour <ph name="CHROME_CHANNEL" />. Vous conserverez le fichier de mots de passe que vous venez de télécharger.</translation>
+<translation id="1241792820757384812">Vos mots de passe seront supprimés du gestionnaire de mots de passe Google pour <ph name="WOOTZAPP_CHANNEL" />. Vous conserverez le fichier de mots de passe que vous venez de télécharger.</translation>
 <translation id="1242883863226959074">appareil</translation>
 <translation id="124678866338384709">Fermer l'onglet actuel</translation>
 <translation id="1246905108078336582">Supprimer la suggestion du presse-papiers?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Fermer onglets navig. privée</translation>
 <translation id="1568636008098739136">Écouter cette page. Pour modifier ce raccourci, maintenez le doigt sur celui-ci.</translation>
 <translation id="1571304935088121812">Copier le nom d'utilisateur</translation>
-<translation id="1584648915421894279">À l'heure actuelle, les mots de passe enregistrés sur cet appareil ne peuvent pas être utilisés sur l'ensemble des versions de Chrome. Après le lancement de Chrome 125, les mots de passe enregistrés sur votre appareil pour Chrome et <ph name="CHROME_CHANNEL" /> seront fusionnés et pourront être utilisés dans les deux applications.</translation>
+<translation id="1584648915421894279">À l'heure actuelle, les mots de passe enregistrés sur cet appareil ne peuvent pas être utilisés sur l'ensemble des versions de Chrome. Après le lancement de Chrome 125, les mots de passe enregistrés sur votre appareil pour Chrome et <ph name="WOOTZAPP_CHANNEL" /> seront fusionnés et pourront être utilisés dans les deux applications.</translation>
 <translation id="1592864538817356322">Protection standard :</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> éléments suggérés dans la liste ci-dessous.</translation>
 <translation id="1598163867407640634">Utiliser <ph name="SITE_ETLD_PLUS_ONE" /> avec <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
@@ -686,7 +686,7 @@ D'autres formes d'historique de navigation, telles que les recherches et l'activ
 <translation id="4594952190837476234">Cette page hors connexion a été créée le <ph name="CREATION_TIME" /> et peut différer de la version en ligne.</translation>
 <translation id="4595805675102978678">Erreur de compte Google</translation>
 <translation id="4601095002996233687">Analyses approfondies des téléchargements suspects.</translation>
-<translation id="4609429330876432068">Vos listes de mots de passe enregistrés pour Chrome et <ph name="CHROME_CHANNEL" /> ont été fusionnées. Vous pouvez toujours remplir automatiquement tous vos mots de passe enregistrés sur les deux applications.</translation>
+<translation id="4609429330876432068">Vos listes de mots de passe enregistrés pour Chrome et <ph name="WOOTZAPP_CHANNEL" /> ont été fusionnées. Vous pouvez toujours remplir automatiquement tous vos mots de passe enregistrés sur les deux applications.</translation>
 <translation id="4616150815774728855">Ouvrir <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Confirmer que c'est bien vous</translation>
 <translation id="4634124774493850572">Utiliser le mot de passe</translation>
@@ -1651,7 +1651,7 @@ Pour modifier ce paramètre, <ph name="BEGIN_LINK" />supprimez les données Chro
 <translation id="927968626442779827">Utilisez le mode simplifié dans Google Chrome</translation>
 <translation id="928550791203542716">Vous suivez <ph name="SITE_NAME" /></translation>
 <translation id="930124987204876019">Supprimer l'historique, les témoins, les données relatives aux sites, le cache…</translation>
-<translation id="93533588269984624">Tous les mots de passe seront téléchargés sur votre appareil et retirés de <ph name="CHROME_CHANNEL" /></translation>
+<translation id="93533588269984624">Tous les mots de passe seront téléchargés sur votre appareil et retirés de <ph name="WOOTZAPP_CHANNEL" /></translation>
 <translation id="938850635132480979">Erreur : <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Entrer la phrase de passe</translation>
 <translation id="952301137339791907">La zone de contenu au bas de l'écran des statistiques de la page est ouverte</translation>

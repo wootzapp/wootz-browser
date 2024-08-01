@@ -523,7 +523,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     // NTPResourceCache::GetNewTabHTML!
     switch (NTPResourceCache::GetWindowType(profile)) {
       case NTPResourceCache::NORMAL:
-        LOG(ERROR) << "Requested load of chrome://newtab/ for incorrect "
+        LOG(ERROR) << "Requested load of wootzapp://newtab/ for incorrect "
                       "profile type.";
         // TODO(crbug.com/40244589): Add DumpWithoutCrashing() here.
         return nullptr;
@@ -553,6 +553,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUIPerformanceSidePanelHost) {
     return &NewWebUI<PerformanceSidePanelUI>;
   }
+ 
   // Settings are implemented with native UI elements on Android.
   if (url.host_piece() == chrome::kChromeUISettingsHost)
     return &NewWebUI<settings::SettingsUI>;
@@ -745,6 +746,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
 
   if (url.host_piece() == chrome::kChromeUIFamilyLinkUserInternalsHost)
     return &NewWebUI<FamilyLinkUserInternalsUI>;
+
+ 
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   if (url.host_piece() == chrome::kChromeUIWelcomeHost &&
@@ -1098,6 +1101,8 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
     GURL(ash::kChromeUIConchURL),
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
+
+
 #elif BUILDFLAG(IS_CHROMEOS_LACROS)
     // Pages that only exist in Lacros, where they are reachable via chrome://.
     // TODO(neis): Some of these still exist in Ash (but are inaccessible) and
@@ -1110,6 +1115,9 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
   return *urls;
 }
 
+
+
+
 bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   if (url.SchemeIs(extensions::kExtensionScheme) && url.has_host()) {
@@ -1120,5 +1128,6 @@ bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
   return crosapi::gurl_os_handler_utils::IsAshUrlInList(
       url, GetListOfAcceptableURLs());
 }
+
 
 #endif  // BUILDFLAG(IS_CHROMEOS)

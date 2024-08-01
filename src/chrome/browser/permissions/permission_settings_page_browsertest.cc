@@ -81,7 +81,7 @@ class PredictionSettingsPageBrowserTest : public InteractiveBrowserTest {
   }
 
   GURL GetNotificationSettingsUrl() {
-    return GURL("chrome://settings/content/notifications");
+    return GURL("wootzapp://settings/content/notifications");
   }
 
   auto WaitFor(const WebContentsInteractionTestUtil::DeepQuery& element,
@@ -301,7 +301,7 @@ IN_PROC_BROWSER_TEST_F(PredictionSettingsPageBrowserTest,
   auto util = WebContentsInteractionTestUtil::ForExistingTabInBrowser(
       browser(), kWebContentsElementId);
 
-  util->LoadPage(GURL("chrome://settings/content/notifications"));
+  util->LoadPage(GURL("wootzapp://settings/content/notifications"));
 
   auto sequence =
       ui::InteractionSequence::Builder()
