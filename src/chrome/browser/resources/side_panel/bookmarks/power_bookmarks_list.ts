@@ -623,8 +623,8 @@ export class PowerBookmarksListElement extends PolymerElement {
       if (bookmark.url) {
         const url = new URL(bookmark.url);
         // Show chrome:// if it's a chrome internal url
-        if (url.protocol === 'chrome:') {
-          urlString = 'chrome://' + url.hostname;
+        if (url.protocol === 'wootzapp:') {
+          urlString = 'wootzapp://' + url.hostname;
         }
         urlString = url.hostname;
       }

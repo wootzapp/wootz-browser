@@ -406,7 +406,7 @@ class HistoryBackendTestBase : public testing::Test {
 
 bool HistoryBackendTestDelegate::CanAddURL(const GURL& url) const {
   // For the purposes of these tests, accept all valid URLs except "chrome://".
-  return url.is_valid() && !url.SchemeIs("chrome");
+  return url.is_valid() && !url.SchemeIs("wootzapp");
 }
 
 void HistoryBackendTestDelegate::SetInMemoryBackend(
@@ -4817,7 +4817,7 @@ TEST_F(HistoryBackendTest, AddSyncedVisitAddsOnlyValidURLs) {
   foreign_visit.originator_cache_guid = "originator";
   foreign_visit.is_known_to_sync = true;
   EXPECT_EQ(kInvalidVisitID,
-            backend_->AddSyncedVisit(GURL("chrome://settings"), u"Settings",
+            backend_->AddSyncedVisit(GURL("wootzapp://settings"), u"Settings",
                                      /*hidden=*/false, foreign_visit,
                                      std::nullopt, std::nullopt));
   EXPECT_EQ(kInvalidVisitID,

@@ -375,7 +375,7 @@ OneDayImpl::GenerateImportRequestBody() {
 
   // Certain metadata is passed by chrome, since it's not available in ash.
   version_info::Channel version_channel =
-      GetParams()->GetChromeDeviceParams().chrome_channel;
+      GetParams()->GetChromeDeviceParams().WOOTZAPP_CHANNEL;
   ash::report::MarketSegment market_segment =
       GetParams()->GetChromeDeviceParams().market_segment;
 

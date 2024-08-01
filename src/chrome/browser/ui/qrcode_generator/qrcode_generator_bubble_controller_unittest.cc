@@ -37,9 +37,9 @@ TEST_F(QRCodeGeneratorBubbleControllerTest, AllowedURLs) {
   ASSERT_FALSE(QRCodeGeneratorBubbleController::IsGeneratorAvailable(
       GURL("about:blank")));
   ASSERT_FALSE(QRCodeGeneratorBubbleController::IsGeneratorAvailable(
-      GURL("chrome://newtab")));
+      GURL("wootzapp://newtab")));
   ASSERT_FALSE(QRCodeGeneratorBubbleController::IsGeneratorAvailable(
-      GURL("chrome://settings")));
+      GURL("wootzapp://settings")));
 
   // Disallow invalid URLs.
   ASSERT_FALSE(QRCodeGeneratorBubbleController::IsGeneratorAvailable(GURL("")));

@@ -313,7 +313,7 @@ IN_PROC_BROWSER_TEST_F(DebuggerApiTest,
                        DebuggerNotAllowedOnRestrictedBlobUrls) {
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  EXPECT_TRUE(content::NavigateToURL(web_contents, GURL("chrome://settings")));
+  EXPECT_TRUE(content::NavigateToURL(web_contents, GURL("wootzapp://settings")));
   EXPECT_TRUE(content::WaitForLoadStop(web_contents));
   ASSERT_TRUE(content::ExecJs(web_contents, R"(
     var blob = new Blob([JSON.stringify({foo: 'bar'})], {

@@ -81,7 +81,7 @@ struct BookmarksTestInfo {
     // For testing short bookmarks.
     {"testing short bookmarks", "https://zzz.com"},
     // For testing bookmarks search in keyword mode.
-    {"@bookmarks", "chrome://bookmarks"},
+    {"@bookmarks", "wootzapp://bookmarks"},
     // For testing max matches.
     {"zyx1", "http://randomsite.com/zyx1"},
     {"zyx2", "http://randomsite.com/zyx2"},

@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> පූරණය කරමින්</translation>
 <translation id="1240903469550363138">ඉදිරියට යාමට, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ඔබගේ නම, ඉ-තැපැල් ලිපිනය සහ පැතිකඩ පින්තූරය මෙම අඩවිය සමග බෙදා ගනු ඇත. මෙම අඩවියෙහි <ph name="BEGIN_LINK1" />පෞද්ගලිකත්ව ප්‍රතිපත්තිය<ph name="END_LINK1" /> සහ <ph name="BEGIN_LINK2" />සේවා නියම<ph name="END_LINK2" /> බලන්න.</translation>
 <translation id="124116460088058876">තවත් භාෂා</translation>
-<translation id="1241792820757384812">ඔබේ මුරපද <ph name="CHROME_CHANNEL" /> සඳහා Google මුරපද කළමනාකරු වෙතින් මකනු ලැබේ. ඔබ දැන් බාගත කළ මුරපද ගොනුව තබා ගනු ඇත.</translation>
+<translation id="1241792820757384812">ඔබේ මුරපද <ph name="WOOTZAPP_CHANNEL" /> සඳහා Google මුරපද කළමනාකරු වෙතින් මකනු ලැබේ. ඔබ දැන් බාගත කළ මුරපද ගොනුව තබා ගනු ඇත.</translation>
 <translation id="1242883863226959074">උපාංගය</translation>
 <translation id="124678866338384709">වත්මන් ටැබය වසන්න</translation>
 <translation id="1246905108078336582">පසුරු පුවරුවෙන් යෝජනාව ඉවත් කරන්නේද?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">අප්‍රකට ටැබ වසන්න</translation>
 <translation id="1568636008098739136">මෙම පිටුවට සවන් දෙන්න. මෙම කෙටිමඟ සංස්කරණ කිරීමට, ස්පර්ශ කර අල්ලා සිටින්න.</translation>
 <translation id="1571304935088121812">පරිශීලක නාමය පිටපත් කරන්න</translation>
-<translation id="1584648915421894279">මේ මොහොතේ, මෙම උපාංගයේ සුරකින ලද මුරපද Chrome නාලිකා හරහා භාවිතා කළ නොහැක. Chrome 125ට පසුව, Chrome සහ <ph name="CHROME_CHANNEL" /> සඳහා ඔබේ උපාංගයෙහි සුරකින ලද මුරපද ඒකාබද්ධ කරනු ලබන අතර යෙදුම් දෙකෙහිම භාවිතා කළ හැක.</translation>
+<translation id="1584648915421894279">මේ මොහොතේ, මෙම උපාංගයේ සුරකින ලද මුරපද Chrome නාලිකා හරහා භාවිතා කළ නොහැක. Chrome 125ට පසුව, Chrome සහ <ph name="WOOTZAPP_CHANNEL" /> සඳහා ඔබේ උපාංගයෙහි සුරකින ලද මුරපද ඒකාබද්ධ කරනු ලබන අතර යෙදුම් දෙකෙහිම භාවිතා කළ හැක.</translation>
 <translation id="1592864538817356322">සම්මත ආරක්ෂාව:</translation>
 <translation id="1594635596540195766">පහත ලැයිස්තුවේ අයිතම <ph name="SUGGESTIONS_COUNT" />කි.</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> සමග <ph name="SITE_ETLD_PLUS_ONE" /> භාවිතා කරන්න</translation>
@@ -696,7 +696,7 @@
 <translation id="4594952190837476234">මෙම නොබැඳි පිටුව <ph name="CREATION_TIME" /> වෙතින් වන අතර සබැඳි අනුවාදයෙන් වෙනස් විය හැකිය.</translation>
 <translation id="4595805675102978678">Google ගිණුම් දෝෂයකි</translation>
 <translation id="4601095002996233687">සැක සහිත බාගැනීම් සඳහා ගැඹුරු ස්කෑන් කිරීම්.</translation>
-<translation id="4609429330876432068">Chrome සහ <ph name="CHROME_CHANNEL" /> සඳහා ඔබේ සුරකින ලද මුරපද ලැයිස්තුව ඒකාබද්ධ කර ඇත. ඔබට තවමත් යෙදුම් දෙකෙහිම ඔබේ සුරැකි මුරපද සියල්ල ස්වයං පිරවුම කළ හැකි ය.</translation>
+<translation id="4609429330876432068">Chrome සහ <ph name="WOOTZAPP_CHANNEL" /> සඳහා ඔබේ සුරකින ලද මුරපද ලැයිස්තුව ඒකාබද්ධ කර ඇත. ඔබට තවමත් යෙදුම් දෙකෙහිම ඔබේ සුරැකි මුරපද සියල්ල ස්වයං පිරවුම කළ හැකි ය.</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> විවෘත කරන්න</translation>
 <translation id="4619564267100705184">ඒ ඔබ බව සත්‍යාපනය කරන්න</translation>
 <translation id="4634124774493850572">මුරපදය භාවිත කරන්න</translation>
@@ -1669,7 +1669,7 @@
 <translation id="927968626442779827">Google Chrome හි සැහැල්ලු ප්‍රකාරය භාවිත කරන්න</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> අනුගමනය කරමින්</translation>
 <translation id="930124987204876019">ඉතිහාසය, කුකී, අඩවි දත්ත, හැඹිලිය මකන්න…</translation>
-<translation id="93533588269984624">සියලු ම මුරපද ඔබේ උපාංගයට බාගෙන <ph name="CHROME_CHANNEL" /> වෙතින් ඉවත් කරනු ලැබේ</translation>
+<translation id="93533588269984624">සියලු ම මුරපද ඔබේ උපාංගයට බාගෙන <ph name="WOOTZAPP_CHANNEL" /> වෙතින් ඉවත් කරනු ලැබේ</translation>
 <translation id="938850635132480979">දෝෂය: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">මුරවදන ඇතුළත් කරන්න</translation>
 <translation id="952301137339791907">පිටු විදසුන් පහළ පත්‍රය විවෘතව ඇත</translation>

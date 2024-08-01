@@ -237,7 +237,7 @@ IN_PROC_BROWSER_TEST_F(WebAppTabStripBrowserTest, PopOutTabOnInstall) {
   EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
   EXPECT_EQ(
       browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
-      GURL("chrome://newtab/"));
+      GURL("wootzapp://newtab/"));
 }
 
 // TODO(crbug.com/40598974) Enabled tab strip for web apps on non-Chrome OS.

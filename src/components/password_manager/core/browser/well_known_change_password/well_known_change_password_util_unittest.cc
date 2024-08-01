@@ -22,7 +22,7 @@ TEST(WellKnownChangePasswordUtilTest, IsWellKnownChangePasswordUrl) {
 
   EXPECT_FALSE(IsWellKnownChangePasswordUrl(GURL("https://google.com/foo")));
 
-  EXPECT_FALSE(IsWellKnownChangePasswordUrl(GURL("chrome://settings/")));
+  EXPECT_FALSE(IsWellKnownChangePasswordUrl(GURL("wootzapp://settings/")));
 
   EXPECT_FALSE(IsWellKnownChangePasswordUrl(GURL("mailto:?subject=test")));
 }

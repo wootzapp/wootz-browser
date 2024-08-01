@@ -49,7 +49,7 @@ const char kOrigin2[] = "http://www.google.com";
 // This is only here to test that state for non-web-storage schemes is not
 // listed by the helper. Web storage schemes are http, https, file, ftp, ws,
 // and wss.
-const char kOrigin3[] = "chrome://settings";
+const char kOrigin3[] = "wootzapp://settings";
 
 bool PutTestData(blink::mojom::StorageArea* area) {
   base::RunLoop run_loop;

@@ -252,7 +252,7 @@ IN_PROC_BROWSER_TEST_F(AppBrowserControllerBrowserTest, NonAppUrl) {
   EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
   EXPECT_EQ(
       browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
-      "chrome://newtab/");
+      "wootzapp://newtab/");
   EXPECT_TRUE(app_browser_->is_type_app());
   EXPECT_EQ(app_browser_->tab_strip_model()->count(), 1);
   EXPECT_EQ(GetActiveTabURL(), tabbed_app_url_);

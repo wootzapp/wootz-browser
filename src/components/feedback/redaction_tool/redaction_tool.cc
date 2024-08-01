@@ -1207,7 +1207,7 @@ bool IsUrlExempt(std::string_view url,
   }
 
   // Check for chrome:// URLs that are exempt.
-  if (url.starts_with("chrome://")) {
+  if (url.starts_with("wootzapp://")) {
     // We allow everything in chrome://resources/.
     if (url.starts_with("chrome://resources/")) {
       return true;

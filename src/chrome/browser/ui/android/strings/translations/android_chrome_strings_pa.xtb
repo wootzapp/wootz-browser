@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> ਨੂੰ ਲੋਡ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ</translation>
 <translation id="1240903469550363138">ਜਾਰੀ ਰੱਖਣ ਲਈ, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ਤੁਹਾਡੇ ਨਾਮ, ਈਮੇਲ ਪਤੇ ਅਤੇ ਪ੍ਰੋਫਾਈਲ ਤਸਵੀਰ ਨੂੰ ਇਸ ਸਾਈਟ ਨਾਲ ਸਾਂਝਾ ਕਰੇਗਾ। ਇਸ ਸਾਈਟ ਦੀ <ph name="BEGIN_LINK1" />ਪਰਦੇਦਾਰੀ ਨੀਤੀ<ph name="END_LINK1" /> ਅਤੇ <ph name="BEGIN_LINK2" />ਸੇਵਾ ਦੇ ਨਿਯਮ<ph name="END_LINK2" /> ਦੇਖੋ।</translation>
 <translation id="124116460088058876">ਹੋਰ ਭਾਸ਼ਾਵਾਂ</translation>
-<translation id="1241792820757384812"><ph name="CHROME_CHANNEL" /> ਲਈ ਤੁਹਾਡੇ ਪਾਸਵਰਡਾਂ ਨੂੰ Google Password Manager ਤੋਂ ਮਿਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਤੁਹਾਡੇ ਵੱਲੋਂ ਹੁਣੇ ਡਾਊਨਲੋਡ ਕੀਤੀ ਗਈ ਪਾਸਵਰਡ ਫ਼ਾਈਲ ਤੁਹਾਡੇ ਕੋਲ ਰਹੇਗੀ।</translation>
+<translation id="1241792820757384812"><ph name="WOOTZAPP_CHANNEL" /> ਲਈ ਤੁਹਾਡੇ ਪਾਸਵਰਡਾਂ ਨੂੰ Google Password Manager ਤੋਂ ਮਿਟਾ ਦਿੱਤਾ ਜਾਵੇਗਾ। ਤੁਹਾਡੇ ਵੱਲੋਂ ਹੁਣੇ ਡਾਊਨਲੋਡ ਕੀਤੀ ਗਈ ਪਾਸਵਰਡ ਫ਼ਾਈਲ ਤੁਹਾਡੇ ਕੋਲ ਰਹੇਗੀ।</translation>
 <translation id="1242883863226959074">ਡੀਵਾਈਸ</translation>
 <translation id="124678866338384709">ਮੌਜੂਦਾ ਟੈਬ ਬੰਦ ਕਰੋ</translation>
 <translation id="1246905108078336582">ਕੀ ਕਲਿੱਪਬੋਰਡ ਤੋਂ ਸੁਝਾਅ ਨੂੰ ਹਟਾਉਣਾ ਹੈ?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">ਇਨਕੋਗਨਿਟੋ ਟੈਬਾਂ ਨੂੰ ਬੰਦ ਕਰੋ</translation>
 <translation id="1568636008098739136">ਇਸ ਪੰਨੇ ਨੂੰ ਸੁਣੋ। ਇਸ ਸ਼ਾਰਟਕੱਟ ਦਾ ਸੰਪਾਦਨ ਕਰਨ ਲਈ, ਸਪਰਸ਼ ਕਰ ਕੇ ਰੱਖੋ।</translation>
 <translation id="1571304935088121812">ਵਰਤੋਂਕਾਰ ਨਾਮ ਕਾਪੀ ਕਰੋ</translation>
-<translation id="1584648915421894279">ਫ਼ਿਲਹਾਲ, ਇਸ ਡੀਵਾਈਸ 'ਤੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਸਾਰੇ Chrome ਚੈਨਲਾਂ 'ਤੇ ਨਹੀਂ ਵਰਤਿਆ ਜਾ ਸਕਦਾ। Chrome 125 ਤੋਂ ਬਾਅਦ, Chrome ਅਤੇ <ph name="CHROME_CHANNEL" /> ਦੇ ਲਈ ਤੁਹਾਡੇ ਡੀਵਾਈਸ 'ਤੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਮਿਲਾ ਦਿੱਤਾ ਜਾਵੇਗਾ ਅਤੇ ਉਨ੍ਹਾਂ ਨੂੰ ਦੋਵਾਂ ਐਪਾਂ ਵਿੱਚ ਵਰਤਿਆ ਜਾ ਸਕਦਾ ਹੈ।</translation>
+<translation id="1584648915421894279">ਫ਼ਿਲਹਾਲ, ਇਸ ਡੀਵਾਈਸ 'ਤੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਸਾਰੇ Chrome ਚੈਨਲਾਂ 'ਤੇ ਨਹੀਂ ਵਰਤਿਆ ਜਾ ਸਕਦਾ। Chrome 125 ਤੋਂ ਬਾਅਦ, Chrome ਅਤੇ <ph name="WOOTZAPP_CHANNEL" /> ਦੇ ਲਈ ਤੁਹਾਡੇ ਡੀਵਾਈਸ 'ਤੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਮਿਲਾ ਦਿੱਤਾ ਜਾਵੇਗਾ ਅਤੇ ਉਨ੍ਹਾਂ ਨੂੰ ਦੋਵਾਂ ਐਪਾਂ ਵਿੱਚ ਵਰਤਿਆ ਜਾ ਸਕਦਾ ਹੈ।</translation>
 <translation id="1592864538817356322">ਮਿਆਰੀ ਸੁਰੱਖਿਆ:</translation>
 <translation id="1594635596540195766">ਹੇਠਾਂ ਦਿੱਤੀ ਸੂਚੀ ਵਿੱਚ <ph name="SUGGESTIONS_COUNT" /> ਸੁਝਾਈਆਂ ਗਈਆਂ ਆਈਟਮਾਂ।</translation>
 <translation id="1598163867407640634"><ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> ਨਾਲ <ph name="SITE_ETLD_PLUS_ONE" /> ਦੀ ਵਰਤੋਂ ਕਰੋ</translation>
@@ -686,7 +686,7 @@
 <translation id="4594952190837476234">ਇਹ ਆਫ਼ਲਾਈਨ ਪੰਨਾ <ph name="CREATION_TIME" /> ਦਾ ਹੈ ਅਤੇ ਆਨਲਾਈਨ ਵਰਜਨ ਤੋਂ ਵੱਖਰਾ ਹੋ ਸਕਦਾ ਹੈ।</translation>
 <translation id="4595805675102978678">Google ਖਾਤੇ ਸੰਬੰਧੀ ਗੜਬੜ</translation>
 <translation id="4601095002996233687">ਸ਼ੱਕੀ ਡਾਊਨਲੋਡਾਂ ਦੀ ਗਹਿਰਾਈ ਨਾਲ ਸਕੈਨਿੰਗ ਕੀਤੀ ਜਾਂਦੀ ਹੈ।</translation>
-<translation id="4609429330876432068">Chrome ਅਤੇ <ph name="CHROME_CHANNEL" /> ਲਈ ਤੁਹਾਡੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਦੀਆਂ ਸੂਚੀਆਂ ਨੂੰ ਮਿਲਾ ਦਿੱਤਾ ਗਿਆ ਸੀ। ਤੁਸੀਂ ਹਾਲੇ ਵੀ ਦੋਵਾਂ ਐਪਾਂ 'ਤੇ ਆਪਣੇ ਸਾਰੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਆਟੋਫਿਲ ਕਰ ਸਕਦੇ ਹੋ।</translation>
+<translation id="4609429330876432068">Chrome ਅਤੇ <ph name="WOOTZAPP_CHANNEL" /> ਲਈ ਤੁਹਾਡੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਦੀਆਂ ਸੂਚੀਆਂ ਨੂੰ ਮਿਲਾ ਦਿੱਤਾ ਗਿਆ ਸੀ। ਤੁਸੀਂ ਹਾਲੇ ਵੀ ਦੋਵਾਂ ਐਪਾਂ 'ਤੇ ਆਪਣੇ ਸਾਰੇ ਰੱਖਿਅਤ ਕੀਤੇ ਪਾਸਵਰਡਾਂ ਨੂੰ ਆਟੋਫਿਲ ਕਰ ਸਕਦੇ ਹੋ।</translation>
 <translation id="4616150815774728855"><ph name="WEBAPK_NAME" /> ਖੋਲ੍ਹੋ</translation>
 <translation id="4619564267100705184">ਆਪਣੀ ਪਛਾਣ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ</translation>
 <translation id="4634124774493850572">ਪਾਸਵਰਡ ਵਰਤੋ</translation>
@@ -1651,7 +1651,7 @@
 <translation id="927968626442779827">Google Chrome 'ਤੇ ਲਾਈਟ ਮੋਡ ਵਰਤੋ</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> ਦਾ ਅਨੁਸਰਣ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ</translation>
 <translation id="930124987204876019">ਇਤਿਹਾਸ, ਕੁਕੀਜ਼, ਸਾਈਟ ਡਾਟਾ, ਕੈਸ਼ੇ ਮਿਟਾਓ…</translation>
-<translation id="93533588269984624">ਸਾਰੇ ਪਾਸਵਰਡ ਤੁਹਾਡੇ ਡੀਵਾਈਸ 'ਤੇ ਡਾਊਨਲੋਡ ਕੀਤੇ ਜਾਣਗੇ ਅਤੇ <ph name="CHROME_CHANNEL" /> ਤੋਂ ਹਟਾ ਦਿੱਤੇ ਜਾਣਗੇ</translation>
+<translation id="93533588269984624">ਸਾਰੇ ਪਾਸਵਰਡ ਤੁਹਾਡੇ ਡੀਵਾਈਸ 'ਤੇ ਡਾਊਨਲੋਡ ਕੀਤੇ ਜਾਣਗੇ ਅਤੇ <ph name="WOOTZAPP_CHANNEL" /> ਤੋਂ ਹਟਾ ਦਿੱਤੇ ਜਾਣਗੇ</translation>
 <translation id="938850635132480979">ਗੜਬੜ: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">ਪਾਸਫਰੇਜ਼ ਦਾਖਲ ਕਰੋ</translation>
 <translation id="952301137339791907">ਪੰਨੇ ਦੀਆਂ ਅੰਦਰੂਨੀ-ਝਾਤਾਂ ਵਾਲੀ ਹੇਠਲੀ ਸ਼ੀਟ ਖੁੱਲ੍ਹੀ ਹੈ</translation>

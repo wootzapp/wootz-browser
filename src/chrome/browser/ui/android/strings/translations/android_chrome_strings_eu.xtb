@@ -53,7 +53,7 @@
 <translation id="1240288207750131269"><ph name="LANG" /> kargatzen</translation>
 <translation id="1240903469550363138">Aurrera egiteko, <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> hornitzaileak zure izena, helbide elektronikoa eta profileko argazkia partekatuko ditu webgune honekin. Ikusi webgunearen <ph name="BEGIN_LINK1" />pribatutasun-gidalerroak<ph name="END_LINK1" /> eta <ph name="BEGIN_LINK2" />zerbitzu-baldintzak<ph name="END_LINK2" />.</translation>
 <translation id="124116460088058876">Hizkuntza gehiago</translation>
-<translation id="1241792820757384812">Pasahitzak ezabatu egingo dira <ph name="CHROME_CHANNEL" /> arakatzaileko Google-ren Pasahitz-kudeatzailea zerbitzutik. Gorde deskargatu berri duzun pasahitzen fitxategia zeuretzat.</translation>
+<translation id="1241792820757384812">Pasahitzak ezabatu egingo dira <ph name="WOOTZAPP_CHANNEL" /> arakatzaileko Google-ren Pasahitz-kudeatzailea zerbitzutik. Gorde deskargatu berri duzun pasahitzen fitxategia zeuretzat.</translation>
 <translation id="1242883863226959074">gailuan</translation>
 <translation id="124678866338384709">Itxi oraingo fitxa</translation>
 <translation id="1246905108078336582">Iradokizuna arbeletik kendu nahi duzu?</translation>
@@ -116,7 +116,7 @@
 <translation id="1558391695376153246">Itxi ezkutuko moduko fitxak</translation>
 <translation id="1568636008098739136">Entzun orri honetan dagoena. Lasterbidea editatzeko, eduki ezazu sakatuta.</translation>
 <translation id="1571304935088121812">Kopiatu erabiltzaile-izena</translation>
-<translation id="1584648915421894279">Une honetan, gailuan gordetako pasahitzak ezin dira erabili Chrome-ren kanaletan. Chrome-ren 125. bertsiotik aurrera, Chrome-rako eta <ph name="CHROME_CHANNEL" /> kanalerako gailuan gordetako pasahitzak bateratu egingo dira, eta 2 aplikazioetan erabili ahal izango dituzu.</translation>
+<translation id="1584648915421894279">Une honetan, gailuan gordetako pasahitzak ezin dira erabili Chrome-ren kanaletan. Chrome-ren 125. bertsiotik aurrera, Chrome-rako eta <ph name="WOOTZAPP_CHANNEL" /> kanalerako gailuan gordetako pasahitzak bateratu egingo dira, eta 2 aplikazioetan erabili ahal izango dituzu.</translation>
 <translation id="1592864538817356322">Babes estandarra:</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> iradokizun daude beheko zerrendan.</translation>
 <translation id="1598163867407640634">Erabili <ph name="SITE_ETLD_PLUS_ONE" /> <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /> hornitzailearekin</translation>
@@ -686,7 +686,7 @@ Baliteke Google-ko kontuak arakatze-historiako bestelako datu batzuk (adibidez, 
 <translation id="4594952190837476234">Konexiorik gabe erabiltzeko orri hau <ph name="CREATION_TIME" /> datan sortu zen. Ondorioz, baliteke sareko bertsioarekin bat ez etortzea.</translation>
 <translation id="4595805675102978678">Google-ko kontuaren errorea</translation>
 <translation id="4601095002996233687">Deskarga susmagarrien azterketa sakonak.</translation>
-<translation id="4609429330876432068">Chrome eta <ph name="CHROME_CHANNEL" /> aplikazioetan gordetako pasahitzak bateratu egin dira. Gorde dituzun pasahitz guztiak bi aplikazioetan bete ditzakezu automatikoki.</translation>
+<translation id="4609429330876432068">Chrome eta <ph name="WOOTZAPP_CHANNEL" /> aplikazioetan gordetako pasahitzak bateratu egin dira. Gorde dituzun pasahitz guztiak bi aplikazioetan bete ditzakezu automatikoki.</translation>
 <translation id="4616150815774728855">Ireki <ph name="WEBAPK_NAME" /></translation>
 <translation id="4619564267100705184">Egiaztatu zeu zarela</translation>
 <translation id="4634124774493850572">Erabili pasahitza</translation>
@@ -1651,7 +1651,7 @@ Ezarpen hori aldatzeko, <ph name="BEGIN_LINK" />ezabatu kontuko Chrome-ko datuak
 <translation id="927968626442779827">Erabili oinarrizko modua Google Chrome-n</translation>
 <translation id="928550791203542716"><ph name="SITE_NAME" /> webguneari jarraitzen</translation>
 <translation id="930124987204876019">Ezabatu historia, cookieak, webguneetako datuak, cachea…</translation>
-<translation id="93533588269984624">Pasahitz guztiak gailuan deskargatuko dira, eta <ph name="CHROME_CHANNEL" /> arakatzailetik kenduko</translation>
+<translation id="93533588269984624">Pasahitz guztiak gailuan deskargatuko dira, eta <ph name="WOOTZAPP_CHANNEL" /> arakatzailetik kenduko</translation>
 <translation id="938850635132480979">Errorea: <ph name="ERROR_CODE" /></translation>
 <translation id="939598580284253335">Idatzi pasaesaldia</translation>
 <translation id="952301137339791907">Pantailaren behealdean ainguratutako orria, orriaren estatistikak dituena, irekita dago</translation>

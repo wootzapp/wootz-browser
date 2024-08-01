@@ -195,7 +195,7 @@ public class StandardNotificationBuilderTest {
         NotificationBuilderBase notificationBuilder = new StandardNotificationBuilder(context);
 
         Bitmap bitmap =
-                BitmapFactory.decodeResource(context.getResources(), R.drawable.chrome_sync_logo);
+                BitmapFactory.decodeResource(context.getResources(), R.drawable.wootzapp_sync_logo);
 
         notificationBuilder.setSmallIconId(R.drawable.ic_chrome);
         notificationBuilder.setStatusBarIcon(bitmap);

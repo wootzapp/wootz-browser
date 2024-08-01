@@ -33,7 +33,7 @@ class PrintPreviewChromeOsInteractiveUiTest : public InteractiveAshTest {
 
   auto LaunchBrowser() {
     return Steps(InstrumentNextTab(kChromeBrowserId, AnyBrowser()),
-                 Do([&]() { CreateBrowserWindow(GURL("chrome://newtab")); }),
+                 Do([&]() { CreateBrowserWindow(GURL("wootzapp://newtab")); }),
                  WaitForShow(kChromeBrowserId));
   }
 };

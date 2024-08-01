@@ -167,7 +167,7 @@ TEST_F(HistoryClustersProviderTest, SyncSearchMatches) {
   EXPECT_EQ(provider_->matches()[0].contents, u"Resume browsing");
   EXPECT_EQ(provider_->matches()[0].fill_into_edit, u"keyword");
   EXPECT_EQ(provider_->matches()[0].destination_url,
-            GURL("chrome://history/grouped?q=keyword"));
+            GURL("wootzapp://history/grouped?q=keyword"));
 
   EXPECT_TRUE(on_provider_update_calls_.empty());
 }

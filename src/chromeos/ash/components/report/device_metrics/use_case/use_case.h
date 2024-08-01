@@ -36,7 +36,7 @@ namespace ash::report::device_metrics {
 // on the chrome browser.
 struct COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_REPORT)
     ChromeDeviceMetadataParameters {
-  version_info::Channel chrome_channel;
+  version_info::Channel WOOTZAPP_CHANNEL;
   MarketSegment market_segment;
   const std::string last_powerwash_week;
 };

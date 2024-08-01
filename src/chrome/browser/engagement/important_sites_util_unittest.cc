@@ -475,8 +475,8 @@ TEST_F(ImportantSitesUtilTest, ExcludeNonRegisterableDomains) {
   ASSERT_TRUE(service);
 
   GURL url1("http://www.google.com/");
-  GURL url2("chrome://newtab/");
-  GURL url3("chrome://settings/");
+  GURL url2("wootzapp://newtab/");
+  GURL url3("wootzapp://settings/");
   GURL url4("http://localhost/");
 
   // Set a bunch of positive signals.

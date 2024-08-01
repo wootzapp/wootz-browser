@@ -105,7 +105,7 @@ class PDFExtensionJSTest : public base::test::WithFeatureOverride,
     constexpr char kModuleLoaderTemplate[] =
         R"(var s = document.createElement('script');
            s.type = 'module';
-           s.src = 'chrome://%s/pdf/%s';
+           s.src = 'wootzapp://%s/pdf/%s';
            s.onerror = function(e) {
              console.error('Error while loading', e.target.src);
            };

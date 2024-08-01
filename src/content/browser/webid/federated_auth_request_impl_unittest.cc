@@ -6075,7 +6075,7 @@ class FederatedAuthRequestImplNewTabTest : public FederatedAuthRequestImplTest {
         web_contents(), /*delegate=*/nullptr, GURL(kIdpUrl));
 
     static_cast<TestWebContents*>(web_contents())
-        ->NavigateAndCommit(GURL("chrome://newtab/"), ui::PAGE_TRANSITION_LINK);
+        ->NavigateAndCommit(GURL("wootzapp://newtab/"), ui::PAGE_TRANSITION_LINK);
 
     federated_auth_request_impl_ = &FederatedAuthRequestImpl::CreateForTesting(
         *main_test_rfh(), test_api_permission_delegate_.get(),

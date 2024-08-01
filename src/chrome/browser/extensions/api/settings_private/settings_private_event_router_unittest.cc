@@ -129,7 +129,7 @@ TEST_F(SettingsPrivateEventRouterTest, IncognitoEventRouting) {
   // Add event listeners, as if we had created two real WebUIs, one in a regular
   // profile and one in an otr profile. Note that the string chrome://settings
   // is hardcoded into the api permissions of settingsPrivate.
-  GURL kDummyURL("chrome://settings");
+  GURL kDummyURL("wootzapp://settings");
   regular_event_router->AddEventListenerForURL(
       api::settings_private::OnPrefsChanged::kEventName, &regular_rph,
       kDummyURL);

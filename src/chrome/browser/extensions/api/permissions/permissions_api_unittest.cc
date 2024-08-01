@@ -650,7 +650,7 @@ TEST_F(PermissionsAPIUnitTest, RequestingChromeURLs) {
           .Build();
   AddExtensionAndGrantPermissions(*extension);
 
-  const GURL chrome_url("chrome://settings");
+  const GURL chrome_url("wootzapp://settings");
 
   // By default, the extension should not have access to chrome://settings.
   EXPECT_FALSE(extension->permissions_data()->HasHostPermission(chrome_url));
@@ -667,7 +667,7 @@ TEST_F(PermissionsAPIUnitTest, RequestingChromeURLs) {
     function->set_user_gesture(true);
     function->set_extension(extension.get());
     std::string error = api_test_utils::RunFunctionAndReturnError(
-        function.get(), R"([{"origins": ["chrome://settings/*"]}])", profile(),
+        function.get(), R"([{"origins": ["wootzapp://settings/*"]}])", profile(),
         api_test_utils::FunctionMode::kNone);
     EXPECT_EQ(kNotInManifestError, error);
   }

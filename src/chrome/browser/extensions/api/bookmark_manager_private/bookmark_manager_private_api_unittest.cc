@@ -170,13 +170,13 @@ TEST_F(BookmarkManagerPrivateApiUnitTest,
 TEST_F(BookmarkManagerPrivateApiUnitTest,
        RunOpenInNewWindowFunctionIncognitoIncompatibleNode) {
   const bookmarks::BookmarkNode* node = model()->AddURL(
-      model()->other_node(), 0, u"history", GURL("chrome://history"));
+      model()->other_node(), 0, u"history", GURL("wootzapp://history"));
   std::string node_id = base::NumberToString(node->id());
 
   auto new_window_function =
       base::MakeRefCounted<BookmarkManagerPrivateOpenInNewWindowFunction>();
   std::string args = base::StringPrintf(R"([["%s"], true])", node_id.c_str());
-  EXPECT_EQ("Cannot open URL \"chrome://history/\" in an incognito window.",
+  EXPECT_EQ("Cannot open URL \"wootzapp://history/\" in an incognito window.",
             api_test_utils::RunFunctionAndReturnError(new_window_function.get(),
                                                       args, profile()));
 }

@@ -286,7 +286,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionResourceRequestPolicyTest,
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       "document.title"));
 
-  GURL newtab_page("chrome://newtab");
+  GURL newtab_page("wootzapp://newtab");
   GURL accessible_newtab_override(embedded_test_server()->GetURL(
       "/extensions/api_test/extension_resource_request_policy/"
       "web_accessible/accessible_history_navigation.html"));

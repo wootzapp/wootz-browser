@@ -2,36 +2,25 @@ import("//ui/webui/resources/tools/build_webui.gni")
 import("//tools/grit/grit_rule.gni")
 import("//tools/grit/preprocess_if_expr.gni")
 
-# build_webui("build") {
-#   grd_prefix = "hello_world"
+build_webui("build") {
+  grd_prefix = "hello_world"
 
-#   static_files = [ "hello_world.html", "hello_world.css","reaward.js" ]
+  static_files = [ "hello_world.html", "hello_world.css","reaward.js" ]
 
-#   non_web_component_files = [ "app.ts", "app.html.ts" ]
-#   css_files = [ "app.css" ]
+  non_web_component_files = [ "app.ts", "app.html.ts" ]
+  css_files = [ "app.css" ]
 
-#   ts_deps = [
-#     "//third_party/lit/v3_0:build_ts",
-#     "//ui/webui/resources/js:build_ts",
-#   ]
-# }
-
-
-# preprocess_if_expr("preprocess") {
-#   in_files = [
-#     "hello_world.html",
-#     "reaward.js",
-#     "https://api-staging-0.gotartifact.com/v2/users/authentication/signin",
-#     "reward_iframe.html",
-#   ]
-# }
-
-
-preprocess_if_expr("preprocess") {
-  in_files = [
-    "dist/index.html",
-    "dist/assests/index-BWy8V6zJ.js",
-    "dist/assests/react-CHdo91hT.svg",
-    "dist/assests/index-DiwrgTda.css",
+  ts_deps = [
+    "//third_party/lit/v3_0:build_ts",
+    "//ui/webui/resources/js:build_ts",
   ]
 }
+preprocess_if_expr("preprocess") {
+  in_files = [
+    "hello_world.html",
+    "reaward.js",
+    "https://api-staging-0.gotartifact.com/v2/users/authentication/signin",
+    "reward_iframe.html",
+  ]
+}
+

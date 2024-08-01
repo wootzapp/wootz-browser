@@ -46,7 +46,7 @@ class OmniboxPedalClearBrowsingData : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA),
-            GURL("chrome://settings/clearBrowserData")),
+            GURL("wootzapp://settings/clearBrowserData")),
         incognito_(incognito) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
@@ -164,7 +164,7 @@ class OmniboxPedalUpdateCreditCard : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_UPDATE_CREDIT_CARD),
-            GURL("chrome://settings/payments")) {}
+            GURL("wootzapp://settings/payments")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -221,7 +221,7 @@ class OmniboxPedalLaunchIncognito : public OmniboxPedal {
                          IDS_ACC_OMNIBOX_PEDAL_LAUNCH_INCOGNITO),
 #endif  // BUILDFLAG(IS_ANDROID)
         // Fake URL to distinguish matches.
-            GURL("chrome://newtab?incognito=true")) {
+            GURL("wootzapp://newtab?incognito=true")) {
   }
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
@@ -347,7 +347,7 @@ class OmniboxPedalUpdateChrome : public OmniboxPedal {
                          IDS_OMNIBOX_PEDAL_UPDATE_CHROME_SUGGESTION_CONTENTS,
                          IDS_ACC_OMNIBOX_PEDAL_UPDATE_CHROME_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_UPDATE_CHROME),
-            GURL("chrome://settings/help")) {}
+            GURL("wootzapp://settings/help")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -400,7 +400,7 @@ class OmniboxPedalRunChromeSafetyCheck : public OmniboxPedal {
                 IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK),
 #endif  // BUILDFLAG(IS_ANDROID)
-            GURL("chrome://settings/safetyCheck?activateSafetyCheck")) {
+            GURL("wootzapp://settings/safetyCheck?activateSafetyCheck")) {
 #if !BUILDFLAG(IS_ANDROID)
     // If SafetyHub flag is enabled, the label strings and url should be
     // updated.
@@ -410,7 +410,7 @@ class OmniboxPedalRunChromeSafetyCheck : public OmniboxPedal {
           IDS_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUGGESTION_CONTENTS,
           IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2_SUFFIX,
           IDS_ACC_OMNIBOX_PEDAL_RUN_CHROME_SAFETY_CHECK_V2);
-      url_ = GURL("chrome://settings/safetyCheck");
+      url_ = GURL("wootzapp://settings/safetyCheck");
     }
 #endif  // !BUILDFLAG(IS_ANDROID)
   }
@@ -468,7 +468,7 @@ class OmniboxPedalManageSecuritySettings : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_SECURITY_SETTINGS),
-            GURL("chrome://settings/security")) {}
+            GURL("wootzapp://settings/security")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -518,7 +518,7 @@ class OmniboxPedalManageCookies : public OmniboxPedal {
                          IDS_OMNIBOX_PEDAL_MANAGE_COOKIES_SUGGESTION_CONTENTS,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_COOKIES_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_COOKIES),
-            GURL("chrome://settings/cookies")) {}
+            GURL("wootzapp://settings/cookies")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -568,7 +568,7 @@ class OmniboxPedalManageAddresses : public OmniboxPedal {
                          IDS_OMNIBOX_PEDAL_MANAGE_ADDRESSES_SUGGESTION_CONTENTS,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_ADDRESSES_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_ADDRESSES),
-            GURL("chrome://settings/addresses")) {}
+            GURL("wootzapp://settings/addresses")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -618,7 +618,7 @@ class OmniboxPedalManageSync : public OmniboxPedal {
                          IDS_OMNIBOX_PEDAL_MANAGE_SYNC_SUGGESTION_CONTENTS,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC_SUFFIX,
                          IDS_ACC_OMNIBOX_PEDAL_MANAGE_SYNC),
-            GURL("chrome://settings/syncSetup/advanced")) {}
+            GURL("wootzapp://settings/syncSetup/advanced")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1343,7 +1343,7 @@ class OmniboxPedalPlayChromeDinoGame : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_PLAY_CHROME_DINO_GAME),
-            GURL("chrome://dino")) {}
+            GURL("wootzapp://dino")) {}
 
 #if defined(SUPPORT_PEDALS_VECTOR_ICONS)
   const gfx::VectorIcon& GetVectorIcon() const override {
@@ -1496,7 +1496,7 @@ class OmniboxPedalManageChromeSettings : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_SETTINGS),
-            GURL("chrome://settings")) {}
+            GURL("wootzapp://settings")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1538,7 +1538,7 @@ class OmniboxPedalManageChromeDownloads : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_DOWNLOADS),
-            GURL("chrome://downloads")) {}
+            GURL("wootzapp://downloads")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1583,7 +1583,7 @@ class OmniboxPedalViewChromeHistory : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_VIEW_CHROME_HISTORY),
-            GURL("chrome://history")) {}
+            GURL("wootzapp://history")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1681,7 +1681,7 @@ class OmniboxPedalManageChromeAccessibility : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_ACCESSIBILITY),
-            GURL("chrome://settings/accessibility")) {}
+            GURL("wootzapp://settings/accessibility")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1726,7 +1726,7 @@ class OmniboxPedalManageChromeOSAccessibility : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_CHROMEOS_ACCESSIBILITY_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROMEOS_ACCESSIBILITY_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROMEOS_ACCESSIBILITY),
-            GURL("chrome://os-settings/osAccessibility")) {}
+            GURL("wootzapp://os-settings/osAccessibility")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1776,7 +1776,7 @@ class OmniboxPedalCustomizeChromeFonts : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_CHROME_FONTS),
-            GURL("chrome://settings/fonts")) {}
+            GURL("wootzapp://settings/fonts")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1827,7 +1827,7 @@ class OmniboxPedalManageChromeThemes : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_MANAGE_CHROME_THEMES),
-            GURL("chrome://new-tab-page/?customize=backgrounds")) {}
+            GURL("wootzapp://new-tab-page/?customize=backgrounds")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1882,7 +1882,7 @@ class OmniboxPedalCustomizeSearchEngines : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_CUSTOMIZE_SEARCH_ENGINES_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_SEARCH_ENGINES_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_CUSTOMIZE_SEARCH_ENGINES),
-            GURL("chrome://settings/searchEngines")) {}
+            GURL("wootzapp://settings/searchEngines")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {
@@ -1933,7 +1933,7 @@ class OmniboxPedalSetChromeAsDefaultBrowser : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_SET_CHROME_AS_DEFAULT_BROWSER),
-            GURL("chrome://settings/defaultBrowser")) {}
+            GURL("wootzapp://settings/defaultBrowser")) {}
 
   std::vector<SynonymGroupSpec> SpecifySynonymGroups(
       bool locale_is_english) const override {

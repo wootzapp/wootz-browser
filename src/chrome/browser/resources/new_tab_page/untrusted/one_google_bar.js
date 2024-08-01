@@ -17,7 +17,7 @@ function postMessage(messageType, data) {
   }
   window.parent.postMessage(
       {frameType: 'one-google-bar', messageType, data},
-      'chrome://new-tab-page');
+      'wootzapp://new-tab-page');
 }
 
 const oneGoogleBarApi = (() => {

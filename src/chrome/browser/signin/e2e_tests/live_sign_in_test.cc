@@ -263,7 +263,7 @@ IN_PROC_BROWSER_TEST_F(LiveSignInTest, MANUAL_CancelSyncWithWebAccount) {
   sign_in_functions.SignInFromWeb(test_account, 0);
 
   SignInTestObserver observer(identity_manager(), account_reconcilor());
-  GURL settings_url("chrome://settings");
+  GURL settings_url("wootzapp://settings");
   ASSERT_TRUE(AddTabAtIndex(0, settings_url,
                             ui::PageTransition::PAGE_TRANSITION_TYPED));
   auto* settings_tab = browser()->tab_strip_model()->GetActiveWebContents();

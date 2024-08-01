@@ -100,7 +100,7 @@ class DevToolsUIDataSourceTest : public testing::Test {
     std::string trimmed_path = path.substr(1);
     content::WebContents::Getter wc_getter;
     data_source()->StartDataRequest(
-        GURL("chrome://any-host/" + trimmed_path), std::move(wc_getter),
+        GURL("wootzapp://any-host/" + trimmed_path), std::move(wc_getter),
         base::BindOnce(&DevToolsUIDataSourceTest::OnDataReceived,
                        base::Unretained(this)));
   }
