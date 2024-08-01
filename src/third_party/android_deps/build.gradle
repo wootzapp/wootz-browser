@@ -197,6 +197,7 @@ dependencies {
 
     // Use testCompile to have is_robolectric = true set on targets.
     testCompile "org.robolectric:robolectric:4.12.1"
+    implementation "androidx.biometric:biometric:1.2.0-alpha04"
 }
 
 task setUpRepository(type: BuildConfigGenerator) {
