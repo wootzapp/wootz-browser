@@ -1,10 +1,10 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef BRAVE_COMPONENTS_BRAVE_WALLET_COMMON_ETH_ABI_UTILS_H_
-#define BRAVE_COMPONENTS_BRAVE_WALLET_COMMON_ETH_ABI_UTILS_H_
+#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_ETH_ABI_UTILS_H_
+#define WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_ETH_ABI_UTILS_H_
 
 #include <array>
 #include <memory>
@@ -14,9 +14,9 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "brave/components/brave_wallet/common/eth_address.h"
+#include "chrome/components/wootz_wallet/common/eth_address.h"
 
-namespace brave_wallet::eth_abi {
+namespace wootz_wallet::eth_abi {
 constexpr size_t kRowLength = 32;
 constexpr size_t kSelectorLength = 4;
 
@@ -143,6 +143,6 @@ TypeBuilder Array();
 TypeBuilder Array(size_t m);
 TypeBuilder Tuple();
 
-}  // namespace brave_wallet::eth_abi
+}  // namespace wootz_wallet::eth_abi
 
-#endif  // BRAVE_COMPONENTS_BRAVE_WALLET_COMMON_ETH_ABI_UTILS_H_
+#endif  // WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_ETH_ABI_UTILS_H_

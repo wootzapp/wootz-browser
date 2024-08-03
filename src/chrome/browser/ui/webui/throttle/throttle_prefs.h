@@ -21,6 +21,8 @@ namespace throttle_webui {
 
   // Registers user preferences related to bookmarks.
   void RegisterProfilePrefs(PrefRegistrySimple* registry);
+
+  // void LoadNetworkThrottlingSettings();
 }
 
 #endif  // CHROME_BROWSER_UI_WEBUI_THROTTLE_THROTTLE_PREFS_H_

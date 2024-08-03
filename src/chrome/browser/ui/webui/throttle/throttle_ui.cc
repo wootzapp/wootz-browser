@@ -11,7 +11,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/i18n/time_formatting.h"
-#include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_number_conversions.h"
@@ -27,7 +26,6 @@
 #include "chrome/grit/throttle_resources_map.h"
 #include "components/prefs/pref_member.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -40,18 +38,14 @@
 #include "net/base/net_errors.h"
 #include "net/base/network_isolation_key.h"
 #include "net/base/schemeful_site.h"
-#include "net/base/load_flags.h"
-#include "services/network/public/cpp/resource_request.h"
-#include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/cpp/request_destination.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "ui/resources/grit/webui_resources.h"
 #include "url/origin.h"
 #include "url/scheme_host_port.h"
-#include "net/traffic_annotation/network_traffic_annotation.h"
 
 using content::BrowserThread;
-using content::BrowserContext;
 
 namespace {
     void CreateAndAddThrottleHTMLSource(Profile* profile) {
@@ -109,6 +103,10 @@ namespace {
                             base::Unretained(this)));                        
     }
 
+    void ThrottleMessageHandler::OnJavascriptDisallowed() {
+        weak_factory_.InvalidateWeakPtrs();
+    }
+
     void ThrottleMessageHandler::OnSetNetworkThrottling(
         const base::Value::List& args) {
         DCHECK(args.size() == 6) << "Expected 6 arguments for network throttling settings";
@@ -120,11 +118,12 @@ namespace {
         double packet_loss = args[4].GetDouble();
         int packet_queue_length = args[5].GetInt();
 
+        LOG(ERROR)<<"offline "<<offline<<"latency "<<latency << download_throughput;
+
         Profile* profile = Profile::FromWebUI(web_ui_);
         PrefService* prefs = profile->GetPrefs();
 
         if(prefs){
-
         prefs->SetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline, offline);
         prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingLatency, latency);
         prefs->SetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput, download_throughput);
@@ -142,7 +141,8 @@ namespace {
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
+        LOG(ERROR)<<"After setnetworkconditions";
 
         // Notify frontend about the updated settings
         base::Value::List settings;
@@ -153,11 +153,14 @@ namespace {
         settings.Append(packet_loss);
         settings.Append(packet_queue_length);
 
+        LOG(ERROR)<< offline <<" "<< latency<< " "<< download_throughput<<" "<<upload_throughput<< " " << packet_loss << " " << packet_queue_length;
+
         AllowJavascript();
-        web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+        FireWebUIListener("displaySavedSettings", settings);
     }
     
     void ThrottleMessageHandler::HandleGetNetworkThrottlingSettings(const base::Value::List& args) {
+    AllowJavascript();
     Profile* profile = Profile::FromWebUI(web_ui_);
     PrefService* prefs = profile->GetPrefs();
 
@@ -176,8 +179,7 @@ namespace {
     settings.Append(packet_loss);
     settings.Append(packet_queue_length);
 
-    AllowJavascript();
-    web_ui_->CallJavascriptFunctionUnsafe("displaySavedSettings", settings);
+    FireWebUIListener("displaySavedSettings", settings);
 }
 
     void ThrottleMessageHandler::LoadNetworkThrottlingSettings() {
@@ -199,7 +201,7 @@ namespace {
         conditions->packet_loss = packet_loss;
         conditions->packet_queue_length = packet_queue_length;
 
-        GetNetworkContext()->SetNetworkConditions(devtools_token, std::move(conditions));
+        GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
     }
 
     network::mojom::NetworkContext* ThrottleMessageHandler::GetNetworkContext() {
@@ -216,5 +218,4 @@ ThrottleUI::ThrottleUI(content::WebUI* web_ui)
 
     // Set up the wootzapp://throttle source.
     CreateAndAddThrottleHTMLSource(Profile::FromWebUI(web_ui));
-
 }

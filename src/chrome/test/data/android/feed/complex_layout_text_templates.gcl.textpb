@@ -1464,7 +1464,7 @@ initial_response {
                     binding_values {
                       binding_id: "tb1"
                       parameterized_text {
-                        text: "brave"
+                        text: "wootz"
                       }
                     }
                     binding_values {
@@ -5175,7 +5175,7 @@ initial_response {
                     binding_values {
                       binding_id: "tb15"
                       parameterized_text {
-                        text: "brave"
+                        text: "wootz"
                       }
                     }
                     binding_values {
@@ -7287,7 +7287,7 @@ initial_response {
                     binding_values {
                       binding_id: "tb13"
                       parameterized_text {
-                        text: "brave"
+                        text: "wootz"
                       }
                     }
                     binding_values {
