@@ -1,35 +1,35 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "brave/components/brave_wallet/common/features.h"
+#include "chrome/components/wootz_wallet/common/features.h"
 
 #include "base/feature_list.h"
-#include "brave/components/brave_wallet/common/buildflags.h"
+#include "chrome/components/wootz_wallet/common/buildflags.h"
 #include "build/build_config.h"
 
-namespace brave_wallet::features {
+namespace wootz_wallet::features {
 
-BASE_FEATURE(kNativeBraveWalletFeature,
-             "NativeBraveWallet",
+BASE_FEATURE(kNativeWootzWalletFeature,
+             "NativeWootzWallet",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kBraveWalletBitcoinFeature,
-             "BraveWalletBitcoin",
+BASE_FEATURE(kWootzWalletBitcoinFeature,
+             "WootzWalletBitcoin",
              base::FEATURE_ENABLED_BY_DEFAULT
 );
-const base::FeatureParam<int> kBitcoinRpcThrottle{&kBraveWalletBitcoinFeature,
+const base::FeatureParam<int> kBitcoinRpcThrottle{&kWootzWalletBitcoinFeature,
                                                   "rpc_throttle", 1};
 const base::FeatureParam<bool> kBitcoinTestnetDiscovery{
-    &kBraveWalletBitcoinFeature, "testnet_discovery", false};
+    &kWootzWalletBitcoinFeature, "testnet_discovery", false};
 
-BASE_FEATURE(kBraveWalletBitcoinImportFeature,
-             "BraveWalletBitcoinImport",
+BASE_FEATURE(kWootzWalletBitcoinImportFeature,
+             "WootzWalletBitcoinImport",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kBraveWalletZCashFeature,
-             "BraveWalletZCash",
+BASE_FEATURE(kWootzWalletZCashFeature,
+             "WootzWalletZCash",
 #if BUILDFLAG(ENABLE_ZCASH_BY_DEFAULT)
              base::FEATURE_ENABLED_BY_DEFAULT
 #else
@@ -38,13 +38,13 @@ BASE_FEATURE(kBraveWalletZCashFeature,
 );
 
 const base::FeatureParam<bool> kZCashShieldedTransactionsEnabled{
-    &kBraveWalletZCashFeature, "zcash_shielded_transactions_enabled", false};
+    &kWootzWalletZCashFeature, "zcash_shielded_transactions_enabled", false};
 
-BASE_FEATURE(kBraveWalletAnkrBalancesFeature,
-             "BraveWalletAnkrBalances",
+BASE_FEATURE(kWootzWalletAnkrBalancesFeature,
+             "WootzWalletAnkrBalances",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kBraveWalletTransactionSimulationsFeature,
-             "BraveWalletTransactionSimulations",
+BASE_FEATURE(kWootzWalletTransactionSimulationsFeature,
+             "WootzWalletTransactionSimulations",
              base::FEATURE_DISABLED_BY_DEFAULT);
-}  // namespace brave_wallet::features
+}  // namespace wootz_wallet::features

@@ -1,9 +1,9 @@
-/* Copyright (c) 2021 The Brave Authors. All rights reserved.
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "brave/components/brave_wallet/common/hash_utils.h"
+#include "chrome/components/wootz_wallet/common/hash_utils.h"
 
 #include <algorithm>
 #include <array>
@@ -13,13 +13,13 @@
 #include "base/containers/span.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
-#include "brave/components/brave_wallet/common/eth_abi_utils.h"
-#include "brave/components/brave_wallet/common/hex_utils.h"
-#include "brave/third_party/bitcoin-core/src/src/crypto/ripemd160.h"
-#include "brave/third_party/ethash/src/include/ethash/keccak.h"
+#include "chrome/components/wootz_wallet/common/eth_abi_utils.h"
+#include "chrome/components/wootz_wallet/common/hex_utils.h"
+#include "chrome/third_party/bitcoin-core/src/src/crypto/ripemd160.h"
+#include "chrome/third_party/ethash/src/include/ethash/keccak.h"
 #include "crypto/sha2.h"
 
-namespace brave_wallet {
+namespace wootz_wallet {
 namespace {
 std::array<uint8_t, 64> ConcatArrays(const std::array<uint8_t, 32>& arr1,
                                      const std::array<uint8_t, 32>& arr2) {
@@ -93,4 +93,4 @@ std::vector<uint8_t> Hash160(base::span<const uint8_t> input) {
   return result;
 }
 
-}  // namespace brave_wallet
+}  // namespace wootz_wallet

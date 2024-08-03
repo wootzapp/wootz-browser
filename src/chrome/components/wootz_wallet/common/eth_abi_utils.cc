@@ -1,9 +1,9 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "brave/components/brave_wallet/common/eth_abi_utils.h"
+#include "chrome/components/wootz_wallet/common/eth_abi_utils.h"
 
 #include <algorithm>
 #include <iterator>
@@ -15,10 +15,10 @@
 #include "base/containers/span.h"
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
-#include "brave/components/brave_wallet/common/brave_wallet_types.h"
-#include "brave/components/brave_wallet/common/eth_address.h"
+#include "chrome/components/wootz_wallet/common/wootz_wallet_types.h"
+#include "chrome/components/wootz_wallet/common/eth_address.h"
 
-namespace brave_wallet::eth_abi {
+namespace wootz_wallet::eth_abi {
 namespace {
 
 void Uint256ToBytes(uint256_t value, base::span<uint8_t> destination) {
@@ -638,4 +638,4 @@ TypeBuilder Tuple() {
   return TypeBuilder(TypeKind::kTuple);
 }
 
-}  // namespace brave_wallet::eth_abi
+}  // namespace wootz_wallet::eth_abi
