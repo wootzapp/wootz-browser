@@ -51,6 +51,8 @@ static_library("ui") {
     "app_list/app_list_util.h",
     "webui/hello_world/hello_world_ui.cc",
     "webui/hello_world/hello_world_ui.h",
+    "webui/help_page/help_ui.cc",
+    "webui/help_page/help_ui.h",
     # All other app_list/ files go under is_chromeos_ash below.
     "autofill/autofill_bubble_handler.h",
     "autofill/autofill_client_provider.cc",
