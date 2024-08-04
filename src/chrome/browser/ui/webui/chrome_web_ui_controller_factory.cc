@@ -50,6 +50,7 @@
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/throttle/throttle_ui.h"
 #include "chrome/browser/ui/webui/hello_world/hello_world_ui.h"
+#include "chrome/browser/ui/webui/help_page/help_ui.h"
 #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
@@ -445,8 +446,10 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<NetInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIThrottleHost)
     return &NewWebUI<ThrottleUI>;
-   if (url.host() == chrome::kChromeUIHelloWorldHost)
+  if (url.host() == chrome::kChromeUIHelloWorldHost)
     return &NewWebUI<HelloWorldUI>;
+  if (url.host() == chrome::kChromeUIHelpPageHost)
+    return &NewWebUI<HelpUI>;
   if (url.host_piece() == chrome::kChromeUINTPTilesInternalsHost)
     return &NewWebUI<NTPTilesInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIOmniboxHost)
