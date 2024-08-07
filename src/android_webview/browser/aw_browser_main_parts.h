@@ -13,12 +13,19 @@
 #include "base/task/single_thread_task_executor.h"
 #include "content/public/browser/browser_main_parts.h"
 
+#include "extensions/shell/browser/shell_extension_system.h"
+
 namespace crash_reporter {
 class ChildExitObserver;
 }
 
 namespace metrics {
 class MemoryMetricsLogger;
+}
+
+namespace extensions {
+class ShellExtensionsClient;
+class ShellExtensionsBrowserClient;
 }
 
 namespace android_webview {
@@ -40,6 +47,9 @@ class AwBrowserMainParts : public content::BrowserMainParts {
   int PreEarlyInitialization() override;
   int PreCreateThreads() override;
   int PreMainMessageLoopRun() override;
+
+  void PostMainMessageLoopRun() override;
+
   void WillRunMainMessageLoop(
       std::unique_ptr<base::RunLoop>& run_loop) override;
   void PostCreateThreads() override;
@@ -56,6 +66,14 @@ class AwBrowserMainParts : public content::BrowserMainParts {
 
   std::unique_ptr<AwBrowserProcess> browser_process_;
   std::unique_ptr<crash_reporter::ChildExitObserver> child_exit_observer_;
+
+  std::unique_ptr<PrefService> local_state_;
+  std::unique_ptr<PrefService> user_pref_service_;
+
+  std::unique_ptr<extensions::ShellExtensionsClient> extensions_client_;
+  std::unique_ptr<extensions::ShellExtensionsBrowserClient> extensions_browser_client_;
+  AwBrowserContext* browser_context_;
+
 };
 
 }  // namespace android_webview

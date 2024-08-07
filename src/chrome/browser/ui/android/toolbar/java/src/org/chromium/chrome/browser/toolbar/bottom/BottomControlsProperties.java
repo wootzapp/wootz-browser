@@ -22,10 +22,6 @@ class BottomControlsProperties {
      */
     static final WritableIntPropertyKey ANDROID_VIEW_TRANSLATE_Y = new WritableIntPropertyKey();
 
-    /** The min height of browser controls in px. */
-    static final WritableIntPropertyKey TOPCONTROLSMINHEIGHT_OFFSET = new WritableIntPropertyKey();
-
-
     /** Whether the Android view version of the bottom controls component is visible. */
     static final WritableBooleanPropertyKey ANDROID_VIEW_VISIBLE = new WritableBooleanPropertyKey();
 
@@ -44,7 +40,6 @@ class BottomControlsProperties {
                 ANDROID_VIEW_TRANSLATE_Y,
                 ANDROID_VIEW_VISIBLE,
                 COMPOSITED_VIEW_VISIBLE,
-                IS_OBSCURED,
-                TOPCONTROLSMINHEIGHT_OFFSET
+                IS_OBSCURED
             };
 }

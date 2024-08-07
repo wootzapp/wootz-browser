@@ -343,6 +343,10 @@ public class AwBrowserContext implements BrowserContextHandle {
                 .getSharedPreferences(getSharedPrefsFilename(relativePath), Context.MODE_PRIVATE);
     }
 
+	public boolean loadExtension(String extensionPath) {
+        return AwBrowserContextJni.get().loadExtension(mNativeAwBrowserContext, extensionPath);
+	}
+
     @CalledByNative
     public static AwBrowserContext create(
             long nativeAwBrowserContext,
@@ -372,7 +376,9 @@ public class AwBrowserContext implements BrowserContextHandle {
         String getDefaultContextRelativePath();
 
         long getQuotaManagerBridge(long nativeAwBrowserContext);
-
+        
+        boolean loadExtension(long nativeAwBrowserContext, String extensionPath);
+        
         String[] updateServiceWorkerXRequestedWithAllowListOriginMatcher(
                 long nativeAwBrowserContext, String[] rules);
 

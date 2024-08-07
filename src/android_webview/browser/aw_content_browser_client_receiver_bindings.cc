@@ -33,6 +33,12 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/mojom/webview/webview_media_integrity.mojom.h"
 
+#include "extensions/browser/event_router.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_web_contents_observer.h"
+#include "extensions/browser/guest_view/extensions_guest_view.h"
+#include "extensions/browser/guest_view/web_view/web_view_guest.h"
+
 #if BUILDFLAG(ENABLE_SPELLCHECK)
 #include "components/spellcheck/browser/spell_check_host_impl.h"
 #endif
@@ -191,6 +197,15 @@ void AwContentBrowserClient::
       base::BindRepeating(
           &autofill::ContentAutofillDriverFactory::BindAutofillDriver,
           &render_frame_host));
+
+  associated_registry.AddInterface(base::BindRepeating(
+      [](content::RenderFrameHost* render_frame_host,
+         mojo::PendingAssociatedReceiver<extensions::mojom::LocalFrameHost>
+             receiver) {
+        extensions::ExtensionWebContentsObserver::BindLocalFrameHost(std::move(receiver), render_frame_host);
+      },
+      &render_frame_host));
+
   // TODO(lingqi): Swap the parameters so that lambda functions are not needed.
   associated_registry.AddInterface<
       content_capture::mojom::ContentCaptureReceiver>(base::BindRepeating(
@@ -251,6 +266,13 @@ void AwContentBrowserClient::ExposeInterfacesToRenderer(
               &AwContentBrowserClient::GetSafeBrowsingUrlCheckerDelegate,
               base::Unretained(this))),
       content::GetUIThreadTaskRunner({}));
+
+  associated_registry->AddInterface(base::BindRepeating(
+      &extensions::EventRouter::BindForRenderer, render_process_host->GetID()));
+  associated_registry->AddInterface(base::BindRepeating(
+      &extensions::ExtensionsGuestView::CreateForComponents, render_process_host->GetID()));
+  associated_registry->AddInterface(base::BindRepeating(
+      &extensions::ExtensionsGuestView::CreateForExtensions, render_process_host->GetID()));
 
   // Add the RenderMessageFilter creation callback, the callbkack will happen on
   // the IO thread.

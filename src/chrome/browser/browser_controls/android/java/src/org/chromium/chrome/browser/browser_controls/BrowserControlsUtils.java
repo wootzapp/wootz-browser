@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browser_controls;
-import org.chromium.base.ContextUtils;
 
 /** Static utilities related to browser controls interfaces. */
 public class BrowserControlsUtils {
@@ -26,9 +25,6 @@ public class BrowserControlsUtils {
      * @return Whether the browser controls should be drawn as a texture.
      */
     public static boolean drawControlsAsTexture(BrowserControlsStateProvider stateProvider) {
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false) ) {
-            return false;
-        }
         return stateProvider.getBrowserControlHiddenRatio() > 0;
     }
 

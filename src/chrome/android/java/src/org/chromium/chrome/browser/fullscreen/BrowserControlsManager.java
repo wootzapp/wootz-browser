@@ -46,8 +46,6 @@ import org.chromium.ui.util.TokenHolder;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
-import org.chromium.base.ContextUtils;
-
 /** A class that manages browser control visibility and positioning. */
 public class BrowserControlsManager implements ActivityStateListener, BrowserControlsSizer {
     // The amount of time to delay the control show request after returning to a once visible
@@ -434,14 +432,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
 
     @Override
-    public int getTopControlsHeightRealOffset() {
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
-            return 0;
-        else
-            return mTopControlContainerHeight;
-    }
-
-    @Override
     public int getTopControlsMinHeight() {
         return mTopControlsMinHeight;
     }
@@ -507,10 +497,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
     @Override
     public float getTopVisibleContentOffset() {
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
-            return 0;
-
         return getTopControlsHeight() + getTopControlOffset();
     }
 

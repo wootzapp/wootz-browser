@@ -39,9 +39,6 @@ import org.chromium.ui.resources.ResourceManager;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-
-
 /** Layout defining the animation and positioning of the tabs during the edge swipe effect. */
 public class ToolbarSwipeLayout extends Layout {
     private static final boolean ANONYMIZE_NON_FOCUSED_TAB = true;
@@ -446,13 +443,6 @@ public class ToolbarSwipeLayout extends Layout {
             }
             mLeftTab.setX(leftX);
             mLeftTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
-
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-               mLeftTab.setY(0);
-            } else {
-                mLeftTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
-            }
-
             needUpdate = updateSnap(dt, mLeftTab) || needUpdate;
         } else if (mLeftToolbarOverlay != null) {
             mLeftToolbarOverlay.setManualVisibility(false);
@@ -466,13 +456,6 @@ public class ToolbarSwipeLayout extends Layout {
             }
             mRightTab.setX(rightX);
             mRightTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
-
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                mRightTab.setY(0);
-            } else {
-                mRightTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
-            }
-
             needUpdate = updateSnap(dt, mRightTab) || needUpdate;
         } else if (mRightToolbarOverlay != null) {
             mRightToolbarOverlay.setManualVisibility(false);

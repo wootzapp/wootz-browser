@@ -156,7 +156,6 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
-import org.chromium.base.ContextUtils;
 /** A {@link RootUiCoordinator} variant that controls tabbed-mode specific UI. */
 public class TabbedRootUiCoordinator extends RootUiCoordinator {
     private static boolean sDisableTopControlsAnimationForTesting;
@@ -810,9 +809,6 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
 
         initStatusIndicatorCoordinator(layoutManager);
         mLayoutManager = layoutManager;
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false) ) {
-            updateTopControlsHeight();
-        }
     }
 
     @Override
@@ -1064,7 +1060,7 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
         if (mToolbarManager == null) return;
 
         // TODO(crbug/331844971): Do a smooth transition head into DW mode.
-         boolean animate =
+        final boolean animate =
                 !sDisableTopControlsAnimationForTesting
                         && !AppHeaderUtils.isAppInDesktopWindow(mAppHeaderCoordinator);
         final BrowserControlsSizer browserControlsSizer = mBrowserControlsManager;
@@ -1099,12 +1095,6 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
             topControlsNewHeight =
                     mActivity.getResources().getDimensionPixelSize(mControlContainerHeightResource)
                             + mStatusIndicatorHeight;
-                            
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false) ) {
-                topControlsNewHeight = mStatusIndicatorHeight;
-                animate=false;
-            }
-
         }
 
         browserControlsSizer.setAnimateBrowserControlsHeightChanges(animate);
@@ -1133,10 +1123,6 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
     }
 
     private void initStatusIndicatorCoordinator(LayoutManagerImpl layoutManager) {
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
-            return;
-
         // TODO(crbug.com/40112282): Disable on tablets for now as we need to do one or two extra
         // things for tablets.
         if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity)) {

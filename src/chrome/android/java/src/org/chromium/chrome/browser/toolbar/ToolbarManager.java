@@ -200,9 +200,6 @@ import org.chromium.url.GURL;
 
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-
-
 /**
  * Contains logic for managing the toolbar visual component. This class manages the interactions
  * with the rest of the application to ensure the toolbar is always visually up to date.
@@ -2665,17 +2662,6 @@ public class ToolbarManager
     private void setControlContainerTopMargin(int margin) {
         final ViewGroup.MarginLayoutParams layoutParams =
                 ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            if (layoutParams.bottomMargin == margin) {
-                return;
-            }
-
-            layoutParams.bottomMargin = margin;
-            mControlContainer.setLayoutParams(layoutParams);
-            return;
-        }
-
         if (layoutParams.topMargin == margin) {
             return;
         }

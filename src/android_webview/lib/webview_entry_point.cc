@@ -8,6 +8,8 @@
 #include "base/android/library_loader/library_loader_hooks.h"
 #include "base/logging.h"
 
+#include "android_webview/crwebview/crwebview_jni_registration.h"
+
 namespace {
 
 bool NativeInit(base::android::LibraryProcessType library_process_type) {
@@ -36,6 +38,11 @@ bool NativeInit(base::android::LibraryProcessType library_process_type) {
 // Most of the initialization is done in LibraryLoadedOnMainThread(), not here.
 JNI_EXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
   base::android::InitVM(vm);
+
+  JNIEnv* env = base::android::AttachCurrentThread();
+  RegisterMainDexNatives(env);
+  RegisterNonMainDexNatives(env);
+
   base::android::SetNativeInitializationHook(&NativeInit);
   return JNI_VERSION_1_4;
 }

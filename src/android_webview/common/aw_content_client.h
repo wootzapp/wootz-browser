@@ -34,6 +34,9 @@ class AwContentClient : public content::ContentClient {
       ui::ResourceScaleFactor scale_factor) override;
   base::RefCountedMemory* GetDataResourceBytes(int resource_id) override;
   std::string GetDataResourceString(int resource_id) override;
+
+  gfx::Image& GetNativeImageNamed(int resource_id) override;
+
   void SetGpuInfo(const gpu::GPUInfo& gpu_info) override;
   void AddContentDecryptionModules(
       std::vector<content::CdmInfo>* cdms,

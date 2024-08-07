@@ -55,8 +55,6 @@ import org.chromium.ui.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected we call
  * AppMenuHandlerImpl.AppMenuDelegate.onOptionsItemSelected with the appropriate MenuItem.
@@ -230,8 +228,6 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                     isMenuIconAtStart ? R.style.StartIconMenuAnim : R.style.EndIconMenuAnim);
         }
 
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) mPopup.setAnimationStyle(R.style.EndIconMenuAnimBottom);
-
         // Turn off window animations for low end devices.
         if (SysUtils.isLowEndDevice()) mPopup.setAnimationStyle(0);
 
@@ -325,22 +321,11 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
         mPopup.setContentView(contentView);
 
         try {
-            
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-
-            mPopup.showAsDropDown(
-                anchorView.getRootView(),
-                popupPosition[0], 
-                popupPosition[1]);
-            }
-            else {
             mPopup.showAtLocation(
-                anchorView.getRootView(),
-                Gravity.NO_GRAVITY,
-                popupPosition[0],
-                popupPosition[1]);
-            }
-
+                    anchorView.getRootView(),
+                    Gravity.NO_GRAVITY,
+                    popupPosition[0],
+                    popupPosition[1]);
         } catch (WindowManager.BadTokenException e) {
             // Intentionally ignore BadTokenException. This can happen in a real edge case where
             // parent.getWindowToken is not valid. See http://crbug.com/826052 &
@@ -398,15 +383,6 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
         anchorView.getLocationInWindow(tempLocation);
         int anchorViewX = tempLocation[0];
         int anchorViewY = tempLocation[1];
-    
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // moves the view offset up by the height of the popup
-            // anchorViewY -= popupHeight;
-            // fix it if it goes offscreen
-            if (anchorViewY <= negativeSoftwareVerticalOffset)
-                anchorViewY = negativeSoftwareVerticalOffset;
-        }
-
 
         int[] offsets = new int[2];
         // If we have a hardware menu button, locate the app menu closer to the estimated
@@ -601,16 +577,6 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                         - headerHeight
                         - anchorViewImpactHeight;
 
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // use all available space
-            availableScreenSpace = appDimensions.height() - anchorViewImpactHeight;
-                // due to an Android Nougat bug the popup does not appear above the anchorview.
-                // the display is not pleasant, so we reduce the space
-                availableScreenSpace -= anchorView.getHeight();
-            
-        }
-
-
         if (mIsByPermanentButton) availableScreenSpace -= padding.top;
         if (availableScreenSpace <= 0 && sExceptionReporter != null) {
             String logMessage =
@@ -639,11 +605,6 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                 calculateHeightForItems(
                         menuItemIds, heightList, groupDividerResourceId, availableScreenSpace);
         menuHeight += footerHeight + headerHeight + padding.top + padding.bottom;
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false) && menuItemIds.size() >= 7) {
-            menuHeight = (int) (menuHeight / 1.45);
-        }
-
         mPopup.setHeight(menuHeight);
     }
 

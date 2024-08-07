@@ -7,8 +7,8 @@ import("//extensions/buildflags/buildflags.gni")
 import("//extensions/common/api/schema.gni")
 import("//tools/json_schema_compiler/json_schema_api.gni")
 
-assert(enable_extensions,
-       "Cannot depend on extensions because enable_extensions=false.")
+# assert(enable_extensions,
+#        "Cannot depend on extensions because enable_extensions=false.")
 
 # The set of all targets needed to build out the extension API implementations
 # and any necessary steps to register or instantiate them.
@@ -62,7 +62,7 @@ group("api_implementations") {
     "//extensions/browser/api/system_memory",
     "//extensions/browser/api/system_network",
     "//extensions/browser/api/system_storage",
-    "//extensions/browser/api/test",
+    # "//extensions/browser/api/test",
     "//extensions/browser/api/user_scripts",
     "//extensions/browser/api/virtual_keyboard_private",
   ]

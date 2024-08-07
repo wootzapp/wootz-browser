@@ -85,6 +85,8 @@
 using base::FilePath;
 using content::BrowserThread;
 
+using base::android::ConvertJavaStringToUTF8;
+
 namespace android_webview {
 
 namespace {
@@ -585,6 +587,13 @@ void AwBrowserContext::ConfigureNetworkContextParams(
       context_params);
 }
 
+void AwBrowserContext::InitExtensionSystem() {
+  extension_system_ = static_cast<extensions::ShellExtensionSystem*>(extensions::ExtensionSystem::Get(this));
+  extension_system_->InitForRegularProfile(true);
+  extension_system_->FinishInitialization();
+  LOG(INFO) << "AwBrowserContext InitExtensionSystem extension_system_ " << extension_system_;
+}
+
 base::android::ScopedJavaLocalRef<jobject> JNI_AwBrowserContext_GetDefaultJava(
     JNIEnv* env) {
   AwBrowserContext* default_context = AwBrowserContext::GetDefault();
@@ -635,6 +644,16 @@ AwBrowserContext::GetJavaBrowserContext() {
 
 jlong AwBrowserContext::GetQuotaManagerBridge(JNIEnv* env) {
   return reinterpret_cast<intptr_t>(GetQuotaManagerBridge());
+}
+
+jboolean AwBrowserContext::LoadExtension(JNIEnv* env, const base::android::JavaParamRef<jstring>& j_extension_path) {
+  std::string extension_path(ConvertJavaStringToUTF8(env, j_extension_path));
+  const extensions::Extension* ext = extension_system_->LoadExtension(base::FilePath(extension_path));
+  if(ext != nullptr) {
+    LOG(INFO) << "AwBrowserContext LoadExtension " << extension_path << " ID:" << ext->id();
+  }
+
+  return true;
 }
 
 scoped_refptr<AwContentsOriginMatcher>

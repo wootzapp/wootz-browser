@@ -65,14 +65,6 @@ public interface BrowserControlsStateProvider {
     int getTopControlsHeight();
 
     /**
-     * @return The height of the top controls in pixels.
-     * returns 0 is the toolbar is at the bottom
-     */
-    int getTopControlsHeightRealOffset();
-
-
-
-    /**
      * @return The minimum visible height top controls can have in pixels.
      */
     int getTopControlsMinHeight();

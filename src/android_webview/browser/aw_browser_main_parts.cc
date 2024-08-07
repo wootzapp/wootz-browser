@@ -69,6 +69,17 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gl/gl_surface.h"
 
+#include "extensions/browser/browser_context_keyed_service_factories.h"
+#include "extensions/shell/common/shell_extensions_client.h"
+#include "extensions/shell/browser/shell_extensions_browser_client.h"
+#include "extensions/shell/browser/shell_prefs.h"
+#include "extensions/common/constants.h"
+
+#include "components/sessions/core/session_id_generator.h"
+#include "components/storage_monitor/storage_monitor.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/keyed_service/content/browser_context_keyed_service_factory.h"
+
 namespace android_webview {
 
 namespace {
@@ -188,6 +199,8 @@ int AwBrowserMainParts::PreCreateThreads() {
   child_exit_observer_ =
       std::make_unique<::crash_reporter::ChildExitObserver>();
 
+  //content::ChildProcessSecurityPolicy::GetInstance()->RegisterWebSafeScheme(extensions::kExtensionScheme);
+
   // We need to create the safe browsing specific directory even if the
   // AwSafeBrowsingConfigHelper::GetSafeBrowsingEnabled() is false
   // initially, because safe browsing can be enabled later at runtime
@@ -303,11 +316,14 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
 int AwBrowserMainParts::PreMainMessageLoopRun() {
   TRACE_EVENT0("startup", "AwBrowserMainParts::PreMainMessageLoopRun");
   AwBrowserProcess::GetInstance()->PreMainMessageLoopRun();
-  browser_client_->InitBrowserContext();
+
+  browser_context_ = browser_client_->InitBrowserContext();
+
   content::WebUIControllerFactory::RegisterFactory(
       AwWebUIControllerFactory::GetInstance());
   content::RenderFrameHost::AllowInjectingJavaScript();
   metrics_logger_ = std::make_unique<metrics::MemoryMetricsLogger>();
+
 
   // Requesting the |OriginTrialsControllerDelegate| will initialize
   // it if the feature is enabled.
@@ -319,7 +335,37 @@ int AwBrowserMainParts::PreMainMessageLoopRun() {
   Java_AwInterfaceRegistrar_registerMojoInterfaces(
       base::android::AttachCurrentThread());
 
+  extensions_client_ = std::make_unique<extensions::ShellExtensionsClient>();
+  extensions::ExtensionsClient::Set(extensions_client_.get());
+
+  // BrowserContextKeyedAPIServiceFactories require an ExtensionsBrowserClient.
+  extensions_browser_client_ = std::make_unique<extensions::ShellExtensionsBrowserClient>();
+  extensions::ExtensionsBrowserClient::Set(extensions_browser_client_.get());
+
+  extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+  extensions::ShellExtensionSystemFactory::GetInstance();
+
+  local_state_ = extensions::shell_prefs::CreateLocalState(browser_context_->GetPath());
+  sessions::SessionIdGenerator::GetInstance()->Init(local_state_.get());
+  user_pref_service_ = extensions::shell_prefs::CreateUserPrefService(browser_context_);
+  extensions_browser_client_->InitWithBrowserContext(browser_context_, user_pref_service_.get());
+
+  BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(browser_context_);
+  storage_monitor::StorageMonitor::Create();
+
+  browser_context_->InitExtensionSystem();
+
   return content::RESULT_CODE_NORMAL_EXIT;
+}
+
+void AwBrowserMainParts::PostMainMessageLoopRun() {
+  BrowserContextDependencyManager::GetInstance()->DestroyBrowserContextServices(browser_context_);
+  storage_monitor::StorageMonitor::Destroy();
+  sessions::SessionIdGenerator::GetInstance()->Shutdown();
+  user_pref_service_->CommitPendingWrite();
+  user_pref_service_.reset();
+  local_state_->CommitPendingWrite();
+  local_state_.reset();
 }
 
 void AwBrowserMainParts::WillRunMainMessageLoop(

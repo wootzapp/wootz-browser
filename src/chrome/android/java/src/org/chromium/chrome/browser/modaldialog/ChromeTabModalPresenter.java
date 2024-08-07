@@ -36,7 +36,6 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 
-import org.chromium.base.ContextUtils;
 /**
  * This presenter creates tab modality by blocking interaction with select UI elements while a
  * dialog is visible.
@@ -290,13 +289,9 @@ public class ChromeTabModalPresenter extends TabModalPresenter
      */
     public static int getContainerTopMargin(
             Resources resources, BrowserControlsStateProvider provider) {
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false))
-            return 0;
         int scrimVerticalMargin =
                 resources.getDimensionPixelSize(R.dimen.tab_modal_scrim_vertical_margin);
-
-        return provider.getTopControlsHeightRealOffset() - scrimVerticalMargin;
-        
+        return provider.getTopControlsHeight() - scrimVerticalMargin;
     }
 
     /**

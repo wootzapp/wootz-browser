@@ -42,9 +42,6 @@ import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 
-import android.graphics.Rect;
-import org.chromium.base.ContextUtils;
-
 /** A widget for showing a list of omnibox suggestions. */
 public class OmniboxSuggestionsDropdown extends RecyclerView {
     /**
@@ -461,33 +458,11 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         mEmbedder.removeAlignmentObserver(mOmniboxAlignmentObserver);
     }
 
-
-    private void onMeasureBottomToolbar(int widthMeasureSpec, int heightMeasureSpec) {
-        maybeUpdateLayoutParams(0);
-        final Rect mTempRect = new Rect();
-        mEmbedder.getWindowDelegate().getWindowVisibleDisplayFrame(mTempRect);
-        int availableViewportHeight = mTempRect.height();
-        OmniboxAlignment omniboxAlignment = mEmbedder.getCurrentAlignment();
-        int desiredWidth = omniboxAlignment.width;
-        adjustHorizontalPosition();
-        notifyObserversIfViewportHeightChanged(availableViewportHeight);
-        widthMeasureSpec = MeasureSpec.makeMeasureSpec(desiredWidth, MeasureSpec.EXACTLY);
-        heightMeasureSpec = MeasureSpec.makeMeasureSpec(availableViewportHeight,
-                mEmbedder.isTablet() ? MeasureSpec.AT_MOST : MeasureSpec.EXACTLY);
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
-    }
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         try (TraceEvent tracing = TraceEvent.scoped("OmniboxSuggestionsList.Measure");
                 TimingMetric metric = OmniboxMetrics.recordSuggestionListMeasureTime();
                 TimingMetric metric2 = OmniboxMetrics.recordSuggestionListMeasureWallTime()) {
-
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                onMeasureBottomToolbar(widthMeasureSpec, heightMeasureSpec);
-                return;
-            }
-
             OmniboxAlignment omniboxAlignment = mEmbedder.getCurrentAlignment();
             maybeUpdateLayoutParams(omniboxAlignment.top);
             int availableViewportHeight = omniboxAlignment.height;

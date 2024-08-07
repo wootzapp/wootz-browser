@@ -1,0 +1,285 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//base/android/jni_generator/config.gni")
+import("//build/config/android/config.gni")
+import("//build/config/android/rules.gni")
+import("//third_party/icu/config.gni")
+import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
+
+crwebview_manifest = "$target_gen_dir/crwebview_manifest/AndroidManifest.xml"
+ui_android_manifest = "$target_gen_dir/ui_android_manifest/AndroidManifest.xml"
+content_android_manifest = "$target_gen_dir/content_android_manifest/AndroidManifest.xml"
+crwebview_jni_registration_header = "$target_gen_dir/crwebview_jni_registration.h"
+
+jinja_template("crwebview_manifest") {
+  input = "AndroidManifest.xml"
+  output = crwebview_manifest
+}
+
+jinja_template("ui_android_manifest") {
+  input = "ui_android_resources_AndroidManifest.xml"
+  output = ui_android_manifest
+}
+
+jinja_template("content_android_manifest") {
+  input = "content_android_resources_AndroidManifest.xml"
+  output = content_android_manifest
+}
+
+android_assets("crwebview_assets") {
+  sources = [
+    "assets/star.svg",
+  ]
+
+  deps = [
+    "//third_party/icu:icu_assets",
+    "//android_webview:pak_file_assets",
+    "//android_webview:locale_pak_assets",
+  ]
+  disable_compression = true
+
+  if (use_v8_context_snapshot) {
+    deps += [ "//tools/v8_context_snapshot:v8_context_snapshot_assets" ]
+  } else {
+    deps += [ "//v8:v8_external_startup_data_assets" ]
+  }
+}
+
+copy("copy_snapshot_blob") {
+  sources = [ "$root_build_dir/snapshot_blob.bin" ]
+  outputs = [ "$target_gen_dir/snapshot_blob_64.bin" ]
+
+  deps = [ "//v8" ]
+}
+
+generate_jni_registration("crwebview_jni_registration") {
+  targets = [ ":crwebview_java" ]
+  header_output = crwebview_jni_registration_header
+  sources_exclusions = [
+    "//components/crash/android/java/src/org/chromium/components/crash/CrashKeys.java",
+  ]
+}
+
+android_library("crwebview_jni_java") {
+  srcjar_deps = [ ":crwebview_jni_registration" ]
+}
+
+android_resources("crwebview_ui_resources") {
+  sources = [
+    "java/res/color/blue_when_enabled.xml",
+    "java/res/color/blue_when_enabled_dark.xml",
+    "java/res/color/default_text_color_light_list.xml",
+    "java/res/color/default_text_color_list_baseline.xml",
+    "java/res/color/default_text_color_on_accent1_baseline_list.xml",
+    "java/res/color/default_text_color_secondary_light_list.xml",
+    "java/res/color/default_text_color_secondary_list_baseline.xml",
+    "java/res/color/filled_button_bg.xml",
+    "java/res/color/filled_button_ripple_color.xml",
+    "java/res/color/text_button_ripple_color.xml",
+    "java/res/drawable-hdpi/btn_close.png",
+    "java/res/drawable-hdpi/ic_expand_less_black_24dp.png",
+    "java/res/drawable-hdpi/ic_expand_more_black_24dp.png",
+    "java/res/drawable-hdpi/popup_bg.9.png",
+    "java/res/drawable-mdpi/btn_close.png",
+    "java/res/drawable-mdpi/ic_expand_less_black_24dp.png",
+    "java/res/drawable-mdpi/ic_expand_more_black_24dp.png",
+    "java/res/drawable-mdpi/popup_bg.9.png",
+    "java/res/drawable-v21/transition_expand_less_expand_more_black_24dp.xml",
+    "java/res/drawable-v21/transition_expand_more_expand_less_black_24dp.xml",
+    "java/res/drawable-v23/dialog_bg_baseline.xml",
+    "java/res/drawable-v23/menu_bg_baseline.xml",
+    "java/res/drawable-xhdpi/btn_close.png",
+    "java/res/drawable-xhdpi/ic_expand_less_black_24dp.png",
+    "java/res/drawable-xhdpi/ic_expand_more_black_24dp.png",
+    "java/res/drawable-xhdpi/popup_bg.9.png",
+    "java/res/drawable-xxhdpi/btn_close.png",
+    "java/res/drawable-xxhdpi/ic_expand_less_black_24dp.png",
+    "java/res/drawable-xxhdpi/ic_expand_more_black_24dp.png",
+    "java/res/drawable-xxhdpi/popup_bg.9.png",
+    "java/res/drawable-xxxhdpi/btn_close.png",
+    "java/res/drawable-xxxhdpi/ic_expand_less_black_24dp.png",
+    "java/res/drawable-xxxhdpi/ic_expand_more_black_24dp.png",
+    "java/res/drawable-xxxhdpi/popup_bg.9.png",
+    "java/res/drawable/custom_toast_background.xml",
+    "java/res/drawable/drag_handlebar.xml",
+    "java/res/drawable/drag_shadow_background.xml",
+    "java/res/drawable/ic_apps_blue_24dp.xml",
+    "java/res/drawable/ic_expand_more_horizontal_black_24dp.xml",
+    "java/res/drawable/ic_globe_24dp.xml",
+    "java/res/font/accent_font.xml",
+    "java/res/layout/custom_toast_layout.xml",
+    "java/res/layout/dropdown_footer_wrapper_jellybean.xml",
+    "java/res/layout/dropdown_item.xml",
+    "java/res/layout/dropdown_window.xml",
+    "java/res/values-ldrtl/dimens.xml",
+    "java/res/values-ldrtl/values.xml",
+    "java/res/values-night/colors.xml",
+    "java/res/values-night/dimens.xml",
+    "java/res/values-night/styles.xml",
+    "java/res/values-sw600dp/values.xml",
+    "java/res/values-sw720dp-v17/values.xml",
+    "java/res/values-v17/styles.xml",
+    "java/res/values-v21/styles.xml",
+    "java/res/values/attrs.xml",
+    "java/res/values/color_palette.xml",
+    "java/res/values/dimens.xml",
+    "java/res/values/font_certs.xml",
+    "java/res/values/ids.xml",
+    "java/res/values/one_off_colors.xml",
+    "java/res/values/semantic_colors_adaptive.xml",
+    "java/res/values/semantic_colors_non_adaptive.xml",
+    "java/res/values/strings.xml",
+    "java/res/values/styles.xml",
+    "java/res/values/values.xml",
+  ]
+  custom_package = "org.chromium.android_crwebview"
+}
+
+android_library("crwebview_java") {
+  sources = [
+    "java/src/org/chromium/android_crwebview/WebView.java",
+    "java/src/org/chromium/android_crwebview/ContentsClient.java",
+    "java/src/org/chromium/android_crwebview/ContextManager.java",
+  ]
+
+  deps = [
+    #":crwebview_assets",
+    ":crwebview_jni_java",
+    "//build/android:build_java",
+    "//base:base_java",
+    "//base:jni_java",
+    "//android_webview:android_webview_java",
+    "//android_webview:android_webview_product_config_java",
+    "//android_webview:common_java",
+    "//android_webview:locale_pak_assets",
+    "//android_webview:platform_service_bridge_upstream_implementation_java",
+    "//android_webview/js_sandbox:js_sandbox_java",
+    "//components/embedder_support/android:util_java",
+    "//content/public/android:content_java",
+    "//ui/android:ui_java",
+    "//third_party/androidx:androidx_annotation_annotation_java",
+    "//url:gurl_java",
+  ]
+
+  srcjar_deps = [
+  ]
+
+  proguard_configs = [ "proguard.flags" ]
+  resources_package = "org.chromium.android_crwebview"
+}
+
+generate_jni("draw_fn_impl_jni_headers") {
+  sources = [ 
+    "java/src/org/chromium/android_crwebview/ContextManager.java"
+  ]
+
+  deps = [
+    "//base:base_java",
+  ]
+}
+
+shared_library("libcrwebview") {
+  sources = [
+    "java/src/draw_fn/allocator.cc",
+    "java/src/draw_fn/allocator.h",
+    "java/src/draw_fn/context_manager.cc",
+    "java/src/draw_fn/context_manager.h",
+    "java/src/draw_fn/overlays_manager.cc",
+    "java/src/draw_fn/overlays_manager.h",
+  ]
+  ldflags = [ "-Wl,-shared,-Bsymbolic" ]
+  deps = [
+    ":crwebview_jni_registration",
+    ":draw_fn_impl_jni_headers",
+    "//android_webview/browser/gfx",
+    "//android_webview/browser",
+    "//android_webview/lib",
+    "//android_webview/lib:webview_entry_point",
+    "//android_webview/nonembedded",
+    "//android_webview/public",
+    "//base",
+    "//gpu/vulkan",
+    "//gpu/vulkan/init",
+    "//gpu/vulkan/init:skia",
+    "//device/bluetooth",
+    "//components/keyed_service/core",
+    "//components/keyed_service/content",
+  ]
+  libs = [ "android" ]
+  configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+  configs += [ "//build/config/android:hide_all_but_jni" ]
+}
+
+dist_aar("crwebview_aar") {
+  deps = [
+    #":crwebview_assets",
+    ":libcrwebview",
+    ":crwebview_java",
+    ":copy_snapshot_blob",
+    "//android_webview:repack_100_percent",
+    "//android_webview:repack_pack",
+  ]
+
+  #jar_excluded_patterns = [ "androidx*.class", "android*.class", "javax*.class" ]
+  jar_included_patterns = [
+    "org/chromium/*",
+    "J/*",
+    #"org/chromium/android_webview/*",
+    #"org/chromium/android_crwebview/*",
+  ]
+  resource_included_patterns = [ "*/android_webview/crwebview/*", "*/android_webview/*" ]
+  #resource_included_patterns = [ "*/content/public/android/*" ]
+  #resource_included_patterns = [ "*/ui/android/*", "*/android_webview/*" ]
+
+  generate_final_jni = true
+  native_libraries = [ "$root_build_dir/libcrwebview.so" ]
+  assets_files = [ "$target_gen_dir/snapshot_blob_64.bin", "$root_build_dir/gen/android_webview/chrome_100_percent.pak",  "$root_build_dir/gen/android_webview/resources.pak" ]
+  # The aar should only include weblayer files. The client will provide the
+  # support library.
+  #jar_included_patterns = [
+  #  "org/chromium/weblayer/*",
+  #  "org/chromium/weblayer_private/*",
+  #]
+  #resource_included_patterns = [ "*/weblayer/public/java/*" ]
+
+  # R files are excluded because they are not used in the client lib and depend
+  # on other generated chromium R classes.
+  #jar_excluded_patterns = [
+  #  "org/chromium/weblayer/client/R\$*.class",
+  #  "org/chromium/weblayer/client/R.class",
+  #]
+
+  # dist_aar does not take the manifest from libraries in deps, so we have to
+  # specify again here.
+  android_manifest = crwebview_manifest
+  output = "$root_build_dir/android_crwebview.WebView-v1.0.0.aar"
+}
+
+dist_aar("ui_resources_aar") {
+  deps = [
+    ":ui_android_manifest",
+    "//ui/android:ui_java_resources",
+    "//ui/resources:resources",
+  ]
+
+  jar_included_patterns = [
+  ]
+  resource_included_patterns = [ "*/ui/android/*" ]
+  android_manifest = ui_android_manifest
+  output = "$root_build_dir/ui-android-resources-v1.0.0.aar"
+}
+
+dist_aar("content_resources_aar") {
+  deps = [
+    ":content_android_manifest",
+    "//content/public/android:content_java_resources",
+  ]
+
+  jar_included_patterns = [
+  ]
+  resource_included_patterns = [ "*/content/public/android/*" ]
+  android_manifest = content_android_manifest
+  output = "$root_build_dir/content-android-resources-v1.0.0.aar"
+}

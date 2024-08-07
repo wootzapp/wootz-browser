@@ -217,6 +217,36 @@ source_set("browser") {
     "tracing/aw_tracing_delegate.h",
     "tracing/background_tracing_field_trial.cc",
     "tracing/background_tracing_field_trial.h",
+    "//extensions/shell/browser/shell_extension_host_delegate.cc",
+    "//extensions/shell/browser/shell_extension_host_delegate.h",
+    "//extensions/shell/browser/shell_extensions_browser_client.cc",
+    "//extensions/shell/browser/shell_extensions_browser_client.h",
+    "//extensions/shell/browser/shell_extension_loader.cc",
+    "//extensions/shell/browser/shell_extension_loader.h",
+    "//extensions/shell/browser/shell_extensions_api_client.cc",
+    "//extensions/shell/browser/shell_extensions_api_client.h",
+    "//extensions/shell/browser/shell_extension_system.cc",
+    "//extensions/shell/browser/shell_extension_system.h",
+    "//extensions/shell/browser/shell_extension_system_factory.cc",
+    "//extensions/shell/browser/shell_extension_system_factory.h",
+    "//extensions/shell/browser/shell_extension_web_contents_observer.cc",
+    "//extensions/shell/browser/shell_extension_web_contents_observer.h",
+    "//extensions/shell/browser/api/file_system/shell_file_system_delegate.cc",
+    "//extensions/shell/browser/api/file_system/shell_file_system_delegate.h",
+    "//extensions/shell/browser/api/runtime/shell_runtime_api_delegate.cc",
+    "//extensions/shell/browser/api/runtime/shell_runtime_api_delegate.h",
+    "//extensions/shell/browser/shell_navigation_ui_data.cc",
+    "//extensions/shell/browser/shell_navigation_ui_data.h",
+    "//extensions/shell/browser/shell_display_info_provider.h",
+    "//extensions/shell/browser/shell_display_info_provider.cc",
+    "//extensions/shell/browser/shell_prefs.cc",
+    "//extensions/shell/browser/shell_prefs.h",
+    "//extensions/shell/browser/shell_virtual_keyboard_delegate.cc",
+    "//extensions/shell/browser/shell_virtual_keyboard_delegate.h",
+    #"//extensions/shell/browser/delegates/shell_kiosk_delegate.cc",
+    #"//extensions/shell/browser/delegates/shell_kiosk_delegate.h",
+    #"//extensions/shell/browser/",
+
   ]
 
   deps = [
@@ -244,6 +274,10 @@ source_set("browser") {
     "//components/embedder_support/origin_trials",
     "//components/favicon_base:favicon_base",
     "//components/flags_ui",
+    
+    "//device/bluetooth",
+    "//components/keyed_service/core",
+
     "//components/history/core/browser:browser",
     "//components/keyed_service/content",
     "//components/optimization_guide/core:bloomfilter",
@@ -325,6 +359,18 @@ source_set("browser") {
     "//ui/resources",
     "//ui/touch_selection",
     "//url",
+  
+    "//extensions/browser",
+    # "//extensions/browser:core_api_provider",
+    "//extensions/browser/api",
+    "//extensions/browser/api/messaging",
+    "//extensions/browser/kiosk",
+    "//extensions/browser/updater",
+    "//extensions/common",
+    "//extensions/common:core_api_provider",
+    "//extensions/common/api",
+    "//extensions/renderer",
+
   ]
 
   if (enable_printing) {

@@ -27,8 +27,6 @@ import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 
-import org.chromium.base.ContextUtils;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
 /**
  * The native recent tabs page. Lists recently closed tabs, open windows and tabs from the user's
  * synced devices, and snapshot documents sent from Chrome to Mobile in an expandable list view.
@@ -59,9 +57,6 @@ public class RecentTabsPage
     private int mSnapshotWidth;
     private int mSnapshotHeight;
 
-    private final int mTabStripAndToolbarHeight;
-
-
     /** Whether {@link #mView} is attached to the application window. */
     private boolean mIsAttachedToWindow;
 
@@ -87,10 +82,6 @@ public class RecentTabsPage
         mActivity = activity;
         mRecentTabsManager = recentTabsManager;
         mPageHost = pageHost;
-
-        mTabStripAndToolbarHeight =
-                activity.getResources().getDimensionPixelSize(R.dimen.tab_strip_and_toolbar_height);
-
         Resources resources = activity.getResources();
 
         mTitle = resources.getString(R.string.recent_tabs);
@@ -108,8 +99,7 @@ public class RecentTabsPage
 
         mView.addOnAttachStateChangeListener(this);
 
-       if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity) ||
-                ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
+        if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity)) {
             mBrowserControlsStateProvider = browserControlsStateProvider;
             mBrowserControlsStateProvider.addObserver(this);
             onBottomControlsHeightChanged(
@@ -310,9 +300,7 @@ public class RecentTabsPage
 
     private void updateMargins() {
         final View recentTabsRoot = mView.findViewById(R.id.recent_tabs_root);
-
-        final int topControlsHeight = mBrowserControlsStateProvider.getTopControlsHeightRealOffset();
-
+        final int topControlsHeight = mBrowserControlsStateProvider.getTopControlsHeight();
         final int contentOffset = mBrowserControlsStateProvider.getContentOffset();
         ViewGroup.MarginLayoutParams layoutParams =
                 (ViewGroup.MarginLayoutParams) recentTabsRoot.getLayoutParams();
@@ -328,18 +316,9 @@ public class RecentTabsPage
 
         // If the content offset is different from the margin, we use translationY to position the
         // view in line with the content offset.
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            topMargin = 0;
-            recentTabsRoot.setTranslationY(0);
-        } else {
-            recentTabsRoot.setTranslationY(contentOffset - topMargin);
-        }
+        recentTabsRoot.setTranslationY(contentOffset - topMargin);
 
-        int bottomMargin = mBrowserControlsStateProvider.getBottomControlsHeight();
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
-        }
-
+        final int bottomMargin = mBrowserControlsStateProvider.getBottomControlsHeight();
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
             layoutParams.bottomMargin = bottomMargin;

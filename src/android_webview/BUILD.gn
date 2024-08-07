@@ -943,7 +943,7 @@ generate_product_config_srcjar("webview_product_config") {
 android_library("android_webview_product_config_java") {
   sources = [ "java/src/org/chromium/android_webview/AwLocaleConfig.java" ]
   srcjar_deps = [ ":webview_product_config" ]
-  jar_excluded_patterns = [ "*/ProductConfig.class" ]
+  # jar_excluded_patterns = [ "*/ProductConfig.class" ]
 }
 
 if (enable_resource_allowlist_generation) {
@@ -983,6 +983,7 @@ repack("repack_pack") {
   sources = [
     "$root_gen_dir/content/content_resources.pak",
     "$root_gen_dir/content/histograms_resources.pak",
+    "$root_gen_dir/extensions/extensions_resources.pak",
     "$root_gen_dir/net/net_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
@@ -994,6 +995,7 @@ repack("repack_pack") {
     ":generate_components_resources",
     ":generate_mojo_resources",
     ":generate_webui_resources",
+    "//extensions:extensions_resources",
     "//content:content_resources",
     "//content/browser/resources/histograms:resources",
     "//net:net_resources",

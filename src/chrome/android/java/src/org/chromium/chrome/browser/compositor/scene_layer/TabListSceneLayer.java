@@ -23,8 +23,6 @@ import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.util.ColorUtils;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * A SceneLayer to render a tab stack.
  * TODO(changwan): change layouts to share one instance of this.
@@ -91,13 +89,6 @@ public class TabListSceneLayer extends SceneLayer {
 
         TabListSceneLayerJni.get().beginBuildingFrame(mNativePtr, TabListSceneLayer.this);
 
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // the tabs list content window is fixed at the top, where the top toolbar used to be
-            viewport.top = 0;
-            backgroundTopOffset = 0;
-        }
-
-
         // TODO(crbug.com/40126259): Use Supplier to get viewport and forward it to native, then
         // updateLayer can become obsolete.
         TabListSceneLayerJni.get()
@@ -133,10 +124,6 @@ public class TabListSceneLayer extends SceneLayer {
             final float decoration = t.getDecorationAlpha();
             boolean useIncognitoColors = t.isIncognito();
             int defaultThemeColor = ChromeColors.getDefaultThemeColor(context, useIncognitoColors);
-
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                contentOffset = 0;
-            }
 
             // TODO(dtrainor, clholgat): remove "* dpToPx" once the native part fully supports dp.
             TabListSceneLayerJni.get()

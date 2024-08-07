@@ -26,6 +26,9 @@ source_set("renderer") {
     "aw_websocket_handshake_throttle_provider.h",
     "browser_exposed_renderer_interfaces.cc",
     "browser_exposed_renderer_interfaces.h",
+    "//extensions/shell/renderer/shell_extensions_renderer_client.cc",
+    "//extensions/shell/renderer/shell_extensions_renderer_client.h",
+
   ]
 
   deps = [

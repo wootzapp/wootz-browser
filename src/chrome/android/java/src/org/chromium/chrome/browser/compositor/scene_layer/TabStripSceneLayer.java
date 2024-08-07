@@ -19,8 +19,6 @@ import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.resources.ResourceManager;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * The Java component of what is basically a CC Layer that manages drawing the Tab Strip (which is
  * composed of {@link StripLayoutTab}s) to the screen.  This object keeps the layers up to date and
@@ -85,10 +83,6 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
             StripLayoutGroupTitle[] stripLayoutGroupTitlesToRender,
             float yOffset,
             int selectedTabId,
-
-            float viewportHeight, 
-            int topControlsHeight,
-
             int hoveredTabId,
             int scrimColor,
             float scrimOpacity,
@@ -96,17 +90,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
             float rightPaddingDp,
             float topPaddingDp) {
         if (mNativePtr == 0) return;
-
-        boolean visible = yOffset > -layoutHelper.getHeight();
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-           // the list of open tabs (in tablet mode) is moved down, above the top
-           // toolbar which is also below.
-           // values are in pixel.
-           yOffset = (((int)viewportHeight - topControlsHeight) / mDpToPx) - yOffset;
-           // and it disappears along with the moving toolbar with a higher range
-           visible = yOffset > (-layoutHelper.getHeight() - topControlsHeight);
-        }
-        
+        final boolean visible = yOffset > -layoutHelper.getHeight();
         // This will hide the tab strips if necessary.
         TabStripSceneLayerJni.get()
                 .beginBuildingFrame(mNativePtr, TabStripSceneLayer.this, visible);

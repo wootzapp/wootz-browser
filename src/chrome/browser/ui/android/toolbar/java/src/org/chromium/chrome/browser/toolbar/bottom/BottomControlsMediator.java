@@ -23,8 +23,6 @@ import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * This class is responsible for reacting to events from the outside world, interacting with other
  * coordinators, running most of the business logic associated with the bottom controls component,
@@ -145,14 +143,6 @@ class BottomControlsMediator
     }
 
     void setBottomControlsVisible(boolean visible) {
-
-        if (visible == true
-                && mIsBottomControlsVisible == false
-                && ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // always show the toolbar if the bottom controls are visible, so as not to leave the hole below.
-            mBrowserControlsSizer.getBrowserVisibilityDelegate().showControlsTransient();
-        }
-
         mIsBottomControlsVisible = visible;
         updateCompositedViewVisibility();
         updateAndroidViewVisibility();
@@ -186,9 +176,6 @@ class BottomControlsMediator
             int bottomControlsMinHeightOffset,
             boolean needsAnimate) {
         int minHeight = mBrowserControlsSizer.getBottomControlsMinHeight();
-
-        mModel.set(BottomControlsProperties.TOPCONTROLSMINHEIGHT_OFFSET, topControlsMinHeightOffset);
-
         mModel.set(BottomControlsProperties.Y_OFFSET, bottomOffset - minHeight);
 
         // This call also updates the view's position if the animation has just finished.

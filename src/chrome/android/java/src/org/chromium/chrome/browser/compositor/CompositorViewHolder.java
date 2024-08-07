@@ -98,8 +98,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * This class holds a {@link CompositorView}. This level of indirection is needed to benefit from
  * the {@link android.view.ViewGroup#onInterceptTouchEvent(android.view.MotionEvent)} capability on
@@ -250,12 +248,6 @@ public class CompositorViewHolder extends FrameLayout
                         @Override
                         public void setCurrentTouchEventOffsets(float top) {
                             EventForwarder forwarder = getEventForwarder();
-
-                        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                            // no need to adjust the touch offsets, since the content view is never moved
-                            top = 0;
-                        }
-
                             if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
                         }
 

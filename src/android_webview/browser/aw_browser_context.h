@@ -11,6 +11,9 @@
 #include <string_view>
 #include <vector>
 
+#include "base/android/jni_android.h"
+#include "base/android/jni_string.h"
+
 #include "android_webview/browser/aw_contents_io_thread_client.h"
 #include "android_webview/browser/aw_contents_origin_matcher.h"
 #include "android_webview/browser/aw_permission_manager.h"
@@ -28,6 +31,9 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/zoom_level_delegate.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom-forward.h"
+
+#include "extensions/shell/browser/shell_extension_system.h"
+#include "extensions/shell/browser/shell_extension_system_factory.h"
 
 class GURL;
 class PrefService;
@@ -167,6 +173,9 @@ class AwBrowserContext : public content::BrowserContext,
   void SetExtraHeaders(const GURL& url, const std::string& headers);
   std::string GetExtraHeaders(const GURL& url);
 
+  void InitExtensionSystem();
+  jboolean LoadExtension(JNIEnv* env, const base::android::JavaParamRef<jstring>& j_extension_path);
+
  private:
   friend class AwBrowserContextIoThreadHandle;
   void CreateUserPrefService();
@@ -200,6 +209,8 @@ class AwBrowserContext : public content::BrowserContext,
       client_hints_controller_delegate_;
   std::unique_ptr<content::OriginTrialsControllerDelegate>
       origin_trials_controller_delegate_;
+
+  raw_ptr<extensions::ShellExtensionSystem> extension_system_;
 
   SimpleFactoryKey simple_factory_key_;
 

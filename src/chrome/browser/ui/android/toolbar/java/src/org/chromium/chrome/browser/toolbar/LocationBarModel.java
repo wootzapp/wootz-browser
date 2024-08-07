@@ -613,10 +613,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
 
     @Override
     public int getPageClassification(boolean isFocusedFromFakebox, boolean isPrefetch) {
-        // if (mNativeLocationBarModelAndroid == 0) return PageClassification.INVALID_SPEC_VALUE;
-
-        if (mNativeLocationBarModelAndroid == 0) return PageClassification.NTP_VALUE;
-
+        if (mNativeLocationBarModelAndroid == 0) return PageClassification.INVALID_SPEC_VALUE;
 
         // Provide NTP as page class in overview mode (when Start Surface is enabled). No call
         // to the backend necessary or possible, since there is no tab or navigation entry.
@@ -686,10 +683,6 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         // on a slow connection. In this case, the previews UI takes precedence.
         if (isOfflinePage) {
             return R.drawable.ic_offline_pin_24dp;
-        }
-
-        if (mNativeLocationBarModelAndroid == 0) {  
-             return R.drawable.omnibox_info;
         }
 
         // Return early if native initialization hasn't been done yet.

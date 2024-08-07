@@ -18,9 +18,6 @@ import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.components.messages.MessageContainer;
 import org.chromium.ui.base.ViewUtils;
 
-import org.chromium.base.ContextUtils;
-import android.view.Gravity;
-
 /**
  * Coordinator of {@link MessageContainer}, which can adjust margins of the message container
  * and control the visibility of browser control when message is being shown.
@@ -63,14 +60,6 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
         CoordinatorLayout.LayoutParams params =
                 (CoordinatorLayout.LayoutParams) mContainer.getLayoutParams();
         params.topMargin = getContainerTopOffset();
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            params.gravity = Gravity.START | Gravity.BOTTOM;
-            params.bottomMargin = getContainerTopOffset();
-        } else {
-            params.topMargin = getContainerTopOffset();
-        }
-
         mContainer.setLayoutParams(params);
     }
 
@@ -143,14 +132,6 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
 
     /** @return Offset of the message container from the top of the screen. */
     private int getContainerTopOffset() {
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            return mControlsManager.getContentOffset()
-                     + (mControlsManager.getBottomControlsHeight() - mControlsManager.getBottomControlOffset())
-                     + mContainer.getMessageShadowTopMargin();
-        }
-
-
         if (mControlsManager.getContentOffset() == 0) return 0;
         final Resources res = mContainer.getResources();
         return mControlsManager.getContentOffset()

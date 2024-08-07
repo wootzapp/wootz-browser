@@ -750,7 +750,7 @@ public class StripLayoutHelper implements StripLayoutTabDelegate, StripLayoutGro
         boolean isRtl = LocalizationUtils.isLayoutRtl();
         boolean useUnadjustedScrollOffset = isRtl != isLeft;
         float offset =
-                -Math.abs(useUnadjustedScrollOffset ? mScrollOffset : (mMinScrollOffset - mScrollOffset));
+                -(useUnadjustedScrollOffset ? mScrollOffset : (mMinScrollOffset - mScrollOffset));
 
         if (offset <= 0.f) {
             return 0.f;

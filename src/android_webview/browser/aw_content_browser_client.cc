@@ -129,6 +129,29 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/resources/grit/ui_resources.h"
 
+#include "extensions/browser/api/messaging/messaging_api_message_filter.h"
+#include "extensions/browser/extension_service_worker_message_filter.h"
+#include "extensions/browser/api/web_request/web_request_api.h"
+#include "extensions/browser/event_router.h"
+#include "extensions/browser/extension_message_filter.h"
+#include "extensions/browser/extension_navigation_throttle.h"
+#include "extensions/browser/extension_navigation_ui_data.h"
+#include "extensions/browser/extension_protocols.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_web_contents_observer.h"
+#include "extensions/browser/guest_view/extensions_guest_view.h"
+#include "extensions/browser/guest_view/web_view/web_view_guest.h"
+#include "extensions/browser/process_map.h"
+#include "extensions/browser/url_loader_factory_manager.h"
+#include "extensions/common/constants.h"
+#include "extensions/common/extension.h"
+#include "extensions/common/switches.h"
+#include "extensions/shell/browser/shell_navigation_ui_data.h"
+#include "extensions/browser/url_loader_factory_manager.h"
+
+#include "extensions/shell/browser/shell_extension_system.h"
+#include "extensions/shell/browser/shell_extension_web_contents_observer.h"
+
 using content::BrowserThread;
 using content::WebContents;
 using safe_browsing::AsyncCheckTracker;
@@ -339,6 +362,96 @@ void AwContentBrowserClient::RenderProcessWillLaunch(
   // AwSettings.mAllowContentUrlAccess).
   content::ChildProcessSecurityPolicy::GetInstance()->GrantRequestScheme(
       host->GetID(), url::kContentScheme);
+
+  host->AddFilter(new extensions::ExtensionMessageFilter(host->GetID(), browser_context_.get()));
+  host->AddFilter(new extensions::MessagingAPIMessageFilter(host->GetID(), browser_context_.get()));
+  host->AddFilter(new extensions::ExtensionServiceWorkerMessageFilter(host->GetID(), browser_context_.get(), host->GetStoragePartition()->GetServiceWorkerContext()));
+}
+
+void AwContentBrowserClient::SiteInstanceGotProcess(content::SiteInstance* site_instance) {
+  extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(browser_context_.get());
+  const extensions::Extension* extension = registry->enabled_extensions().GetExtensionOrAppByURL(site_instance->GetSiteURL());
+  if (extension) {
+    extensions::ProcessMap::Get(browser_context_.get())
+        ->Insert(extension->id(),
+                 site_instance->GetProcess()->GetID(),
+                 site_instance->GetId());
+  }
+}
+
+void AwContentBrowserClient::SiteInstanceDeleting(content::SiteInstance* site_instance) {
+  extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(browser_context_.get());
+  const extensions::Extension* extension = registry->enabled_extensions().GetExtensionOrAppByURL(site_instance->GetSiteURL());
+  if (extension) {
+    extensions::ProcessMap::Get(browser_context_.get())
+        ->Remove(extension->id(),
+                 site_instance->GetProcess()->GetID(),
+                 site_instance->GetId());
+  }
+}
+
+void AwContentBrowserClient::OnWebContentsCreated(content::WebContents* web_contents) {
+  LOG(INFO) << "AwContentBrowserClient OnWebContentsCreated " << web_contents;
+  extensions::ShellExtensionWebContentsObserver::CreateForWebContents(web_contents);
+}
+
+void AwContentBrowserClient::GetAdditionalAllowedSchemesForFileSystem(std::vector<std::string>* additional_allowed_schemes) {
+  ContentBrowserClient::GetAdditionalAllowedSchemesForFileSystem(additional_allowed_schemes);
+  additional_allowed_schemes->push_back(extensions::kExtensionScheme);
+}
+
+std::unique_ptr<content::NavigationUIData> AwContentBrowserClient::GetNavigationUIData(content::NavigationHandle* navigation_handle) {
+  return std::make_unique<extensions::ShellNavigationUIData>(navigation_handle);
+}
+
+void AwContentBrowserClient::RegisterNonNetworkNavigationURLLoaderFactories(
+    int frame_tree_node_id,
+    ukm::SourceIdObj ukm_source_id,
+    NonNetworkURLLoaderFactoryMap* factories) {
+  DCHECK(factories);
+
+  content::WebContents* web_contents =
+      content::WebContents::FromFrameTreeNodeId(frame_tree_node_id);
+  factories->emplace(
+      extensions::kExtensionScheme,
+      extensions::CreateExtensionNavigationURLLoaderFactory(
+          web_contents->GetBrowserContext(), ukm_source_id,
+          !!extensions::WebViewGuest::FromWebContents(web_contents)));
+}
+
+void AwContentBrowserClient::RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
+        content::BrowserContext* browser_context,
+        NonNetworkURLLoaderFactoryMap* factories) {
+  factories->emplace(
+      extensions::kExtensionScheme,
+      extensions::CreateExtensionWorkerMainResourceURLLoaderFactory(
+          browser_context));
+}
+
+void AwContentBrowserClient::RegisterNonNetworkServiceWorkerUpdateURLLoaderFactories(
+    content::BrowserContext* browser_context,
+    NonNetworkURLLoaderFactoryMap* factories) {
+  DCHECK(browser_context);
+  DCHECK(factories);
+
+  factories->emplace(
+      extensions::kExtensionScheme,
+      extensions::CreateExtensionServiceWorkerScriptURLLoaderFactory(
+          browser_context));
+}
+
+void AwContentBrowserClient::OverrideURLLoaderFactoryParams(
+    content::BrowserContext* browser_context,
+    const url::Origin& origin,
+    bool is_for_isolated_world,
+    network::mojom::URLLoaderFactoryParams* factory_params) {
+  extensions::URLLoaderFactoryManager::OverrideURLLoaderFactoryParams(browser_context, origin, is_for_isolated_world, factory_params);
+}
+
+void AwContentBrowserClient::RegisterBrowserInterfaceBindersForServiceWorker(
+    content::BrowserContext* browser_context,
+    mojo::BinderMapWithContext<const content::ServiceWorkerVersionBaseInfo&>* map) {
+
 }
 
 bool AwContentBrowserClient::IsExplicitNavigation(
@@ -629,9 +742,8 @@ AwContentBrowserClient::CreateThrottlesForNavigation(
     throttles.push_back(std::move(intercept_navigation_throttle));
   }
 
-  throttles.push_back(std::make_unique<PolicyBlocklistNavigationThrottle>(
-      navigation_handle,
-      AwBrowserContext::FromWebContents(navigation_handle->GetWebContents())));
+  throttles.push_back(
+      std::make_unique<extensions::ExtensionNavigationThrottle>(navigation_handle));
 
   std::unique_ptr<AwSafeBrowsingNavigationThrottle> safe_browsing_throttle =
       AwSafeBrowsingNavigationThrottle::MaybeCreateThrottleFor(
@@ -949,6 +1061,10 @@ void AwContentBrowserClient::RegisterNonNetworkSubresourceURLLoaderFactories(
             aw_browser_context->GetPath(),
             aw_browser_context->GetSharedCorsOriginAccessList()));
   }
+  factories->emplace(extensions::kExtensionScheme,
+                     extensions::CreateExtensionURLLoaderFactory(
+                         render_process_id, render_frame_id));
+
 }
 
 bool AwContentBrowserClient::ShouldAllowNoLongerUsedProcessToExit() {
@@ -1033,6 +1149,11 @@ void AwContentBrowserClient::WillCreateURLLoaderFactory(
 
   mojo::PendingReceiver<network::mojom::URLLoaderFactory> proxied_receiver;
   mojo::PendingRemote<network::mojom::URLLoaderFactory> target_factory_remote;
+
+  auto* web_request_api = extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(browser_context_.get());
+  bool use_proxy = web_request_api->MaybeProxyURLLoaderFactory(browser_context, frame, render_process_id, type, std::move(navigation_id), ukm_source_id, factory_receiver, header_client);
+  if (bypass_redirect_checks)
+    *bypass_redirect_checks = use_proxy;
 
   if (factory_override) {
     // We are interested in factories "inside" of CORS, so use

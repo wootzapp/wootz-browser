@@ -29,6 +29,12 @@ source_set("common") {
     "devtools_instrumentation.h",
     "url_constants.cc",
     "url_constants.h",
+    
+    "//extensions/shell/common/shell_extensions_client.cc",
+    "//extensions/shell/common/shell_extensions_client.h",
+    "//extensions/shell/common/shell_extensions_api_provider.cc",
+    "//extensions/shell/common/shell_extensions_api_provider.h",
+
   ]
   deps = [
     "//android_webview:common_jni",
@@ -54,6 +60,9 @@ source_set("common") {
     "//ui/gfx/ipc/geometry",
     "//ui/gfx/ipc/skia",
     "//url",
+
+    "//extensions/shell/common/api:extensions_features",
+    
   ]
 }
 

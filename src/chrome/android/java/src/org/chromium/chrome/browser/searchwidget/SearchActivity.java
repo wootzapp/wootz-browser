@@ -88,10 +88,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 
-import android.view.Gravity;
-import org.chromium.base.ContextUtils;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-
 /** Queries the user's default search engine and shows autocomplete suggestions. */
 public class SearchActivity extends AsyncInitializationActivity
         implements SnackbarManageable, BackKeyBehaviorDelegate, UrlFocusChangeListener {
@@ -297,14 +293,6 @@ public class SearchActivity extends AsyncInitializationActivity
                 (SearchActivityLocationBarLayout)
                         contentView.findViewById(R.id.search_location_bar);
         View anchorView = contentView.findViewById(R.id.toolbar);
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)
-                anchorView.getLayoutParams();
-            layoutParams.gravity = Gravity.START | Gravity.BOTTOM;
-            anchorView.setLayoutParams(layoutParams);
-        }
-
 
         // Update the status bar's color based on the toolbar color.
         Drawable anchorViewBackground = anchorView.getBackground();

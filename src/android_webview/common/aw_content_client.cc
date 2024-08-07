@@ -31,6 +31,8 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
+#include "extensions/common/constants.h"
+
 namespace android_webview {
 
 AwContentClient::AwContentClient() = default;
@@ -43,6 +45,16 @@ void AwContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->csp_bypassing_schemes.push_back(
       android_webview::kAndroidWebViewVideoPosterScheme);
   schemes->allow_non_standard_schemes_in_origins = true;
+
+  schemes->standard_schemes.push_back(extensions::kExtensionScheme);
+  schemes->savable_schemes.push_back(extensions::kExtensionScheme);
+  schemes->secure_schemes.push_back(extensions::kExtensionScheme);
+  schemes->cors_enabled_schemes.push_back(extensions::kExtensionScheme);
+  schemes->csp_bypassing_schemes.push_back(extensions::kExtensionScheme);
+  schemes->service_worker_schemes.push_back(extensions::kExtensionScheme);
+  schemes->service_worker_schemes.push_back(url::kFileScheme);
+  schemes->extension_schemes.push_back(extensions::kExtensionScheme);
+
 }
 
 std::u16string AwContentClient::GetLocalizedString(int message_id) {
@@ -68,6 +80,10 @@ base::RefCountedMemory* AwContentClient::GetDataResourceBytes(int resource_id) {
 std::string AwContentClient::GetDataResourceString(int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
       resource_id);
+}
+
+gfx::Image& AwContentClient::GetNativeImageNamed(int resource_id) {
+  return ui::ResourceBundle::GetSharedInstance().GetNativeImageNamed(resource_id);
 }
 
 void AwContentClient::SetGpuInfo(const gpu::GPUInfo& gpu_info) {

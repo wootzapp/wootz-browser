@@ -67,6 +67,28 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
   AwBrowserContext* InitBrowserContext();
 
   // content::ContentBrowserClient:
+
+  void SiteInstanceGotProcess(content::SiteInstance* site_instance) override;
+  void SiteInstanceDeleting(content::SiteInstance* site_instance) override;
+  void OnWebContentsCreated(content::WebContents* web_contents) override;
+  void GetAdditionalAllowedSchemesForFileSystem(std::vector<std::string>* additional_allowed_schemes) override;
+  void RegisterBrowserInterfaceBindersForServiceWorker(
+      content::BrowserContext* browser_context,
+      mojo::BinderMapWithContext<const content::ServiceWorkerVersionBaseInfo&>* map) override;
+  std::unique_ptr<content::NavigationUIData> GetNavigationUIData(content::NavigationHandle* navigation_handle) override;
+  void RegisterNonNetworkNavigationURLLoaderFactories(
+      int frame_tree_node_id,
+      ukm::SourceIdObj ukm_source_id,
+      NonNetworkURLLoaderFactoryMap* factories) override;
+  void RegisterNonNetworkServiceWorkerUpdateURLLoaderFactories(
+      content::BrowserContext* browser_context,
+      NonNetworkURLLoaderFactoryMap* factories) override;
+  void OverrideURLLoaderFactoryParams(
+      content::BrowserContext* browser_context,
+      const url::Origin& origin,
+      bool is_for_isolated_world,
+      network::mojom::URLLoaderFactoryParams* factory_params) override;
+
   void OnNetworkServiceCreated(
       network::mojom::NetworkService* network_service) override;
   void ConfigureNetworkContextParams(
@@ -205,6 +227,11 @@ class AwContentBrowserClient : public content::ContentBrowserClient {
       content::RenderFrameHost* initiator_document,
       mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory)
       override;
+
+  void RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
+        content::BrowserContext* browser_context,
+        NonNetworkURLLoaderFactoryMap* factories) override;
+
   void RegisterNonNetworkSubresourceURLLoaderFactories(
       int render_process_id,
       int render_frame_id,

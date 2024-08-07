@@ -250,11 +250,6 @@ import org.chromium.webapk.lib.client.WebApkNavigationClient;
 import java.util.ArrayList;
 import java.util.List;
 
-import android.view.Gravity;
-import org.chromium.components.browser_ui.widget.CoordinatorLayoutForPointer;
-
-import android.widget.ImageView;
-
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
  * and associated classes.
@@ -853,14 +848,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                         ((ViewStub) findViewById(R.id.control_container_stub));
 
                 toolbarContainerStub.setLayoutResource(getControlContainerLayoutId());
-
-                if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                    CoordinatorLayoutForPointer.LayoutParams params = new CoordinatorLayoutForPointer.LayoutParams(
-                    CoordinatorLayoutForPointer.LayoutParams.MATCH_PARENT, CoordinatorLayoutForPointer.LayoutParams.WRAP_CONTENT);
-                    params.gravity = Gravity.START | Gravity.BOTTOM;
-                    toolbarContainerStub.setLayoutParams(params);	      
-                }
-
                 TraceEvent.begin("toolbarContainerStub.inflate");
                 toolbarContainerStub.inflate();
                 TraceEvent.end("toolbarContainerStub.inflate");
@@ -881,18 +868,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             int toolbarLayoutId = getToolbarLayoutId();
             if (toolbarLayoutId != ActivityUtils.NO_RESOURCE_ID && controlContainer != null) {
                 controlContainer.initWithToolbar(toolbarLayoutId);
-
-                ImageView shadowImage = findViewById(R.id.toolbar_hairline);
-                if (shadowImage != null) {
-                    // Invert the shadown if the top toolbar is at the bottom
-                    if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                        ViewGroup.MarginLayoutParams marginParams = (ViewGroup.MarginLayoutParams)shadowImage.getLayoutParams();
-                        marginParams.setMargins(marginParams.leftMargin, 0,
-                            marginParams.rightMargin, marginParams.bottomMargin);
-                        shadowImage.setLayoutParams(marginParams);
-                    }
-                }
-
             }
             onInitialLayoutInflationComplete();
         }
@@ -2824,6 +2799,16 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             return true;
         }
 
+        if (id == R.id.extensions_id) {
+            RecordUserAction.record("MobileMenuExtensions");
+            TabCreator tabCreator = getTabCreator(currentTab.isIncognito());
+            if (currentTab != null && tabCreator != null) {
+              tabCreator.createNewTab(
+                      new LoadUrlParams("chrome://extensions", PageTransition.LINK),
+                      TabLaunchType.FROM_CHROME_UI, getActivityTab());
+            }
+        }
+        
         return false;
     }
 

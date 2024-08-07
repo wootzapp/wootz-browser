@@ -27,6 +27,11 @@ namespace visitedlink {
 class VisitedLinkReader;
 }
 
+namespace extensions {
+class ExtensionsClient;
+class ShellExtensionsRendererClient;
+}
+
 namespace android_webview {
 
 class AwContentRendererClient : public content::ContentRendererClient,
@@ -40,6 +45,28 @@ class AwContentRendererClient : public content::ContentRendererClient,
   ~AwContentRendererClient() override;
 
   // ContentRendererClient implementation.
+
+  bool AllowScriptExtensionForServiceWorker (const url::Origin& script_origin) override;
+  void DidInitializeServiceWorkerContextOnWorkerThread(
+      blink::WebServiceWorkerContextProxy* context_proxy,
+      const GURL& service_worker_scope,
+      const GURL& script_url) override ;
+  void WillEvaluateServiceWorkerOnWorkerThread(
+      blink::WebServiceWorkerContextProxy* context_proxy,
+      v8::Local<v8::Context> v8_context,
+      int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) override;
+  void DidStartServiceWorkerContextOnWorkerThread(
+      int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) override;
+  void WillDestroyServiceWorkerContextOnWorkerThread(
+      v8::Local<v8::Context> context,
+      int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) override;
+
   void RenderThreadStarted() override;
   void ExposeInterfacesToBrowser(mojo::BinderMap* binders) override;
   void RenderFrameCreated(content::RenderFrame* render_frame) override;
@@ -55,6 +82,9 @@ class AwContentRendererClient : public content::ContentRendererClient,
   uint64_t VisitedLinkHash(std::string_view canonical_url) override;
   bool IsLinkVisited(uint64_t link_hash) override;
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
+
+  void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;
+
   std::unique_ptr<media::KeySystemSupportRegistration> GetSupportedKeySystems(
       content::RenderFrame* render_frame,
       media::GetSupportedKeySystemsCB cb) override;
@@ -95,6 +125,10 @@ class AwContentRendererClient : public content::ContentRendererClient,
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   std::unique_ptr<SpellCheck> spellcheck_;
 #endif
+
+  std::unique_ptr<extensions::ExtensionsClient> extensions_client_;
+  std::unique_ptr<extensions::ShellExtensionsRendererClient> extensions_renderer_client_;
+
 };
 
 }  // namespace android_webview

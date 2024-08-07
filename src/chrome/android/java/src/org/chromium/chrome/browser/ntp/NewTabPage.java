@@ -116,8 +116,6 @@ import org.chromium.url.GURL;
 
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-
 /** Provides functionality when the user interacts with the NTP. */
 public class NewTabPage
         implements NativePage,
@@ -692,18 +690,11 @@ public class NewTabPage
         final int topControlsDistanceToRest =
                 mBrowserControlsStateProvider.getContentOffset()
                         - mBrowserControlsStateProvider.getTopControlsHeight();
-        int topMargin = getToolbarExtraYOffset() + topControlsDistanceToRest;
+        final int topMargin = getToolbarExtraYOffset() + topControlsDistanceToRest;
 
-        int bottomMargin =
+        final int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
                         - mBrowserControlsStateProvider.getBottomControlOffset();
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // move the margin of the new tab page up if the top toolbar is at the bottom
-            bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
-            topMargin = -mBrowserControlsStateProvider.getTopControlsHeight();
-        }
- 
 
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
@@ -719,7 +710,9 @@ public class NewTabPage
      *     strip.
      */
     private int getToolbarExtraYOffset() {
-        return 0;
+        return mBrowserControlsStateProvider.getTopControlsHeight()
+                - mToolbarHeight
+                - mTabStripHeightSupplier.get();
     }
 
     /**

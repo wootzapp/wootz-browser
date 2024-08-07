@@ -56,6 +56,12 @@
 #include "components/spellcheck/renderer/spellcheck_provider.h"
 #endif
 
+#include "extensions/common/extensions_client.h"
+#include "extensions/renderer/dispatcher.h"
+#include "extensions/renderer/extension_frame_helper.h"
+#include "extensions/shell/common/shell_extensions_client.h"
+#include "extensions/shell/renderer/shell_extensions_renderer_client.h"
+
 using content::RenderThread;
 
 namespace android_webview {
@@ -74,10 +80,52 @@ void AwContentRendererClient::RenderThreadStarted() {
   browser_interface_broker_ =
       blink::Platform::Current()->GetBrowserInterfaceBroker();
 
+  extensions_client_.reset(new extensions::ShellExtensionsClient);
+  extensions::ExtensionsClient::Set(extensions_client_.get());
+  extensions_renderer_client_ = std::make_unique<extensions::ShellExtensionsRendererClient>();
+  extensions::ExtensionsRendererClient::Set(extensions_renderer_client_.get());
+
+  thread->AddObserver(extensions_renderer_client_->GetDispatcher());
+
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   if (!spellcheck_)
     spellcheck_ = std::make_unique<SpellCheck>(this);
 #endif
+}
+
+bool AwContentRendererClient::AllowScriptExtensionForServiceWorker (const url::Origin& script_origin) {
+  return true;
+}
+
+void AwContentRendererClient::DidInitializeServiceWorkerContextOnWorkerThread(
+      blink::WebServiceWorkerContextProxy* context_proxy,
+      const GURL& service_worker_scope,
+      const GURL& script_url) {
+  extensions_renderer_client_->GetDispatcher()->DidInitializeServiceWorkerContextOnWorkerThread(context_proxy, service_worker_scope, script_url);
+}
+
+void AwContentRendererClient::WillEvaluateServiceWorkerOnWorkerThread(
+      blink::WebServiceWorkerContextProxy* context_proxy,
+      v8::Local<v8::Context> v8_context,
+     int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) {
+  extensions_renderer_client_->GetDispatcher()->WillEvaluateServiceWorkerOnWorkerThread(context_proxy, v8_context, service_worker_version_id, service_worker_scope, script_url);
+}
+
+void AwContentRendererClient::DidStartServiceWorkerContextOnWorkerThread(
+      int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) {
+  extensions_renderer_client_->GetDispatcher()->DidStartServiceWorkerContextOnWorkerThread(service_worker_version_id, service_worker_scope, script_url);
+}
+
+void AwContentRendererClient::WillDestroyServiceWorkerContextOnWorkerThread(
+      v8::Local<v8::Context> context,
+      int64_t service_worker_version_id,
+      const GURL& service_worker_scope,
+      const GURL& script_url) {
+  extensions_renderer_client_->GetDispatcher()->WillDestroyServiceWorkerContextOnWorkerThread(context, service_worker_version_id, service_worker_scope, script_url);
 }
 
 void AwContentRendererClient::ExposeInterfacesToBrowser(
@@ -167,6 +215,10 @@ void AwContentRendererClient::RenderFrameCreated(
         render_frame->GetWebFrame()->GetLocalFrameToken());
   }
 
+  extensions::Dispatcher* dispatcher = extensions_renderer_client_->GetDispatcher();
+  new extensions::ExtensionFrameHelper(render_frame, dispatcher);
+  dispatcher->OnRenderFrameCreated(render_frame);
+
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   new SpellCheckProvider(render_frame, spellcheck_.get());
 #endif
@@ -233,6 +285,14 @@ void AwContentRendererClient::RunScriptsAtDocumentStart(
   js_injection::JsCommunication* communication =
       js_injection::JsCommunication::Get(render_frame);
   communication->RunScriptsAtDocumentStart();
+
+  extensions_renderer_client_->GetDispatcher()->RunScriptsAtDocumentStart(render_frame);
+}
+
+void AwContentRendererClient::RunScriptsAtDocumentEnd(
+    content::RenderFrame* render_frame) {
+  extensions_renderer_client_->GetDispatcher()->RunScriptsAtDocumentEnd(render_frame);
+
 }
 
 std::unique_ptr<media::KeySystemSupportRegistration>

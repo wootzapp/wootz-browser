@@ -76,8 +76,6 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-
 /**
  * The Mediator that is responsible for resetting the tab grid or carousel based on visibility and
  * model changes.
@@ -443,25 +441,10 @@ class TabSwitcherMediator
         mContainerViewModel.set(
                 BOTTOM_CONTROLS_HEIGHT, browserControlsStateProvider.getBottomControlsHeight());
 
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                mContainerViewModel.set(
-                    BOTTOM_CONTROLS_HEIGHT, mContainerViewModel.get(BOTTOM_CONTROLS_HEIGHT) +
-                        mBrowserControlsStateProvider.getContentOffset());
-            }
-
-
         if (mMode == TabListMode.GRID) {
             mContainerViewModel.set(
                     BOTTOM_PADDING,
                     (int) context.getResources().getDimension(R.dimen.tab_grid_bottom_padding));
-
-            if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-                // adjust the bottom margin so as not to cover the top toolbar at the bottom
-                mContainerViewModel.set(
-                    BOTTOM_PADDING, mContainerViewModel.get(BOTTOM_PADDING) +
-                        mBrowserControlsStateProvider.getContentOffset());
-            }
-
             if (backPressManager != null && BackPressManager.isEnabled()) {
                 backPressManager.addHandler(this, BackPressHandler.Type.TAB_SWITCHER);
                 notifyBackPressStateChangedInternal();
@@ -529,12 +512,6 @@ class TabSwitcherMediator
         final int contentOffset = mBrowserControlsStateProvider.getContentOffset();
 
         mContainerViewModel.set(TOP_MARGIN, contentOffset);
-
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false)) {
-            // move the view up since the toolbar is at the bottom
-            mContainerViewModel.set(TOP_MARGIN, 0);
-        }
-
         mContainerViewModel.set(SHADOW_TOP_OFFSET, contentOffset);
     }
 

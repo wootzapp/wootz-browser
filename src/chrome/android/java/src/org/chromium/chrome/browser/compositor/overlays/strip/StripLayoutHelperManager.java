@@ -92,10 +92,6 @@ import org.chromium.url.GURL;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.chromium.base.ContextUtils;
-import java.util.function.Supplier;
-import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
-
 /**
  * This class handles managing which {@link StripLayoutHelper} is currently active and dispatches
  * all input and model events to the proper destination.
@@ -225,10 +221,6 @@ public class StripLayoutHelperManager
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final String mDefaultTitle;
     private final ObservableSupplier<LayerTitleCache> mLayerTitleCacheSupplier;
-
-    private final Supplier<BrowserControlsManager> mBrowserControlsManagerSupplier;
-    private final float mDpToPx;
-
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
 
     // Drag-Drop
@@ -237,9 +229,6 @@ public class StripLayoutHelperManager
     private class TabStripEventHandler implements MotionEventHandler {
         @Override
         public void onDown(float x, float y, boolean fromMouse, int buttons) {
-
-            y -= mStripFilterArea.top;
-
             if (DragDropGlobalState.hasValue()) {
                 return;
             }
@@ -262,9 +251,6 @@ public class StripLayoutHelperManager
 
         @Override
         public void drag(float x, float y, float dx, float dy, float tx, float ty) {
-
-            y -= mStripFilterArea.top;
-
             if (DragDropGlobalState.hasValue()) {
                 return;
             }
@@ -274,9 +260,6 @@ public class StripLayoutHelperManager
 
         @Override
         public void click(float x, float y, boolean fromMouse, int buttons) {
-
-            y -= mStripFilterArea.top;
-
             if (DragDropGlobalState.hasValue()) {
                 return;
             }
@@ -290,17 +273,17 @@ public class StripLayoutHelperManager
 
         @Override
         public void fling(float x, float y, float velocityX, float velocityY) {
-
-            y -= mStripFilterArea.top;
-
+            if (DragDropGlobalState.hasValue()) {
+                return;
+            }
             getActiveStripLayoutHelper().fling(time(), x, y, velocityX, velocityY);
         }
 
         @Override
         public void onLongPress(float x, float y) {
-
-            y -= mStripFilterArea.top;
-
+            if (DragDropGlobalState.hasValue()) {
+                return;
+            }
             getActiveStripLayoutHelper().onLongPress(time(), x, y);
         }
 
@@ -392,9 +375,6 @@ public class StripLayoutHelperManager
             ObservableSupplier<LayerTitleCache> layerTitleCacheSupplier,
             ObservableSupplier<TabModelStartupInfo> tabModelStartupInfoSupplier,
             ActivityLifecycleDispatcher lifecycleDispatcher,
-
-            Supplier<BrowserControlsManager> browserControlsManagerSupplier,
-
             MultiInstanceManager multiInstanceManager,
             DragAndDropDelegate dragDropDelegate,
             View toolbarContainerView,
@@ -534,10 +514,6 @@ public class StripLayoutHelperManager
                         toolbarContainerView,
                         windowAndroid,
                         actionConfirmationManager);
-
-        mBrowserControlsManagerSupplier = browserControlsManagerSupplier;
-        mDpToPx = context.getResources().getDisplayMetrics().density;
-
         mIncognitoHelper =
                 new StripLayoutHelper(
                         context,
@@ -709,12 +685,6 @@ public class StripLayoutHelperManager
             // value.
             yOffset -= getHeight();
         }
-
-        int topControlsHeight = 0;
-        if (mBrowserControlsManagerSupplier.get() != null) {
-            topControlsHeight = mBrowserControlsManagerSupplier.get().getTopControlsHeight();
-        }
-
         mTabStripTreeProvider.pushAndUpdateStrip(
                 this,
                 mLayerTitleCacheSupplier.get(),
@@ -723,10 +693,6 @@ public class StripLayoutHelperManager
                 getActiveStripLayoutHelper().getStripLayoutGroupTitlesToRender(),
                 yOffset,
                 selectedTabId,
-
-                viewport.height(), 
-                topControlsHeight,
-
                 hoveredTabId,
                 getStripTransitionScrimColor(),
                 scrimOpacity,
@@ -791,18 +757,11 @@ public class StripLayoutHelperManager
                 mLeftPadding,
                 mRightPadding);
 
-        float top = 0;
-        if (ContextUtils.getAppSharedPreferences().getBoolean("enable_bottom_toolbar", false) &&
-            mBrowserControlsManagerSupplier.get() != null) {
-            // move the rectangle to grab the touch events as the tab list (in tablet mode)
-            // is down and is following the toolbar offset as it moves.
-            // values are in pixels.
-            top = height - ((mBrowserControlsManagerSupplier.get().getTopControlsHeight()
-                             - mBrowserControlsManagerSupplier.get().getTopControlOffset()) / mDpToPx);
-            visibleViewportOffsetY = mHeight;
-        }
-        mStripFilterArea.set(0, top, mWidth, top + Math.min(getHeight(), visibleViewportOffsetY));
-
+        mStripFilterArea.set(
+                mLeftPadding,
+                mTopPadding,
+                mWidth - mRightPadding,
+                Math.min(getHeight(), visibleViewportOffsetY));
         mEventFilter.setEventArea(mStripFilterArea);
     }
 

@@ -42,8 +42,6 @@ import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 
 import java.util.concurrent.Callable;
 
-import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
-
 /**
  * {@link LayoutManagerChromeTablet} is the specialization of {@link LayoutManagerChrome} for the
  * tablet.
@@ -138,7 +136,6 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                         mLayerTitleCacheSupplier,
                         tabModelStartupInfoSupplier,
                         lifecycleDispatcher,
-                        () -> getBrowserControlsManager(),
                         multiInstanceManager,
                         dragAndDropDelegate,
                         toolbarContainerView,
