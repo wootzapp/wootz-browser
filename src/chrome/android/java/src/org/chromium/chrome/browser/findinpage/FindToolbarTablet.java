@@ -17,6 +17,7 @@ import android.widget.FrameLayout;
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.widget.animation.CancelAwareAnimatorListener;
 import org.chromium.ui.interpolators.Interpolators;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /** A tablet specific version of the {@link FindToolbar}. */
 public class FindToolbarTablet extends FindToolbar {
@@ -170,10 +171,11 @@ public class FindToolbarTablet extends FindToolbar {
 
         if (show && getVisibility() != View.VISIBLE && mCurrentAnimation != mAnimationEnter) {
             View anchorView = getRootView().findViewById(R.id.toolbar);
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) getLayoutParams();
-            lp.topMargin = anchorView.getBottom() - mYInsetPx;
-            setLayoutParams(lp);
-            nextAnimator = mAnimationEnter;
+            if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) getLayoutParams();
+                lp.topMargin = anchorView.getBottom() - mYInsetPx;
+                setLayoutParams(lp);
+            }
         } else if (!show && getVisibility() != View.GONE && mCurrentAnimation != mAnimationLeave) {
             nextAnimator = mAnimationLeave;
             onHideAnimationStart();

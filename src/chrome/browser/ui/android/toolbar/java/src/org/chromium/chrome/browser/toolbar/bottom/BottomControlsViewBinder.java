@@ -10,6 +10,7 @@ import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.dynamics.DynamicResourceReadyOnceCallback;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 class BottomControlsViewBinder {
     /**
@@ -53,6 +54,8 @@ class BottomControlsViewBinder {
             view.sceneLayer.setYOffset(model.get(BottomControlsProperties.Y_OFFSET));
         } else if (BottomControlsProperties.ANDROID_VIEW_TRANSLATE_Y == propertyKey) {
             view.root.setTranslationY(model.get(BottomControlsProperties.ANDROID_VIEW_TRANSLATE_Y));
+        } else if (BottomControlsProperties.TOPCONTROLSMINHEIGHT_OFFSET == propertyKey) {
+            view.sceneLayer.setTopControlsMinHeightOffset(model.get(BottomControlsProperties.TOPCONTROLSMINHEIGHT_OFFSET));
         } else if (BottomControlsProperties.ANDROID_VIEW_VISIBLE == propertyKey
                 || BottomControlsProperties.COMPOSITED_VIEW_VISIBLE == propertyKey) {
             final boolean showAndroidView =

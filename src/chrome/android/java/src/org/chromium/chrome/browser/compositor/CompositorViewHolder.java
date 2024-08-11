@@ -92,6 +92,7 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.mojom.VirtualKeyboardMode;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -248,6 +249,10 @@ public class CompositorViewHolder extends FrameLayout
                         @Override
                         public void setCurrentTouchEventOffsets(float top) {
                             EventForwarder forwarder = getEventForwarder();
+                            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                                // no need to adjust the touch offsets, since the content view is never moved
+                                top = 0;
+                            }
                             if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
                         }
 
@@ -904,7 +909,9 @@ public class CompositorViewHolder extends FrameLayout
                 mApplicationBottomInsetSupplier != null
                         ? mApplicationBottomInsetSupplier.get().webContentsHeightInset
                         : 0;
-
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            keyboardInset = 0;
+        }
         int viewportInsets = controlsInsets + keyboardInset;
 
         if (isAttachedToWindow(view)) {

@@ -46,6 +46,7 @@ import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.Sw
 import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -311,7 +312,10 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
-        return new ToolbarSwipeHandler(supportSwipeDown);
+        boolean move_top_toolbar =
+            ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
+        return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
+                                       supportSwipeDown && move_top_toolbar);
     }
 
     @Override
@@ -566,10 +570,12 @@ public class LayoutManagerChrome extends LayoutManagerImpl
         private static final float SWIPE_RANGE_DEG = 25;
 
         private final boolean mSupportSwipeDown;
+        private final boolean mSupportSwipeUp;
 
-        public ToolbarSwipeHandler(boolean supportSwipeDown) {
-            mSupportSwipeDown = supportSwipeDown;
-        }
+        public ToolbarSwipeHandler(boolean supportSwipeDown, boolean supportSwipeUp) {
+             mSupportSwipeDown = supportSwipeDown;
+            mSupportSwipeUp = supportSwipeUp;
+         }
 
         @Override
         public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
@@ -598,6 +604,10 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
             if (mSupportSwipeDown && mScrollDirection == ScrollDirection.DOWN) {
                 RecordUserAction.record("MobileToolbarSwipeOpenStackView");
+                showLayout(LayoutType.TAB_SWITCHER, true);
+            } else if (mSupportSwipeUp
+                       && mScrollDirection == ScrollDirection.UP
+                       && !ChromeFeatureList.sDisableToolbarSwipeUp.isEnabled()) {
                 showLayout(LayoutType.TAB_SWITCHER, true);
             } else if (mScrollDirection == ScrollDirection.LEFT
                     || mScrollDirection == ScrollDirection.RIGHT) {
@@ -650,6 +660,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl
                 direction = ScrollDirection.RIGHT;
             } else if (swipeAngle < 270 + SWIPE_RANGE_DEG && swipeAngle > 270 - SWIPE_RANGE_DEG) {
                 direction = ScrollDirection.DOWN;
+            } else if (swipeAngle < 90 + SWIPE_RANGE_DEG && swipeAngle > 90 - SWIPE_RANGE_DEG) {
+                direction = ScrollDirection.UP;
             }
 
             return direction;
@@ -666,7 +678,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
             return direction == ScrollDirection.DOWN
                     || direction == ScrollDirection.LEFT
-                    || direction == ScrollDirection.RIGHT;
+                    || direction == ScrollDirection.RIGHT
+                    || direction == ScrollDirection.UP;
         }
     }
 

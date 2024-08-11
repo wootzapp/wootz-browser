@@ -15,7 +15,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.supplier.ObservableSupplier;
@@ -82,7 +82,7 @@ public class AutocompleteCoordinator
     private @Nullable OmniboxSuggestionsDropdown mDropdown;
     private @NonNull ObserverList<OmniboxSuggestionsDropdownScrollListener> mScrollListenerList =
             new ObserverList<>();
-
+    private final @NonNull OmniboxSuggestionsDropdownEmbedder mDropdownEmbedder;
     /** An observer watching for changes to the visual state of the omnibox suggestions. */
     public interface OmniboxSuggestionsVisualStateObserver {
         /** Called when the visibility of the omnibox suggestions changes. */
@@ -116,6 +116,7 @@ public class AutocompleteCoordinator
 
         PropertyModel listModel = new PropertyModel(SuggestionListProperties.ALL_KEYS);
         ModelList listItems = new ModelList();
+        mDropdownEmbedder = dropdownEmbedder;
 
         listModel.set(SuggestionListProperties.EMBEDDER, dropdownEmbedder);
         listModel.set(SuggestionListProperties.VISIBLE, false);
@@ -229,6 +230,16 @@ public class AutocompleteCoordinator
 
                 dropdown.forcePhoneStyleOmnibox(forcePhoneStyleOmnibox);
                 dropdown.setAdapter(mAdapter);
+                if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                    // make margins works
+                    dropdown.getViewGroup().setClipToPadding(true);
+                    container.bringToFront();
+
+                    // do not cover the bar
+                    ViewGroup.LayoutParams params = container.getLayoutParams();
+                    ((ViewGroup.MarginLayoutParams) params).bottomMargin =
+                        mDropdownEmbedder.getAnchorView().getMeasuredHeight();
+                }
                 mRecycledViewPool.ifPresent(p -> dropdown.setRecycledViewPool(p));
 
                 if (!OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
