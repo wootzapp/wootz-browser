@@ -18,7 +18,7 @@ import org.chromium.chrome.browser.xsurface.ListContentManager;
 import org.chromium.chrome.browser.xsurface.ListContentManagerObserver;
 import org.chromium.chrome.browser.xsurface.LoggingParameters;
 import org.chromium.ui.UiUtils;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -143,6 +143,10 @@ public class FeedListContentManager implements ListContentManager {
             FrameLayout.LayoutParams layoutParams =
                     new FrameLayout.LayoutParams(
                             new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+                            new LayoutParams(LayoutParams.MATCH_PARENT,
+                                    ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()
+                                        ? LayoutParams.MATCH_PARENT
+                                        : LayoutParams.WRAP_CONTENT);
             enclosingLayout.setLayoutParams(layoutParams);
 
             // Set the left and right paddings.

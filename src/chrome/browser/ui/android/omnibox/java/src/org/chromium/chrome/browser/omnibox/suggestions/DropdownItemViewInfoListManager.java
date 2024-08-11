@@ -14,7 +14,7 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.PropertyModel;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -102,7 +102,11 @@ class DropdownItemViewInfoListManager {
 
         // round the bottom corners of the last suggestion.
         if (previousItem != null) {
-            previousItem.model.set(DropdownCommonProperties.BG_BOTTOM_CORNER_ROUNDED, true);
+            boolean toolbarToBottom =
+                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
+            previousItem.model.set(toolbarToBottom
+                ? DropdownCommonProperties.BG_TOP_CORNER_ROUNDED
+                : DropdownCommonProperties.BG_BOTTOM_CORNER_ROUNDED, true);
         }
 
         mManagedModel.set(suggestionsList);

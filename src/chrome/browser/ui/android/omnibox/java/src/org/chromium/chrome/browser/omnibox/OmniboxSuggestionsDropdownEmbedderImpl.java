@@ -11,12 +11,12 @@ import android.view.View;
 import android.view.View.OnLayoutChangeListener;
 import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import android.view.WindowInsets;
-
+import androidx.core.view.ViewCompat;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.BuildInfo;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
@@ -98,7 +98,10 @@ class OmniboxSuggestionsDropdownEmbedderImpl
     public void removeAlignmentObserver(Callback<OmniboxAlignment> obs) {
         mOmniboxAlignmentSupplier.removeObserver(obs);
     }
-
+    @Override
+    public View getAnchorView() {
+        return mAnchorView;
+    }
     @Nullable
     @Override
     public OmniboxAlignment getCurrentAlignment() {
@@ -126,6 +129,9 @@ class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onDetachedFromWindow() {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            recalculateOmniboxAlignment();
+        }
         mAnchorView.removeOnLayoutChangeListener(this);
         mAlignmentView.removeOnLayoutChangeListener(this);
         mAnchorView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -225,6 +231,8 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         ViewUtils.getRelativeLayoutPosition(baseRelativeLayout, mAnchorView, mPositionArray);
 
         int top = mPositionArray[1] + mAnchorView.getMeasuredHeight() - contentViewTopPadding;
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+            top -= mPositionArray[1];
         int left;
         int width;
         int paddingLeft;
@@ -293,6 +301,11 @@ class OmniboxSuggestionsDropdownEmbedderImpl
                         ? Integer.MAX_VALUE
                         : contentView.getMeasuredHeight() - keyboardHeight;
         int height = Math.min(windowSpace, contentSpace) - top;
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            ViewCompat.setPaddingRelative(
+                contentView, 0, 0, 0, keyboardHeight);
+            top = 0;
+        }
 
         // TODO(pnoland@, https://crbug.com/1416985): avoid pushing changes that are identical to
         // the previous alignment value.

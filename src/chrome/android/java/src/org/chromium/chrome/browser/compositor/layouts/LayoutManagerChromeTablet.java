@@ -145,7 +145,8 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                         windowAndroid,
                         toolbarManager,
                         desktopWindowStateProvider,
-                        actionConfirmationManager);
+                        actionConfirmationManager,
+                        /*browserControlsManagerSupplier*/ () -> getBrowserControlsManager());
         addSceneOverlay(mTabStripLayoutHelperManager);
         addObserver(mTabStripLayoutHelperManager.getTabSwitcherObserver());
         mDesktopWindowStateProvider = desktopWindowStateProvider;
