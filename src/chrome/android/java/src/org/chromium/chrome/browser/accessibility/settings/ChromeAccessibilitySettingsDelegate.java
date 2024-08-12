@@ -15,6 +15,10 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.flags.CromiteNativeUtils;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+
 
 /** The Chrome implementation of AccessibilitySettingsDelegate. */
 public class ChromeAccessibilitySettingsDelegate implements AccessibilitySettingsDelegate {
@@ -60,7 +64,8 @@ public class ChromeAccessibilitySettingsDelegate implements AccessibilitySetting
 
         @Override
         public void setEnabled(boolean value) {
-
+            CromiteNativeUtils.setFlagEnabled(ChromeFeatureList.MOVE_TOP_TOOLBAR_TO_BOTTOM,
+                    "move-top-toolbar-to-bottom", value);
         }
     }
 
@@ -72,7 +77,8 @@ public class ChromeAccessibilitySettingsDelegate implements AccessibilitySetting
 
         @Override
         public void setEnabled(boolean value) {
-
+            CromiteNativeUtils.setFlagEnabled(ChromeFeatureList.DISABLE_TOOLBAR_SWIPE_UP,
+                    "disable-toolbar-swipe-up", value);
         }
     }
 
@@ -88,6 +94,7 @@ public class ChromeAccessibilitySettingsDelegate implements AccessibilitySetting
 
     @Override
     public void requestRestart(Activity activity) {
+        Snackbar mSnackbar = Snackbar.make(activity.getString(R.string.ui_relaunch_notice),
                 new SnackbarManager.SnackbarController() {
                         @Override
                         public void onDismissNoAction(Object actionData) { }
@@ -96,8 +103,13 @@ public class ChromeAccessibilitySettingsDelegate implements AccessibilitySetting
                         public void onAction(Object actionData) {
                                 ApplicationLifetime.terminate(true);
                         }
-                };
-            
+                }, Snackbar.TYPE_NOTIFICATION, Snackbar.UMA_UNKNOWN)
+                .setSingleLine(false)
+                .setAction(activity.getString(R.string.relaunch),
+                        /*actionData*/null)
+                .setDuration(/*durationMs*/70000);
+        if (!mSnackbarManager.isShowing())
+            mSnackbarManager.showSnackbar(mSnackbar);
     }
     @Override
     public BrowserContextHandle getBrowserContextHandle() {

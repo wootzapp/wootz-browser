@@ -21,6 +21,7 @@ import os
 import os.path
 import sys
 import traceback
+import re
 from collections import defaultdict
 
 from mojom.generate import module
@@ -176,11 +177,25 @@ def _CollectAllowedImportsFromBuildMetadata(build_metadata_filename):
   collect(build_metadata_filename)
   return allowed_imports
 
-
-# multiprocessing helper.
-def _ParseAstHelper(mojom_abspath, enabled_features):
+def _ResolveInclude(mojom_abspath, input_root_paths):
+  mojom_abspath = _ResolveRelativeImportPath(mojom_abspath, input_root_paths)
   with codecs.open(mojom_abspath, encoding='utf-8') as f:
-    ast = parser.Parse(f.read(), mojom_abspath)
+    src = f.read()
+
+    lines = src.splitlines();
+    for idx, i in enumerate(lines):
+      if i.startswith("#include"):
+        include_file = re.findall(r'"([^"]*)"', i)[0]
+        if include_file.startswith("../../"):
+          include_file = include_file[6::]
+        lines[idx] = _ResolveInclude(include_file, input_root_paths)
+
+  return "\n".join(lines)
+# multiprocessing helper.
+def _ParseAstHelper(mojom_abspath, enabled_features, input_root_paths):
+  with codecs.open(mojom_abspath, encoding='utf-8') as f:
+    src = _ResolveInclude(mojom_abspath, input_root_paths)
+    ast = parser.Parse(src, mojom_abspath)
     conditional_features.RemoveDisabledDefinitions(ast, enabled_features)
     return mojom_abspath, ast
 
@@ -300,7 +315,8 @@ def _ParseMojoms(mojom_files,
       (path, abs_path) for abs_path, path in mojom_files_to_parse.items())
 
   logging.info('Parsing %d .mojom into ASTs', len(mojom_files_to_parse))
-  map_args = ((mojom_abspath, enabled_features)
+  map_args = ((mojom_abspath, enabled_features, input_root_paths)
+
               for mojom_abspath in mojom_files_to_parse)
   for mojom_abspath, ast in _Shard(_ParseAstHelper, map_args):
     loaded_mojom_asts[mojom_abspath] = ast
