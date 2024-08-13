@@ -12,7 +12,7 @@
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "chrome/third_party/bitcoin-core/src/src/base58.h"
+#include "third_party/bitcoin-core/src/src/base58.h"
 
 namespace wootz_wallet {
 namespace {

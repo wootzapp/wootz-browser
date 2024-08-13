@@ -126,6 +126,8 @@ source_set("browser_process") {
   sources = [
     "browser_process.cc",
     "browser_process.h",
+    "wootz_browser_process.cc",
+    "wootz_browser_process.h",
   ]
   deps = [ "//base" ]
   public_deps = [
@@ -2786,7 +2788,13 @@ static_library("browser") {
       "performance_monitor/metric_evaluator_helper_posix.h",
     ]
   }
-
+  deps += [
+    "//chrome/components/wootz_wallet/browser",
+    "//chrome/components/wootz_wallet/browser:utils",
+    "//chrome/components/wootz_wallet/common",
+    "//chrome/components/wootz_wallet/common:mojom",
+    "//chrome/components/wootz_wallet/common:pref_names",
+  ]
   if (!is_chromeos_ash) {
     sources += [
       "signin/wait_for_network_callback_helper_chrome.cc",

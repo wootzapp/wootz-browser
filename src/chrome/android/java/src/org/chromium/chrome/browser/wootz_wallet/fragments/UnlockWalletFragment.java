@@ -51,9 +51,9 @@ import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.util.concurrent.Executor;
 
-import javax.wootz.BadPaddingException;
-import javax.wootz.IllegalBlockSizeException;
-import javax.wootz.NoSuchPaddingException;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 public class UnlockWalletFragment extends BaseWalletNextPageFragment {
 

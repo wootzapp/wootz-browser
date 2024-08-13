@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_WOOTZ_WALLET_P3A_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_WOOTZ_WALLET_P3A_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_WOOTZ_WALLET_P3A_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_WOOTZ_WALLET_P3A_H_
 
 #include <optional>
 
@@ -20,51 +20,51 @@ class PrefService;
 namespace wootz_wallet {
 
 inline constexpr char kKeyringCreatedHistogramName[] =
-    "chrome.Wallet.KeyringCreated";
+    "Wootz.Wallet.KeyringCreated";
 inline constexpr char kOnboardingConversionHistogramName[] =
-    "chrome.Wallet.OnboardingConversion.3";
+    "Wootz.Wallet.OnboardingConversion.3";
 inline constexpr char kNewUserBalanceHistogramName[] =
-    "chrome.Wallet.NewUserBalance";
+    "Wootz.Wallet.NewUserBalance";
 inline constexpr char kEthProviderHistogramName[] =
-    "chrome.Wallet.EthProvider.4";
+    "Wootz.Wallet.EthProvider.4";
 inline constexpr char kSolProviderHistogramName[] =
-    "chrome.Wallet.SolProvider.2";
+    "Wootz.Wallet.SolProvider.2";
 inline constexpr char kEthTransactionSentHistogramName[] =
-    "chrome.Wallet.EthTransactionSent";
+    "Wootz.Wallet.EthTransactionSent";
 inline constexpr char kSolTransactionSentHistogramName[] =
-    "chrome.Wallet.SolTransactionSent";
+    "Wootz.Wallet.SolTransactionSent";
 inline constexpr char kFilTransactionSentHistogramName[] =
-    "chrome.Wallet.FilTransactionSent";
+    "Wootz.Wallet.FilTransactionSent";
 inline constexpr char kBtcTransactionSentHistogramName[] =
-    "chrome.Wallet.BtcTransactionSent";
+    "Wootz.Wallet.BtcTransactionSent";
 inline constexpr char kZecTransactionSentHistogramName[] =
-    "chrome.Wallet.ZecTransactionSent";
+    "Wootz.Wallet.ZecTransactionSent";
 inline constexpr char kEthActiveAccountHistogramName[] =
-    "chrome.Wallet.ActiveEthAccounts";
+    "Wootz.Wallet.ActiveEthAccounts";
 inline constexpr char kSolActiveAccountHistogramName[] =
-    "chrome.Wallet.ActiveSolAccounts";
+    "Wootz.Wallet.ActiveSolAccounts";
 inline constexpr char kFilActiveAccountHistogramName[] =
-    "chrome.Wallet.ActiveFilAccounts";
+    "Wootz.Wallet.ActiveFilAccounts";
 inline constexpr char kBtcActiveAccountHistogramName[] =
-    "chrome.Wallet.ActiveBtcAccounts";
+    "Wootz.Wallet.ActiveBtcAccounts";
 inline constexpr char kZecActiveAccountHistogramName[] =
-    "chrome.Wallet.ActiveZecAccounts";
+    "Wootz.Wallet.ActiveZecAccounts";
 inline constexpr char kWootzWalletDailyHistogramName[] =
-    "chrome.Wallet.UsageDaily";
+    "Wootz.Wallet.UsageDaily";
 inline constexpr char kWootzWalletWeeklyHistogramName[] =
-    "chrome.Wallet.UsageWeekly";
+    "Wootz.Wallet.UsageWeekly";
 inline constexpr char kWootzWalletMonthlyHistogramName[] =
-    "chrome.Wallet.UsageMonthly";
+    "Wootz.Wallet.UsageMonthly";
 inline constexpr char kWootzWalletNewUserReturningHistogramName[] =
-    "chrome.Wallet.NewUserReturning";
+    "Wootz.Wallet.NewUserReturning";
 inline constexpr char kWootzWalletLastUsageTimeHistogramName[] =
-    "chrome.Wallet.LastUsageTime";
+    "Wootz.Wallet.LastUsageTime";
 inline constexpr char kWootzWalletNFTCountHistogramName[] =
-    "chrome.Wallet.NFTCount";
+    "Wootz.Wallet.NFTCount";
 inline constexpr char kWootzWalletNFTNewUserHistogramName[] =
-    "chrome.Wallet.NFTNewUser";
+    "Wootz.Wallet.NFTNewUser";
 inline constexpr char kWootzWalletNFTDiscoveryEnabledHistogramName[] =
-    "chrome.Wallet.NFTDiscoveryEnabled";
+    "Wootz.Wallet.NFTDiscoveryEnabled";
 
 class WootzWalletService;
 class KeyringService;

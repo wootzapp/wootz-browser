@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_PREF_NAMES_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_PREF_NAMES_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_PREF_NAMES_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_PREF_NAMES_H_
 
 inline constexpr char kShouldShowWalletSuggestionBadge[] =
     "wootz.wallet.should_show_wallet_suggestion_badge";

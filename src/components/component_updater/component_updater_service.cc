@@ -358,6 +358,33 @@ void CrxUpdateService::OnDemandUpdate(const std::string& id,
   OnDemandUpdateInternal(id, priority, std::move(callback));
 }
 
+void CrxUpdateService::OnDemandUpdate(const std::vector<std::string>& ids,
+                                      Priority priority,
+                                      Callback callback) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  for (const auto& id : ids) {
+    if (!GetComponent(id)) {
+      if (callback) {
+        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+            FROM_HERE, base::BindOnce(std::move(callback),
+                                      update_client::Error::INVALID_ARGUMENT));
+      }
+      return;
+    }
+  }
+
+  auto crx_data_callback = base::BindOnce(&CrxUpdateService::GetCrxComponents,
+                                          base::Unretained(this));
+  auto update_complete_callback = base::BindOnce(
+      &CrxUpdateService::OnUpdateComplete, base::Unretained(this),
+      std::move(callback), base::TimeTicks::Now());
+
+  update_client_->Update(ids, std::move(crx_data_callback), {},
+                         priority == Priority::FOREGROUND,
+                         std::move(update_complete_callback));
+}
+
 bool CrxUpdateService::OnDemandUpdateWithCooldown(const std::string& id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 

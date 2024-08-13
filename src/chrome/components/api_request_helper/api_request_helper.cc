@@ -411,7 +411,7 @@ void APIRequestHelper::URLLoaderHandler::OnDataReceived(
     ParseSSE(string_piece);
   } else {
     DVLOG(4) << "Chunk content: \n" << string_piece;
-    TRACE_EVENT0("wootz", "APIRequestHelper_OnDataReceivedNoSSE");
+    // TRACE_EVENT0("wootz", "APIRequestHelper_OnDataReceivedNoSSE");
     ScopedPerfTracker tracker("Wootz.APIRequestHelper.OnDataReceivedNoSSE");
     data_received_callback_.Run(base::Value(string_piece));
   }
@@ -481,8 +481,8 @@ void APIRequestHelper::URLLoaderHandler::OnResponse(
 void APIRequestHelper::URLLoaderHandler::OnParseJsonResponse(
     APIRequestResult result,
     ValueOrError result_value) {
-  TRACE_EVENT1("wootz", "APIRequestHelper_ProcessResultOnUI", "url",
-               result.final_url().spec());
+  // TRACE_EVENT1("wootz", "APIRequestHelper_ProcessResultOnUI", "url",
+  //              result.final_url().spec());
   ScopedPerfTracker tracker("Wootz.APIRequestHelper.ProcessResultOnUI");
   // TODO(petemill): Simplify by combining OnParseJsonResponse with the Json
   // response handler in ParseSSE.
@@ -570,7 +570,7 @@ void APIRequestHelper::URLLoaderHandler::ParseSSE(
           if (!handler) {
             return;
           }
-          TRACE_EVENT0("wootz", "APIRequestHelper_ParseSSECallback");
+          // TRACE_EVENT0("wootz", "APIRequestHelper_ParseSSECallback");
           ScopedPerfTracker tracker("Wootz.APIRequestHelper.ParseSSECallback");
           handler->current_decoding_operation_count_--;
           DCHECK(handler->data_received_callback_);

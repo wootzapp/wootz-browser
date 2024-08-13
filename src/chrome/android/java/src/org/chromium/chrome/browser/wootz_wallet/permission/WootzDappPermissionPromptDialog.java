@@ -29,7 +29,7 @@ import org.chromium.wootz_wallet.mojom.CoinType;
 import org.chromium.wootz_wallet.mojom.KeyringService;
 import org.chromium.wootz_wallet.mojom.PermissionLifetimeOption;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.app.helpers.ImageLoader;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
@@ -96,9 +96,9 @@ public class WootzDappPermissionPromptDialog
         mCoinType = coinType;
         mMojoServicesClosed = false;
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "WootzDappPermissionPromptDialog", e);
         }
     }
@@ -139,7 +139,7 @@ public class WootzDappPermissionPromptDialog
         mModalDialogManager.showDialog(mPropertyModel, ModalDialogType.APP);
         initKeyringService();
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             activity.dismissWalletPanelOrDialog();
 
             ViewGroup container = getPermissionModalViewContainer(customView);
@@ -150,7 +150,7 @@ public class WootzDappPermissionPromptDialog
             if (mPermissionDialogPositiveButton != null) {
                 mPermissionDialogPositiveButton.setEnabled(false);
             }
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "show " + e);
         }
         initAccounts();

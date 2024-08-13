@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_IPFS_IPFS_UTILS_H_
-#define WOOTZ_COMPONENTS_IPFS_IPFS_UTILS_H_
+#ifndef CHROME_COMPONENTS_IPFS_IPFS_UTILS_H_
+#define CHROME_COMPONENTS_IPFS_IPFS_UTILS_H_
 
 #include "build/build_config.h"
 #include "url/gurl.h"

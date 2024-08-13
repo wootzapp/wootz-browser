@@ -23,6 +23,8 @@ namespace permissions {
 enum class RequestType {
   kAccessibilityEvents,
   kArSession,
+  kWootzEthereum, 
+  kWootzSolana,
 #if !BUILDFLAG(IS_ANDROID)
   kCameraPanTiltZoom,
 #endif

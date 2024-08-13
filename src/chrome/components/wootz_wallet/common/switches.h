@@ -3,8 +3,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_SWITCHES_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_SWITCHES_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_COMMON_SWITCHES_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_COMMON_SWITCHES_H_
 
 namespace wootz_wallet {
 namespace switches {

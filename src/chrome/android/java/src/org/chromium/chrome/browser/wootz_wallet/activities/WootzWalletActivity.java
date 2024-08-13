@@ -20,7 +20,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.KeyringModel;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
@@ -99,11 +99,11 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mBackupWallet = intent.getBooleanExtra(SHOW_WALLET_ACTIVITY_BACKUP, false);
         }
         try {
-            mWalletModel = WootzActivity.getWootzActivity().getWalletModel();
+            mWalletModel = ChromeActivity.getChromeActivity().getWalletModel();
 
             // Update network model to use default network.
             getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "triggerLayoutInflation", e);
         }
 
@@ -231,9 +231,9 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
         if (mIsFromDapps) {
             finish();
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 activity.showWalletPanel(true);
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "onboardingCompleted", e);
             }
         } else {

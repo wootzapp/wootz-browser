@@ -35,6 +35,8 @@ int GetIconIdAndroid(RequestType type) {
     case RequestType::kAccessibilityEvents:
       return IDR_ANDROID_INFOBAR_ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
+    case RequestType::kWootzEthereum:                  
+    case RequestType::kWootzSolana: 
     case RequestType::kVrSession:
       return IDR_ANDROID_INFOBAR_VR_HEADSET;
     case RequestType::kCameraStream:
@@ -79,6 +81,8 @@ const gfx::VectorIcon& GetIconIdDesktop(RequestType type) {
     case RequestType::kAccessibilityEvents:
       return kAccessibilityIcon;
     case RequestType::kArSession:
+    case RequestType::kWootzEthereum:                  
+    case RequestType::kWootzSolana: 
     case RequestType::kVrSession:
       return vector_icons::kVrHeadsetChromeRefreshIcon;
     case RequestType::kCameraPanTiltZoom:
@@ -150,6 +154,8 @@ const gfx::VectorIcon& GetBlockedIconIdDesktop(RequestType type) {
       return cr23 ? vector_icons::kNotificationsOffChromeRefreshIcon
                   : vector_icons::kNotificationsOffIcon;
     case RequestType::kArSession:
+    case RequestType::kWootzEthereum:                  
+    case RequestType::kWootzSolana: 
     case RequestType::kVrSession:
       return cr23 ? vector_icons::kVrHeadsetOffChromeRefreshIcon
                   : vector_icons::kVrHeadsetOffIcon;
@@ -196,6 +202,10 @@ std::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
       return RequestType::kAccessibilityEvents;
     case ContentSettingsType::AR:
       return RequestType::kArSession;
+    case ContentSettingsType::WOOTZ_ETHEREUM:
+      return RequestType::kWootzEthereum;
+    case ContentSettingsType::WOOTZ_SOLANA:
+      return RequestType::kWootzSolana;
 #if !BUILDFLAG(IS_ANDROID)
     case ContentSettingsType::CAMERA_PAN_TILT_ZOOM:
       return RequestType::kCameraPanTiltZoom;
@@ -280,6 +290,10 @@ std::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
       return ContentSettingsType::AR;
+    case ContentSettingsType::WOOTZ_ETHEREUM:
+      return RequestType::kWootzEthereum;
+    case ContentSettingsType::WOOTZ_SOLANA:
+      return RequestType::kWootzSolana;
 #if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return ContentSettingsType::CAMERA_PAN_TILT_ZOOM;
@@ -385,6 +399,10 @@ const char* PermissionKeyForRequestType(permissions::RequestType request_type) {
       return "accessibility_events";
     case permissions::RequestType::kArSession:
       return "ar_session";
+    case permissions::RequestType::kWootzEthereum:                  
+      return "wootz_ethereum";                                      
+    case permissions::RequestType::kWootzSolana:                    
+      return "wootz_solana";      
 #if !BUILDFLAG(IS_ANDROID)
     case permissions::RequestType::kCameraPanTiltZoom:
       return "camera_pan_tilt_zoom";

@@ -21,7 +21,7 @@ namespace {
 
 net::NetworkTrafficAnnotationTag
 GetAssetDiscoveryManagerNetworkTrafficAnnotationTag() {
-  return net::DefineNetworkTrafficAnnotation("chrome_wallet_service", R"(
+  return net::DefineNetworkTrafficAnnotation("wootz_wallet_service", R"(
       semantics {
         sender: "Asset Discovery Manager"
         description:

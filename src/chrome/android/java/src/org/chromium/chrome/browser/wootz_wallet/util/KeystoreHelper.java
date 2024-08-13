@@ -24,13 +24,13 @@ import java.security.NoSuchProviderException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 
-import javax.wootz.BadPaddingException;
-import javax.wootz.Cipher;
-import javax.wootz.IllegalBlockSizeException;
-import javax.wootz.KeyGenerator;
-import javax.wootz.NoSuchPaddingException;
-import javax.wootz.SecretKey;
-import javax.wootz.spec.GCMParameterSpec;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 public class KeystoreHelper {
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";

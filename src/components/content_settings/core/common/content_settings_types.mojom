@@ -34,6 +34,9 @@ enum ContentSettingsType {
   // might not be worth the trouble.
   POPUPS,
 
+  WOOTZ_ETHEREUM,
+  WOOTZ_SOLANA,
+
   GEOLOCATION,
   NOTIFICATIONS,
   AUTO_SELECT_CERTIFICATE,

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_CONSTANTS_WEBUI_URL_CONSTANTS_H_
-#define WOOTZ_COMPONENTS_CONSTANTS_WEBUI_URL_CONSTANTS_H_
+#ifndef CHROME_COMPONENTS_CONSTANTS_WEBUI_URL_CONSTANTS_H_
+#define CHROME_COMPONENTS_CONSTANTS_WEBUI_URL_CONSTANTS_H_
 
 #include "build/build_config.h"
 
@@ -29,18 +29,18 @@ inline constexpr char kWootzNewTabJS[] = "wootz_new_tab.js";
 inline constexpr char kWootzNewsInternalsHost[] = "news-internals";
 inline constexpr char kWootzUIAdblockURL[] = "chrome://adblock/";
 inline constexpr char kWootzUIWebcompatReporterURL[] = "chrome://webcompat/";
-inline constexpr char kWootzUIWalletURL[] = "chrome://wallet/";
+inline constexpr char kWootzUIWalletURL[] = "wootzapp://wallet/";
 inline constexpr char kWootzUIWalletOnboardingURL[] =
-    "wootz://wallet/crypto/onboarding";
+    "wootzapp://wallet/crypto/onboarding";
 inline constexpr char kWootzUIWalletAccountCreationURL[] =
-    "wootz://wallet/crypto/accounts/add-account/create/";
+    "wootzapp://wallet/crypto/accounts/add-account/create/";
 inline constexpr char kWootzUIWalletPanelURL[] =
-    "chrome://wallet-panel.top-chrome/";
+    "wootzapp://wallet-panel.top-chrome/";
 inline constexpr char kWalletPanelHost[] = "wallet-panel.top-chrome";
 inline constexpr char kVPNPanelURL[] =
     "chrome-untrusted://vpn-panel.top-chrome/";
 inline constexpr char kVPNPanelHost[] = "vpn-panel.top-chrome";
-inline constexpr char kWootzUIWalletPageURL[] = "chrome://wallet/";
+inline constexpr char kWootzUIWalletPageURL[] = "wootzapp://wallet/";
 inline constexpr char kWalletPageHost[] = "wallet";
 inline constexpr char kExtensionSettingsURL[] = "wootz://settings/extensions";
 inline constexpr char kWalletSettingsURL[] = "wootz://settings/wallet";

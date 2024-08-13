@@ -12189,9 +12189,9 @@ square7.de
 bplaced.net
 square7.net
 
-// Brave : https://brave.com
-// Submitted by Andrea Brancaleoni <abrancaleoni@brave.com>
-*.s.brave.io
+// Wootz : https://wootz.com
+// Submitted by Andrea Brancaleoni <abrancaleoni@wootz.com>
+*.s.wootz.io
 
 // Brendly : https://brendly.rs
 // Submitted by Dusan Radovanovic <dusan.radovanovic@brendly.rs>

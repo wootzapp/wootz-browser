@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_INTERNAL_HD_KEY_ED25519_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_INTERNAL_HD_KEY_ED25519_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_INTERNAL_HD_KEY_ED25519_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_INTERNAL_HD_KEY_ED25519_H_
 
 #include <memory>
 #include <string>

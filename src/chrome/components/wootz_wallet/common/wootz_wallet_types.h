@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_WOOTZ_WALLET_TYPES_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_COMMON_WOOTZ_WALLET_TYPES_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_COMMON_WOOTZ_WALLET_TYPES_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_COMMON_WOOTZ_WALLET_TYPES_H_
 
 #include <limits>
 #include <optional>
@@ -24,10 +24,15 @@ constexpr KeyringId kFilecoinKeyringId = KeyringId::kFilecoin;
 constexpr KeyringId kFilecoinTestnetKeyringId = KeyringId::kFilecoinTestnet;
 }  // namespace mojom
 
-using uint256_t = unsigned _BitInt(256);
-using int256_t = _BitInt(256);
+// using uint256_t = unsigned _BitInt(256);
+using uint256_t = unsigned _BitInt(128);
+
+// using int256_t = _BitInt(256);
+using int256_t = _BitInt(128);
+
 
 using uint128_t = unsigned _BitInt(128);
+
 using int128_t = _BitInt(128);
 
 // 2^255 - 1

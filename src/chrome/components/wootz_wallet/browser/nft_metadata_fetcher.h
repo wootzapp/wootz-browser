@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_NFT_METADATA_FETCHER_H_
-#define WOOTZ_COMPONENTS_WOOTZ_WALLET_BROWSER_NFT_METADATA_FETCHER_H_
+#ifndef CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_NFT_METADATA_FETCHER_H_
+#define CHROME_COMPONENTS_WOOTZ_WALLET_BROWSER_NFT_METADATA_FETCHER_H_
 
 #include <memory>
 #include <optional>
@@ -14,8 +14,8 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "wootz/components/api_request_helper/api_request_helper.h"
-#include "wootz/components/wootz_wallet/browser/json_rpc_service.h"
+#include "chrome/components/api_request_helper/api_request_helper.h"
+#include "chrome/components/wootz_wallet/browser/json_rpc_service.h"
 
 class PrefService;
 

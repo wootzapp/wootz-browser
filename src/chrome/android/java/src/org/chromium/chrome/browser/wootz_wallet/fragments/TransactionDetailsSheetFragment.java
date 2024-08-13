@@ -27,7 +27,7 @@ import org.chromium.base.Log;
 import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.wootz_wallet.mojom.TransactionType;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.adapters.TwoLineItemRecyclerViewAdapter;
 import org.chromium.chrome.browser.wootz_wallet.model.AccountSelectorItemModel;
@@ -88,10 +88,10 @@ public class TransactionDetailsSheetFragment extends WalletBottomSheetDialogFrag
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }

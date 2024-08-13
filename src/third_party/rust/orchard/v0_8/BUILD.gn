@@ -1,0 +1,96 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "orchard"
+  epoch = "0.8"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/action.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/address.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/builder.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/bundle.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/bundle/batch.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/bundle/commitments.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/circuit.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/circuit/commit_ivk.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/circuit/gadget.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/circuit/gadget/add_chip.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/circuit/note_commit.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/commit_ivk_r.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/note_commit_r.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/nullifier_k.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/spend_auth_g.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/value_commit_r.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/fixed_bases/value_commit_v.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/load.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/sinsemilla.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/constants/util.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/keys.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/note.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/note/commitment.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/note/nullifier.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/note_encryption.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/primitives.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/primitives/redpallas.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/spec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/test_vectors.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/test_vectors/commitment_tree.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/test_vectors/keys.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/test_vectors/merkle_path.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/test_vectors/note_encryption.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/tree.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/value.rs",
+    "//third_party/rust/chromium_crates_io/vendor/orchard-0.8.0/src/zip32.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.8.0"
+  cargo_pkg_authors = "Sean Bowe <sean@electriccoin.co>, Jack Grigg <jack@electriccoin.co>, Daira-Emma Hopwood <daira@jacaranda.org>, Ying Tong Lai, Kris Nuttycombe <kris@electriccoin.co>"
+  cargo_pkg_name = "orchard"
+  cargo_pkg_description = "The Orchard shielded transaction protocol"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/aes/v0_8:lib",
+    "//third_party/rust/bitvec/v1:lib",
+    "//third_party/rust/blake2b_simd/v1:lib",
+    "//third_party/rust/ff/v0_13:lib",
+    "//third_party/rust/fpe/v0_6:lib",
+    "//third_party/rust/group/v0_13:lib",
+    "//third_party/rust/halo2_gadgets/v0_3:lib",
+    "//third_party/rust/halo2_proofs/v0_3:lib",
+    "//third_party/rust/hex/v0_4:lib",
+    "//third_party/rust/incrementalmerkletree/v0_5:lib",
+    "//third_party/rust/lazy_static/v1:lib",
+    "//third_party/rust/memuse/v0_2:lib",
+    "//third_party/rust/nonempty/v0_7:lib",
+    "//third_party/rust/pasta_curves/v0_5:lib",
+    "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/reddsa/v0_5:lib",
+    "//third_party/rust/serde/v1:lib",
+    "//third_party/rust/subtle/v2:lib",
+    "//third_party/rust/tracing/v0_1:lib",
+    "//third_party/rust/zcash_note_encryption/v0_4:lib",
+    "//third_party/rust/zcash_spec/v0_1:lib",
+    "//third_party/rust/zip32/v0_1:lib",
+  ]
+}

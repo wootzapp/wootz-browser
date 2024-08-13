@@ -17,7 +17,7 @@ import org.chromium.wootz_wallet.mojom.AccountId;
 import org.chromium.wootz_wallet.mojom.AccountInfo;
 import org.chromium.wootz_wallet.mojom.CoinType;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.util.TabUtils;
 import org.chromium.mojo_base.mojom.TimeDelta;
 
@@ -108,10 +108,10 @@ public class WalletUtils {
 
     public static void openWebWallet() {
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
-            activity.openNewOrSelectExistingTab(WootzActivity.WOOTZ_WALLET_URL, true);
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            activity.openNewOrSelectExistingTab(ChromeActivity.WOOTZ_WALLET_URL, true);
             TabUtils.bringChromeTabbedActivityToTheTop(activity);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "Error while opening wallet tab.", e);
         }
     }

@@ -32,7 +32,7 @@
 #include "chrome/components/wootz_wallet/common/value_conversion_utils.h"
 #include "chrome/components/constants/wootz_services_key.h"
 #include "chrome/components/version_info/version_info.h"
-#include "chrome/third_party/bip39wally-core-native/include/wally_bip39.h"
+#include "third_party/bip39wally-core-native/include/wally_bip39.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "crypto/random.h"
@@ -848,7 +848,7 @@ std::string GenerateRandomHexString() {
 // Wootz/v[version]
 std::string GetWeb3ClientVersion() {
   return base::StringPrintf(
-      "chromeWallet/v%s", version_info::GetWootzChromiumVersionNumber().c_str());
+      "WootzWallet/v%s", version_info::GetWootzChromiumVersionNumber().c_str());
 }
 
 std::string WalletInternalErrorMessage() {

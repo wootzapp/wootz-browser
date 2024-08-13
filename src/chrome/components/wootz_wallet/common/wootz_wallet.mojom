@@ -317,10 +317,10 @@ interface PanelHandler {
 
 // Browser-side handler for requests from WebUI page.
 interface PageHandler {
-  // Used by the wootz://wallet page to open up the approval panel
+  // Used by the wootzapp://wallet page to open up the approval panel
   ShowApprovePanelUI();
 
-  // Android only - Used by the wootz://wallet page to open up the backup UI.
+  // Android only - Used by the wootzapp://wallet page to open up the backup UI.
   ShowWalletBackupUI();
 };
 
@@ -744,7 +744,7 @@ enum KeyringId {
 };
 
 const string kP3ACountTestNetworksSwitch = "p3a-count-wallet-test-networks";
-const string kP3ACountTestNetworksLoadTimeKey = "chromeWalletP3ACountTestNetworks";
+const string kP3ACountTestNetworksLoadTimeKey = "wootzWalletP3ACountTestNetworks";
 
 enum FilecoinAddressProtocol {
   SECP256K1 = 1, // Represents the address SECP256K1 protocol
@@ -1617,7 +1617,7 @@ interface BitcoinWalletService {
   // Now includes both confirmed and mempool utxos.
   GetBalance(AccountId account_id) => (BitcoinBalance? balance, string? error_message);
 
-  // These are parts of wallet internals api(wootz://wallet/dev-bitcoin)
+  // These are parts of wallet internals api(wootzapp://wallet/dev-bitcoin)
   RunDiscovery(AccountId account_id, bool change) => (BitcoinAddress? address, string? error_message);
   GetBitcoinAccountInfo(AccountId account_id) => (BitcoinAccountInfo? account_info);
 };

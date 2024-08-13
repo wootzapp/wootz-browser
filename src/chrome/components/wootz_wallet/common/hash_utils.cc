@@ -15,8 +15,8 @@
 #include "base/strings/string_split.h"
 #include "chrome/components/wootz_wallet/common/eth_abi_utils.h"
 #include "chrome/components/wootz_wallet/common/hex_utils.h"
-#include "chrome/third_party/bitcoin-core/src/src/crypto/ripemd160.h"
-#include "chrome/third_party/ethash/src/include/ethash/keccak.h"
+#include "third_party/bitcoin-core/src/src/crypto/ripemd160.h"
+#include "third_party/ethash/src/include/ethash/keccak.h"
 #include "crypto/sha2.h"
 
 namespace wootz_wallet {

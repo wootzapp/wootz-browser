@@ -21,7 +21,7 @@
 
 namespace base {
 
-#if BUILDFLAG(BUILD_RUST_JSON_READER)
+
 
 namespace {
 using serde_json_lenient::ContextPointer;
@@ -45,6 +45,7 @@ void ListAppendNone(ContextPointer& ctx) {
   auto& value = reinterpret_cast<base::Value&>(ctx);
   value.GetList().Append(base::Value());
 }
+
 
 template <class T, class As = T>
 void ListAppendValue(ContextPointer& ctx, T v) {
@@ -132,8 +133,6 @@ JSONReader::Result DecodeJSONInRust(std::string_view json,
 
 }  // anonymous namespace
 
-#endif  // BUILDFLAG(BUILD_RUST_JSON_READER)
-
 // static
 std::optional<Value> JSONReader::Read(std::string_view json,
                                       int options,
@@ -202,6 +201,15 @@ JSONReader::Result JSONReader::ReadAndReturnValueWithError(
   return std::move(*value);
 #endif  // BUILDFLAG(BUILD_RUST_JSON_READER)
 }
+
+
+#if BUILDFLAG(BUILD_RUST_JSON_READER)
+JSONReader::Result DecodeJSONInRust(std::string_view json, int options) {
+  SCOPED_UMA_HISTOGRAM_TIMER_MICROS(kSecurityJsonParsingTime);
+  return DecodeJSONInRust(json, options, internal::kAbsoluteMaxDepth);
+}  
+#endif
+
 
 // static
 bool JSONReader::UsingRust() {

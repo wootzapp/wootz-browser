@@ -155,13 +155,13 @@ steps = {
         "do_fn": robo_branch.MergeBackToOriginMaster
     },
 
-    # This is a WIP, present in case you're feeling particularly brave.  :)
+    # This is a WIP, present in case you're feeling particularly wootz.  :)
     "start_fake_deps_roll": {
         "desc": "Try a test deps roll against the sushi (not master) branch",  # nocheck
         "do_fn": robo_branch.TryFakeDepsRoll
     },
 
-    # This is a WIP, present in case you're feeling even more brave.  :)
+    # This is a WIP, present in case you're feeling even more wootz.  :)
     "start_real_deps_roll": {
         "desc": "Try a real deps roll against the sushi branch",
         "do_fn": robo_branch.TryRealDepsRoll

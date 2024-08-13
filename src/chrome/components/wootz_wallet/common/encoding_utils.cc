@@ -6,7 +6,7 @@
 #include "chrome/components/wootz_wallet/common/encoding_utils.h"
 
 #include "chrome/components/wootz_wallet/common/hash_utils.h"
-#include "chrome/third_party/bitcoin-core/src/src/base58.h"
+#include "third_party/bitcoin-core/src/src/base58.h"
 
 namespace wootz_wallet {
 

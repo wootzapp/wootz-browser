@@ -1,4 +1,4 @@
-/* Copyright (c) 2023 The Brave Authors. All rights reserved.
+/* Copyright (c) 2023 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -74,13 +74,13 @@ static void JNI_ConnectAccountFragment_ConnectAccount(
     return;
   }
 
-  if (permissions::BraveWalletPermissionContext::HasRequestsInProgress(
+  if (permissions::WootzWalletPermissionContext::HasRequestsInProgress(
           rfh, *request_type)) {
     PlainCallConnectAccountCallback(env, java_callback, false);
     return;
   }
 
-  permissions::BraveWalletPermissionContext::RequestPermissions(
+  permissions::WootzWalletPermissionContext::RequestPermissions(
       *permission, rfh, {account_address},
       base::BindOnce(
           [](JNIEnv* env,

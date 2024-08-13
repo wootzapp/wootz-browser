@@ -30,7 +30,7 @@ namespace {
 
 net::NetworkTrafficAnnotationTag
 GetSimpleHashClientNetworkTrafficAnnotationTag() {
-  return net::DefineNetworkTrafficAnnotation("chrome_wallet_service", R"(
+  return net::DefineNetworkTrafficAnnotation("wootz_wallet_service", R"(
       semantics {
         sender: "SimpleHash Client"
         description:

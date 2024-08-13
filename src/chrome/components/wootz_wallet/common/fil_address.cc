@@ -12,7 +12,7 @@
 #include "base/strings/string_util.h"
 #include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "chrome/components/wootz_wallet/common/eth_address.h"
-#include "chrome/third_party/argon2/src/src/blake2/blake2.h"
+#include "third_party/argon2/src/src/blake2/blake2.h"
 #include "components/base32/base32.h"
 
 namespace wootz_wallet {
