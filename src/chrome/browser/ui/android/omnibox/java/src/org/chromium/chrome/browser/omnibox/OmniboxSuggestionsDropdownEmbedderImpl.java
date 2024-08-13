@@ -129,9 +129,9 @@ class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onDetachedFromWindow() {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             recalculateOmniboxAlignment();
-        }
+        // }
         mAnchorView.removeOnLayoutChangeListener(this);
         mAlignmentView.removeOnLayoutChangeListener(this);
         mAnchorView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -231,7 +231,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         ViewUtils.getRelativeLayoutPosition(baseRelativeLayout, mAnchorView, mPositionArray);
 
         int top = mPositionArray[1] + mAnchorView.getMeasuredHeight() - contentViewTopPadding;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
             top -= mPositionArray[1];
         int left;
         int width;
@@ -301,11 +301,11 @@ class OmniboxSuggestionsDropdownEmbedderImpl
                         ? Integer.MAX_VALUE
                         : contentView.getMeasuredHeight() - keyboardHeight;
         int height = Math.min(windowSpace, contentSpace) - top;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             ViewCompat.setPaddingRelative(
                 contentView, 0, 0, 0, keyboardHeight);
             top = 0;
-        }
+        // }
 
         // TODO(pnoland@, https://crbug.com/1416985): avoid pushing changes that are identical to
         // the previous alignment value.

@@ -60,10 +60,10 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
         mContext = context;
 
         int topMargin = tabStripHeightSupplier.get() == null ? 0 : tabStripHeightSupplier.get();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // since the top bar is at the bottom, we need to cover the whole page
             topMargin = 0;
-        }
+        // }
         mLightScrimColor = context.getColor(R.color.omnibox_focused_fading_background_color_light);
         mScrimModel =
                 new PropertyModel.Builder(ScrimProperties.ALL_KEYS)

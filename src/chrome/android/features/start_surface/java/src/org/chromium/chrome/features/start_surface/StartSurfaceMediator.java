@@ -985,8 +985,8 @@ class StartSurfaceMediator
     }
 
     private void setTopMargin(int topMargin) {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            topMargin = 0;
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        topMargin = 0;
         mPropertyModel.set(TOP_MARGIN, topMargin);
     }
 

@@ -443,7 +443,8 @@ public class ToolbarSwipeLayout extends Layout {
                 mLeftToolbarOverlay.setXOffset(leftX * dpToPx);
             }
             mLeftTab.setX(leftX);
-            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(true){
                 mLeftTab.setY(0);
             } else {
                 mLeftTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
@@ -460,7 +461,8 @@ public class ToolbarSwipeLayout extends Layout {
                 mRightToolbarOverlay.setXOffset(rightX * dpToPx);
             }
             mRightTab.setX(rightX);
-            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(true){
                 mRightTab.setY(0);
             } else {
                 mRightTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);

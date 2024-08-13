@@ -1372,7 +1372,8 @@ public class ToolbarManager
     public void setTabSwitcherFullScreenView(ViewGroup containerView) {
         ViewStub toolbarStub =
                 containerView.findViewById(R.id.fullscreen_tab_switcher_toolbar_stub);
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             // the top tab switcher toolbar is docked at the bottom
             FrameLayout.LayoutParams params =
                 (FrameLayout.LayoutParams)toolbarStub.getLayoutParams();
@@ -1671,8 +1672,9 @@ public class ToolbarManager
         View mBottomRoot;
 
     private void MoveBottomBarOverTopBar() {
-        if (mBottomRoot != null &&
-                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (mBottomRoot != null &&
+        //         ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             // move up the container view of the ui
             // below there is the toolbar
             mBottomRoot.setTranslationY(-mBrowserControlsSizer.getTopControlsHeight());
@@ -2277,7 +2279,7 @@ public class ToolbarManager
      */
     private int getToolbarExtraYOffset() {
         int toolbarHairlineHeight = mToolbarHairline.getHeight();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
             toolbarHairlineHeight = 0;
         final int controlContainerHeight = mControlContainer.getHeight();
 
@@ -2686,7 +2688,8 @@ public class ToolbarManager
     private void setControlContainerTopMargin(int margin) {
         final ViewGroup.MarginLayoutParams layoutParams =
                 ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             if (layoutParams.bottomMargin == margin) {
                 return;
             }

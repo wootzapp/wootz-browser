@@ -774,7 +774,8 @@ public class StripLayoutHelperManager
                 mLeftPadding,
                 mRightPadding);
         float top = mTopPadding;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() &&
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() &&
+        if( true &&
             mBrowserControlsManagerSupplier.get() != null) {
             // move the rectangle to grab the touch events as the tab list (in tablet mode)
             // is down and is following the toolbar offset as it moves.

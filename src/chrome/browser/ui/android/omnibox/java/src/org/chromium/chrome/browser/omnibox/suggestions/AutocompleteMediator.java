@@ -1161,9 +1161,9 @@ class AutocompleteMediator
     @Override
     public void onSuggestionDropdownScroll() {
         mSuggestionsListScrolled = true;
-       if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+    //    if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             mDelegate.setKeyboardVisibility(false, false);
-        }
+        // }
     }
 
     /**

@@ -100,8 +100,9 @@ public class RecentTabsPage
 
         mView.addOnAttachStateChangeListener(this);
 
-        if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity) ||
-                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity) ||
+        //         ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             mBrowserControlsStateProvider = browserControlsStateProvider;
             mBrowserControlsStateProvider.addObserver(this);
             onBottomControlsHeightChanged(
@@ -114,7 +115,8 @@ public class RecentTabsPage
         mTabStripHeightSupplier = tabStripHeightSupplier;
         mView.setPadding(0, mTabStripHeightSupplier.get(), 0, 0);
         if (ToolbarFeatures.isDynamicTopChromeEnabled()) {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             mView.setPadding(
                     mView.getPaddingLeft(),
                     0,
@@ -326,7 +328,8 @@ public class RecentTabsPage
 
         // If the content offset is different from the margin, we use translationY to position the
         // view in line with the content offset.
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             topMargin = 0;
             recentTabsRoot.setTranslationY(0);
         } else {
@@ -334,9 +337,9 @@ public class RecentTabsPage
         }
 
         int bottomMargin = mBrowserControlsStateProvider.getBottomControlsHeight();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
-        }
+        // }
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
             layoutParams.bottomMargin = bottomMargin;
