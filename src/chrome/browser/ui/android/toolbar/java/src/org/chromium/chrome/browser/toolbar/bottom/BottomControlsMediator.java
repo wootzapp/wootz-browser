@@ -295,12 +295,12 @@ class BottomControlsMediator
                         && !mIsInSwipeLayout
                         && mBrowserControlsSizer.getBottomControlOffset() == 0;
         if (visible) {
-            if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                 // Translate view so that its bottom is aligned with browser controls min height.
                 mModel.set(
                         BottomControlsProperties.ANDROID_VIEW_TRANSLATE_Y,
                         -mBrowserControlsSizer.getBottomControlsMinHeight());
-            }
+            // }
         }
         mModel.set(BottomControlsProperties.ANDROID_VIEW_VISIBLE, visible);
     }

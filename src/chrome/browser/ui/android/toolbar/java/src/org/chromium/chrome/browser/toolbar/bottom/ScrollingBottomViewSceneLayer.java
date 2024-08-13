@@ -120,10 +120,10 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
         // The composited shadow should be visible if the Android toolbar's isn't.
         boolean isShadowVisible = mBottomView.getVisibility() != View.VISIBLE;
         float offsetPy = viewport.height() + mCurrentYOffsetPx;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // fix the offset of the fake bottom controls, used only for animations
             offsetPy -= (mBottomView.getHeight() - mCurrentYOffsetPx + mTopControlsMinHeightOffset);
-        }
+        // }
         ScrollingBottomViewSceneLayerJni.get()
                 .updateScrollingBottomViewLayer(
                         mNativePtr,

@@ -545,12 +545,12 @@ public class StatusBarColorController
         boolean needsDarkStatusBarIcons = !ColorUtils.shouldUseLightForegroundOnBackground(color);
         UiUtils.setStatusBarIconColor(root, needsDarkStatusBarIcons);
         UiUtils.setStatusBarColor(window, color);
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() &&
+        //         Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             UiUtils.setNavigationBarIconColor(window.getDecorView().getRootView(),
                 needsDarkStatusBarIcons);
             window.setNavigationBarColor(color);
-        }
+        // }
     }
 
     /**

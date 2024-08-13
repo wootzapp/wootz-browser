@@ -249,10 +249,10 @@ public class CompositorViewHolder extends FrameLayout
                         @Override
                         public void setCurrentTouchEventOffsets(float top) {
                             EventForwarder forwarder = getEventForwarder();
-                            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                                 // no need to adjust the touch offsets, since the content view is never moved
                                 top = 0;
-                            }
+                            // }
                             if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
                         }
 
@@ -909,7 +909,8 @@ public class CompositorViewHolder extends FrameLayout
                 mApplicationBottomInsetSupplier != null
                         ? mApplicationBottomInsetSupplier.get().webContentsHeightInset
                         : 0;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
             keyboardInset = 0;
         }
         int viewportInsets = controlsInsets + keyboardInset;

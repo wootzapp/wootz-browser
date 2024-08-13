@@ -171,11 +171,11 @@ public class FindToolbarTablet extends FindToolbar {
 
         if (show && getVisibility() != View.VISIBLE && mCurrentAnimation != mAnimationEnter) {
             View anchorView = getRootView().findViewById(R.id.toolbar);
-            if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) getLayoutParams();
                 lp.topMargin = anchorView.getBottom() - mYInsetPx;
                 setLayoutParams(lp);
-            }
+            // }
         } else if (!show && getVisibility() != View.GONE && mCurrentAnimation != mAnimationLeave) {
             nextAnimator = mAnimationLeave;
             onHideAnimationStart();

@@ -128,7 +128,8 @@ class TabListEmptyCoordinator {
             FrameLayout.LayoutParams emptyViewParams =
                     (FrameLayout.LayoutParams) mEmptyView.getLayoutParams();
             int toolbarHeightPx = mBrowserControlsStateProvider.getTopControlsHeight();
-            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(true){
                 emptyViewParams.bottomMargin = toolbarHeightPx;
             } else {
                 emptyViewParams.topMargin = toolbarHeightPx;
