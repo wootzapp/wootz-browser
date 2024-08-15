@@ -1377,7 +1377,7 @@ public class ToolbarManager
             // the top tab switcher toolbar is docked at the bottom
             FrameLayout.LayoutParams params =
                 (FrameLayout.LayoutParams)toolbarStub.getLayoutParams();
-            params.gravity = Gravity.START | Gravity.BOTTOM;
+            params.gravity = Gravity.BOTTOM;
             toolbarStub.setLayoutParams(params);
         }
         mToolbar.setFullScreenToolbarStub(toolbarStub);
