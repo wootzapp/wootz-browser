@@ -90,8 +90,8 @@ public class TabListSceneLayer extends SceneLayer {
         TabListSceneLayerJni.get().beginBuildingFrame(mNativePtr, TabListSceneLayer.this);
         // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // the tabs list content window is fixed at the top, where the top toolbar used to be
-            viewport.top = 0;
-            backgroundTopOffset = 0;
+        viewport.top = 0;
+        backgroundTopOffset = 0;
         // }
 
         // TODO(crbug.com/40126259): Use Supplier to get viewport and forward it to native, then

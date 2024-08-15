@@ -1162,6 +1162,7 @@ class AutocompleteMediator
     public void onSuggestionDropdownScroll() {
         mSuggestionsListScrolled = true;
     //    if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(!true)
             mDelegate.setKeyboardVisibility(false, false);
         // }
     }
