@@ -46,21 +46,6 @@ class TopToolbarSceneLayer extends SceneOverlayLayer {
             offsetY = model.get(TopToolbarOverlayProperties.VIEWPORT_HEIGHT) -
                       model.get(TopToolbarOverlayProperties.TOOLBAR_HEIGHT) -
                       offsetY;
-        // }
-        TopToolbarSceneLayerJni.get()
-                .updateToolbarLayer(
-                        mNativePtr,
-                        TopToolbarSceneLayer.this,
-                        mResourceManagerSupplier.get(),
-                        model.get(TopToolbarOverlayProperties.RESOURCE_ID),
-                        model.get(TopToolbarOverlayProperties.TOOLBAR_BACKGROUND_COLOR),
-                        model.get(TopToolbarOverlayProperties.URL_BAR_RESOURCE_ID),
-                        model.get(TopToolbarOverlayProperties.URL_BAR_COLOR),
-                        model.get(TopToolbarOverlayProperties.X_OFFSET),
-                        offsetY,
-                        model.get(TopToolbarOverlayProperties.SHOW_SHADOW),
-                        model.get(TopToolbarOverlayProperties.VISIBLE),
-                        model.get(TopToolbarOverlayProperties.ANONYMIZE));
 
         DrawingInfo progressInfo = model.get(TopToolbarOverlayProperties.PROGRESS_BAR_INFO);
         if (progressInfo == null) return;
