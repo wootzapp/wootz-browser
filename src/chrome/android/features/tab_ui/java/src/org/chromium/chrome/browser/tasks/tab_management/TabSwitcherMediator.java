@@ -444,21 +444,21 @@ class TabSwitcherMediator
         updateTopControlsProperties();
         mContainerViewModel.set(
                 BOTTOM_CONTROLS_HEIGHT, browserControlsStateProvider.getBottomControlsHeight());
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             mContainerViewModel.set(
                 BOTTOM_CONTROLS_HEIGHT, mContainerViewModel.get(BOTTOM_CONTROLS_HEIGHT) +
                     mBrowserControlsStateProvider.getContentOffset());
-        }
+        // }
         if (mMode == TabListMode.GRID) {
             mContainerViewModel.set(
                     BOTTOM_PADDING,
                     (int) context.getResources().getDimension(R.dimen.tab_grid_bottom_padding));
-            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                 // adjust the bottom margin so as not to cover the top toolbar at the bottom
                 mContainerViewModel.set(
                     BOTTOM_PADDING, mContainerViewModel.get(BOTTOM_PADDING) +
                         mBrowserControlsStateProvider.getContentOffset());
-            }
+            // }
             if (backPressManager != null && BackPressManager.isEnabled()) {
                 backPressManager.addHandler(this, BackPressHandler.Type.TAB_SWITCHER);
                 notifyBackPressStateChangedInternal();

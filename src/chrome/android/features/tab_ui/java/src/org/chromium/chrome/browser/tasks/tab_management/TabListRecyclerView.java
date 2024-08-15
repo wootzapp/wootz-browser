@@ -69,8 +69,7 @@ class TabListRecyclerView extends RecyclerView
 
     public static final long BASE_ANIMATION_DURATION_MS = 218;
     public static final long FINAL_FADE_IN_DURATION_MS = 50;
-    private boolean mIsVisible = false;
-
+    private boolean mIsVisible;
     /** An interface to listen to visibility related changes on this {@link RecyclerView}. */
     interface VisibilityListener {
         /**
@@ -354,7 +353,7 @@ class TabListRecyclerView extends RecyclerView
                 // Add shadow for grid tab switcher.
                 FrameLayout.LayoutParams params =
                         new FrameLayout.LayoutParams(
-                                LayoutParams.MATCH_PARENT, shadowHeight, Gravity.TOP);
+                                LayoutParams.MATCH_PARENT, shadowHeight, Gravity.BOTTOM);
                 mShadowImageView.setLayoutParams(params);
                 mShadowImageView.setTranslationY(mShadowTopOffset);
                 FrameLayout parent = (FrameLayout) getParent();
@@ -385,7 +384,7 @@ class TabListRecyclerView extends RecyclerView
         mShadowTopOffset = shadowTopOffset;
         // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // invert the offset since Gravity is set to BOTTOM
-            mShadowTopOffset = -mShadowTopOffset;
+        mShadowTopOffset = -mShadowTopOffset;
         // }
         if (mShadowImageView != null && getParent() instanceof FrameLayout) {
             // Since the shadow has no functionality, other than just existing visually, we can use
