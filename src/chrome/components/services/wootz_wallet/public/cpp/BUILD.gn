@@ -19,7 +19,7 @@ source_set("cpp") {
   deps = [
     "//chrome/components/services/wootz_wallet:lib",
     "//chrome/components/services/wootz_wallet/public/mojom",
-    "//chrome/components/services/wootz_wallet/zcash:zcash_decoder",
+    # "//chrome/components/services/wootz_wallet/zcash:zcash_decoder",
     "//mojo/public/cpp/bindings",
   ]
 

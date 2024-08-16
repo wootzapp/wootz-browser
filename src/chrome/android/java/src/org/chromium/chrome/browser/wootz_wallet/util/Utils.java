@@ -77,7 +77,7 @@ import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivi
 import org.chromium.chrome.browser.wootz_wallet.model.AccountSelectorItemModel;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.ui.text.NoUnderlineClickableSpan;
 import org.chromium.ui.widget.Toast;
 

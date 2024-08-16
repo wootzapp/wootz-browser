@@ -77,6 +77,10 @@ RequestTypeForUma GetUmaValueForRequestType(RequestType request_type) {
       return RequestTypeForUma::PERMISSION_ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
       return RequestTypeForUma::PERMISSION_AR;
+    case RequestType::kWootzEthereum:
+      return RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM;
+    case RequestType::kWootzSolana:
+      return RequestTypeForUma::PERMISSION_WOOTZ_SOLANA;
 #if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return RequestTypeForUma::PERMISSION_CAMERA_PAN_TILT_ZOOM;
@@ -212,6 +216,10 @@ std::string GetPermissionRequestString(RequestTypeForUma type) {
       return "VR";
     case RequestTypeForUma::PERMISSION_AR:
       return "AR";
+    case RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM:
+      return "WootzEtherum";
+    case RequestTypeForUma::PERMISSION_WOOTZ_SOLANA:
+      return "WootzSolana";
     case RequestTypeForUma::PERMISSION_STORAGE_ACCESS:
       return "StorageAccess";
     case RequestTypeForUma::PERMISSION_TOP_LEVEL_STORAGE_ACCESS:

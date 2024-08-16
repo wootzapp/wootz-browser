@@ -25,7 +25,7 @@ public class WootzWalletProviderDelegateImplHelper {
     public static void showPanel() {
         try {
             ChromeActivity activity = ChromeActivity.getChromeActivity();
-            activity.showWalletPanel(false);
+            // activity.showWalletPanel(false);
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "showPanel " + e);
         }
@@ -45,7 +45,7 @@ public class WootzWalletProviderDelegateImplHelper {
     public static void showWalletOnboarding() {
         try {
             ChromeActivity activity = ChromeActivity.getChromeActivity();
-            activity.showWalletOnboarding();
+            // activity.showWalletOnboarding();
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "showWalletOnboarding " + e);
         }

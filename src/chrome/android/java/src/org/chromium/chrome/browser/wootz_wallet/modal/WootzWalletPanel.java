@@ -57,7 +57,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.BalanceHelper;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletUtils;
 import org.chromium.chrome.browser.util.ConfigurationUtils;
-import org.chromium.components.embedder_support.util.WootzUrlConstants;
+// import org.chromium.components.embedder_support.util.WootzUrlConstants;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.url.GURL;
@@ -396,8 +396,10 @@ public class WootzWalletPanel implements DialogInterface {
                 if (activity.getActivityTab() != null) {
                     GURL lastCommittedUrl =
                             activity.getActivityTab().getWebContents().getLastCommittedUrl();
-                    if (!lastCommittedUrl.getScheme().equals(WootzUrlConstants.WOOTZ_SCHEME)
-                            && !lastCommittedUrl.getScheme().equals(UrlConstants.CHROME_SCHEME)
+                    if (
+                        // !lastCommittedUrl.getScheme().equals(WootzUrlConstants.WOOTZ_SCHEME)
+                            // && 
+                            !lastCommittedUrl.getScheme().equals(UrlConstants.CHROME_SCHEME)
                             && !lastCommittedUrl.getScheme().equals(
                                     UrlConstants.CHROME_NATIVE_SCHEME)) {
                         mBtnConnectedStatus.setVisibility(View.VISIBLE);

@@ -23,6 +23,7 @@ source_set("hd_key") {
     "//chrome/components/wootz_wallet/common",
     "//third_party/bitcoin-core",
     "//third_party/bitcoin-core:secp256k1",
+    "//chrome/vendor/bat-native-tweetnacl:tweetnacl",
     "//crypto",
     "//third_party/boringssl",
   ]
@@ -33,7 +34,7 @@ source_set("hd_key") {
       "hd_key_zip32.cc",
       "hd_key_zip32.h",
     ]
-    deps += [ "//chrome/components/wootz_wallet/browser/zcash/rust" ]
+    # deps += [ "//chrome/components/wootz_wallet/browser/zcash/rust" ]
   }
 }
 
@@ -43,6 +44,6 @@ if (enable_orchard) {
       "orchard_bundle_manager.cc",
       "orchard_bundle_manager.h",
     ]
-    deps = [ "//chrome/components/wootz_wallet/browser/zcash/rust" ]
+    # deps = [ "//chrome/components/wootz_wallet/browser/zcash/rust" ]
   }
 }

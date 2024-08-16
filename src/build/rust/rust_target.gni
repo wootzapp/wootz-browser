@@ -190,7 +190,7 @@ template("rust_target") {
     _cxx_bindings = invoker.cxx_bindings
   }
   _rustenv = [ "OUT_DIR=" +
-               rebase_path(_env_out_dir, get_path_info(_crate_root, "dir")) ]
+               rebase_path(_env_out_dir) ]
   if (defined(invoker.rustenv)) {
     _rustenv += invoker.rustenv
   }

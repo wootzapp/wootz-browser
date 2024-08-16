@@ -5,5 +5,5 @@ Version: 1.0.1
 Security Critical: yes
 Shipped: yes
 License: MIT
-License File:
+License File: //third_party/rust/blake2b_simd/v1/LICENSE
 Revision: 1ee26395667b94f8973d37d3ff3410ef1a3f4832

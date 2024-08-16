@@ -2044,6 +2044,11 @@ static_library("browser") {
     "//chrome/common:buildflags",
     "//chrome/common:constants",
     "//chrome/browser/ui",
+    "//chrome/components/wootz_wallet/browser", # BRAVE_WALLET CHANGES
+    "//chrome/components/wootz_wallet/browser:utils",
+    "//chrome/components/wootz_wallet/common",
+    "//chrome/components/wootz_wallet/common:mojom",
+    "//chrome/components/wootz_wallet/common:pref_names",
     "//chrome/services/file_util/public/mojom",
     "//components/account_id",
     "//components/autofill/core/browser",
@@ -2788,6 +2793,7 @@ static_library("browser") {
       "performance_monitor/metric_evaluator_helper_posix.h",
     ]
   }
+
   deps += [
     "//chrome/components/wootz_wallet/browser",
     "//chrome/components/wootz_wallet/browser:utils",

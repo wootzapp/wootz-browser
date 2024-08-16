@@ -59,6 +59,7 @@ cargo_crate("lib") {
   proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
   deps = [
     "//third_party/rust/num_integer/v0_1:lib",
+    "//third_party/rust/android_system_properties/v0_1:lib", # BRAVE_WALLET
     "//third_party/rust/num_traits/v0_2:lib",
   ]
   build_deps = [ "//third_party/rust/autocfg/v1:buildrs_support" ]

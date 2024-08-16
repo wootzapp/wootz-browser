@@ -87,6 +87,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/app/feed/feedmanagement/FeedManagementActivity.java",
   "java/src/org/chromium/chrome/browser/app/feed/followmanagement/FollowManagementActivity.java",
   "java/src/org/chromium/chrome/browser/app/flags/ChromeCachedFlags.java",
+  "java/src/org/chromium/chrome/browser/app/helpers/Api33AndPlusBackPressHelper.java",
   "java/src/org/chromium/chrome/browser/app/metrics/LaunchCauseMetrics.java",
   "java/src/org/chromium/chrome/browser/app/metrics/TabbedActivityLaunchCauseMetrics.java",
   "java/src/org/chromium/chrome/browser/app/notifications/ContextualNotificationPermissionRequesterImpl.java",
@@ -1022,6 +1023,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/settings/SettingsLauncherImpl.java",
   "java/src/org/chromium/chrome/browser/settings/WootzDialogPreference.java",
   "java/src/org/chromium/chrome/browser/settings/WootzPreferenceFragment.java",
+  "java/src/org/chromium/chrome/browser/settings/WootzSettingsLauncherImpl.java",
   "java/src/org/chromium/chrome/browser/settings/WootzWalletAddNetworksFragment.java",
   "java/src/org/chromium/chrome/browser/settings/WootzWalletAutoLockPreferences.java",
   "java/src/org/chromium/chrome/browser/settings/WootzWalletNetworksPreference.java",
@@ -1210,9 +1212,9 @@ chrome_java_sources = [
 
   "java/src/org/chromium/chrome/browser/util/ConfigurationUtils.java",
   "java/src/org/chromium/chrome/browser/util/ImageUtils.java",
-  "java/src/org/chromium/chrome/browser/util/LiveDataUtils.java",
+  "java/src/org/chromium/chrome/browser/util/LiveDataUtil.java",
   "java/src/org/chromium/chrome/browser/util/PackageUtils.java",
-  "java/src/org/chromium/chrome/browser/util/TabUtils.java",
+  # "java/src/org/chromium/chrome/browser/util/TabUtils.java",
 
   "java/src/org/chromium/chrome/browser/webapps/ActivateWebApkActivity.java",
   "java/src/org/chromium/chrome/browser/webapps/AddToHomescreenMostVisitedTileClickObserver.java",

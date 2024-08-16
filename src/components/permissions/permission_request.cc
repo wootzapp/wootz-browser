@@ -88,6 +88,12 @@ PermissionRequest::GetDialogAnnotatedMessageText(
     case RequestType::kArSession:
       message_id = IDS_AR_INFOBAR_TEXT;
       break;
+    case RequestType::kWootzEthereum:
+      // message_id = IDS_AR_INFOBAR_TEXT;
+      break;
+    case RequestType::kWootzSolana:
+      // message_id = IDS_AR_INFOBAR_TEXT;
+      break;
     case RequestType::kCameraStream:
       message_id = IDS_MEDIA_CAPTURE_VIDEO_ONLY_INFOBAR_TEXT;
       break;

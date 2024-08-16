@@ -33,4 +33,9 @@ found in the LICENSE file.
         <attr name="dialog_default_index" format="integer"/>
     </declare-styleable>
 
+
+    <attr name="ic_onboarding_backup" format="reference"/>
+    <attr name="ic_onboarding_intro" format="reference"/>
+    <attr name="ic_onboarding_password" format="reference"/>
+
 </resources>

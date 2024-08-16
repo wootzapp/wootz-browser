@@ -31,7 +31,7 @@ import org.chromium.chrome.browser.wootz_wallet.modal.DAppsDialog;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
-import org.chromium.chrome.browser.toolbar.bottom.BottomToolbarConfiguration;
+// import org.chromium.chrome.browser.toolbar.bottom.BottomToolbarConfiguration;
 import org.chromium.chrome.browser.util.ConfigurationUtils;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.mojo.bindings.ConnectionErrorHandler;
@@ -137,7 +137,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
 
     private void createAndShowWalletPanel() {
         boolean showExpandButton =
-                mVisibleUrl != null && !mVisibleUrl.getHost().equals(Wootz_WALLET_HOST);
+                mVisibleUrl != null && !mVisibleUrl.getHost().equals(WOOTZ_WALLET_HOST);
         mWootzWalletPanel =
                 new WootzWalletPanel(
                         mAnchorViewHost, mDialogOrPanelDismissListener, showExpandButton);
@@ -152,7 +152,8 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     private void showOnBoardingOrUnlock() {
         int dialogStyle = DAppsDialog.DAppsDialogStyle.BOTTOM;
         if (mFullscreenManager != null && mFullscreenManager.getPersistentFullscreenMode()
-                || shouldShowNotificationAtTop(mActivity)) {
+                // || shouldShowNotificationAtTop(mActivity)
+                ) {
             dialogStyle = DAppsDialog.DAppsDialogStyle.TOP;
         }
         mDAppsDialog =
@@ -261,8 +262,8 @@ public class DAppsWalletController implements ConnectionErrorHandler {
         }
     }
 
-    private boolean shouldShowNotificationAtTop(Context context) {
-        return ConfigurationUtils.isTablet(context)
-                || !BottomToolbarConfiguration.isBottomToolbarEnabled();
-    }
+    // private boolean shouldShowNotificationAtTop(Context context) {
+    //     return ConfigurationUtils.isTablet(context)
+    //             || !BottomToolbarConfiguration.isBottomToolbarEnabled();
+    // }
 }

@@ -67,8 +67,8 @@ static_library("common") {
     "switches.h",
     "value_conversion_utils.cc",
     "value_conversion_utils.h",
-    "zcash_utils.cc",
-    "zcash_utils.h",
+    # "zcash_utils.cc",
+    # "zcash_utils.h",
   ]
   deps = [
     ":buildflags",

@@ -270,6 +270,71 @@ CHAR_LIMIT guidelines:
         Settings exit
       </message>
 
+      <message name="IDS_TIME_LONG_MINS" desc="Use an unabbreviated word for minute(s). [ICU Syntax]">
+        {MINUTES, plural, =1 {# minute} other {# minutes}}
+      </message>
+
+      <message name="IDS_SETTINGS_ENABLE_NFT_DISCOVERY_LABEL" desc="The label for enabling NFT discovery">
+        Enable NFT discovery
+      </message>
+
+      <message name="IDS_WOOTZ_WALLET_SHOW_WEB3_NOTIFICATIONS" desc="Wootz wallet show web3 notifications preference title text">
+        Display Web3 notifications
+      </message>
+
+      <message name="IDS_SKIP" desc="Text for skip button in onboarding">
+        Skip
+      </message>
+
+      <message name="IDS_MARKET_PRICE_TEXT" desc="Market price text title as heading of an asset">
+        Market Price
+      </message>
+
+      <message name="IDS_STATUS" desc="Brave VPN settings section text">
+        Status
+      </message>
+      
+      <message name="IDS_SETTINGS_ETHEREUM_TITLE" desc="Title for Ethereum section in site settings" translateable="false">
+        Ethereum
+      </message>
+
+      <message name="IDS_SETTINGS_SOLANA_TITLE" desc="Title for Solana section in site settings" translateable="false">
+        Solana
+      </message>
+
+      <message name="IDS_DATE_TEXT" desc="Date text as heading">
+        Date
+      </message>
+
+      <message name="IDS_DAPPS_MENU_LOCK_WALLET" desc="Menu item Lock Wallet on DApps Panel">
+        Lock Wallet
+      </message>
+
+      <message name="IDS_DAPPS_MENU_CONNECTED_SITES" desc="Menu item Connected site on DApps Panel">
+        Connected sites
+      </message>
+      <message name="IDS_DAPPS_MENU_SETTINGS" desc="Menu item settings on DApps Panel">
+        Settings
+      </message>
+
+      <message name="IDS_DAPPS_MENU_VIEW_ON_BLOCK_EXPLORER" desc="Menu item view on block explorer on DApps Panel">
+        View on block explorer
+      </message>
+  
+      <message name="IDS_TEXT_HAS_BEEN_COPIED" desc="Copy to clipboard toast text.">
+        Your text has been copied to the clipboard.
+      </message>
+      
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_CONNECT" desc="Site Permissions connect account button title.">
+        Connect
+      </message>
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_SWITCH" desc="Site Permissions switch account button title.">
+        Switch
+      </message>
+
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_DISCONNECT" desc="Site Permissions disconnect account button title.">
+        Disconnect
+      </message>
 
       <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID" desc="Wootz wallet networks pref add network field name">
         The id of new chain
@@ -432,15 +497,15 @@ CHAR_LIMIT guidelines:
       <message name="IDS_ALLOW_WOOTZAPP_SIGNIN_SUMMARY" desc="Summary for a checkbox in Google services that controls sign-in and sync prompts.">
         Shows prompts to sign in to WootzApp
       </message>
-      <message name="IDS_ONBOARDING_SE_TEXT" desc="Onboarding SE title text">
+      <!-- <message name="IDS_ONBOARDING_SE_TEXT" desc="Onboarding SE title text">
         Some search engines protect your privacy better than others when you search the web.
-      </message>
-      <message name="IDS_NOT_NOW" desc="Set default browser modal button text">
+      </message> -->
+      <!-- <message name="IDS_NOT_NOW" desc="Set default browser modal button text">
         Not now
-      </message>
-      <message name="IDS_SETTINGS_APP_LINKS_LABEL" desc="App Links setting label">
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_APP_LINKS_LABEL" desc="App Links setting label">
         Allow app links to open in apps outside of Wootz
-      </message>
+      </message> -->
       <message name="IDS_SETTINGS_DEFAULT_ETHEREUM_WALLET_LABEL" desc="Default Ethereum wallet label">
         Default Ethereum wallet
       </message>
@@ -453,24 +518,24 @@ CHAR_LIMIT guidelines:
       <message name="IDS_SETTINGS_DEFAULT_WALLET_OPTION_2" desc="Wootz Wallet as default wallet">
         Wootz Wallet
       </message>
-      <message name="IDS_SETTINGS_WEBRTC_POLICY_LABEL" desc="WebRTC policy setting label">
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_LABEL" desc="WebRTC policy setting label">
         WebRTC IP handling policy
-      </message>
-      <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT" desc="Select value">
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT" desc="Select value">
         Default
-      </message>
-      <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_AND_PRIVATE_INTERFACES" desc="Select value">
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_AND_PRIVATE_INTERFACES" desc="Select value">
         Default public and private interfaces
-      </message>
-      <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_INTERFACE_ONLY" desc="Select value">
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_INTERFACE_ONLY" desc="Select value">
         Default public interface only
-      </message>
-      <message name="IDS_SETTINGS_WEBRTC_POLICY_DISABLE_NON_PROXIED_UDP" desc="Select value">
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DISABLE_NON_PROXIED_UDP" desc="Select value">
         Disable non-proxied UDP
-      </message>
-      <message name="IDS_SEND_WITH_CUSTODIAN" desc="Text for send with Custodian">
+      </message> -->
+      <!-- <message name="IDS_SEND_WITH_CUSTODIAN" desc="Text for send with Custodian">
         Send with <ph name="CUSTODIAN">%1$s</ph>
-      </message>
+      </message> -->
     <message name="IDS_SEND" desc="Wootz Wallet send button text">
       Send
     </message>
@@ -675,9 +740,9 @@ CHAR_LIMIT guidelines:
     <message name="IDS_GAS_LIMIT" desc="Wootz crypto wallet gas limit edit box">
       Gas Limit
     </message>
-    <message name="IDS_DISABLE_SHARING_HUB" desc="Menu item for disabling sharing hub.">
+    <!-- <message name="IDS_DISABLE_SHARING_HUB" desc="Menu item for disabling sharing hub.">
       Disable Sharing Hub
-    </message>
+    </message> -->
     <message name="IDS_EDIT" desc="Wootz wallet accounts text">
       Edit
     </message>
@@ -843,12 +908,12 @@ CHAR_LIMIT guidelines:
     <message name="IDS_WOOTZ_WALLET_SELECT_NETWORK_TITLE" desc="Wootz wallet network selection title">
       Select Network
     </message>
-    <message name="IDS_ACCESSIBILITY_NEW_TAB_PAGE" desc="Accessibility text to read aloud when the user focuses the new tab view.">
+    <!-- <message name="IDS_ACCESSIBILITY_NEW_TAB_PAGE" desc="Accessibility text to read aloud when the user focuses the new tab view.">
       New tab
     </message>
     <message name="IDS_ACCESSIBILITY_TOOLBAR_BTN_WOOTZ_WALLET" desc="Content description for the button that allows an access to Wootz Wallet.">
       Access Wootz Wallet
-    </message>
+    </message> -->
     <message name="IDS_DAPP_WALLET_PANEL_CONNECTIVITY_STATUS" desc="Wootz wallet Dapp wallet connectivity status">
       Connect
     </message>
@@ -1044,12 +1109,12 @@ CHAR_LIMIT guidelines:
     <message name="IDS_WOOTZ_WALLET_SECURITY_RISK_DETECTED" desc="Sign in with Wootz Wallet Error Security risk">
       Security risk detected
     </message>
-    <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TITLE" desc="wallet generation disabled error title">
+    <!-- <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TITLE" desc="wallet generation disabled error title">
       Wootz Rewards not available
-    </message>
-    <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TEXT" desc="wallet generation disabled error text">
+    </message> -->
+    <!-- <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TEXT" desc="wallet generation disabled error text">
       New signups for Wootz Rewards are currently disabled in your region. However, you can always try again later. <ph name="LEARN_MORE">%1$s</ph>
-    </message>
+    </message> -->
     <message name="IDS_WOOTZ_WALLET_NETWORK_FILTER_PRIMARY" desc="Network filter title for primary networks">
       Primary Networks
     </message>
@@ -1275,9 +1340,9 @@ CHAR_LIMIT guidelines:
     <message name="IDS_WOOTZ_WALLET_UNKNOWN" desc="Transaction subtype of Unknown">
       Unknown
     </message>
-    <message name="IDS_MENU_WOOTZ_WALLET" desc="Wootz Wallet menu item text">
+    <!-- <message name="IDS_MENU_WOOTZ_WALLET" desc="Wootz Wallet menu item text">
       Wallet
-    </message>
+    </message> -->
     <message name="IDS_RESTORE_CRYPTO_TEXT" desc="Wootz Wallet onboarding text">
       Enter your recovery phrase to restore your Wootz Wallet crypto account.
     </message>
@@ -1386,9 +1451,9 @@ CHAR_LIMIT guidelines:
     <message name="IDS_PASSWORD_TEXT" desc="Wootz Wallet onboarding text">
       Passwords must be at least 8 characters.
     </message>
-    <message name="IDS_WOOTZ_SAFE_BROWSING_NO_PROTECTION_SUMMARY" desc="Summary for Safe Browsing no protection mode.">
+    <!-- <message name="IDS_WOOTZ_SAFE_BROWSING_NO_PROTECTION_SUMMARY" desc="Summary for Safe Browsing no protection mode.">
       Does not protect you against dangerous websites, downloads, and extensions.
-    </message>
+    </message> -->
     <message name="IDS_PHRASES_DID_NOT_MATCH" desc="Wootz Wallet text">
       Phrases did not match. Please try again.
     </message>
@@ -1402,12 +1467,12 @@ CHAR_LIMIT guidelines:
       Accounts
     </message>
     <!-- Stats -->
-    <message name="IDS_WOOTZ_STATS_USAGE_PING_TITLE" desc="Description that shows in settings for toggling stats usage pings">
+    <!-- <message name="IDS_WOOTZ_STATS_USAGE_PING_TITLE" desc="Description that shows in settings for toggling stats usage pings">
       Automatically send daily usage ping to Wootz
-    </message>
-    <message name="IDS_WOOTZ_STATS_USAGE_PING_SUMMARY" desc="Description that shows under main toggle setting for usage pings">
+    </message> -->
+    <!-- <message name="IDS_WOOTZ_STATS_USAGE_PING_SUMMARY" desc="Description that shows under main toggle setting for usage pings">
       This private ping lets Wootz estimate active users.
-    </message>
+    </message> -->
     <message name="IDS_ACCOUNT_NAME" desc="Wootz wallet accounts text">
       Account Name
     </message>

@@ -31,7 +31,7 @@ import org.chromium.wootz_wallet.mojom.PermissionLifetimeOption;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
-import org.chromium.chrome.browser.app.helpers.ImageLoader;
+// import org.chromium.chrome.browser.app.helpers.ImageLoader;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.fragments.dapps.ConnectAccountFragment;
 import org.chromium.chrome.browser.wootz_wallet.permission.WootzPermissionAccountsListAdapter.Mode;
@@ -235,11 +235,11 @@ public class WootzDappPermissionPromptDialog
         if (mFavIconURL.isEmpty()) {
             return;
         }
-        ImageLoader.fetchFavIcon(mFavIconURL, new WeakReference<>(mContext), fav -> {
-            if (fav == null) return;
-            mFavIconImage.setImageBitmap(fav);
-            mCvFavContainer.setVisibility(View.VISIBLE);
-        });
+        // ImageLoader.fetchFavIcon(mFavIconURL, new WeakReference<>(mContext), fav -> {
+        //     if (fav == null) return;
+        //     mFavIconImage.setImageBitmap(fav);
+        //     mCvFavContainer.setVisibility(View.VISIBLE);
+        // });
     }
 
     public String[] getSelectedAccounts() {

@@ -195,7 +195,7 @@
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/submit"
-            style="@style/BraveWalletButton"
+            style="@style/WootzWalletButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"

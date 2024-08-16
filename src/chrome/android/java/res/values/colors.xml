@@ -74,7 +74,7 @@ found in the LICENSE file.
     <!-- Tab strip button hover background color -->
     <color name="tab_strip_button_hover_bg_color">@color/baseline_neutral_90</color>
     
-    <color name="wootz_sync_bg_color">@android:color/transparent</color>
+    <!-- <color name="wootz_sync_bg_color">@android:color/transparent</color> -->
     <!--  Wallet gradient colors  -->
     <color name="wallet_gradient_center_color">#BF14A2</color>
     <color name="wallet_gradient_end_color">#F73A1C</color>
@@ -86,13 +86,13 @@ found in the LICENSE file.
     
     <!-- Theme colors -->
     <color name="wootz_theme_color">#fb542b</color>
-    <color name="wootz_add_widget_button_pressed">#737ADE</color>
+    <!-- <color name="wootz_add_widget_button_pressed">#737ADE</color> -->
     <color name="wootz_button_pressed">#7278C5</color>
     <color name="modern_blue_300">#FF7654</color>
     
       <!--  Wootz Wallet DApp  -->
     <color name="wootz_wallet_dapp_text_color">#171919</color>
-     <color name="use_web3_wallet_button_text_color">#423EEE</color>
+     <!-- <color name="use_web3_wallet_button_text_color">#423EEE</color> -->
         <!-- Day/Night wootz wallet colors -->
     <color name="wootz_wallet_onboarding_item_background_color">#687485</color>
     <color name="wootz_wallet_day_night_toolbar_icon_color">#495057</color>
@@ -140,12 +140,16 @@ found in the LICENSE file.
     <color name="wootz_theme_error_txt">#E32444</color>
     <color name="wootz_text_button_color">#4C54D2</color>
     
-    <color name="wootz_rewards_modal_text_color">#495057</color>
-    <color name="wootz_rewards_modal_theme_color">#4C54D2</color>
+    <!-- <color name="wootz_rewards_modal_text_color">#495057</color> -->
+    <!-- <color name="wootz_rewards_modal_theme_color">#4C54D2</color> -->
     <color name="wootz_blue_tint_color">#4C54D2</color>
     <color name="text_secondary">#3f4e55</color>
     <color name="primary_20">#d5dcff</color>
     <color name="shield_text_color">#212529</color>
+
+    <color name="black_alpha_50">#80000000</color>
+    <color name="container_background">#ffffff</color>
+    <color name="text_tertiary">#62757e</color>
     <!-- Other colors -->
     <color name="media_viewer_bg">#000000</color>
     <color name="image_viewer_bg">#0E0E0E</color>

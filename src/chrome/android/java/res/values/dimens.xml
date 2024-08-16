@@ -434,4 +434,9 @@ found in the LICENSE file.
     <dimen name="onboarding_network_selection_item_width">103dp</dimen>
     <dimen name="onboarding_network_selection_item_height">96dp</dimen>
 
+
+    <dimen name="zero_margin"> 0dp </dimen>
+    <dimen name="large_regular">16sp</dimen>
+    <dimen name="heading_h1">32sp</dimen>
+    <dimen name="heading_h3">22sp</dimen>
 </resources>

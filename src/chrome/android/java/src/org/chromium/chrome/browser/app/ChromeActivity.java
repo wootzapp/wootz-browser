@@ -65,6 +65,7 @@ import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.ChromeKeyboardVisibilityDelegate;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.ChromeWindow;
 import org.chromium.chrome.browser.DeferredStartupHandler;
 import org.chromium.chrome.browser.IntentHandler;
@@ -168,6 +169,8 @@ import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManagerSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tabmodel.TabList;
+import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tabmodel.TabModelInitializer;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorProfileSupplier;
@@ -266,9 +269,13 @@ import org.chromium.wootz_wallet.mojom.SignDataUnion;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletDAppsActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.mojo.system.MojoException;
+import org.chromium.mojo.bindings.ConnectionErrorHandler;
+
+import org.chromium.chrome.browser.profiles.ProfileManager;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletActivity;
 import org.chromium.chrome.browser.settings.WootzWalletPreferences;
 import org.chromium.chrome.browser.site_settings.WootzWalletEthereumConnectedSites;
@@ -298,7 +305,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 AppMenuBlocker,
                 MenuOrKeyboardActionController,
                 CompositorViewHolder.Initializer,
-                TabModelInitializer {
+                TabModelInitializer,
+                ConnectionErrorHandler {
     private static final String TAG = "ChromeActivity";
     private static final int CONTENT_VIS_DELAY_MS = 5;
     public static final String UNFOLD_LATENCY_BEGIN_TIMESTAMP = "unfold_latency_begin_timestamp";
@@ -1360,13 +1368,13 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         checkForDeviceLockOnAutomotive();
         setViewForInputHint(inMultiWindowMode);
 
-        if (mNativeInitialized) {
-            WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-            if (layout == null || !layout.isWalletIconVisible()) {
-                return;
-            }
-            updateWalletBadgeVisibility();
-        }
+        // if (mNativeInitialized) {
+        //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+        //     if (layout == null || !layout.isWalletIconVisible()) {
+        //         return;
+        //     }
+        //     updateWalletBadgeVisibility();
+        // }
     }
 
     private void setViewForInputHint(boolean inMultiWindowMode) {
@@ -1482,6 +1490,97 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
         if (mContextReporter != null) mContextReporter.disable();
         super.onStopWithNative();
+    }
+
+    @NonNull
+    public static ChromeActivity getChromeActivity() throws ChromeActivityNotFoundException {
+        ChromeActivity activity = (ChromeActivity) getActivityOfType(ChromeActivity.class);
+        if (activity != null) {
+            return activity;
+        }
+
+        throw new ChromeActivityNotFoundException("ChromeActivity Not Found");
+    }
+
+    public static class ChromeActivityNotFoundException extends Exception {
+        public ChromeActivityNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    private static Activity getActivityOfType(Class<?> classOfActivity) {
+        for (Activity ref : ApplicationStatus.getRunningActivities()) {
+            if (!classOfActivity.isInstance(ref)) continue;
+
+            return ref;
+        }
+
+        return null;
+    }
+
+    public void walletInteractionDetected(WebContents webContents) {
+        Tab tab = getActivityTab();
+        if (tab == null
+                || !webContents.getLastCommittedUrl().equals(
+                        tab.getWebContents().getLastCommittedUrl())) {
+            return;
+        }
+        // BraveToolbarLayoutImpl layout = getBraveToolbarLayout();
+        // if (layout != null) {
+        //     layout.showWalletIcon(true);
+        //     updateWalletBadgeVisibility();
+        // }
+    }
+
+    public Profile getCurrentProfile() {
+        Tab tab = getActivityTab();
+        if (tab == null) {
+            return ProfileManager.getLastUsedRegularProfile();
+        }
+
+        return Profile.fromWebContents(tab.getWebContents());
+    }
+
+    public static ChromeTabbedActivity getChromeTabbedActivity() {
+        return (ChromeTabbedActivity) getActivityOfType(ChromeTabbedActivity.class);
+    }
+    
+
+    public ObservableSupplier<BrowserControlsManager> getBrowserControlsManagerSupplier() {
+        return mBrowserControlsManagerSupplier;
+    }
+
+
+    public Tab selectExistingTab(String url) {
+        Tab tab = getActivityTab();
+        if (tab != null && tab.getUrl().getSpec().equals(url)) {
+            return tab;
+        }
+
+        TabModel tabModel = getCurrentTabModel();
+        int tabIndex = TabModelUtils.getTabIndexByUrl(tabModel, url);
+
+        // Find if tab exists
+        if (tabIndex != TabModel.INVALID_TAB_INDEX) {
+            tab = tabModel.getTabAt(tabIndex);
+            // Set active tab
+            tabModel.setIndex(tabIndex, TabSelectionType.FROM_USER,false);
+            return tab;
+        } else {
+            return null;
+        }
+    }
+
+    public Tab openNewOrSelectExistingTab(String url, boolean refresh) {
+        Tab tab = selectExistingTab(url);
+        if (tab != null) {
+            if (refresh) {
+                tab.reload();
+            }
+            return tab;
+        } else { // Open a new tab
+            return getTabCreator(false).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+        }
     }
 
     @Override
@@ -1885,25 +1984,25 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     private void maybeHasPendingUnlockRequest() {
         assert mKeyringService != null;
         mKeyringService.hasPendingUnlockRequest(pending -> {
-            if (pending) {
-                WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-                if (layout != null) {
-                    layout.showWalletPanel();
-                }
+            // if (pending) {
+            //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+            //     if (layout != null) {
+            //         layout.showWalletPanel();
+            //     }
 
-                return;
-            }
+            //     return;
+            // }
             maybeShowPendingTransactions();
             maybeShowSignTxRequestLayout();
         });
     }
 
-    private void setWalletBadgeVisibility(boolean visibile) {
-        WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        if (layout != null) {
-            layout.updateWalletBadgeVisibility(visibile);
-        }
-    }
+    // private void setWalletBadgeVisibility(boolean visibile) {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.updateWalletBadgeVisibility(visibile);
+    //     }
+    // }
 
     private void maybeShowPendingTransactions() {
         if (mWalletModel != null) {
@@ -2022,63 +2121,63 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                 return;
             }
-            WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-            if (layout != null) {
-                layout.showWalletPanel();
-            }
+            // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+            // if (layout != null) {
+            //     layout.showWalletPanel();
+            // }
         });
     }
 
     public void dismissWalletPanelOrDialog() {
-        WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        if (layout != null) {
-            layout.dismissWalletPanelOrDialog();
-        }
+        // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+        // if (layout != null) {
+        //     layout.dismissWalletPanelOrDialog();
+        // }
     }
 
-    public void showWalletPanel(boolean ignoreWeb3NotificationPreference) {
-        WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        if (layout != null) {
-            layout.showWalletIcon(true);
-        }
-        if (!ignoreWeb3NotificationPreference
-                && !WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
-            return;
-        }
-        assert mKeyringService != null;
-        mKeyringService.isLocked(locked -> {
-            if (locked) {
-                layout.showWalletPanel();
-                return;
-            }
-            maybeHasPendingUnlockRequest();
-        });
-    }
+    // public void showWalletPanel(boolean ignoreWeb3NotificationPreference) {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //     }
+    //     if (!ignoreWeb3NotificationPreference
+    //             && !WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
+    //         return;
+    //     }
+    //     assert mKeyringService != null;
+    //     mKeyringService.isLocked(locked -> {
+    //         if (locked) {
+    //             layout.showWalletPanel();
+    //             return;
+    //         }
+    //         maybeHasPendingUnlockRequest();
+    //     });
+    // }
 
-    public void showWalletOnboarding() {
-        WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        if (layout != null) {
-            layout.showWalletIcon(true);
-            if (!WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
-                return;
-            }
-            layout.showWalletPanel();
-        }
-    }
+    // public void showWalletOnboarding() {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //         if (!WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
+    //             return;
+    //         }
+    //         layout.showWalletPanel();
+    //     }
+    // }
 
-    public void walletInteractionDetected(WebContents webContents) {
-        Tab tab = getActivityTab();
-        if (tab == null
-                || !webContents.getLastCommittedUrl().equals(
-                        tab.getWebContents().getLastCommittedUrl())) {
-            return;
-        }
-        WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        if (layout != null) {
-            layout.showWalletIcon(true);
-            updateWalletBadgeVisibility();
-        }
-    }
+    // public void walletInteractionDetected(WebContents webContents) {
+    //     Tab tab = getActivityTab();
+    //     if (tab == null
+    //             || !webContents.getLastCommittedUrl().equals(
+    //                     tab.getWebContents().getLastCommittedUrl())) {
+    //         return;
+    //     }
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //         updateWalletBadgeVisibility();
+    //     }
+    // }
 
     public void showAccountCreation(@CoinType.EnumType int coinType) {
         if (mWalletModel != null) {
@@ -2263,8 +2362,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     });
                 });
 
-        mWalletModel.getDappsModel().mWalletIconNotificationVisible.observe(
-                this, this::setWalletBadgeVisibility);
+        // mWalletModel.getDappsModel().mWalletIconNotificationVisible.observe(
+        //         this, this::setWalletBadgeVisibility);
 
         mWalletModel.getDappsModel().mPendingWalletAccountCreationRequest.observe(this, request -> {
             if (request == null) return;
@@ -2275,7 +2374,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     if (tab != null) {
                         walletInteractionDetected(tab.getWebContents());
                     }
-                    showWalletPanel(false);
+                    // showWalletPanel(false);
                     return;
                 }
                 for (CryptoAccountTypeInfo info :
@@ -3358,7 +3457,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
         return false;
     }
-
+    
+    @Override
     public void onConnectionError(MojoException e) {
         cleanUpWalletNativeServices();
         initWalletNativeServices();

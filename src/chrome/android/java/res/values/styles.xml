@@ -211,6 +211,67 @@ found in the LICENSE file.
         <item name="android:foreground">@null</item>
     </style>
 
+
+    <style name="HeadingH3">
+        <item name="android:textSize">@dimen/heading_h3</item>
+        <item name="lineHeight">28sp</item>
+        <item name="fontStyle">normal</item>
+        <item name="fontWeight">500</item>
+    </style>
+
+    <style name="WootzWalletOnboarding">
+        <item name="ic_onboarding_backup">@drawable/ic_onboarding_backup</item>
+        <item name="ic_onboarding_intro">@drawable/ic_onboarding_intro</item>
+        <item name="ic_onboarding_password">@drawable/ic_onboarding_password</item>
+    </style>
+
+    <style name="HeadingH1">
+        <item name="android:textSize">@dimen/heading_h1</item>
+        <item name="lineHeight">40sp</item>
+        <item name="fontStyle">normal</item>
+        <item name="fontWeight">500</item>
+    </style>
+
+    <style name="LargeRegular">
+        <!-- Default browser size for fonts -->
+        <item name="android:textSize">@dimen/large_regular</item>
+        <item name="lineHeight">24sp</item>
+        <item name="fontStyle">normal</item>
+        <item name="fontWeight">400</item>
+    </style>
+
+
+    <style name="WootzWalletDAppNotificationDialogTop" parent="@android:style/Theme.Dialog">
+        <item name="android:windowMinWidthMajor">98%</item>
+        <item name="android:windowMinWidthMinor">98%</item>
+        <item name="android:windowAnimationStyle">@style/WootzWalletDialogTopAnimation</item>
+    </style>
+
+    <style name="WootzWalletDAppNotificationDialogBottom" parent="@android:style/Theme.Dialog">
+        <item name="android:windowMinWidthMajor">98%</item>
+        <item name="android:windowMinWidthMinor">98%</item>
+        <item name="android:windowAnimationStyle">@style/WootzWalletDialogBottomAnimation</item>
+    </style>
+
+
+    <style name="WootzWalletDialogBottomAnimation">
+        <item name="android:windowEnterAnimation">@anim/slide_in_bottom</item>
+        <item name="android:windowExitAnimation">@anim/slide_out_bottom</item>
+    </style>
+
+
+    <style name="WootzWalletDialogTopAnimation">
+        <item name="android:windowEnterAnimation">@anim/slide_in_top</item>
+        <item name="android:windowExitAnimation">@anim/slide_out_top</item>
+    </style>
+
+
+    <style name="WootzWalletTextViewWhite">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+
     <style name="WootzWalletTextButton" parent="Widget.AppCompat.Button">
         <item name="buttonStyle">?android:attr/borderlessButtonStyle</item>
         <item name="android:layout_width">wrap_content</item>

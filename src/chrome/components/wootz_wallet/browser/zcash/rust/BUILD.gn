@@ -63,9 +63,10 @@ rust_static_library("rust_lib") {
   cxx_bindings = [ "lib.rs" ]
 
   deps = [
-    "librustzcash:zcash_primitives",
+    # "librustzcash:zcash_primitives", 
     "//chrome/components/wootz_wallet/rust:rust_lib",
     "//third_party/rust/orchard/v0_8:lib",
     "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/reddsa/v0_5:lib", #BRAVE_WALLET
   ]
 }

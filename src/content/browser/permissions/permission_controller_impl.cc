@@ -79,6 +79,8 @@ PermissionToSchedulingFeature(PermissionType permission_name) {
     case PermissionType::NUM:
     case PermissionType::SENSORS:
     case PermissionType::AR:
+    case PermissionType::WOOTZ_ETHEREUM:  
+    case PermissionType::WOOTZ_SOLANA:    
     case PermissionType::VR:
     case PermissionType::CAMERA_PAN_TILT_ZOOM:
     case PermissionType::WINDOW_MANAGEMENT:

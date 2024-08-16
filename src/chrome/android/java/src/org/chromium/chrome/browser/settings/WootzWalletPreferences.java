@@ -23,7 +23,7 @@ import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletConstants;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.settings.TextMessagePreference;
@@ -142,15 +142,15 @@ public class WootzWalletPreferences extends WootzPreferenceFragment
     @Override
     public void onDisplayPreferenceDialog(@NonNull Preference preference) {
         if (preference instanceof WootzDialogPreference) {
-            WootzPreferenceDialogFragment dialogFragment =
-                    WootzPreferenceDialogFragment.newInstance(preference);
+            // WootzPreferenceDialogFragment dialogFragment =
+            //         WootzPreferenceDialogFragment.newInstance(preference);
 
             // `setTargetFragment()` must be called even if Lint says the method is deprecated.
             // https://issuetracker.google.com/issues/181793702
             // noinspection deprecation
-            dialogFragment.setTargetFragment(this, 0);
-            dialogFragment.show(getParentFragmentManager(), WootzPreferenceDialogFragment.TAG);
-            dialogFragment.setPreferenceDialogListener(this);
+            // dialogFragment.setTargetFragment(this, 0);
+            // dialogFragment.show(getParentFragmentManager(), WootzPreferenceDialogFragment.TAG);
+            // dialogFragment.setPreferenceDialogListener(this);
         } else {
             super.onDisplayPreferenceDialog(preference);
         }

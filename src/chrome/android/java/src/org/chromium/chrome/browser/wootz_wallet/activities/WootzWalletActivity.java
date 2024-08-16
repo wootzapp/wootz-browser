@@ -232,7 +232,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             finish();
             try {
                 ChromeActivity activity = ChromeActivity.getChromeActivity();
-                activity.showWalletPanel(true);
+                // activity.showWalletPanel(true);
             } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "onboardingCompleted", e);
             }

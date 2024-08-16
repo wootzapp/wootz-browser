@@ -290,10 +290,10 @@ std::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
       return ContentSettingsType::AR;
-    case ContentSettingsType::WOOTZ_ETHEREUM:
-      return RequestType::kWootzEthereum;
-    case ContentSettingsType::WOOTZ_SOLANA:
-      return RequestType::kWootzSolana;
+    case RequestType::kWootzEthereum:
+      return ContentSettingsType::WOOTZ_ETHEREUM;
+    case RequestType::kWootzSolana:
+      return ContentSettingsType::WOOTZ_SOLANA;
 #if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return ContentSettingsType::CAMERA_PAN_TILT_ZOOM;

@@ -24,7 +24,7 @@ import com.google.android.material.checkbox.MaterialCheckBox;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.helpers.Api33AndPlusBackPressHelper;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 /** Onboarding fragment showing terms and conditions to accept before using Wootz Wallet. */
 public class OnboardingTermsOfUseFragment extends BaseOnboardingWalletFragment

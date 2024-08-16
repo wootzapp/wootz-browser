@@ -89,8 +89,8 @@ cargo_crate("lib") {
     "//third_party/rust/serde/v1:lib",
     "//third_party/rust/subtle/v2:lib",
     "//third_party/rust/tracing/v0_1:lib",
-    "//third_party/rust/zcash_note_encryption/v0_4:lib",
-    "//third_party/rust/zcash_spec/v0_1:lib",
+    # "//third_party/rust/zcash_note_encryption/v0_4:lib",
+    # "//third_party/rust/zcash_spec/v0_1:lib",
     "//third_party/rust/zip32/v0_1:lib",
   ]
 }
