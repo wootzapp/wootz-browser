@@ -47,7 +47,11 @@ import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
-
+import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.tab.CurrentTabObserver;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
+import org.chromium.chrome.browser.tab.Tab;
+import androidx.annotation.ColorInt;
 import java.util.List;
 
 /** A mediator for the TabGroupUi. Responsible for managing the internal state of the component. */
@@ -116,6 +120,10 @@ public class TabGroupUiMediator implements BackPressHandler {
     private boolean mIsShowingOverViewMode;
     private final @ColorInt int mPrimaryBackgroundColor;
     private final @ColorInt int mIncognitoBackgroundColor;
+    private final TopUiThemeColorProvider mTopUiThemeColorProvider;
+
+    /** An observer that watches for changes in the active tab. */
+    private final CurrentTabObserver mTabObserver;
 
     TabGroupUiMediator(
             Context context,
@@ -129,7 +137,8 @@ public class TabGroupUiMediator implements BackPressHandler {
             @Nullable
                     LazyOneshotSupplier<TabGridDialogMediator.DialogController>
                             dialogControllerSupplier,
-            ObservableSupplier<Boolean> omniboxFocusStateSupplier) {
+            ObservableSupplier<Boolean> omniboxFocusStateSupplier,
+            TopUiThemeColorProvider topUiThemeColorProvider, ObservableSupplier<Tab> tabSupplier) {
         this(
                 context,
                 visibilityController,
@@ -142,7 +151,9 @@ public class TabGroupUiMediator implements BackPressHandler {
                 dialogControllerSupplier,
                 omniboxFocusStateSupplier,
                 SemanticColorUtils.getDialogBgColor(context),
-                context.getColor(org.chromium.chrome.R.color.dialog_bg_color_dark_baseline));
+                context.getColor(org.chromium.chrome.R.color.dialog_bg_color_dark_baseline),
+               topUiThemeColorProvider, tabSupplier);
+
     }
 
     @VisibleForTesting
@@ -160,7 +171,9 @@ public class TabGroupUiMediator implements BackPressHandler {
                             dialogControllerSupplier,
             ObservableSupplier<Boolean> omniboxFocusStateSupplier,
             @ColorInt int primaryBackgroundColor,
-            @ColorInt int incognitoBackgroundColor) {
+            @ColorInt int incognitoBackgroundColor,
+            TopUiThemeColorProvider topUiThemeColorProvider, ObservableSupplier<Tab> tabSupplier) {
+        mTopUiThemeColorProvider = topUiThemeColorProvider;
         mContext = context;
         mResetHandler = resetHandler;
         mModel = model;
@@ -183,12 +196,29 @@ public class TabGroupUiMediator implements BackPressHandler {
             // showing on the Start surface homepage. See https://crbug.com/1239272.
             mIsShowingOverViewMode = true;
         }
+        // Keep an observer attached to the visible tab (and only the visible tab) to update
+        // properties including theme color.
+        Callback<Tab> activityTabCallback = (tab) -> {
+            if (tab == null) return;
+            updateThemeColor(tab);
+        };
+        mTabObserver = new CurrentTabObserver(tabSupplier, new EmptyTabObserver() {
+            @Override
+            public void onDidChangeThemeColor(Tab tab, int color) {
+                updateThemeColor(tab);
+            }
 
+            @Override
+            public void onContentChanged(Tab tab) {
+                updateThemeColor(tab);
+            }
+        }, activityTabCallback);
         // register for tab model
         mTabModelObserver =
                 new TabModelObserver() {
                     @Override
                     public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
+                        updateThemeColor(tab);
                         if (getTabsToShowForId(lastId).contains(tab)) {
                             return;
                         }
@@ -250,6 +280,7 @@ public class TabGroupUiMediator implements BackPressHandler {
                             return;
                         }
                         resetTabStripWithRelatedTabsForId(currentTab.getId());
+                        updateThemeColor(currentTab);
                     }
 
                     @Override
@@ -376,7 +407,7 @@ public class TabGroupUiMediator implements BackPressHandler {
         if (tab != null) {
             resetTabStripWithRelatedTabsForId(tab.getId());
         }
-
+        mTabObserver.triggerWithCurrentTab();
         mBackPressStateSupplier = new ObservableSupplierImpl<>();
         if (mTabGridDialogControllerSupplier != null) {
             mTabGridDialogControllerSupplier.onAvailable(
@@ -398,7 +429,17 @@ public class TabGroupUiMediator implements BackPressHandler {
     void setupLeftButtonDrawable(int drawableId) {
         mModel.set(TabGroupUiProperties.LEFT_BUTTON_DRAWABLE_ID, drawableId);
     }
-
+    /**
+     * Update the colors of the layer based on the specified tab.
+     * @param tab The tab to base the colors on.
+     */
+    private void updateThemeColor(Tab tab) {
+        if (tab != null) {
+            @ColorInt
+            int color = mTopUiThemeColorProvider.getSceneLayerBackground(tab);
+            mModel.set(TabGroupUiProperties.PRIMARY_COLOR, color);
+        }
+    }
     void setupLeftButtonOnClickListener(View.OnClickListener listener) {
         mModel.set(TabGroupUiProperties.LEFT_BUTTON_ON_CLICK_LISTENER, listener);
     }
@@ -518,6 +559,7 @@ public class TabGroupUiMediator implements BackPressHandler {
     }
 
     public void destroy() {
+        mTabObserver.destroy();
         if (mTabModelSelector != null) {
             var filterProvider = mTabModelSelector.getTabModelFilterProvider();
 

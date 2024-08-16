@@ -6,10 +6,12 @@ import("//build/config/android/rules.gni")
 import("//third_party/jni_zero/jni_zero.gni")
 
 android_library("java") {
-  sources = [
+  sources = [ "android/java/src/org/chromium/chrome/browser/flags/CromiteNativeUtils.java" ]
+  sources += [
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureMap.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeSessionState.java",
+
   ]
   public_deps = [ "//base:base_cached_flags_java" ]
   deps = [
@@ -30,17 +32,22 @@ android_library("java") {
 }
 
 generate_jni("jni_headers") {
-  sources = [
+  sources = [ "android/java/src/org/chromium/chrome/browser/flags/CromiteNativeUtils.java" ]
+  sources += [
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureMap.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeSessionState.java",
   ]
 }
 
 static_library("flags_android") {
-  sources = [
-    "android/chrome_session_state.cc",
-    "android/chrome_session_state.h",
+   sources = [
+    "android/cromite_native_utils.cc",
+    "android/cromite_native_utils.h",
   ]
+  sources += [
+     "android/chrome_session_state.cc",
+     "android/chrome_session_state.h",
+   ]
   deps = [
     ":jni_headers",
     "//base",
@@ -57,7 +64,7 @@ java_cpp_strings("chrome_android_java_switches_srcjar") {
 }
 
 java_cpp_enum("chrome_browser_flags_enums_srcjar") {
-  sources = [ "android/chrome_session_state.h" ]
+  sources = [ "android/chrome_session_state.h",]
 }
 
 robolectric_library("flags_junit_tests") {

@@ -173,6 +173,7 @@ class DirectiveSet:
 
 
 class HeaderParser:
+  include_re = re.compile(r'#include "(.*)"')
   single_line_comment_re = re.compile(r'\s*//\s*([^\n]*)')
   multi_line_comment_start_re = re.compile(r'\s*/\*')
   enum_line_re = re.compile(r'^\s*(\w+)(\s*\=\s*([^,\n]+))?,?')
@@ -200,7 +201,7 @@ class HeaderParser:
   enum_single_line_re = re.compile(
       r'^\s*(?:\[cpp.*\])?\s*enum.*{(?P<enum_entries>.*)}.*$')
 
-  def __init__(self, lines, path=''):
+  def __init__(self, lines, options, path=''):
     self._lines = lines
     self._path = path
     self._enum_definitions = []
@@ -217,7 +218,7 @@ class HeaderParser:
     self._generator_directives = DirectiveSet()
     self._multi_line_generator_directive = None
     self._current_enum_entry = ''
-
+    self._options = options
   def _ShouldIgnoreLine(self):
     return self._in_preprocessor_block and not self._in_buildflag_android
 
@@ -259,7 +260,23 @@ class HeaderParser:
     if HeaderParser.multi_line_comment_start_re.match(line):
       raise Exception('Multi-line comments in enums are not supported in ' +
                       self._path)
+    # handles the management of #include files
+    include_line = HeaderParser.include_re.match(line)
+    if include_line:
+      include_file = include_line.groups()[0];
+      if not include_file.endswith(".inc"):
+        raise Exception('Include file \"' + include_file + '\" must ends with .inc')
 
+      file_to_include = os.path.join(self._options.gen_dir, include_file)
+      if not os.path.exists(file_to_include):
+        file_to_include = os.path.join(self._options.root_dir, include_file)
+      lines = []
+      with open(file_to_include) as include_file_handle:
+        lines = include_file_handle.readlines()
+
+      for new_line in lines:
+        self._ParseEnumLine(new_line)
+      return
     enum_comment = HeaderParser.single_line_comment_re.match(line)
     if enum_comment:
       comment = enum_comment.groups()[0]
@@ -360,9 +377,9 @@ class HeaderParser:
         self._ParseSingleLineEnum(single_line_enum.group('enum_entries'))
 
 
-def DoGenerate(source_paths):
+def DoGenerate(source_paths, options):
   for source_path in source_paths:
-    enum_definitions = DoParseHeaderFile(source_path)
+    enum_definitions = DoParseHeaderFile(source_path, options)
     if not enum_definitions:
       raise Exception('No enums found in %s\n'
                       'Did you forget prefixing enums with '
@@ -375,9 +392,9 @@ def DoGenerate(source_paths):
       yield output_path, output
 
 
-def DoParseHeaderFile(path):
+def DoParseHeaderFile(path, options):
   with open(path) as f:
-    return HeaderParser(f.readlines(), path).ParseDefinitions()
+    return HeaderParser(f.readlines(), options, path).ParseDefinitions()
 
 
 def GenerateOutput(source_path, enum_definition):
@@ -456,7 +473,10 @@ def DoMain(argv):
   parser.add_option('--srcjar',
                     help='When specified, a .srcjar at the given path is '
                     'created instead of individual .java files.')
-
+  parser.add_option('--gen_dir',
+                    help='Indicates the path to the generated file')
+  parser.add_option('--root_dir',
+                    help='Indicates the path to the build root')
   options, args = parser.parse_args(argv)
 
   if not args:
@@ -465,7 +485,7 @@ def DoMain(argv):
 
   with action_helpers.atomic_output(options.srcjar) as f:
     with zipfile.ZipFile(f, 'w', zipfile.ZIP_STORED) as srcjar:
-      for output_path, data in DoGenerate(input_paths):
+      for output_path, data in DoGenerate(input_paths, options):
         zip_helpers.add_to_zip_hermetic(srcjar, output_path, data=data)
 
 

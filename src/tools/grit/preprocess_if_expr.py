@@ -8,7 +8,7 @@ import io
 import json
 import os
 import sys
-
+import re
 # For Node, EvaluateExpression
 import grit.node.base
 # For CheckConditionalElements
@@ -71,7 +71,35 @@ def ExtensionForComments(input_file):
     extension = '.html'
   return extension
 
+def _extract_template_from_dir(html_file):
+  template = ''
+  directory = os.path.dirname(html_file)
+  for root, dirs, directory_files in os.walk(directory):
+    for directory_file in directory_files:
+      if directory_file.endswith(".html"):
+        template += _extract_template(os.path.join(directory, directory_file))
 
+  return template
+
+def _extract_template(html_file):
+  include_re = re.compile(r'^\s*<include\s*path="(.*)"\s*/>')
+  with io.open(html_file, encoding='utf-8', mode='r') as f:
+    lines = f.readlines()
+
+    template_lines = []
+    for line in lines:
+      include_line = include_re.match(line)
+      if include_line:
+        include_file = include_line.groups()[0]
+        file_to_include = os.path.join(os.path.dirname(html_file), include_file)
+        if file_to_include.endswith("placeholder.txt"):
+          line = _extract_template_from_dir(file_to_include)
+        else:
+          line = _extract_template(file_to_include)
+      template_lines.append(line)
+
+    template = ''.join(template_lines)
+    return template
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument('--in-folder', required=True)
@@ -95,7 +123,7 @@ def main(argv):
     in_path = os.path.join(in_folder, input_file)
     content = ""
     with open(in_path, encoding='utf-8') as f:
-      content = f.read()
+      content = _extract_template(in_path)
 
     removal_comments_extension = None  # None means no removal comments
     if args.enable_removal_comments:

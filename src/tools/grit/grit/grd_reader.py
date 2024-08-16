@@ -93,11 +93,28 @@ class GrdContentHandler(xml.sax.handler.ContentHandler):
         raise exception.FileNotFound(partname)
       # Exceptions propagate to the handler in grd_reader.Parse().
       oldsource = self.source
-      try:
-        self.source = partname
-        xml.sax.parse(partname, GrdPartContentHandler(self))
-      finally:
-        self.source = oldsource
+      # modifies the behavior of
+      #    <part file="folder" />
+      # allowing the inclusion of all grdp files found in the folder
+      # specified.
+      # the file value must end with "/placeholder.txt"
+      if partname.endswith("/placeholder.txt"):
+        partname = os.path.dirname(partname)
+        for root, dirs, files in os.walk(partname):
+          for file in files:
+            filepath = os.path.join(partname, file)
+            if filepath.endswith(".grdp"):
+              try:
+                self.source = partname
+                xml.sax.parse(filepath, GrdPartContentHandler(self))
+              finally:
+                self.source = oldsource
+      else:
+        try:
+          self.source = partname
+          xml.sax.parse(partname, GrdPartContentHandler(self))
+        finally:
+          self.source = oldsource
 
     if self.debug:
       print("End parsing of element %s" % name)

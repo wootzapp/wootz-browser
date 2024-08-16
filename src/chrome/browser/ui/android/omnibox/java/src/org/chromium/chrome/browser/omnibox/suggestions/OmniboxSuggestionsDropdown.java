@@ -23,7 +23,8 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
+import android.graphics.Rect;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.Callback;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.TimingMetric;
@@ -224,7 +225,7 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         setItemAnimator(null);
 
         mLayoutScrollListener = new SuggestionLayoutScrollListener(context);
-        setLayoutManager(mLayoutScrollListener);
+
         mSelectionController = new RecyclerViewSelectionController(mLayoutScrollListener);
         addOnChildAttachStateChangeListener(mSelectionController);
 
@@ -233,6 +234,13 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
                 resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_bottom);
         int paddingTop =
                 resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_top);
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // reverse the layout so that the items are at the bottom (in reverse order)
+            // and anchored to the bottom edge
+            mLayoutScrollListener.setReverseLayout(true);
+            paddingTop = 0;
+        // }
+        setLayoutManager(mLayoutScrollListener);
         ViewCompat.setPaddingRelative(this, 0, paddingTop, 0, paddingBottom);
 
         if (OmniboxFeatures.sAsyncViewInflation.isEnabled()) {

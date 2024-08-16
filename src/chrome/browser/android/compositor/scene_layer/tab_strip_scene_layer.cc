@@ -21,6 +21,7 @@
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/transform.h"
+#include "cc/base/features.h"
 
 using base::android::JavaParamRef;
 using base::android::JavaRef;
@@ -95,8 +96,10 @@ void TabStripSceneLayer::SetContentTree(
     content_tree_ = content_tree;
     if (content_tree) {
       layer()->InsertChild(content_tree->layer(), 0);
-      content_tree->layer()->SetPosition(
-          gfx::PointF(0, -layer()->position().y()));
+      if (!base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom)) {
+        content_tree->layer()->SetPosition(
+            gfx::PointF(0, -layer()->position().y()));
+      }
     }
   }
 }
@@ -145,7 +148,12 @@ void TabStripSceneLayer::UpdateTabStripLayer(JNIEnv* env,
                                              jfloat right_padding,
                                              jfloat top_padding) {
   gfx::RectF content(0, y_offset, width, height);
-  layer()->SetPosition(gfx::PointF(0, y_offset));
+  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom)) {
+    // do not move the whole layer (which also contains the contents) but only the tab strip layer
+    tab_strip_layer_->SetPosition(gfx::PointF(0, y_offset));
+  } else {
+    layer()->SetPosition(gfx::PointF(0, y_offset));
+  }
   tab_strip_layer_->SetBounds(gfx::Size(width, height));
   tab_strip_layer_->SetBackgroundColor(SkColor4f::FromColor(background_color));
 
@@ -157,7 +165,7 @@ void TabStripSceneLayer::UpdateTabStripLayer(JNIEnv* env,
   group_indicator_layer_->SetPosition(gfx::PointF(0, top_padding));
 
   // Content tree should not be affected by tab strip scene layer visibility.
-  if (content_tree_)
+  if (content_tree_ && !base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom))
     content_tree_->layer()->SetPosition(gfx::PointF(0, -y_offset));
 
   // Update left and right padding layers as required.
