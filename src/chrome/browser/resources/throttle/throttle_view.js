@@ -1,6 +1,5 @@
 import {$} from 'chrome://resources/js/util.js';
 import {BrowserBridge} from './browser_bridge.js';
-import {addNode, addNodeWithText} from './util.js';
 import {DivView} from './view.js';
 
 /** @type {?ThrottleView} */
@@ -10,7 +9,6 @@ let instance = null;
  * This UI allows a user to set network throttling conditions such as offline status,
  * latency, and throughput, to simulate different network environments.
  */
-
 export class ThrottleView extends DivView {
   constructor() {
     super(ThrottleView.MAIN_BOX_ID);
@@ -22,7 +20,7 @@ export class ThrottleView extends DivView {
     this.uploadThroughputInput_ = $(ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID);
     this.packetLossInput_ = $(ThrottleView.PACKET_LOSS_INPUT_ID);
     this.packetQueueLengthInput_ = $(ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID);
-    this.packetReorderingSelect_ = $(ThrottleView.PACKET_REORDERING_SELECT_ID);
+    this.savedSettingsDiv_ = $(ThrottleView.SAVED_SETTINGS_ID);
 
 
     this.savedOffline_ = $(ThrottleView.SAVED_OFFLINE_ID);
@@ -35,28 +33,28 @@ export class ThrottleView extends DivView {
     let form = $(ThrottleView.FORM_ID);
     form.addEventListener('submit', this.onSubmit_.bind(this), false);
 
+
     // Fetch and display the saved network throttling settings on load
     this.browserBridge_.getNetworkThrottlingSettings().then(this.displaySavedSettings_.bind(this));
   }
 
-  onSubmit_(event) {
+   onSubmit_(event) {
     event.preventDefault();
-    const offline = this.offlineSelect_.value === 'true';
+    const offline = this.offlineSelect_.value;
     const latency = parseFloat(this.latencyInput_.value.trim());
     const downloadThroughput = parseFloat(this.downloadThroughputInput_.value.trim());
     const uploadThroughput = parseFloat(this.uploadThroughputInput_.value.trim());
-    const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || undefined;
-    const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || undefined;
-    const packetReordering = this.packetReorderingSelect_.value === 'true';
+    const packetLoss = parseFloat(this.packetLossInput_.value.trim()) || 0;
+    const packetQueueLength = parseInt(this.packetQueueLengthInput_.value.trim(), 10) || 0;
 
-    this.browserBridge_.sendSetNetworkThrottling({
+    console.log(`Hello OnSubmit ${offline}, ${latency}, ${downloadThroughput}`)
+     this.browserBridge_.sendSetNetworkThrottling({
       offline,
       latency,
       downloadThroughput,
       uploadThroughput,
       packetLoss,
       packetQueueLength,
-      packetReordering
     });
 
 
@@ -81,6 +79,23 @@ export class ThrottleView extends DivView {
 
   }
 
+  async loadAndDisplaySavedSettings_() {
+    const settings = await this.browserBridge_.getNetworkThrottlingSettings();
+    this.displaySavedSettings_(settings);
+  }
+
+  displaySavedSettings_(settings) {
+    const {offline, latency, downloadThroughput, uploadThroughput, packetLoss, packetQueueLength} = settings;
+    this.savedSettingsDiv_.textContent = `
+      Offline: ${offline}
+      Latency: ${latency} ms
+      Download Throughput: ${downloadThroughput} Bps
+      Upload Throughput: ${uploadThroughput} Bps
+      Packet Loss: ${packetLoss}%
+      Packet Queue Length: ${packetQueueLength}
+    `;
+  }
+
   static getInstance() {
     return instance || (instance = new ThrottleView());
   }
@@ -95,6 +110,7 @@ ThrottleView.DOWNLOAD_THROUGHPUT_INPUT_ID = 'throttle-download-throughput-input'
 ThrottleView.UPLOAD_THROUGHPUT_INPUT_ID = 'throttle-upload-throughput-input';
 ThrottleView.PACKET_LOSS_INPUT_ID = 'throttle-packet-loss-input';
 ThrottleView.PACKET_QUEUE_LENGTH_INPUT_ID = 'throttle-packet-queue-length-input';
+
 ThrottleView.PACKET_REORDERING_SELECT_ID = 'throttle-packet-reordering-select';
 
 ThrottleView.SUBMIT_ID = 'throttle-submit';

@@ -36,8 +36,10 @@ Create a chromium directory for the checkout and change to it (you can call this
 ```bash
 mkdir ~/chromium && cd ~/chromium
 fetch --nohooks --no-history android
+
 gclient sync --nohooks --revision src@refs/tags/127.0.6489.0 --reset --upstream -D --force --no-history
-```
+
+
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
 cd src
@@ -71,6 +73,7 @@ and add following arguments:
 target_os = "android"
 target_cpu = "arm64"
 ```
+
 ##### Option 2: Generate an optimized APK (approximately 131 MB)
 
 Run following command in ```chromium/src``` directory 

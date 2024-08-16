@@ -26,6 +26,7 @@ export class BrowserBridge {
    * @param {number} packetLoss Percentage of packets lost (between 0 and 1).
    * @returns {Promise} A promise that resolves when the action is complete.
    */
+
   sendSetNetworkThrottling(settings) {
     return sendWithPromise('setNetworkThrottling',
       settings.offline,
@@ -41,7 +42,16 @@ export class BrowserBridge {
    */
   getNetworkThrottlingSettings() {
     return sendWithPromise('getNetworkThrottlingSettings');
+
   }
+
+ /**
+   * Sends a request to get the current network throttling settings.
+   * @returns {Promise} A promise that resolves with the current network throttling settings.
+   */
+  getNetworkThrottlingSettings() {
+  return sendWithPromise('getNetworkThrottlingSettings');
+}
 
   static getInstance() {
     return instance || (instance = new BrowserBridge());

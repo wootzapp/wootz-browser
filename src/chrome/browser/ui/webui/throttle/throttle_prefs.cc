@@ -26,4 +26,28 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
 }
 
 
-}  // namespace throttle_we
+
+//  void LoadNetworkThrottlingSettings(Profile* profile) {
+//         // Profile* profile = Profile::FromWebUI(web_ui_);
+//         PrefService* prefs = profile->GetPrefs();
+
+//         bool offline = prefs->GetBoolean(throttle_webui::prefs::kNetworkThrottlingOffline);
+//         double latency = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingLatency);
+//         double download_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingDownloadThroughput);
+//         double upload_throughput = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingUploadThroughput);
+//         double packet_loss = prefs->GetDouble(throttle_webui::prefs::kNetworkThrottlingPacketLoss);
+//         int packet_queue_length = prefs->GetInteger(throttle_webui::prefs::kNetworkThrottlingPacketQueueLength);
+
+//         network::mojom::NetworkConditionsPtr conditions = network::mojom::NetworkConditions::New();
+//         conditions->offline = offline;
+//         conditions->latency = base::Milliseconds(latency);
+//         conditions->download_throughput = download_throughput;
+//         conditions->upload_throughput = upload_throughput;
+//         conditions->packet_loss = packet_loss;
+//         conditions->packet_queue_length = packet_queue_length;
+
+//         GetNetworkContext()->SetNetworkConditions(devtools_token.Create(), std::move(conditions));
+//     }
+
+
+ }  // namespace throttle_webui

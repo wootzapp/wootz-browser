@@ -84,8 +84,23 @@ export class HistoryQueryManagerElement extends PolymerElement {
     };
   }
 
+  // async fetchBackgroundData() {
+  //   try {
+  //     const data = await BrowserServiceImpl.getInstance().fetchBackgroundData();
+  //     this.displayBackgroundData(data);
+  //   } catch (error) {
+  //     console.error('Failed to fetch background data:', error);
+  //   }
+  // }
+
+  // displayBackgroundData(data: any) {
+  //   const backgroundDataDiv = this.shadowRoot.getElementById('background-data');
+  //   backgroundDataDiv.textContent = JSON.stringify(data, null, 2);
+  // }
+
   override connectedCallback() {
     super.connectedCallback();
+    this.fetchBackgroundData();
     this.eventTracker_.add(
         document, 'change-query', this.onChangeQuery_.bind(this));
     this.eventTracker_.add(
@@ -95,6 +110,9 @@ export class HistoryQueryManagerElement extends PolymerElement {
         this.flushDebouncedQueryResultMetric_();
       }
     });
+
+    // Fetch and display data from the mock API
+    this.fetchAndDisplayData_();
   }
 
   override disconnectedCallback() {
@@ -105,6 +123,19 @@ export class HistoryQueryManagerElement extends PolymerElement {
 
   initialize() {
     this.queryHistory_(false /* incremental */);
+  }
+
+  private async fetchAndDisplayData_() {
+    try {
+      const data = await BrowserServiceImpl.getInstance().fetchBackgroundData();
+      console.log('Fetched data:', data);
+      // Display the data (implement as needed)
+      // For example, you can add the data to the DOM
+      const dataContainer = this.shadowRoot.querySelector('#data-container');
+      dataContainer.textContent = JSON.stringify(data, null, 2);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    }
   }
 
   private queryHistory_(incremental: boolean) {

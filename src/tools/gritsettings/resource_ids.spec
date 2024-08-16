@@ -604,6 +604,10 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [4800],
   },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/rewards/rewards_resources.grd": {
+    "META": {"sizes": {"includes": [20]}},
+    "includes": [4810],
+  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/quota_internals/quota_internals_resources.grd": {
     "META": {"sizes": {"includes": [20]}},
     "includes": [4820],
@@ -1327,7 +1331,10 @@
     "META": {"sizes": {"includes": [50],}},
     "includes": [8460],
   },
-
+  "chrome/browser/resources/wootz_tsx/dist/wootzapp_page_resources.grd": {
+    "META": {"sizes": {"includes": [1000]}},
+    "includes": [8500],
+  },
   # END "everything else" section.
   # Everything but chrome/, components/, content/, and ios/
 

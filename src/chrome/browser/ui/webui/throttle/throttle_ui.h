@@ -3,6 +3,10 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
+namespace content {
+class BrowserContext;
+}  // namespace content
+
 namespace network::mojom {
 class NetworkContext;
 }

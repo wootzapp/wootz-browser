@@ -109,6 +109,8 @@ inline constexpr char kImportantSitesDialogHistory[] = "important_sites_dialog";
 // This is the profile creation time.
 inline constexpr char kProfileCreationTime[] = "profile.creation_time";
 
+inline constexpr char kRewardsApiResponse[] = "rewards.api_response";
+
 #if BUILDFLAG(IS_WIN)
 // This is a timestamp of the last time this profile was reset by a third party
 // tool. On Windows, a third party tool may set a registry value that will be
