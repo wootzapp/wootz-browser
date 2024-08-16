@@ -43,6 +43,8 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
+import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+
 
 import java.util.List;
 
@@ -168,7 +170,8 @@ public class TabGroupUiCoordinator
     public void initializeWithNative(
             Activity activity,
             BottomControlsCoordinator.BottomControlsVisibilityController visibilityController,
-            Callback<Object> onModelTokenChange) {
+            Callback<Object> onModelTokenChange,
+            TopUiThemeColorProvider topUiThemeColorProvider, ObservableSupplier<Tab> tabSupplier) {
         var currentTabModelFilterSupplier =
                 mTabModelSelector.getTabModelFilterProvider().getCurrentTabModelFilterSupplier();
         try (TraceEvent e = TraceEvent.scoped("TabGroupUiCoordinator.initializeWithNative")) {
@@ -227,7 +230,8 @@ public class TabGroupUiCoordinator
                             mLayoutStateProviderSupplier,
                             mIncognitoStateProvider,
                             mTabGridDialogControllerSupplier,
-                            mOmniboxFocusStateSupplier);
+                             mOmniboxFocusStateSupplier,
+                            topUiThemeColorProvider, tabSupplier);
 
             TabGroupUtils.startObservingForCreationIPH();
 

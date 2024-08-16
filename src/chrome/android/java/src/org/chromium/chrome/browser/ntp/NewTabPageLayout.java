@@ -20,7 +20,9 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-
+import android.view.ViewGroup.LayoutParams;
+import android.widget.FrameLayout;
+import android.view.Gravity;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
@@ -195,6 +197,12 @@ public class NewTabPageLayout extends LinearLayout {
         mMiddleSpacer = findViewById(R.id.ntp_middle_spacer);
         mFakeSearchBoxLayout = findViewById(R.id.search_box);
         insertSiteSectionView();
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            FrameLayout.LayoutParams params =
+                new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+            params.gravity = Gravity.BOTTOM;
+            setLayoutParams(params);
+        // }
     }
 
     /**

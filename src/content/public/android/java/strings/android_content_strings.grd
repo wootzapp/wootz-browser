@@ -212,6 +212,7 @@
       <message name="IDS_MONTH_PICKER_DIALOG_TITLE" desc="Title for the month picker dialog, which can be used to choose a month. [CHAR_LIMIT=32]">
         Set month
       </message>
+      
       <message name="IDS_ACCESSIBILITY_DATE_PICKER_WEEK" desc="Content description for the date time picker week component. [CHAR_LIMIT=32]">
         Week
       </message>

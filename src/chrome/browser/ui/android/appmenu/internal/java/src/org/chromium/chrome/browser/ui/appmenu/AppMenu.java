@@ -30,12 +30,13 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.PopupWindow;
+import android.os.Build;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -265,7 +266,12 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
         }
 
         mListView = (ListView) contentView.findViewById(R.id.app_menu_list);
-
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // always scroll to the bottom to show new items
+            mListView.setTranscriptMode(ListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+            // fill content starting from the bottom of the view
+            mListView.setStackFromBottom(true);
+        // }
         int footerHeight = inflateFooter(footerResourceId, contentView, menuWidth);
         int headerHeight = inflateHeader(headerResourceId, contentView, menuWidth);
 
@@ -297,7 +303,7 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                 Math.min(
                         Math.abs(mTempLocation[1] - visibleDisplayFrame.top),
                         Math.abs(mTempLocation[1] - visibleDisplayFrame.bottom));
-        setMenuHeight(
+        int popupHeight = setMenuHeight(
                 menuItemIds,
                 heightList,
                 visibleDisplayFrame,
@@ -317,9 +323,14 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                         sizingPadding,
                         anchorView,
                         popupWidth,
-                        anchorView.getRootView().getLayoutDirection());
+                        anchorView.getRootView().getLayoutDirection(),
+                        popupHeight);
         mPopup.setContentView(contentView);
-
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // due to some unknown behaviour, the popup must be resized to
+            // allow selection without leaving touch
+            mPopup.setHeight(popupHeight - 1);
+        // }
         try {
             mPopup.showAtLocation(
                     anchorView.getRootView(),
@@ -379,11 +390,18 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
             Rect padding,
             View anchorView,
             int popupWidth,
-            int viewLayoutDirection) {
+            int viewLayoutDirection,
+            int popupHeight) {
         anchorView.getLocationInWindow(tempLocation);
         int anchorViewX = tempLocation[0];
         int anchorViewY = tempLocation[1];
-
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // moves the view offset up by the height of the popup
+            anchorViewY -= popupHeight;
+            // fix it if it goes offscreen
+            if (anchorViewY <= negativeSoftwareVerticalOffset)
+                anchorViewY = negativeSoftwareVerticalOffset;
+        // }
         int[] offsets = new int[2];
         // If we have a hardware menu button, locate the app menu closer to the estimated
         // hardware menu button location.
@@ -557,7 +575,7 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
         if (mAdapter != null) mAdapter.notifyDataSetChanged();
     }
 
-    private void setMenuHeight(
+    private int setMenuHeight(
             List<Integer> menuItemIds,
             List<Integer> heightList,
             Rect appDimensions,
@@ -576,7 +594,13 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                         - footerHeight
                         - headerHeight
                         - anchorViewImpactHeight;
-
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.N) {
+                // due to an Android Nougat bug the popup does not appear above the anchorview.
+                // the display is not pleasant, so we reduce the space
+                availableScreenSpace -= anchorView.getHeight();
+            }
+        // }
         if (mIsByPermanentButton) availableScreenSpace -= padding.top;
         if (availableScreenSpace <= 0 && sExceptionReporter != null) {
             String logMessage =
@@ -606,6 +630,8 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                         menuItemIds, heightList, groupDividerResourceId, availableScreenSpace);
         menuHeight += footerHeight + headerHeight + padding.top + padding.bottom;
         mPopup.setHeight(menuHeight);
+        return menuHeight;
+
     }
 
     @VisibleForTesting

@@ -291,7 +291,7 @@ public class ChromeTabModalPresenter extends TabModalPresenter
             Resources resources, BrowserControlsStateProvider provider) {
         int scrimVerticalMargin =
                 resources.getDimensionPixelSize(R.dimen.tab_modal_scrim_vertical_margin);
-        return provider.getTopControlsHeight() - scrimVerticalMargin;
+        return provider.getTopControlsHeightRealOffset() - scrimVerticalMargin;
     }
 
     /**

@@ -397,7 +397,11 @@ class TabSwitcherMediator
                     @Override
                     public void onBottomControlsHeightChanged(
                             int bottomControlsHeight, int bottomControlsMinHeight) {
-                        mContainerViewModel.set(BOTTOM_CONTROLS_HEIGHT, bottomControlsHeight);
+                        mContainerViewModel.set(BOTTOM_CONTROLS_HEIGHT, bottomControlsHeight +
+                    // (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() && mMode == TabListCoordinator.TabListMode.LIST
+                    (true
+                        ? mBrowserControlsStateProvider.getContentOffset()
+                        : 0));
                     }
                 };
 
@@ -440,11 +444,21 @@ class TabSwitcherMediator
         updateTopControlsProperties();
         mContainerViewModel.set(
                 BOTTOM_CONTROLS_HEIGHT, browserControlsStateProvider.getBottomControlsHeight());
-
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            mContainerViewModel.set(
+                BOTTOM_CONTROLS_HEIGHT, mContainerViewModel.get(BOTTOM_CONTROLS_HEIGHT) +
+                    mBrowserControlsStateProvider.getContentOffset());
+        // }
         if (mMode == TabListMode.GRID) {
             mContainerViewModel.set(
                     BOTTOM_PADDING,
                     (int) context.getResources().getDimension(R.dimen.tab_grid_bottom_padding));
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                // adjust the bottom margin so as not to cover the top toolbar at the bottom
+                mContainerViewModel.set(
+                    BOTTOM_PADDING, mContainerViewModel.get(BOTTOM_PADDING) +
+                        mBrowserControlsStateProvider.getContentOffset());
+            // }
             if (backPressManager != null && BackPressManager.isEnabled()) {
                 backPressManager.addHandler(this, BackPressHandler.Type.TAB_SWITCHER);
                 notifyBackPressStateChangedInternal();
@@ -502,7 +516,10 @@ class TabSwitcherMediator
     private void updateTopControlsProperties() {
         // The grid tab switcher for tablets translates up over top of the browser controls.
         if (mIsTablet) {
-            final int toolbarHeight = getToolbarHeight();
+            int toolbarHeight = getToolbarHeight();
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                toolbarHeight = 0;
+            // }
 
             mContainerViewModel.set(TOP_MARGIN, toolbarHeight);
             mContainerViewModel.set(SHADOW_TOP_OFFSET, toolbarHeight);
@@ -512,6 +529,10 @@ class TabSwitcherMediator
         final int contentOffset = mBrowserControlsStateProvider.getContentOffset();
 
         mContainerViewModel.set(TOP_MARGIN, contentOffset);
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // move the view up since the toolbar is at the bottom
+            mContainerViewModel.set(TOP_MARGIN, 0);
+        // }
         mContainerViewModel.set(SHADOW_TOP_OFFSET, contentOffset);
     }
 

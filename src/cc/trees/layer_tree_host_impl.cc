@@ -4338,7 +4338,8 @@ bool LayerTreeHostImpl::AnimateBrowserControls(base::TimeTicks time) {
 
   if (scroll_delta.IsZero())
     return false;
-
+  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom))
+    return false;
   // This counter-scrolls the page to keep the appearance of the page content
   // being fixed while the browser controls animate.
   viewport().ScrollBy(scroll_delta,

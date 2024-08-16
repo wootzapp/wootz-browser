@@ -16,7 +16,8 @@ import android.view.View;
 import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-
+import android.os.Parcel;
+import android.os.Parcelable;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -25,10 +26,11 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.OnItemTouchListener;
-
+import android.content.res.Configuration;
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -113,6 +115,127 @@ public class TabListCoordinator
     private @Nullable Runnable mAwaitingLayoutRunnable;
     private int mAwaitingTabId = Tab.INVALID_TAB_ID;
     private @TabActionState int mTabActionState;
+    public class GridLayoutManagerDockBottom extends GridLayoutManager {
+        public static class SavedState implements Parcelable {
+            private Parcelable superState;
+            private int mTopPadding;
+
+            public SavedState() {}
+
+            public SavedState(Parcel in) {
+                superState = in.readParcelable(GridLayoutManager.class.getClassLoader());
+                mTopPadding = in.readInt();
+            }
+
+            @Override
+            public int describeContents() {
+                return 0;
+            }
+
+            @Override
+            public void writeToParcel(@NonNull Parcel dest, int flags) {
+                dest.writeParcelable(superState, flags);
+                dest.writeInt(mTopPadding);
+            }
+
+            public static final Creator<SavedState> CREATOR = new Creator<SavedState>() {
+                @Override
+                public SavedState createFromParcel(Parcel in) {
+                    return new SavedState(in);
+                }
+
+                @Override
+                public SavedState[] newArray(int size) {
+                    return new SavedState[size];
+                }
+            };
+        }
+
+        Context mContext;
+
+        TabListRecyclerView mRecyclerView;
+
+       final int MAX_TOP_PADDING = 99999;
+        int mTopPadding = MAX_TOP_PADDING;
+
+        int mLastPosition = -1;
+        boolean mIsFirstLayout = true;
+
+        public GridLayoutManagerDockBottom(Context context, int spanCount) {
+            super(context, spanCount);
+            mContext = context;
+        }
+
+        public void setTabListRecyclerView(TabListRecyclerView recyclerView) {
+            mRecyclerView = recyclerView;
+       }
+
+        public void ResetTopPosition() {
+            mIsFirstLayout = true;
+        }
+
+        @Override
+        public int getPaddingTop() {
+            if (mContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                mTopPadding = MAX_TOP_PADDING;
+                return 0;
+            }
+            if (mTopPadding == MAX_TOP_PADDING) return super.getPaddingTop();
+            return mTopPadding;
+        }
+
+        @Override
+        public int getPaddingBottom() {
+            return 1;
+        }
+
+        @Override
+        public void scrollToPositionWithOffset(int position, int offset) {
+            mLastPosition = position;
+            super.scrollToPositionWithOffset(position, offset - getPaddingTop());
+        }
+
+        @Override
+        public void onLayoutCompleted(RecyclerView.State state) {
+            super.onLayoutCompleted(state);
+            checkAwaitingLayout();
+
+            if (state.isPreLayout() || state.isMeasuring()) return;
+            View lastView = findViewByPosition(findFirstVisibleItemPosition());
+            if (lastView != null) {
+                if (mTopPadding == 0) mTopPadding = MAX_TOP_PADDING;
+                mTopPadding = Math.min(mTopPadding, mRecyclerView.getHeight() - lastView.getHeight());
+                if (mIsFirstLayout) {
+                    mIsFirstLayout = false;
+                    scrollToPositionWithOffset(mLastPosition, getPaddingTop() + getPaddingBottom());
+                }
+            }
+
+            if (mLastPosition >= state.getItemCount()) {
+                ResetTopPosition();
+                scrollToPositionWithOffset(state.getItemCount()-getSpanCount(),
+                    getPaddingTop() + getPaddingBottom());
+            }
+        }
+
+        @Override
+        public Parcelable onSaveInstanceState() {
+            SavedState ss = new SavedState();
+            ss.superState = super.onSaveInstanceState();
+            ss.mTopPadding = mTopPadding;
+            return ss;
+        }
+
+        @Override
+        public void onRestoreInstanceState(Parcelable state) {
+            if (state instanceof SavedState) {
+                SavedState ss = (SavedState) state;
+                mTopPadding = ss.mTopPadding;
+                state = ss.superState;
+            }
+            super.onRestoreInstanceState(state);
+        }
+    }
 
     /**
      * Construct a coordinator for UI that shows a list of tabs.
@@ -357,6 +480,13 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
+                // if (actionOnRelatedTabs && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                if(true){
+                    gridLayoutManager =
+                        new GridLayoutManagerDockBottom(context, GRID_LAYOUT_SPAN_COUNT_COMPACT);
+                    ((GridLayoutManagerDockBottom)gridLayoutManager)
+                        .setTabListRecyclerView(mRecyclerView);
+                }
                 mRecyclerView.setLayoutManager(gridLayoutManager);
                 mMediator.registerOrientationListener(gridLayoutManager);
                 mMediator.updateSpanCount(
@@ -368,8 +498,7 @@ public class TabListCoordinator
                         .getDecorView()
                         .getWindowVisibleDisplayFrame(frame);
                 updateGridCardLayout(frame.width());
-            } else if (mMode == TabListMode.STRIP
-                    || mMode == TabListMode.LIST) {
+            } else if (mMode == TabListMode.STRIP) {
                 LinearLayoutManager layoutManager =
                         new LinearLayoutManager(
                                 context,
@@ -384,6 +513,18 @@ public class TabListCoordinator
                             }
                         };
                 mRecyclerView.setLayoutManager(layoutManager);
+                            } else if (mMode == TabListMode.LIST) {
+                LinearLayoutManager layout =
+                    new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
+                            @Override
+                            public void onLayoutCompleted(RecyclerView.State state) {
+                                super.onLayoutCompleted(state);
+                                checkAwaitingLayout();
+                            }
+                        };
+                // layout.setStackFromEnd(ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled());
+                layout.setStackFromEnd(true);
+                mRecyclerView.setLayoutManager(layout);
             }
             mMediator.setRecyclerViewItemAnimationToggle(mRecyclerView::setDisableItemAnimations);
         }
@@ -399,7 +540,7 @@ public class TabListCoordinator
 
         mHasEmptyView = hasEmptyView;
         if (mHasEmptyView) {
-            mTabListEmptyCoordinator = new TabListEmptyCoordinator(parentView, mModel);
+            mTabListEmptyCoordinator = new TabListEmptyCoordinator(parentView, mModel, mBrowserControlsStateProvider);
             mEmptyStateHeadingResId = emptyHeadingStringResId;
             mEmptyStateSubheadingResId = emptySubheadingStringResId;
             mEmptyStateImageResId = emptyImageResId;
@@ -688,6 +829,9 @@ public class TabListCoordinator
     void prepareTabSwitcherView() {
         registerLayoutChangeListener();
         mRecyclerView.prepareTabSwitcherView();
+        if (mRecyclerView.getLayoutManager() instanceof GridLayoutManagerDockBottom) {
+            ((GridLayoutManagerDockBottom)mRecyclerView.getLayoutManager()).ResetTopPosition();
+        }
         mMediator.registerOnScrolledListener(mRecyclerView);
     }
 

@@ -22,7 +22,8 @@ import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import android.view.Gravity;
 import androidx.activity.BackEventCompat;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -1180,6 +1181,7 @@ public class ToolbarManager
                         // the height won't be measured by the background image.
                         if (mControlContainer.getBackground() == null) {
                             setControlContainerTopMargin(getToolbarExtraYOffset());
+                            MoveBottomBarOverTopBar();
                         } else if (mLayoutChangeListener == null) {
                             mLayoutChangeListener =
                                     (view,
@@ -1193,6 +1195,7 @@ public class ToolbarManager
                                             oldBottom) -> {
                                         if (mControlContainer.getBackground() == null) {
                                             setControlContainerTopMargin(getToolbarExtraYOffset());
+                                            MoveBottomBarOverTopBar();
                                             mControlContainer.removeOnLayoutChangeListener(
                                                     mLayoutChangeListener);
                                             mLayoutChangeListener = null;
@@ -1369,6 +1372,14 @@ public class ToolbarManager
     public void setTabSwitcherFullScreenView(ViewGroup containerView) {
         ViewStub toolbarStub =
                 containerView.findViewById(R.id.fullscreen_tab_switcher_toolbar_stub);
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
+            // the top tab switcher toolbar is docked at the bottom
+            FrameLayout.LayoutParams params =
+                (FrameLayout.LayoutParams)toolbarStub.getLayoutParams();
+            params.gravity = Gravity.BOTTOM;
+            toolbarStub.setLayoutParams(params);
+        }
         mToolbar.setFullScreenToolbarStub(toolbarStub);
     }
 
@@ -1658,15 +1669,27 @@ public class ToolbarManager
                 : "LocationBar should be an instance of LocationBarCoordinator.";
         return ((LocationBarCoordinator) mLocationBar).getUrlBarTextWithoutAutocomplete();
     }
+        View mBottomRoot;
+
+    private void MoveBottomBarOverTopBar() {
+        // if (mBottomRoot != null &&
+        //         ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
+            // move up the container view of the ui
+            // below there is the toolbar
+            mBottomRoot.setTranslationY(-mBrowserControlsSizer.getTopControlsHeight());
+        }
+    }
 
     /** Enable the bottom controls. */
     public void enableBottomControls() {
-        View root = ((ViewStub) mActivity.findViewById(R.id.bottom_controls_stub)).inflate();
+        mBottomRoot = ((ViewStub) mActivity.findViewById(R.id.bottom_controls_stub)).inflate();
+        MoveBottomBarOverTopBar();
         mTabGroupUi =
                 TabManagementDelegateProvider.getDelegate()
                         .createTabGroupUi(
                                 mActivity,
-                                root.findViewById(R.id.bottom_container_slot),
+                                mBottomRoot.findViewById(R.id.bottom_container_slot),
                                 mBrowserControlsSizer,
                                 mIncognitoStateProvider,
                                 mScrimCoordinator,
@@ -1691,7 +1714,7 @@ public class ToolbarManager
                         mBrowserControlsSizer,
                         mFullscreenManager,
                         mEdgeToEdgeControllerSupplier,
-                        (ScrollingBottomViewResourceFrameLayout) root,
+                        (ScrollingBottomViewResourceFrameLayout) mBottomRoot,
                         mTabGroupUi,
                         mTabObscuringHandler,
                         mOverlayPanelVisibilitySupplier,
@@ -1699,7 +1722,8 @@ public class ToolbarManager
                         /* readAloudRestoringSupplier= */ () -> {
                             final var readAloud = mReadAloudControllerSupplier.get();
                             return readAloud != null && readAloud.isRestoringPlayer();
-                        });
+                        },
+                        mTopUiThemeColorProvider, mActivityTabProvider);
         mBottomControlsCoordinatorSupplier.set(bottomControlsCoordinator);
         if (mBackPressManager != null) {
             mBackPressManager.addHandler(
@@ -2255,6 +2279,8 @@ public class ToolbarManager
      */
     private int getToolbarExtraYOffset() {
         int toolbarHairlineHeight = mToolbarHairline.getHeight();
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+            toolbarHairlineHeight = 0;
         final int controlContainerHeight = mControlContainer.getHeight();
 
         // Offset can't be calculated if control container height isn't known yet.
@@ -2662,6 +2688,16 @@ public class ToolbarManager
     private void setControlContainerTopMargin(int margin) {
         final ViewGroup.MarginLayoutParams layoutParams =
                 ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if(true){
+            if (layoutParams.bottomMargin == margin) {
+                return;
+            }
+
+            layoutParams.bottomMargin = margin;
+            mControlContainer.setLayoutParams(layoutParams);
+            return;
+        }
         if (layoutParams.topMargin == margin) {
             return;
         }

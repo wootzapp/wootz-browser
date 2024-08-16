@@ -17,7 +17,7 @@ import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.components.browser_ui.widget.ViewResourceFrameLayout;
 import org.chromium.ui.resources.ResourceManager;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.util.List;
 
 /**
@@ -38,7 +38,8 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
 
     /** The current Y offset of the bottom view in px. */
     private int mCurrentYOffsetPx;
-
+    /** The min height of browser controls in px. */
+    private int mTopControlsMinHeightOffset;
     /** The current X offset of the bottom view in px. */
     private int mCurrentXOffsetPx;
 
@@ -85,7 +86,12 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
     public void setXOffset(int offsetPx) {
         mCurrentXOffsetPx = offsetPx;
     }
-
+    /**
+     * @param offsetPx The min height of browser controls in px.
+     */
+    public void setTopControlsMinHeightOffset(int offsetPx) {
+        mTopControlsMinHeightOffset = offsetPx;
+    }
     /**
      * @param visible Whether this {@link SceneLayer} is visible.
      */
@@ -113,7 +119,11 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
         // The composited shadow should be visible if the Android toolbar's isn't.
         boolean isShadowVisible = mBottomView.getVisibility() != View.VISIBLE;
-
+        float offsetPy = viewport.height() + mCurrentYOffsetPx;
+        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // fix the offset of the fake bottom controls, used only for animations
+            offsetPy -= (mBottomView.getHeight() - mCurrentYOffsetPx + mTopControlsMinHeightOffset);
+        // }
         ScrollingBottomViewSceneLayerJni.get()
                 .updateScrollingBottomViewLayer(
                         mNativePtr,
@@ -122,7 +132,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
                         mResourceId,
                         mTopShadowHeightPx,
                         mCurrentXOffsetPx,
-                        viewport.height() + mCurrentYOffsetPx,
+                        offsetPy,
                         isShadowVisible);
 
         return this;

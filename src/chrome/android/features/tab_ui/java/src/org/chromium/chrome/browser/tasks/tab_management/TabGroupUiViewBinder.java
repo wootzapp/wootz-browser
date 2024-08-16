@@ -13,7 +13,7 @@ import static org.chromium.chrome.browser.tasks.tab_management.TabGroupUiPropert
 import static org.chromium.chrome.browser.tasks.tab_management.TabGroupUiProperties.LEFT_BUTTON_ON_CLICK_LISTENER;
 import static org.chromium.chrome.browser.tasks.tab_management.TabGroupUiProperties.RIGHT_BUTTON_CONTENT_DESCRIPTION;
 import static org.chromium.chrome.browser.tasks.tab_management.TabGroupUiProperties.RIGHT_BUTTON_ON_CLICK_LISTENER;
-
+import static org.chromium.chrome.browser.tasks.tab_management.TabGroupUiProperties.PRIMARY_COLOR;
 import android.view.View;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -71,6 +71,8 @@ class TabGroupUiViewBinder {
         } else if (RIGHT_BUTTON_CONTENT_DESCRIPTION == propertyKey) {
             viewHolder.toolbarView.setRightButtonContentDescription(
                     model.get(RIGHT_BUTTON_CONTENT_DESCRIPTION));
+                    } else if (PRIMARY_COLOR == propertyKey) {
+            viewHolder.toolbarView.setPrimaryColorAndApplyTint(model.get(PRIMARY_COLOR));
         }
     }
 }
