@@ -51,12 +51,11 @@
 <body>
     <h1>Network Throttling Configuration</h1>
     <form id="throttle-form">
-        <label>Offline:
-            <select id="throttle-offline-select">
-                <option value="false" selected>No</option>
-                <option value="true">Yes</option>
-            </select>
-        </label>
+        <label for="throttle-offline-select">Offline:</label>
+      <select id="throttle-offline-select">
+        <option value="true">True</option>
+        <option value="false" selected>False</option>
+      </select>
         <label>Latency (ms):
             <input type="number" id="throttle-latency-input" value="0">
         </label>
@@ -72,24 +71,12 @@
         <label>Packet Queue Length:
             <input type="number" id="throttle-packet-queue-length-input" min="0">
         </label>
-        <label>Packet Reordering:
-            <select id="throttle-packet-reordering-select">
-                <option value="false" selected>No</option>
-                <option value="true">Yes</option>
-            </select>
-        </label>
-        <button type="submit" id="throttle-submit">Apply Settings</button>
+        
+        <button type="submit" id="throttle-submit">Set Throttling</button>
     </form>
 
-
-    <div id="saved-settings">
-        <h2>Saved Network Throttling Settings</h2>
-        <p id="saved-offline">Offline: </p>
-        <p id="saved-latency">Latency: </p>
-        <p id="saved-download-throughput">Download Throughput: </p>
-        <p id="saved-upload-throughput">Upload Throughput: </p>
-        <p id="saved-packet-loss">Packet Loss: </p>
-        <p id="saved-packet-queue-length">Packet Queue Length: </p>
+    <div id="throttle-saved-settings">
+         <!-- Saved settings will be displayed here -->
     </div>
 
     <h2>Bandwidth Sharing</h2>

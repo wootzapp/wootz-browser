@@ -1,0 +1,51 @@
+# import("//tools/grit/grit_rule.gni")
+# import("//tools/grit/preprocess_if_expr.gni")
+# import("//ui/webui/resources/tools/generate_grd.gni")
+
+# # preprocess_folder = "preprocessed"
+# # preprocess_manifest = "preprocessed_manifest.json"
+
+# grit("wootz_react_app_resources") {
+#   enable_input_discovery_for_gn_analyze = false
+#   source = "build/wootz_react_app_resources.grd"
+#   # deps = [ ":build_grd" ]
+#   outputs = [
+#     "grit/wootz_react_app_resources.h",
+#     "grit/wootz_react_app_resources_map.h",
+#     "grit/wootz_react_app_resources_map.cc",
+#     "wootz_react_app_resources.pak",
+#   ]
+#   output_dir = "$root_gen_dir/chrome"
+# }
+
+# # generate_grd("build_grd") {
+# #   grd_prefix = "wootz_react_app"
+# #   out_grd = "$target_gen_dir/wootz_react_app_resources.grd"
+# #   input_files = [
+# #     "build/static/js/main.081d40ff.js",
+# #     "build/static/css/main.f855e6bc.css",
+# #     "build/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg",
+# #     "build/logo192.png",
+# #     "build/logo512.png",
+# #     "build/asset-manifest.json",
+# #     "build/manifest.json",
+# #     "build/favicon.ico",
+# #     "build/robots.txt"
+
+# #   ]
+# #   input_files_base_dir = rebase_path(".", "//")
+# #   deps = [ ":preprocess" ]
+# #   manifest_files = [ "$target_gen_dir/$preprocess_manifest" ]
+# # }
+
+# # preprocess_if_expr("preprocess") {
+# #   out_folder = "$target_gen_dir/$preprocess_folder"
+# #   out_manifest = "$target_gen_dir/$preprocess_manifest"
+# #   in_files = [
+# #     "build/index.html", 
+# #   ]
+# # }
+
+# group("wootz_react_app") {
+#   public_deps = [ ":wootz_react_app_resources" ]
+# }

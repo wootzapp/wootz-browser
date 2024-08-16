@@ -547,6 +547,8 @@
 #include "components/enterprise/data_controls/prefs.h"
 #endif
 
+#include "chrome/browser/ui/webui/throttle/throttle_prefs.h"
+
 namespace {
 
 // Please keep the list of deprecated prefs in chronological order. i.e. Add to
@@ -1892,6 +1894,9 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
+
+  throttle_webui::RegisterProfilePrefs(registry);
+  LOG(ERROR)<< "After throttle_webui::RegisterProfilePrefs(registry)";
   // User prefs. Please keep this list alphabetized.
   AccessibilityLabelsService::RegisterProfilePrefs(registry);
   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);

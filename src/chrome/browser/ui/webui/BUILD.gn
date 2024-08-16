@@ -78,6 +78,7 @@ source_set("webui") {
     "//services/network/public/mojom",
     "//ui/base",
     "//ui/resources",
+    # "//chrome/browser/resources/wootz_react_app:wootz_react_app",
   ]
   if (is_chromeos_lacros) {
     deps += [ "//chromeos/startup" ]

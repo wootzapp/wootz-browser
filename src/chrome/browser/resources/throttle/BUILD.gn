@@ -43,5 +43,6 @@ preprocess_if_expr("preprocess") {
   in_files = [
     "index.html",
     "main.js",
+    "fetch.js",
   ]
 }
