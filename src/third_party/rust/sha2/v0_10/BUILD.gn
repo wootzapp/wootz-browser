@@ -1,7 +1,6 @@
-# Copyright (c) 2024 The Wootz Authors. All rights reserved.
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at https://mozilla.org/MPL/2.0/.
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 # @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
 # tools/crates/gnrt.
@@ -13,7 +12,8 @@ cargo_crate("lib") {
   crate_name = "sha2"
   epoch = "0.10"
   crate_type = "rlib"
-  crate_root = "//third_party/rust/chromium_crates_io/vendor/sha2-0.10.8/src/lib.rs"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/sha2-0.10.8/src/lib.rs"
   sources = [
     "//third_party/rust/chromium_crates_io/vendor/sha2-0.10.8/src/consts.rs",
     "//third_party/rust/chromium_crates_io/vendor/sha2-0.10.8/src/core_api.rs",
@@ -47,11 +47,9 @@ cargo_crate("lib") {
     "//third_party/rust/cfg_if/v1:lib",
     "//third_party/rust/digest/v0_10:lib",
   ]
-  if (target_cpu == "arm64" || target_cpu == "x64" || target_cpu == "x86") {
-    deps += [ "//third_party/rust/cpufeatures/v0_2:lib" ]
-  }
-  features = [ "std" ]
-  if (target_os == "android" && target_cpu == "arm64") {
-    deps -= [ "//third_party/rust/cpufeatures/v0_2:lib" ]
-  }
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  visibility = [ "//third_party/rust/*" ]
 }

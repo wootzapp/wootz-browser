@@ -19,8 +19,8 @@ static_library("argon2") {
 
   visibility = [
     "//chrome/browser/wootz_wallet:external_wallets_importer",
-    "//chrome/components/wootz_wallet/browser",
-    "//chrome/components/wootz_wallet/common",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/common",
   ]
 
   defines = [ "ARGON2_NO_THREADS" ]

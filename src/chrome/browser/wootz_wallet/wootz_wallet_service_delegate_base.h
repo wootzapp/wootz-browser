@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_
 
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 
 namespace content {
 class BrowserContext;
@@ -53,4 +53,4 @@ class WootzWalletServiceDelegateBase : public WootzWalletServiceDelegate {
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_DELEGATE_BASE_H_

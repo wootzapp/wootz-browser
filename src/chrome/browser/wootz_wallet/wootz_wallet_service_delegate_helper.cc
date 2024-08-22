@@ -5,7 +5,7 @@
 
 #include <memory>
 
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_context.h"
 

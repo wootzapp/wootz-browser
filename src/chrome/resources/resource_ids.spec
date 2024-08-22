@@ -4,101 +4,96 @@
 {
   "SRCDIR": "../..",
   "chrome/common/extensions/api/wootz_api_resources.grd": {
-    "includes": [57400],
+    "includes": [58700],
   },
-  "chrome/components/resources/wootz_components_resources.grd": {
-    "includes": [57410],
+  "components/resources/wootz_components_resources.grd": {
+    "includes": [58710],
   },
  
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_new_tab/wootz_new_tab.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_new_tab/wootz_new_tab.grd": {
     "META": {"sizes": {"includes": [50]}},
-    "includes": [57620],
+    "includes": [58910],
   },
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_welcome/wootz_welcome.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_welcome/wootz_welcome.grd": {
     "META": {"sizes": {"includes": [20]}},
-    "includes": [57670],
+    "includes": [58960],
   },
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/browser/resources/settings/wootz_settings_resources.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/settings/wootz_settings_resources.grd": {
     "META": {"sizes": {"includes": [20]}},
-    "includes": [57690],
+    "includes": [58980],
   },
   "chrome/app/wootz_generated_resources.grd": {
-    "includes": [57700],
-    "messages": [57750],
+    "includes": [59000],
+    "messages": [59050],
   },
-  "chrome/components/resources/wootz_components_strings.grd": {
+  "components/resources/wootz_components_strings.grd": {
     "messages": [60210],
   },
 
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_page/wootz_wallet_page.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_page/wootz_wallet_page.grd": {
     "META": {"sizes": {"includes": [200]}},
-    "includes": [61460],
+    "includes": [62760],
   },
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-ethereum_remote_client_page/ethereum_remote_client_page.grd": {
-    "META": {"sizes": {"includes": [10]}},
-    "includes": [61660],
-  },
-  # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_panel/wootz_wallet_panel.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_panel/wootz_wallet_panel.grd": {
     "META": {"sizes": {"includes": [200]}},
-    "includes": [61670],
+    "includes": [62970],
   },
 
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_script/wootz_wallet_script.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_script/wootz_wallet_script.grd": {
     "META": {"sizes": {"includes": [10]}},
-    "includes": [62030],
+    "includes": [63320],
   },
 
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-trezor_bridge/trezor_bridge.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-trezor_bridge/trezor_bridge.grd": {
     "META": {"sizes": {"includes": [10]}},
-    "includes": [62060],
+    "includes": [63350],
   },
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-market_display/market_display.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-market_display/market_display.grd": {
     "META": {"sizes": {"includes": [100]}},
-    "includes": [62070],
+    "includes": [63360],
   },
 
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-ledger_bridge/ledger_bridge.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-ledger_bridge/ledger_bridge.grd": {
     "META": {"sizes": {"includes": [10]}},
-    "includes": [62190],
+    "includes": [63480],
   },
   # This file is generated during the build.
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-nft_display/nft_display.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-nft_display/nft_display.grd": {
     "META": {"sizes": {"includes": [90]}},
-    "includes": [62200],
+    "includes": [63490],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-cookie_list_opt_in/cookie_list_opt_in.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-cookie_list_opt_in/cookie_list_opt_in.grd": {
     "META": {"sizes": {"includes": [10]}},
-    "includes": [62290],
+    "includes": [63580],
   },
 
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-commands/commands.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-commands/commands.grd": {
     "META": {"sizes": {"includes": [10]}},
-    "includes": [62320],
+    "includes": [63610],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_swap_page/wootz_wallet_swap_page.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_swap_page/wootz_wallet_swap_page.grd": {
     "META": {"sizes": {"includes": [150]}},
-    "includes": [62330],
+    "includes": [63620],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_send_page/wootz_wallet_send_page.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_send_page/wootz_wallet_send_page.grd": {
     "META": {"sizes": {"includes": [100]}},
-    "includes": [62470],
+    "includes": [63770],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_deposit_page/wootz_wallet_deposit_page.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_deposit_page/wootz_wallet_deposit_page.grd": {
     "META": {"sizes": {"includes": [100]}},
-    "includes": [62570],
+    "includes": [63870],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/wootz/web-ui-wootz_wallet_fund_wallet_page/wootz_wallet_fund_wallet_page.grd": {
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/web-ui-wootz_wallet_fund_wallet_page/wootz_wallet_fund_wallet_page.grd": {
     "META": {"sizes": {"includes": [100]}},
-    "includes": [62670],
+    "includes": [63970],
   },
-  
+
 }

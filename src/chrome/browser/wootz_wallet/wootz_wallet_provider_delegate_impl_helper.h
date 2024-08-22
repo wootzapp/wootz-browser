@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_
 
 #include "base/functional/callback.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom-forward.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom-forward.h"
 #include "build/build_config.h"
 
 namespace content {
@@ -44,4 +44,4 @@ void SetCallbackForAccountCreationForTesting(base::OnceCallback<void()>);
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_HELPER_H_

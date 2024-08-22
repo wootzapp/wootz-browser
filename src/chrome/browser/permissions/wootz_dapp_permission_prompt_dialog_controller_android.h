@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
-#define WOOTZ_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#ifndef CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#define CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
 
 #include <jni.h>
 #include <string>
@@ -12,7 +12,7 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 
 namespace content {
 class WebContents;
@@ -56,4 +56,4 @@ class WootzDappPermissionPromptDialogController {
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
 };
 
-#endif  // WOOTZ_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#endif  // CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_

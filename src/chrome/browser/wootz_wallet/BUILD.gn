@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import("//chrome/browser/ethereum_remote_client/buildflags/buildflags.gni")
+# import("//chrome/browser/ethereum_remote_client/buildflags/buildflags.gni") #BRAVE_WALLET
 import("//extensions/buildflags/buildflags.gni")
 import("//testing/test.gni")
 
@@ -30,12 +30,12 @@ source_set("wootz_wallet") {
     sources += [ "wallet_notification_helper.h" ]
   }
   deps = [
-    "//chrome/components/wootz_wallet/browser",
-    "//chrome/components/wootz_wallet/browser:constants",
-    "//chrome/components/wootz_wallet/browser:pref_names",
-    "//chrome/components/wootz_wallet/browser:utils",
-    "//chrome/components/wootz_wallet/common",
-    "//chrome/components/wootz_wallet/common:mojom",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:constants",
+    "//components/wootz_wallet/browser:pref_names",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/common",
+    "//components/wootz_wallet/common:mojom",
     "//chrome/browser:browser_process",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/profiles:profiles",
@@ -68,12 +68,12 @@ source_set("wootz_wallet_delegate") {
   deps = [
     "//chrome/browser/wootz_wallet",
     "//chrome/browser/wootz_wallet:tab_helper",
-    "//chrome/components/wootz_wallet/browser",
-    "//chrome/components/wootz_wallet/browser:constants",
-    "//chrome/components/wootz_wallet/browser:permission_utils",
-    "//chrome/components/wootz_wallet/browser:utils",
-    "//chrome/components/wootz_wallet/common:mojom",
-    "//chrome/components/resources:strings_grit",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:constants",
+    "//components/wootz_wallet/browser:permission_utils",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/common:mojom",
+    "//components/resources:strings_grit",
     "//chrome/browser/profiles:profile",
     "//components/content_settings/core/common",
     "//components/permissions",
@@ -88,21 +88,12 @@ source_set("wootz_wallet_delegate") {
       "wootz_wallet_service_delegate_impl_android.h",
     ]
     deps += [
-      "//chrome/build/android:jni_headers",
+      # "//chrome/build/android:jni_headers", #BRAVE_WALLET
+      "//chrome/android:jni_headers",
       "//chrome/browser/ui:tab_model_enums_java",
       "//chrome/browser/ui:ui",
     ]
-  } else {
-    sources += [
-      "wootz_wallet_provider_delegate_impl_helper.cc",
-      "wootz_wallet_service_delegate_impl.cc",
-      "wootz_wallet_service_delegate_impl.h",
-    ]
-    deps += [ "//chrome/browser/ui" ]
-    if (enable_extensions) {
-      deps += [ ":external_wallets_importer" ]
-    }
-  }
+  } 
 }
 
 source_set("external_wallets_importer") {
@@ -111,10 +102,10 @@ source_set("external_wallets_importer") {
     "external_wallets_importer.h",
   ]
   deps = [
-    "//chrome/browser/ethereum_remote_client/buildflags",
-    "//chrome/components/wootz_wallet/browser",
-    "//chrome/components/wootz_wallet/common",
-    "//chrome/components/wootz_wallet/common:mojom",
+    # "//chrome/browser/ethereum_remote_client/buildflags",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/common",
+    "//components/wootz_wallet/common:mojom",
     "//third_party/argon2",
     "//components/value_store:value_store",
   ]
@@ -122,12 +113,6 @@ source_set("external_wallets_importer") {
     deps += [
       "//extensions/browser",
       "//extensions/common",
-    ]
-  }
-  if (ethereum_remote_client_enabled) {
-    deps += [
-      "//chrome/browser/ethereum_remote_client",
-      "//chrome/browser/ethereum_remote_client:browser",
     ]
   }
 }
@@ -140,100 +125,96 @@ source_set("tab_helper") {
 
   deps = [
     "//chrome/common",
-    "//chrome/components/wootz_wallet/browser:permission_utils",
+    "//components/wootz_wallet/browser:permission_utils",
     "//components/permissions",
     "//components/sessions",
     "//content/public/browser",
   ]
-
-  if (!is_android) {
-    deps += [ "//chrome/browser/ui/wootz_wallet" ]
-  }
 }
 
-source_set("unit_tests") {
-  testonly = true
-  sources = [
-    "asset_discovery_manager_unittest.cc",
-    "asset_discovery_task_unittest.cc",
-    "blockchain_images_source_unittest.cc",
-    "wootz_wallet_service_unittest.cc",
-    "eth_allowance_manager_unittest.cc",
-    "eth_pending_tx_tracker_unittest.cc",
-    "filecoin_keyring_unittest.cc",
-    "keyring_service_unittest.cc",
-  ]
-  deps = [
-    "//base/test:test_support",
-    "//chrome/browser/wootz_wallet",
-    "//chrome/browser/wootz_wallet:tab_helper",
-    "//chrome/common",
-    "//chrome/components/wootz_wallet/browser",
-    "//chrome/components/wootz_wallet/browser:constants",
-    "//chrome/components/wootz_wallet/browser:hd_keyring",
-    "//chrome/components/wootz_wallet/browser:permission_utils",
-    "//chrome/components/wootz_wallet/browser:pref_names",
-    "//chrome/components/wootz_wallet/browser:test_support",
-    "//chrome/components/wootz_wallet/browser:transaction",
-    "//chrome/components/wootz_wallet/browser:utils",
-    "//chrome/components/wootz_wallet/browser/test:test_support",
-    "//chrome/components/wootz_wallet/common",
-    "//chrome/components/wootz_wallet/common:mojom",
-    "//chrome/components/wootz_wallet/common:test_support",
-    "//chrome/components/filecoin/rs:rust_lib",
-    "//chrome/components/l10n/common",
-    "//chrome/components/resources:strings_grit",
-    "//chrome/components/version_info",
-    "//chrome/browser",
-    "//chrome/browser/permissions",
-    "//chrome/test:test_support",
-    "//components/country_codes",
-    "//testing/gtest",
-  ]
-  if (!is_android) {
-    sources += [
-      "wootz_wallet_tab_helper_unittest.cc",
-      "ethereum_provider_impl_unittest.cc",
-      "notifications/wallet_notification_service_unittest.cc",
-      "solana_provider_impl_unittest.cc",
-    ]
-    deps += [
-      ":wootz_wallet_delegate",
-      "//chrome/components/wootz_wallet/common",
-      "//chrome/components/wootz_wallet/common:common_constants",
-    ]
-    if (enable_extensions) {
-      sources += [ "external_wallets_importer_unittest.cc" ]
-      deps += [ ":external_wallets_importer" ]
-    }
-  }
-}
+# source_set("unit_tests") {
+#   testonly = true
+#   sources = [
+#     "asset_discovery_manager_unittest.cc",
+#     "asset_discovery_task_unittest.cc",
+#     "blockchain_images_source_unittest.cc",
+#     "wootz_wallet_service_unittest.cc",
+#     "eth_allowance_manager_unittest.cc",
+#     "eth_pending_tx_tracker_unittest.cc",
+#     "filecoin_keyring_unittest.cc",
+#     "keyring_service_unittest.cc",
+#   ]
+#   deps = [
+#     "//base/test:test_support",
+#     "//chrome/browser/wootz_wallet",
+#     "//chrome/browser/wootz_wallet:tab_helper",
+#     "//chrome/common",
+#     "//components/wootz_wallet/browser",
+#     "//components/wootz_wallet/browser:constants",
+#     "//components/wootz_wallet/browser:hd_keyring",
+#     "//components/wootz_wallet/browser:permission_utils",
+#     "//components/wootz_wallet/browser:pref_names",
+#     "//components/wootz_wallet/browser:test_support",
+#     "//components/wootz_wallet/browser:transaction",
+#     "//components/wootz_wallet/browser:utils",
+#     "//components/wootz_wallet/browser/test:test_support",
+#     "//components/wootz_wallet/common",
+#     "//components/wootz_wallet/common:mojom",
+#     "//components/wootz_wallet/common:test_support",
+#     "//components/filecoin/rs:rust_lib",
+#     "//components/l10n/common",
+#     "//components/resources:strings_grit",
+#     "//components/version_info",
+#     "//chrome/browser",
+#     "//chrome/browser/permissions",
+#     "//chrome/test:test_support",
+#     "//components/country_codes",
+#     "//testing/gtest",
+#   ]
+#   if (!is_android) {
+#     sources += [
+#       "wootz_wallet_tab_helper_unittest.cc",
+#       "ethereum_provider_impl_unittest.cc",
+#       "notifications/wallet_notification_service_unittest.cc",
+#       "solana_provider_impl_unittest.cc",
+#     ]
+#     deps += [
+#       ":wootz_wallet_delegate",
+#       "//components/wootz_wallet/common",
+#       "//components/wootz_wallet/common:common_constants",
+#     ]
+#     if (enable_extensions) {
+#       sources += [ "external_wallets_importer_unittest.cc" ]
+#       deps += [ ":external_wallets_importer" ]
+#     }
+#   }
+# }
 
-source_set("browser_tests") {
-  testonly = true
-  if (!is_android) {
-    sources = [ "wootz_wallet_policy_browsertest.cc" ]
+# source_set("browser_tests") {
+#   testonly = true
+#   if (!is_android) {
+#     sources = [ "wootz_wallet_policy_browsertest.cc" ]
 
-    deps = [
-      ":wootz_wallet",
-      "//base/test:test_support",
-      "//chrome/app:command_ids",
-      "//chrome/browser",
-      "//chrome/components/wootz_wallet/browser:pref_names",
-      "//chrome/components/wootz_wallet/common",
-      "//chrome/components/wootz_wallet/common:pref_names",
-      "//chrome/components/sidebar/browser",
-      "//chrome/browser/ui",
-      "//chrome/test:test_support",
-      "//chrome/test:test_support_ui",
-      "//components/policy/core/browser",
-      "//components/policy/core/common:test_support",
-      "//components/prefs:prefs",
-      "//components/user_prefs:user_prefs",
-      "//content/test:test_support",
-      "//testing/gtest",
-      "//url",
-    ]
-    defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-  }
-}  # source_set("browser_tests")
+#     deps = [
+#       ":wootz_wallet",
+#       "//base/test:test_support",
+#       "//chrome/app:command_ids",
+#       "//chrome/browser",
+#       "//components/wootz_wallet/browser:pref_names",
+#       "//components/wootz_wallet/common",
+#       "//components/wootz_wallet/common:pref_names",
+#       "//components/sidebar/browser",
+#       "//chrome/browser/ui",
+#       "//chrome/test:test_support",
+#       "//chrome/test:test_support_ui",
+#       "//components/policy/core/browser",
+#       "//components/policy/core/common:test_support",
+#       "//components/prefs:prefs",
+#       "//components/user_prefs:user_prefs",
+#       "//content/test:test_support",
+#       "//testing/gtest",
+#       "//url",
+#     ]
+#     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+#   }
+# }  # source_set("browser_tests")

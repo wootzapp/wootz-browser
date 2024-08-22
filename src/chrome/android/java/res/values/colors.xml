@@ -79,6 +79,8 @@ found in the LICENSE file.
     <color name="wallet_gradient_center_color">#BF14A2</color>
     <color name="wallet_gradient_end_color">#F73A1C</color>
     <color name="wallet_gradient_start_color">#4C54D2</color>
+
+    <color name="translucent_activity_background_color">#AA3B3B3B</color>
     
     <color name="text_primary">#F3F5F7</color>
     

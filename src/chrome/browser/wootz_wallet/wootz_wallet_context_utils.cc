@@ -5,8 +5,8 @@
 
 #include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
 
-#include "chrome/components/wootz_wallet/browser/pref_names.h"
-#include "chrome/components/wootz_wallet/common/common_utils.h"
+#include "components/wootz_wallet/browser/pref_names.h"
+#include "components/wootz_wallet/common/common_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
@@ -15,7 +15,7 @@
 namespace wootz_wallet {
 
 bool IsAllowedForContext(content::BrowserContext* context) {
-  if (!context || context->IsTor()) {
+  if (!context) {
     return false;
   }
 

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/components/wootz_wallet/browser/eth_allowance_manager.h"
+#include "components/wootz_wallet/browser/eth_allowance_manager.h"
 
 #include <map>
 #include <memory>
@@ -16,20 +16,20 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
-#include "chrome/components/wootz_wallet/browser/bitcoin/bitcoin_test_utils.h"
-#include "chrome/components/wootz_wallet/browser/blockchain_registry.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service_observer_base.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_utils.h"
-#include "chrome/components/wootz_wallet/browser/json_rpc_service.h"
-#include "chrome/components/wootz_wallet/browser/keyring_service.h"
-#include "chrome/components/wootz_wallet/browser/pref_names.h"
-#include "chrome/components/wootz_wallet/browser/test_utils.h"
-#include "chrome/components/wootz_wallet/browser/tx_service.h"
-#include "chrome/components/wootz_wallet/common/features.h"
-#include "chrome/components/wootz_wallet/common/hex_utils.h"
-#include "chrome/components/wootz_wallet/common/test_utils.h"
+#include "components/wootz_wallet/browser/bitcoin/bitcoin_test_utils.h"
+#include "components/wootz_wallet/browser/blockchain_registry.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service_delegate.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service_observer_base.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/json_rpc_service.h"
+#include "components/wootz_wallet/browser/keyring_service.h"
+#include "components/wootz_wallet/browser/pref_names.h"
+#include "components/wootz_wallet/browser/test_utils.h"
+#include "components/wootz_wallet/browser/tx_service.h"
+#include "components/wootz_wallet/common/features.h"
+#include "components/wootz_wallet/common/hex_utils.h"
+#include "components/wootz_wallet/common/test_utils.h"
 #include "chrome/browser/prefs/browser_prefs.h"
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"

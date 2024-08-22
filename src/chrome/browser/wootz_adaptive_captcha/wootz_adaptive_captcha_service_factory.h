@@ -6,7 +6,7 @@
 #ifndef CHROME_BROWSER_WOOTZ_ADAPTIVE_CAPTCHA_WOOTZ_ADAPTIVE_CAPTCHA_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_WOOTZ_ADAPTIVE_CAPTCHA_WOOTZ_ADAPTIVE_CAPTCHA_SERVICE_FACTORY_H_
 
-#include "chrome/components/wootz_adaptive_captcha/wootz_adaptive_captcha_delegate.h"
+#include "components/wootz_adaptive_captcha/wootz_adaptive_captcha_delegate.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 
 class Profile;

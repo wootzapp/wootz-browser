@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_
 
 #include <optional>
 #include <string>
@@ -51,4 +51,4 @@ class BlockchainImagesSource : public content::URLDataSource {
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_BLOCKCHAIN_IMAGES_SOURCE_H_

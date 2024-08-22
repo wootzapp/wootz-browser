@@ -16,7 +16,8 @@ authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 description = "Macros to take array references of slices"
 documentation = "https://docs.rs/arrayref"
 readme = "README.md"
-license = "BSD-2-Clause"
+#license = "BSD-2-Clause"
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/droundy/arrayref"
 
 [dev-dependencies.quickcheck]

@@ -11,11 +11,11 @@
 #ifndef CHROME_BROWSER_WOOTZ_BROWSER_PROCESS_H_
 #define CHROME_BROWSER_WOOTZ_BROWSER_PROCESS_H_
 
-// #include "chrome/components/wootz_vpn/common/buildflags/buildflags.h"
-// #include "chrome/components/greaselion/browser/buildflags/buildflags.h"
-// #include "chrome/components/request_otr/common/buildflags/buildflags.h"
-// #include "chrome/components/speedreader/common/buildflags/buildflags.h"
-// #include "chrome/components/tor/buildflags/buildflags.h"
+// #include "components/wootz_vpn/common/buildflags/buildflags.h"
+// #include "components/greaselion/browser/buildflags/buildflags.h"
+// #include "components/request_otr/common/buildflags/buildflags.h"
+// #include "components/speedreader/common/buildflags/buildflags.h"
+// #include "components/tor/buildflags/buildflags.h"
 #include "build/build_config.h"
 #include "extensions/buildflags/buildflags.h"
 

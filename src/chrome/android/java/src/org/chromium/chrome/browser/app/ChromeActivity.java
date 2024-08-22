@@ -627,6 +627,16 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
     }
 
+    @NonNull
+    public static ChromeActivity getWootzActivity() throws ChromeActivityNotFoundException {
+        ChromeActivity activity = (ChromeActivity) getActivityOfType(ChromeActivity.class);
+        if (activity != null) {
+            return activity;
+        }
+
+        throw new ChromeActivityNotFoundException("WootzActivity Not Found");
+    }
+
     private void setupUnownedUserDataSuppliers() {
         mShareDelegateSupplier.attach(getWindowAndroid().getUnownedUserDataHost());
         mTabModelSelectorSupplier.attach(getWindowAndroid().getUnownedUserDataHost());
@@ -1525,7 +1535,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                         tab.getWebContents().getLastCommittedUrl())) {
             return;
         }
-        // BraveToolbarLayoutImpl layout = getBraveToolbarLayout();
+        // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
         // if (layout != null) {
         //     layout.showWalletIcon(true);
         //     updateWalletBadgeVisibility();

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_
 
 #include <memory>
 #include <optional>
@@ -16,8 +16,8 @@
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/values.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet_types.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet_types.h"
 
 namespace content {
 class BrowserContext;
@@ -81,4 +81,4 @@ class ExternalWalletsImporter {
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_EXTERNAL_WALLETS_IMPORTER_H_

@@ -9,8 +9,8 @@
 #include <string>
 
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
-#include "chrome/components/wootz_wallet/browser/tx_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/tx_service.h"
 #include "chrome/browser/notifications/notification_display_service.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/profiles/profile.h"

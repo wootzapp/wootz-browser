@@ -7,7 +7,7 @@
 
 #include <utility>
 
-#include "chrome/components/constants/webui_url_constants.h"
+#include "components/constants/webui_url_constants.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window.h"
 

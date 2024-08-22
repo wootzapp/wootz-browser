@@ -754,6 +754,7 @@ mojom("mojo_bindings") {
     "privacy_budget/identifiability_study_configurator.mojom",
     "renderer_configuration.mojom",
     "trusted_vault_encryption_keys_extension.mojom",
+    "wootz_renderer_configuration.mojom"
   ]
 
   deps = [ "//components/lens:lens_mojo" ]

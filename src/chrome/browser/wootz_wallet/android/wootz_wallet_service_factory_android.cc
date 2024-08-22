@@ -6,9 +6,9 @@
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 
 #include "base/android/jni_android.h"
-#include "chrome/build/android/jni_headers/WootzWalletServiceFactory_jni.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "chrome/android/chrome_jni_headers/WootzWalletServiceFactory_jni.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "chrome/browser/profiles/profile.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 

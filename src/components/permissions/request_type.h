@@ -25,6 +25,9 @@ enum class RequestType {
   kArSession,
   kWootzEthereum, 
   kWootzSolana,
+  kWootzGoogleSignInPermission, 
+  kWootzLocalhostAccessPermission,
+  kWidevine,
 #if !BUILDFLAG(IS_ANDROID)
   kCameraPanTiltZoom,
 #endif

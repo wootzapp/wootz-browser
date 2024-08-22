@@ -23,7 +23,8 @@ categories = [
     "cryptography",
     "no-std",
 ]
-license = "CC0-1.0 OR MIT-0 OR Apache-2.0"
+#license = "CC0-1.0 OR MIT-0 OR Apache-2.0"
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/cesarb/constant_time_eq"
 
 [[bench]]

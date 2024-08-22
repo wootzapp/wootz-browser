@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/components/wootz_wallet/browser/eth_pending_tx_tracker.h"
+#include "components/wootz_wallet/browser/eth_pending_tx_tracker.h"
 
 #include <memory>
 #include <utility>
@@ -13,20 +13,20 @@
 #include "base/functional/bind.h"
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_constants.h"
-#include "chrome/components/wootz_wallet/browser/eth_nonce_tracker.h"
-#include "chrome/components/wootz_wallet/browser/eth_transaction.h"
-#include "chrome/components/wootz_wallet/browser/eth_tx_meta.h"
-#include "chrome/components/wootz_wallet/browser/eth_tx_state_manager.h"
-#include "chrome/components/wootz_wallet/browser/json_rpc_service.h"
-#include "chrome/components/wootz_wallet/browser/network_manager.h"
-#include "chrome/components/wootz_wallet/browser/test_utils.h"
-#include "chrome/components/wootz_wallet/browser/tx_meta.h"
-#include "chrome/components/wootz_wallet/browser/tx_storage_delegate_impl.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet_types.h"
-#include "chrome/components/wootz_wallet/common/common_utils.h"
-#include "chrome/components/wootz_wallet/common/eth_address.h"
+#include "components/wootz_wallet/browser/wootz_wallet_constants.h"
+#include "components/wootz_wallet/browser/eth_nonce_tracker.h"
+#include "components/wootz_wallet/browser/eth_transaction.h"
+#include "components/wootz_wallet/browser/eth_tx_meta.h"
+#include "components/wootz_wallet/browser/eth_tx_state_manager.h"
+#include "components/wootz_wallet/browser/json_rpc_service.h"
+#include "components/wootz_wallet/browser/network_manager.h"
+#include "components/wootz_wallet/browser/test_utils.h"
+#include "components/wootz_wallet/browser/tx_meta.h"
+#include "components/wootz_wallet/browser/tx_storage_delegate_impl.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet_types.h"
+#include "components/wootz_wallet/common/common_utils.h"
+#include "components/wootz_wallet/common/eth_address.h"
 #include "chrome/browser/prefs/browser_prefs.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/pref_service.h"

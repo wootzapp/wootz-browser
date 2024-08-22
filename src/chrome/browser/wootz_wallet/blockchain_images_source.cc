@@ -13,8 +13,8 @@
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/task/thread_pool.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_constants.h"
-#include "chrome/components/wootz_wallet/browser/wallet_data_files_installer.h"
+#include "components/wootz_wallet/browser/wootz_wallet_constants.h"
+#include "components/wootz_wallet/browser/wallet_data_files_installer.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 

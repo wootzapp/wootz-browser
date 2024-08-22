@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/components/wootz_wallet/browser/solana_provider_impl.h"
+#include "components/wootz_wallet/browser/solana_provider_impl.h"
 
 #include <memory>
 #include <optional>
@@ -16,19 +16,19 @@
 #include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl_helper.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_delegate_impl.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_tab_helper.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
-#include "chrome/components/wootz_wallet/browser/json_rpc_service.h"
-#include "chrome/components/wootz_wallet/browser/keyring_service.h"
-#include "chrome/components/wootz_wallet/browser/solana_account_meta.h"
-#include "chrome/components/wootz_wallet/browser/solana_instruction.h"
-#include "chrome/components/wootz_wallet/browser/solana_message.h"
-#include "chrome/components/wootz_wallet/browser/test_utils.h"
-#include "chrome/components/wootz_wallet/browser/tx_service.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet_constants.h"
-#include "chrome/components/wootz_wallet/common/encoding_utils.h"
-#include "chrome/components/wootz_wallet/common/solana_utils.h"
-#include "chrome/components/permissions/wootz_permission_manager.h"
-#include "chrome/components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/json_rpc_service.h"
+#include "components/wootz_wallet/browser/keyring_service.h"
+#include "components/wootz_wallet/browser/solana_account_meta.h"
+#include "components/wootz_wallet/browser/solana_instruction.h"
+#include "components/wootz_wallet/browser/solana_message.h"
+#include "components/wootz_wallet/browser/test_utils.h"
+#include "components/wootz_wallet/browser/tx_service.h"
+#include "components/wootz_wallet/common/wootz_wallet_constants.h"
+#include "components/wootz_wallet/common/encoding_utils.h"
+#include "components/wootz_wallet/common/solana_utils.h"
+#include "components/permissions/wootz_permission_manager.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
 #include "chrome/test/base/scoped_testing_local_state.h"

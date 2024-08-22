@@ -9,8 +9,8 @@
 #include "base/notreached.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl_helper.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_tab_helper.h"
-#include "chrome/build/android/jni_headers/WootzWalletProviderDelegateImplHelper_jni.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "chrome/android/chrome_jni_headers/WootzWalletProviderDelegateImplHelper_jni.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 

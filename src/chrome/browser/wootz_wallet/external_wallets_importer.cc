@@ -18,7 +18,7 @@
 #include "base/task/thread_pool.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/ethereum_remote_client/buildflags/buildflags.h"
-#include "chrome/components/wootz_wallet/browser/password_encryptor.h"
+#include "components/wootz_wallet/browser/password_encryptor.h"
 #include "third_party/argon2/src/include/argon2.h"
 #include "components/value_store/value_store.h"
 #include "extensions/browser/api/storage/backend_task_runner.h"

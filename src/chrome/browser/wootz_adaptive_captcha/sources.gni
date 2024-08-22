@@ -10,8 +10,8 @@ chrome_browser_wootz_adaptive_captcha_sources = [
 
 chrome_browser_wootz_adaptive_captcha_deps = [
   "//base",
-  "//chrome/components/wootz_adaptive_captcha",
-  "//chrome/components/wootz_rewards/browser",
+  "//components/wootz_adaptive_captcha",
+  "//components/wootz_rewards/browser",
   "//chrome/browser/profiles:profile",
   "//components/keyed_service/content:content",
   "//components/user_prefs:user_prefs",

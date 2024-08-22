@@ -8,7 +8,7 @@
 
 import("//build/rust/cargo_crate.gni")
 
-cargo_crate("lib") {
+cargo_crate("buildrs_support") {
   crate_name = "rustc_version"
   epoch = "0.4"
   crate_type = "rlib"
@@ -35,7 +35,5 @@ cargo_crate("lib") {
   # //third_party/rust/chromium_crates_io/Cargo.toml to use
   # it from first-party code.
   visibility = [ "//third_party/rust/*" ]
-
-  # Ensure this is not marked as testonly
   # testonly = true
 }

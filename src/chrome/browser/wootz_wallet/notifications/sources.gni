@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
 wootz_browser_wootz_wallet_deps =
-    [ "//chrome/components/wootz_wallet/browser:pref_names" ]
+    [ "//components/wootz_wallet/browser:pref_names" ]
 
 wootz_browser_wootz_wallet_sources = []
 if (!is_android) {

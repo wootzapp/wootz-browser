@@ -8,7 +8,7 @@
 
 #include "base/observer_list.h"
 #include "base/scoped_observation.h"
-#include "chrome/components/wootz_rewards/common/mojom/rewards_panel.mojom.h"
+#include "components/wootz_rewards/common/mojom/rewards_panel.mojom.h"
 #include "chrome/browser/ui/browser_user_data.h"
 #include "url/gurl.h"
 

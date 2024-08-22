@@ -6,7 +6,6 @@
 # @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
 # tools/crates/gnrt.
 # Do not edit!
-
 import("//build/rust/cargo_crate.gni")
 
 cargo_crate("lib") {

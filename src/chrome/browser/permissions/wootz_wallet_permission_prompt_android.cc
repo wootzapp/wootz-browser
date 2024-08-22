@@ -8,8 +8,8 @@
 #include <utility>
 
 #include "chrome/browser/permissions/wootz_dapp_permission_prompt_dialog_controller_android.h"
-#include "chrome/components/wootz_wallet/browser/permission_utils.h"
-#include "wootz/components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "components/permissions/android/permission_prompt/permission_prompt_android.h"
 #include "content/public/browser/web_contents.h"
 

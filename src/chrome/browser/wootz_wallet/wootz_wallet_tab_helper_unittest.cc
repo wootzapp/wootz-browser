@@ -7,8 +7,8 @@
 
 #include <vector>
 
-#include "chrome/components/constants/webui_url_constants.h"
-#include "chrome/components/l10n/common/localization_util.h"
+#include "components/constants/webui_url_constants.h"
+#include "components/l10n/common/localization_util.h"
 #include "chrome/browser/ui/hid/hid_chooser_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/browser_with_test_window_test.h"

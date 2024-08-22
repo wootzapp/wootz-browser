@@ -5,9 +5,9 @@
 
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_delegate_base.h"
 
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_constants.h"
-#include "chrome/components/wootz_wallet/browser/permission_utils.h"
-#include "chrome/components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "components/wootz_wallet/browser/wootz_wallet_constants.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/browser_context.h"
 

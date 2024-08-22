@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/components/wootz_wallet/browser/filecoin_keyring.h"
+#include "components/wootz_wallet/browser/filecoin_keyring.h"
 
 #include "base/base64.h"
 #include "base/strings/string_number_conversions.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_utils.h"
-#include "chrome/components/wootz_wallet/browser/keyring_service.h"
-#include "chrome/components/wootz_wallet/browser/test_utils.h"
-#include "chrome/components/filecoin/rs/src/lib.rs.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/keyring_service.h"
+#include "components/wootz_wallet/browser/test_utils.h"
+#include "components/filecoin/rs/src/lib.rs.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 

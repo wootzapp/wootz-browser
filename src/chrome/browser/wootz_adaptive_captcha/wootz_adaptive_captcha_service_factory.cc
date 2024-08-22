@@ -17,7 +17,7 @@
 #include "chrome/browser/ui/browser_finder.h"
 #endif
 #include "chrome/browser/wootz_rewards/rewards_service_factory.h"
-#include "chrome/components/wootz_adaptive_captcha/wootz_adaptive_captcha_service.h"
+#include "components/wootz_adaptive_captcha/wootz_adaptive_captcha_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/user_prefs/user_prefs.h"

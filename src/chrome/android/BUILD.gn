@@ -236,8 +236,8 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/ui/android/toolbar:java_resources",
       "//chrome/browser/ui/android/webid/internal:java_resources",
       "//chrome/browser/ui/messages/android:java_resources",
-      # "//chrome/components/wootz_wallet/common:mojom_java",
-      # "//chrome/components/wootz_wallet/common:mojom", # Jai
+      # "//components/wootz_wallet/common:mojom_java",
+      # "//components/wootz_wallet/common:mojom", # Jai
       "//components/autofill/android:autofill_java_resources",
       "//components/autofill/android:autofill_payments_java_resources",
       "//components/blocked_content/android:java_resources",
@@ -522,7 +522,7 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/xsurface:java",
       "//chrome/browser/xsurface_provider:dependency_provider_impl_java",
       "//chrome/browser/xsurface_provider:java",
-      "//chrome/components/wootz_wallet/common:mojom_java",
+      "//components/wootz_wallet/common:mojom_java",
       "//components/android_autofill/browser:java",
       "//components/autofill/android:autofill_features_java",
       "//components/autofill/android:autofill_java",
@@ -3848,6 +3848,7 @@ generate_jni("chrome_jni_headers") {
   public_deps = [
     ":base_module_jni",
     "//chrome/browser/webid:jni_headers",
+    # "//chrome/browser/wootz_wallet", #BRAVE_WALLET   
   ]
 }
 

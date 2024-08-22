@@ -9,7 +9,7 @@
 
 #include "base/no_destructor.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
-#include "chrome/components/wootz_wallet/browser/asset_ratio_service.h"
+#include "components/wootz_wallet/browser/asset_ratio_service.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/storage_partition.h"

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_
-#define WOOTZ_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_
+#ifndef CHROME_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_
+#define CHROME_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_
 
 #include <memory>
 #include <string>
@@ -12,7 +12,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/permissions/wootz_dapp_permission_prompt_dialog_controller_android.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "components/permissions/permissions_client.h"
 
 namespace content {
@@ -59,4 +59,4 @@ class WootzWalletPermissionPrompt
   bool has_interacted_with_dialog_ = false;
 };
 
-#endif  // WOOTZ_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_
+#endif  // CHROME_BROWSER_PERMISSIONS_WOOTZ_WALLET_PERMISSION_PROMPT_ANDROID_H_

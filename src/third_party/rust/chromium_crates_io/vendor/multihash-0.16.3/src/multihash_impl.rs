@@ -1,5 +1,4 @@
 pub use multihash_derive::Multihash;
-
 /// Default (cryptographically secure) Multihash implementation.
 ///
 /// This is a default set of hashing algorithms. Usually applications would use their own subset of

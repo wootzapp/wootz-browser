@@ -1,7 +1,6 @@
-# Copyright (c) 2024 The Wootz Authors. All rights reserved.
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at https://mozilla.org/MPL/2.0/.
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 # @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
 # tools/crates/gnrt.
@@ -13,23 +12,23 @@ cargo_crate("lib") {
   crate_name = "generic_array"
   epoch = "0.14"
   crate_type = "rlib"
-  crate_root = "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/lib.rs"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/lib.rs"
   sources = [
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/arr.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/functional.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/hex.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/impl_serde.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/impl_zeroize.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/impls.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/iter.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/lib.rs",
-    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/src/sequence.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/arr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/functional.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/hex.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/impl_serde.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/impl_zeroize.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/impls.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/iter.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/src/sequence.rs",
   ]
   inputs = []
 
   build_native_rust_unit_tests = false
   edition = "2015"
-  cargo_pkg_version = "0.14.6"
+  cargo_pkg_version = "0.14.7"
   cargo_pkg_authors = "Bartłomiej Kamiński <fizyk20@gmail.com>, Aaron Trent <novacrazy@gmail.com>"
   cargo_pkg_name = "generic-array"
   cargo_pkg_description = "Generic types implementing functionality of arrays"
@@ -42,6 +41,11 @@ cargo_crate("lib") {
   deps = [ "//third_party/rust/typenum/v1:lib" ]
   build_deps = [ "//third_party/rust/version_check/v0_9:buildrs_support" ]
   features = [ "more_lengths" ]
-  build_root = "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/build.rs"
-  build_sources = [ "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.6/build.rs" ]
+  build_root = "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/build.rs"
+  build_sources = [ "//third_party/rust/chromium_crates_io/vendor/generic-array-0.14.7/build.rs" ]
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  visibility = [ "//third_party/rust/*" ]
 }

@@ -5,6 +5,7 @@ config("warnings") {
     cflags += [
       "-Wno-bitwise-instead-of-logical",
       "-Wno-unused-function",
+      "-fexceptions",
     ]
   }
 }
@@ -28,10 +29,13 @@ static_library("bitcoin-core") {
   public_configs = [ ":external_config" ]
 
   visibility = [
-    "//chrome/components/wootz_wallet/browser/internal:hd_key",
-    "//chrome/components/wootz_wallet/common",
+    "//components/wootz_wallet/browser/internal:hd_key",
+    "//components/wootz_wallet/common",
   ]
 
+
+    cflags_cc = [ "-fexceptions" ]
+    
   # Do NOT add any files here without security review
   sources = [
     "src/src/base58.cpp",
@@ -78,7 +82,7 @@ static_library("secp256k1") {
     "ENABLE_MODULE_RECOVERY",
   ]
 
-  visibility = [ "//chrome/components/wootz_wallet/browser/internal:hd_key" ]
+  visibility = [ "//components/wootz_wallet/browser/internal:hd_key" ]
 
   # Do NOT add any files here without security review
   sources = [

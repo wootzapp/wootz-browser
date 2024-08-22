@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "chrome/components/wootz_wallet/browser/permission_utils.h"
-#include "chrome/components/constants/webui_url_constants.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
+#include "components/constants/webui_url_constants.h"
 #include "components/permissions/permission_request.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/request_type.h"

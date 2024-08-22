@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_
 
 #include "chrome/browser/wootz_wallet/notifications/wallet_notification_service.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
@@ -43,4 +43,4 @@ class WalletNotificationServiceFactory
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_FACTORY_H_

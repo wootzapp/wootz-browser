@@ -85,6 +85,14 @@ found in the LICENSE file.
         <item name="fontWeight">600</item>
     </style>
 
+    <style name="WootzTranslucentMaterial" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@color/translucent_activity_background_color</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
 
 
     <style name="WootzWalletAlertDialogTheme" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">

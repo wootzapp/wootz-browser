@@ -6,7 +6,7 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//crypto/features.gni")
 import("//ui/webui/resources/include_polymer.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
-
+# import("//chrome/browser/ethereum_remote_client/buildflags/buildflags.gni") #BRAVE_WALLET
 if (use_blink) {
   import("//chrome/common/features.gni")
 }

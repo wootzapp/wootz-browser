@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "base/ranges/algorithm.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_utils.h"
-#include "chrome/components/wootz_wallet/browser/permission_utils.h"
-#include "chrome/components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"

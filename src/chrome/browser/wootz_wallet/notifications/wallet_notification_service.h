@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_
 
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
@@ -50,4 +50,4 @@ class WalletNotificationService : public KeyedService,
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_NOTIFICATIONS_WALLET_NOTIFICATION_SERVICE_H_

@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_
 
 #include <optional>
 #include <string>
@@ -12,8 +12,8 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_provider_delegate.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom-forward.h"
+#include "components/wootz_wallet/browser/wootz_wallet_provider_delegate.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom-forward.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -71,4 +71,4 @@ class WootzWalletProviderDelegateImpl : public WootzWalletProviderDelegate,
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_PROVIDER_DELEGATE_IMPL_H_

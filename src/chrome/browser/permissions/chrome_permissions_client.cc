@@ -76,6 +76,8 @@
 #include "chrome/browser/permissions/permission_blocked_message_delegate_android.h"
 #include "chrome/browser/permissions/permission_infobar_delegate_android.h"
 #include "chrome/browser/permissions/permission_update_message_controller_android.h"
+#include "chrome/browser/permissions/wootz_wallet_permission_prompt_android.h"
+#include "components/permissions/android/permission_prompt/permission_prompt_android.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/permissions/permission_request_manager.h"
 #else
@@ -156,6 +158,59 @@ bool ChromePermissionsClient::IsSubresourceFilterActivated(
       ->settings_manager()
       ->GetSiteActivationFromMetadata(url);
 }
+
+bool ChromePermissionsClient::WootzCanBypassEmbeddingOriginCheck(
+    const GURL& requesting_origin,
+    const GURL& embedding_origin,
+    ContentSettingsType type) {
+  // Note that requesting_origin has an address in it at this point.
+  // But even if we get the original origin without the address, we can't
+  // check it against the embedding origin for WOOTZ_ETHEREUM and WOOTZ_SOLANA
+  // here because it can be allowed across origins via the iframe `allow`
+  // attribute with the `ethereum` and `solana` feature policy.
+  // Without this check we'd fail Chromium's origin check.
+  // We instead handle this in wootz_wallet_render_frame_observer.cc by not
+  // exposing the API which can request permission when the origin is 3p and
+  // the feature policy is not allowed explicitly. We ensure that the correct
+  // handling is covered via the browser tests:
+  // SolanaProviderRendererTest.Iframe3P and
+  // JSEthereumProviderBrowserTest.Iframe3P
+  if (type == ContentSettingsType::WOOTZ_ETHEREUM ||
+      type == ContentSettingsType::WOOTZ_SOLANA) {
+    return true;
+  }
+
+  return CanBypassEmbeddingOriginCheck(requesting_origin, embedding_origin);
+}
+
+#if BUILDFLAG(IS_ANDROID)
+std::unique_ptr<ChromePermissionsClient::PermissionMessageDelegate>
+ChromePermissionsClient::MaybeCreateMessageUI(
+    content::WebContents* web_contents,
+    ContentSettingsType type,
+    base::WeakPtr<permissions::PermissionPromptAndroid> prompt) {
+  std::vector<raw_ptr<permissions::PermissionRequest, VectorExperimental>>
+      requests = prompt->delegate()->Requests();
+  if (requests.size() > 0) {
+    wootz_wallet::mojom::CoinType coin_type =
+        wootz_wallet::mojom::CoinType::ETH;
+    permissions::RequestType request_type = requests[0]->request_type();
+    if (request_type == permissions::RequestType::kWootzEthereum ||
+        request_type == permissions::RequestType::kWootzSolana) {
+      if (request_type == permissions::RequestType::kWootzSolana) {
+        coin_type = wootz_wallet::mojom::CoinType::SOL;
+      }
+      auto delegate = std::make_unique<WootzWalletPermissionPrompt::Delegate>(
+          std::move(prompt));
+      return std::make_unique<WootzWalletPermissionPrompt>(
+          web_contents, std::move(delegate), coin_type);
+    }
+  }
+
+  return MaybeCreateMessageUI_ChromiumImpl(web_contents, type,
+                                           std::move(prompt));
+}
+#endif
 
 permissions::ObjectPermissionContextBase*
 ChromePermissionsClient::GetChooserContext(
@@ -567,7 +622,7 @@ infobars::InfoBar* ChromePermissionsClient::MaybeCreateInfoBar(
 }
 
 std::unique_ptr<ChromePermissionsClient::PermissionMessageDelegate>
-ChromePermissionsClient::MaybeCreateMessageUI(
+ChromePermissionsClient::MaybeCreateMessageUI_ChromiumImpl(
     content::WebContents* web_contents,
     ContentSettingsType type,
     base::WeakPtr<permissions::PermissionPromptAndroid> prompt) {

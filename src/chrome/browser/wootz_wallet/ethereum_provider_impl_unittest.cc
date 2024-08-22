@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/components/wootz_wallet/browser/ethereum_provider_impl.h"
+#include "components/wootz_wallet/browser/ethereum_provider_impl.h"
 
 #include <algorithm>
 #include <memory>
@@ -29,20 +29,20 @@
 #include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl_helper.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_delegate_impl.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_tab_helper.h"
-#include "chrome/components/wootz_wallet/browser/asset_ratio_service.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_constants.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_service.h"
-#include "chrome/components/wootz_wallet/browser/wootz_wallet_utils.h"
-#include "chrome/components/wootz_wallet/browser/eth_tx_manager.h"
-#include "chrome/components/wootz_wallet/browser/json_rpc_service.h"
-#include "chrome/components/wootz_wallet/browser/keyring_service.h"
-#include "chrome/components/wootz_wallet/browser/test_utils.h"
-#include "chrome/components/wootz_wallet/browser/tx_service.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
-#include "chrome/components/wootz_wallet/common/hex_utils.h"
-#include "chrome/components/permissions/wootz_permission_manager.h"
-#include "chrome/components/permissions/contexts/wootz_wallet_permission_context.h"
-#include "chrome/components/version_info/version_info.h"
+#include "components/wootz_wallet/browser/asset_ratio_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_constants.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/eth_tx_manager.h"
+#include "components/wootz_wallet/browser/json_rpc_service.h"
+#include "components/wootz_wallet/browser/keyring_service.h"
+#include "components/wootz_wallet/browser/test_utils.h"
+#include "components/wootz_wallet/browser/tx_service.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/hex_utils.h"
+#include "components/permissions/wootz_permission_manager.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "components/version_info/version_info.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
 #include "chrome/browser/profiles/profile_manager.h"
