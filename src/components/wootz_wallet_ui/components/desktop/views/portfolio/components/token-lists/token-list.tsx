@@ -10,9 +10,7 @@ import { useHistory } from 'react-router'
 import {
   HIDE_SMALL_BALANCES_FIAT_THRESHOLD //
 } from '../../../../../../common/constants/magics'
-import {
-  emptyRewardsInfo //
-} from '../../../../../../common/async/base-query-cache'
+
 import {
   LOCAL_STORAGE_KEYS //
 } from '../../../../../../common/constants/local-storage-keys'
@@ -59,11 +57,7 @@ import {
   networkSupportsAccount
 } from '../../../../../../utils/network-utils'
 import { getBalance } from '../../../../../../utils/balance-utils'
-import {
-  getIsRewardsAccount,
-  getIsRewardsNetwork,
-  getIsRewardsToken
-} from '../../../../../../utils/rewards_utils'
+
 import {
   useLocalStorage //
 } from '../../../../../../common/hooks/use_local_storage'
@@ -80,9 +74,7 @@ import {
 
 // Queries
 import {
-  useGetDefaultFiatCurrencyQuery,
-  useGetRewardsInfoQuery
-} from '../../../../../../common/slices/api.slice'
+  useGetDefaultFiatCurrencyQuery} from '../../../../../../common/slices/api.slice'
 import {
   TokenBalancesRegistry //
 } from '../../../../../../common/slices/entities/token-balance.entity'
@@ -148,8 +140,6 @@ export const TokenLists = ({
 
   // queries
   const { data: defaultFiatCurrency } = useGetDefaultFiatCurrencyQuery()
-  const { data: { provider: externalRewardsProvider } = emptyRewardsInfo } =
-    useGetRewardsInfoQuery()
 
   // state
   const [searchValue, setSearchValue] = React.useState<string>('')
@@ -311,12 +301,6 @@ export const TokenLists = ({
   // Returns a list of assets based on provided coin type
   const getAssetsByCoin = React.useCallback(
     (account: WootzWallet.AccountInfo) => {
-      const isRewardsAccount = getIsRewardsAccount(account.accountId)
-      if (isRewardsAccount) {
-        return filteredAssetList.filter((asset) =>
-          getIsRewardsToken(asset.asset)
-        )
-      }
       return filteredAssetList.filter((asset) => {
         const networkInfo = networks?.find(
           (network) =>
@@ -336,14 +320,12 @@ export const TokenLists = ({
   // is enabled.
   const getFilteredOutAssetsByAccount = React.useCallback(
     (account: WootzWallet.AccountInfo) => {
-      const isRewardsAccount = getIsRewardsAccount(account.accountId)
+      
       if (hideSmallBalances) {
         return getAssetsByCoin(account).filter((token) =>
           computeFiatAmount({
             spotPriceRegistry,
-            value: isRewardsAccount
-              ? token.assetBalance
-              : getBalance(
+            value: getBalance(
                   account.accountId,
                   token.asset,
                   tokenBalancesRegistry
@@ -367,12 +349,10 @@ export const TokenLists = ({
   // balance for each token.
   const getAccountsAssetBalances = React.useCallback(
     (account: WootzWallet.AccountInfo) => {
-      const isRewardsAccount = getIsRewardsAccount(account.accountId)
+    
       return getFilteredOutAssetsByAccount(account).map((asset) => ({
         ...asset,
-        assetBalance: isRewardsAccount
-          ? asset.assetBalance
-          : getBalance(account.accountId, asset.asset, tokenBalancesRegistry)
+        assetBalance: getBalance(account.accountId, asset.asset, tokenBalancesRegistry)
       }))
     },
     [getFilteredOutAssetsByAccount, tokenBalancesRegistry]
@@ -484,7 +464,6 @@ export const TokenLists = ({
     }
     return sortedNetworksWithBalances.map((network) => {
       const networksFiatValue = getNetworkFiatValue(network)
-      const isRewardsNetwork = getIsRewardsNetwork(network)
       const networksAssets = getAssetsByNetwork(network)
       return (
         <AssetGroupContainer
@@ -496,14 +475,11 @@ export const TokenLists = ({
           }
           network={network}
           isDisabled={networksAssets.length === 0}
-          externalProvider={
-            isRewardsNetwork ? externalRewardsProvider : undefined
-          }
         >
           {networksAssets.map((token, index) =>
             renderToken({ index, item: token, viewMode: 'list' })
           )}
-          {!assetAutoDiscoveryCompleted && !isRewardsNetwork && (
+          {!assetAutoDiscoveryCompleted  && (
             <PortfolioAssetItemLoadingSkeleton />
           )}
         </AssetGroupContainer>
@@ -517,7 +493,6 @@ export const TokenLists = ({
     sortedNetworksWithBalances,
     defaultFiatCurrency,
     assetAutoDiscoveryCompleted,
-    externalRewardsProvider
   ])
 
   const sortedAccountsWithBalances = React.useMemo(() => {
@@ -566,7 +541,6 @@ export const TokenLists = ({
     }
     return sortedAccountsWithBalances.map((account) => {
       const accountsFiatValue = getAccountFiatValue(account)
-      const isRewardsAccount = getIsRewardsAccount(account.accountId)
       const accountsAssets = getSortedAssetsByAccount(account)
       return (
         <AssetGroupContainer
@@ -578,14 +552,11 @@ export const TokenLists = ({
           }
           account={account}
           isDisabled={accountsAssets.length === 0}
-          externalProvider={
-            isRewardsAccount ? externalRewardsProvider : undefined
-          }
         >
           {accountsAssets.map((token, index) =>
             renderToken({ index, item: token, viewMode: 'list', account })
           )}
-          {!assetAutoDiscoveryCompleted && !isRewardsAccount && (
+          {!assetAutoDiscoveryCompleted && (
             <PortfolioAssetItemLoadingSkeleton />
           )}
         </AssetGroupContainer>
@@ -599,7 +570,6 @@ export const TokenLists = ({
     defaultFiatCurrency,
     assetAutoDiscoveryCompleted,
     sortedAccountsWithBalances,
-    externalRewardsProvider
   ])
 
   const listUi = React.useMemo(() => {

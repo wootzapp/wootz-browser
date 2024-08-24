@@ -19,7 +19,7 @@ import org.chromium.base.Log;
 import org.chromium.wootz_wallet.mojom.DefaultWallet;
 import org.chromium.wootz_wallet.mojom.KeyringService;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletConstants;
@@ -72,9 +72,9 @@ public class WootzWalletPreferences extends WootzPreferenceFragment
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreatePreferences", e);
         }
 

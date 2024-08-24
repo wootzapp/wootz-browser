@@ -29,7 +29,7 @@ import org.chromium.wootz_wallet.mojom.AccountInfo;
 import org.chromium.wootz_wallet.mojom.CoinType;
 import org.chromium.wootz_wallet.mojom.SignMessageRequest;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.adapters.SignMessagePagerAdapter;
 import org.chromium.chrome.browser.wootz_wallet.util.JavaUtils;
@@ -69,10 +69,10 @@ public class SignMessageFragment extends BaseDAppsBottomSheetDialogFragment {
         mTabTitles = new ArrayList<>();
         mTabTitles.add(getString(R.string.details));
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }
@@ -144,7 +144,7 @@ public class SignMessageFragment extends BaseDAppsBottomSheetDialogFragment {
         assert (accountId.coin == CoinType.ETH);
 
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             activity.getWalletModel().getKeyringModel().getAccounts(accountInfos -> {
                 AccountInfo accountInfo = Utils.findAccount(accountInfos, accountId);
                 if (accountInfo == null) {
@@ -157,7 +157,7 @@ public class SignMessageFragment extends BaseDAppsBottomSheetDialogFragment {
                 String accountText = accountInfo.name + "\n" + accountInfo.address;
                 mAccountName.setText(accountText);
             });
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "updateAccount " + e);
         }
     }

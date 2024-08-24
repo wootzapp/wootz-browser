@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import LeoSegmentedControl from '@wootz/leo/react/segmentedControl'
+import LeoSegmentedControl from '@brave/leo/react/segmentedControl'
 import { layoutPanelWidth } from '../../wallet-page-wrapper/wallet-page-wrapper.style'
 
 export const SegmentedControl = styled(LeoSegmentedControl)`

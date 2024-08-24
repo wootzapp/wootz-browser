@@ -4,10 +4,10 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import { LoaderIcon } from 'wootz-ui/components/icons'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import { LoaderIcon } from 'brave-ui/components/icons'
+import * as leo from '@brave/leo/tokens/css/variables'
 import { HardwareVendor } from '../../../constants/types'
-import Checkbox from '@wootz/leo/react/checkbox'
+import Checkbox from '@brave/leo/react/checkbox'
 
 import TrezorLight from './images/trezor_light.svg'
 import TrezorDark from './images/trezor_dark.svg'

@@ -25,9 +25,9 @@ import {
 
 // Types
 import { WootzWallet } from '../../../constants/types'
-import {
-  ExternalWalletProvider //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import {
+//   ExternalWalletProvider //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 // Components
 import { CreateNetworkIcon } from '../../shared/create-network-icon/index'
@@ -42,15 +42,15 @@ import {
   CollapseButton,
   CollapseIcon,
   AccountDescriptionWrapper,
-  RewardsProviderContainer,
-  RewardsText
+  // RewardsProviderContainer,
+  // RewardsText
 } from './asset-group-container.style'
 import {
   Row,
   Column,
   Text,
   HorizontalSpace,
-  WootzRewardsIndicator
+  // WootzRewardsIndicator
 } from '../../shared/style'
 
 interface Props {
@@ -88,12 +88,12 @@ export const AssetGroupContainer = (props: Props) => {
     string[]
   >(LOCAL_STORAGE_KEYS.COLLAPSED_PORTFOLIO_NETWORK_KEYS, [])
 
-  // Memos & Computed
-  const externalRewardsDescription = network
-    ? network.chainName
-    : account
-    ? account.name
-    : ''
+  // // Memos & Computed
+  // const externalRewardsDescription = network
+  //   ? network.chainName
+  //   : account
+  //   ? account.name
+  //   : ''
 
   const isCollapsed = React.useMemo(() => {
     if (network) {

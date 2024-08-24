@@ -33,7 +33,7 @@ import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.wootz_wallet.mojom.OriginInfo;
 import org.chromium.wootz_wallet.mojom.SwitchChainRequest;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletDAppsActivity.ActivityType;
 import org.chromium.chrome.browser.wootz_wallet.adapters.FragmentNavigationItemAdapter;
@@ -52,7 +52,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.app.ChromeActivity;
 
 public class AddSwitchChainNetworkFragment extends BaseDAppsFragment {
     private final List<NavigationItem> mTabTitles;
@@ -156,7 +155,7 @@ public class AddSwitchChainNetworkFragment extends BaseDAppsFragment {
     private void showFavIcon(GURL url) {
         mFaviconHelper = new FaviconHelper();
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             FaviconImageCallback imageCallback =
                     (bitmap, iconUrl) -> setBitmapOnImageView(url, bitmap);
             // 0 is a max bitmap size for download

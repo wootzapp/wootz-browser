@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
-import { color } from '@wootz/leo/tokens/css/variables'
-import Tooltip from '@wootz/leo/react/tooltip'
+import { color } from '@brave/leo/tokens/css/variables'
+import Tooltip from '@brave/leo/react/tooltip'
 
 // types & magics
 import { WootzWallet } from '../../../../constants/types'

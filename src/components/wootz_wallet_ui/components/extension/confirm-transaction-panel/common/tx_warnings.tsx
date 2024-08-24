@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
-import Button from '@wootz/leo/react/button'
-import Alert from '@wootz/leo/react/alert'
+import Button from '@brave/leo/react/button'
+import Alert from '@brave/leo/react/alert'
 
 // types
 import { WootzWallet } from '../../../../constants/types'

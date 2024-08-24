@@ -19,6 +19,10 @@
 #include "url/gurl.h"
 #include "v8/include/v8.h"
 
+
+// jai
+// #include "chrome/common/renderer_configuration.mojom.h"
+
 namespace wootz_wallet {
 
 class WootzWalletRenderFrameObserver : public content::RenderFrameObserver {

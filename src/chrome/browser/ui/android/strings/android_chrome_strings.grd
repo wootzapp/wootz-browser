@@ -336,31 +336,6 @@ CHAR_LIMIT guidelines:
         Disconnect
       </message>
 
-      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID" desc="Wootz wallet networks pref add network field name">
-        The id of new chain
-      </message> -->
-      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_ERROR" desc="Wootz wallet networks pref add network field name error msg">
-        Invalid format, the chain ID is a positive number
-      </message>
-      <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_HINT" desc="Wootz wallet networks pref add network field hint">
-        A positive decimal number
-      </message> -->
-
-      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME" desc="Wootz wallet networks pref add network field name">
-        The name of new chain
-      </message>
-      <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME_HINT" desc="Wootz wallet networks pref add network field hint">
-        Enter chain name
-      </message> -->
-
-
-      <!-- <message name="IDS__WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME" desc="Brave wallet networks pref add network field name">
-        Chain's currency name
-      </message>
-      <message name="IDS__WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME_HINT" desc="Brave wallet networks pref add network field hint">
-        Enter currency name
-      </message> -->
-
       <!-- TODO(b/326574743): Revisit string and mark it as translateable.-->
       <message name="IDS_ACCOUNT_ADVANCED_HEADER" desc="Heading of a section with settings related to the user's Google Account and data. [CHAR_LIMIT=32]" translateable="false">
         Control your data &amp; account

@@ -37,7 +37,7 @@ import org.chromium.wootz_wallet.mojom.SignDataUnion;
 import org.chromium.wootz_wallet.mojom.SignMessageRequest;
 import org.chromium.wootz_wallet.mojom.SiweMessage;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.DappsModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 // import org.chromium.chrome.browser.app.helpers.ImageLoader;
@@ -92,11 +92,11 @@ public class SiweMessageFragment extends WalletBottomSheetDialogFragment {
         mTabTitles = new ArrayList<>();
         mTabTitles.add(getString(R.string.details));
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
             mDappsModel = mWalletModel.getDappsModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }

@@ -26,7 +26,7 @@ import {
   makeDepositFundsRoute,
   makeFundWalletRoute
 } from '../../../../utils/routes-utils'
-import { getIsRewardsToken } from '../../../../utils/rewards_utils'
+
 import {
   getStoredPortfolioTimeframe //
 } from '../../../../utils/local-storage-utils'
@@ -167,8 +167,6 @@ export const MarketAsset = () => {
     return { selectedAssetFromParams: token, foundTokens }
   }, [selectedCoinMarket, combinedTokensList])
 
-  const isRewardsToken = getIsRewardsToken(selectedAssetFromParams)
-
   // queries
   const { accounts } = useAccountsQuery()
   const { data: selectedAssetsNetwork } = useGetNetworkQuery(
@@ -204,19 +202,19 @@ export const MarketAsset = () => {
 
   // custom hooks
   const isAssetBuySupported =
-    useIsBuySupported(selectedAssetFromParams) && !isRewardsToken
+    useIsBuySupported(selectedAssetFromParams)
 
   // memos / computed
   const isLoadingGraphData =
     !selectedAssetFromParams || isFetchingPortfolioPriceHistory
 
   const isSelectedAssetDepositSupported = React.useMemo(() => {
-    if (!selectedAssetFromParams || isRewardsToken) {
+    if (!selectedAssetFromParams) {
       return false
     }
 
     return foundTokens.length > 0
-  }, [selectedAssetFromParams, isRewardsToken, foundTokens])
+  }, [selectedAssetFromParams, foundTokens])
 
   const candidateAccounts = React.useMemo(() => {
     if (!selectedAssetsNetwork) {

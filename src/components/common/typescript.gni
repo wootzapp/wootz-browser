@@ -1,4 +1,4 @@
-# Copyright (c) 2019 The Wootz Authors. All rights reserved.
+# Copyright (c) 2019 The Brave Authors. All rights reserved.
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -13,7 +13,7 @@ import("//chrome/resources/wootz_grit.gni")
 wootz_common_web_compile_inputs = [
   # Global Definitions
   # Only add actual globally-available type definitions to this directory,
-  # # see ../definitions/README.md.
+  # see ../definitions/README.md.
   # rebase_path("../definitions/adBlock.d.ts"),
   # rebase_path("../definitions/ipfs.d.ts"),
   # rebase_path("../definitions/webcompatReporter.d.ts"),
@@ -30,18 +30,18 @@ wootz_common_web_compile_inputs = [
   # rebase_path("../definitions/welcome.d.ts"),
 
   # webpack config changes warrant a re-build of all webpack builds
-  # rebase_path("../webpack/webpack.config.js"),
-  # rebase_path("../webpack/gen-webpack-grd.js"),
-  # rebase_path("../webpack/path-map.js"),
-  # rebase_path("../webpack/webpack-plugin-depfile.js"),
+  rebase_path("../webpack/webpack.config.js"),
+  rebase_path("../webpack/gen-webpack-grd.js"),
+  rebase_path("../webpack/path-map.js"),
+  rebase_path("../webpack/webpack-plugin-depfile.js"),
 
   # typescript config changes warrant a re-build of all typescript builds
-  # "//chrome/tsconfig.json",
-  # "//chrome/tsconfig-webpack.json",
+  "//tsconfig.json",
+  "//tsconfig-webpack.json",
 
-  # # modifying npm dependencies or scripts warrants a re-build of all webpack
-  # # and typescript builds
-  # "//chrome/package.json",
+  # modifying npm dependencies or scripts warrants a re-build of all webpack
+  # and typescript builds
+  "//package.json",
 ]
 
 # Runs a frontend compiler for the specified entry point(s) and outputs a GRD file
@@ -89,7 +89,7 @@ template("transpile_web_ui") {
 
     # make sure rebuilds when common files change
     inputs = wootz_common_web_compile_inputs
-    # inputs += [ "$root_gen_dir/tsconfig-webpack.json" ]
+    inputs += [ "$root_gen_dir/tsconfig-webpack.json" ]
     if (defined(invoker.inputs)) {
       inputs += invoker.inputs
     }
@@ -97,7 +97,7 @@ template("transpile_web_ui") {
     deps = [
       # Ensure chrome://resources/js file and typescript definitions are
       # generated
-      # "//components/webpack:generate_tsconfig",
+      "//components/webpack:generate_tsconfig",
     ]
     if (defined(invoker.deps)) {
       deps += invoker.deps

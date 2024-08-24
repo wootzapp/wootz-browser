@@ -1,6 +1,6 @@
 const path = require('path')
-const config = require('../lib/config')
-const util = require('../lib/util')
+const config = require('./config')
+const util = require('./util')
 const l10nUtil = require('./l10nUtil')
 
 const pushL10n = (options) => {

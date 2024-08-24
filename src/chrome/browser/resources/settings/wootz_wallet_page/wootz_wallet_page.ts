@@ -172,7 +172,7 @@ class SettingsWootzWalletPage extends SettingsWootzWalletPageBase {
 
   isNetworkEditorRoute() {
     const router = Router.getInstance();
-    return (router.getCurrentRoute() == router.getRoutes().BRAVE_WALLET_NETWORKS);
+    return (router.getCurrentRoute() == router.getRoutes().WOOTZ_WALLET_NETWORKS);
   }
 
   /** @protected */
@@ -190,7 +190,7 @@ class SettingsWootzWalletPage extends SettingsWootzWalletPageBase {
 
   onWalletNetworksEditorClick_() {
     const router = Router.getInstance();
-    router.navigateTo(router.getRoutes().BRAVE_WALLET_NETWORKS);
+    router.navigateTo(router.getRoutes().WOOTZ_WALLET_NETWORKS);
   }
 
   onResetWallet_() {

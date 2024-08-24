@@ -15,7 +15,6 @@ provideStrings({
 
   // Side Nav Buttons
   wootzWalletSideNavCrypto: 'Crypto',
-  wootzWalletSideNavRewards: 'Rewards',
   wootzWalletSideNavCards: 'Cards',
 
   // Top Nav Tab Buttons
@@ -1398,14 +1397,9 @@ provideStrings({
   wootzWalletGemini: 'Gemini',
   wootzWalletZebpay: 'Zebpay',
   wootzWalletBitflyer: 'bitFlyer',
-  wootzWalletRewardsAccount: '$1 account',
-  wootzWalletWootzRewardsTitle: 'Wootz Rewards',
-  wootzWalletWootzRewardsDescription: 'Wootz Rewards BAT on $1',
-  wootzWalletWootzRewardsLoggedOutDescription:
     'You’re currently logged out of $1. Please log in to view your balance.',
   wootzWalletLogIn: 'Log in',
   wootzWalletViewOn: 'View on $1',
-  wootzWalletRewardsSettings: 'Rewards settings',
   wootzWalletPlatforms: 'Platforms',
   wootzWalletTestNetworkAccount: 'Test Network Account',
 

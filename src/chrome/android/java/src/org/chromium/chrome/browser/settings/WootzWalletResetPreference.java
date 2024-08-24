@@ -26,7 +26,7 @@ import androidx.preference.PreferenceViewHolder;
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.wootz_wallet.util.KeystoreHelper;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletConstants;
@@ -143,9 +143,9 @@ public class WootzWalletResetPreference
 
     private void launchWootzTabbedActivity() {
         Intent intent =
-                new Intent(ChromeActivity.getChromeTabbedActivity(), ChromeTabbedActivity.class);
+                new Intent(WootzActivity.getChromeTabbedActivity(), ChromeTabbedActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.setAction(Intent.ACTION_VIEW);
-        ChromeActivity.getChromeTabbedActivity().startActivity(intent);
+        WootzActivity.getChromeTabbedActivity().startActivity(intent);
     }
 }

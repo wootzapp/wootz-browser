@@ -104,6 +104,8 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
     return;
   }
 
+LOG(ERROR) << "Just before the ethereum installation part";
+
   if (dynamic_params.install_window_wootz_ethereum_provider &&
       web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate, context,
                                                          "ethereum")) {
@@ -119,6 +121,7 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
     JSSolanaProvider::Install(
         dynamic_params.allow_overwrite_window_solana_provider, render_frame());
   }
+
 }
 
 void WootzWalletRenderFrameObserver::OnDestruct() {

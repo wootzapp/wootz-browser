@@ -64,7 +64,7 @@ export const BuySendSwapDepositNav = () => {
       // until we have a panel view for that page.
       if (option.route === WalletRoutes.FundWalletPageStart && isPanel) {
         chrome.tabs.create({
-          url: `wootz://wallet${option.route}`
+          url: `wootzapp://wallet${option.route}`
         })
       } else {
         history.push(option.route)

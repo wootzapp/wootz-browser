@@ -1,5 +1,5 @@
-const config = require('../lib/config')
-const util = require('../lib/util')
+const config = require('./config')
+const util = require('./util')
 
 const applyPatches = (buildConfig = config.defaultBuildConfig, options = {}) => {
   async function RunCommand () {

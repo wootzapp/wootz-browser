@@ -77,6 +77,7 @@
 #include "third_party/blink/public/mojom/model_execution/model_manager.mojom.h"
 #include "third_party/blink/public/mojom/origin_trials/origin_trials_settings.mojom-forward.h"
 #include "third_party/blink/public/mojom/payments/payment_credential.mojom-forward.h"
+#include "third_party/blink/public/mojom/loader/referrer.mojom.h"
 #include "third_party/blink/public/mojom/worker/shared_worker_info.mojom.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
@@ -341,6 +342,19 @@ class CONTENT_EXPORT ContentBrowserClient {
   // Allows the embedder to handle a request from unit tests running in the
   // content layer to consider startup complete (for the sake of
   // PostAfterStartupTask()).
+  virtual void  Unused() {}                                                                
+  virtual void MaybeHideReferrer(                                            
+      BrowserContext* browser_context, const GURL& request_url,              
+      const GURL& document_url, blink::mojom::ReferrerPtr* referrer) {}      
+//   virtual std::string GetEffectiveUserAgent(BrowserContext* browser_context, 
+//                                             const GURL& url);                
+//   virtual std::optional<base::UnguessableToken> GetEphemeralStorageToken(    
+//       RenderFrameHost* render_frame_host, const url::Origin& origin);        
+//   virtual bool AllowWorkerFingerprinting(const GURL& url,                    
+//                                          BrowserContext* browser_context);   
+//   virtual uint8_t WorkerGetBraveFarblingLevel(                               
+//       const GURL& url, BrowserContext* browser_context);                     
+//   virtual GURL SanitizeURL(content::RenderFrameHost*, const GURL&);          
   virtual void SetBrowserStartupIsCompleteForTesting();
 
   // Returns true if the embedder is in the process of shutting down, whether

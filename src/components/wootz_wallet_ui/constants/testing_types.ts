@@ -7,7 +7,7 @@ import {
   NativeAssetBalanceRegistry,
   TokenBalanceRegistry
 } from '../common/constants/mocks'
-import { WootzWallet, RewardsExternalWallet } from './types'
+import { WootzWallet } from './types'
 
 export interface WalletApiDataOverrides {
   selectedCoin?: WootzWallet.CoinType
@@ -27,9 +27,3 @@ export interface WalletApiDataOverrides {
   signTransactionRequests?: WootzWallet.SignTransactionRequest[]
   signAllTransactionsRequests?: WootzWallet.SignAllTransactionsRequest[]
 }
-
-export type WootzRewardsProxyOverrides = Partial<{
-  rewardsEnabled: boolean
-  balance: number
-  externalWallet: RewardsExternalWallet | null
-}>

@@ -6,8 +6,8 @@
 const path = require('path')
 const fs = require('fs-extra')
 const os = require('os')
-const util = require('../lib/util')
-const calculateFileChecksum = require('../lib/calculateFileChecksum')
+const util = require('./util')
+const calculateFileChecksum = require('./calculateFileChecksum')
 
 const extPatch = 'patch'
 const extPatchInfo = 'patchinfo'

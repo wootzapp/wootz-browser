@@ -1,8 +1,8 @@
-const config = require('../lib/config')
-const util = require('../lib/util')
+const config = require('./config')
+const util = require('./util')
 const path = require('path')
 const fs = require('fs-extra')
-const Log = require('../lib/logging')
+const Log = require('./logging')
 
 /**
  * Checks to make sure the src/chrome/VERSION matches brave-core's package.json version

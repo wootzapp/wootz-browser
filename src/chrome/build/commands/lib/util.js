@@ -7,15 +7,15 @@ const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 const readline = require('readline')
 const os = require('os')
-const config = require('./config')
+const config = require('./config.js')
 const fs = require('fs-extra')
 const crypto = require('crypto')
-const l10nUtil = require('./l10nUtil')
-const Log = require('./logging')
+const l10nUtil = require('./l10nUtil.js')
+const Log = require('./logging.js')
 const assert = require('assert')
-const updateChromeVersion = require('./updateChromeVersion')
+const updateChromeVersion = require('./updateChromeVersion.js')
 const updateUnsafeBuffersPaths = require('./updateUnsafeBuffersPaths.js')
-const ActionGuard = require('./actionGuard')
+const ActionGuard = require('./actionGuard.js')
 
 // Do not limit the number of listeners to avoid warnings from EventEmitter.
 process.setMaxListeners(0);
@@ -25,7 +25,7 @@ const mergeWithDefault = (options) => {
 }
 
 async function applyPatches() {
-  const GitPatcher = require('./gitPatcher')
+  const GitPatcher = require('./gitPatcher.js')
   Log.progressStart('apply patches')
   // Always detect if we need to apply patches, since user may have modified
   // either chromium source files, or .patch files manually

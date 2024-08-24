@@ -6,11 +6,7 @@
 import { EntityId } from '@reduxjs/toolkit'
 
 import { TimeDelta } from 'gen/mojo/public/mojom/base/time.mojom.m.js'
-import * as WootzWallet from 'gen/wootz/components/wootz_wallet/common/wootz_wallet.mojom.m.js'
-import {
-  ExternalWallet,
-  ExternalWalletProvider
-} from '../../wootz_rewards/resources/shared/lib/external_wallet'
+import * as WootzWallet from 'gen/components/wootz_wallet/common/wootz_wallet.mojom.m.js'
 
 // Re-export WootzWallet for use in other modules, to avoid hard-coding the
 // path of generated mojom files.
@@ -107,7 +103,7 @@ export type PanelTypes =
   | 'activity' // Transactions
   | 'transactionStatus'
 
-export type NavTypes = 'crypto' | 'rewards' | 'cards'
+export type NavTypes = 'crypto' | 'cards'
 
 export type TopTabNavTypes =
   | 'portfolio'
@@ -596,7 +592,7 @@ export const AccountPageTabs = {
   AccountTransactionsSub: 'transactions'
 } as const
 
-export const WalletOrigin = 'chrome://wallet'
+export const WalletOrigin = 'wootzapp://wallet'
 
 export type BlockExplorerUrlTypes =
   | 'tx'
@@ -1025,17 +1021,6 @@ export interface LineChartIframeData {
 export type WalletCreationMode = 'new' | 'import' | 'hardware'
 export type WalletImportMode = 'seed' | 'metamask' | 'legacy'
 
-export interface WootzRewardsInfo {
-  isRewardsEnabled: boolean
-  balance: number | undefined
-  rewardsToken: WootzWallet.BlockchainToken | undefined
-  provider: ExternalWalletProvider | undefined
-  providerName: string
-  status: WalletStatus
-  rewardsAccount: WootzWallet.AccountInfo | undefined
-  rewardsNetwork: WootzWallet.NetworkInfo | undefined
-  accountLink: string | undefined
-}
 
 export type AutoLockOption = {
   minutes: number
@@ -1054,21 +1039,8 @@ export const WalletStatus = {
   kLoggedOut: 4
 } as const
 
-export const externalWalletProviders = [
-  'uphold',
-  'bitflyer',
-  'gemini',
-  'zebpay'
-]
-
 export type WalletStatus = (typeof WalletStatus)[keyof typeof WalletStatus]
 
-export type RewardsExternalWallet = Pick<
-  ExternalWallet,
-  'url' | 'provider' | 'name'
-> & {
-  status: WalletStatus
-}
 
 export type AssetIdsByCollectionNameRegistry = Record<string, string[]>
 

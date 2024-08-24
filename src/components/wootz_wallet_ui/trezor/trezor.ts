@@ -61,7 +61,7 @@ addTrezorCommandHandler(
         connectSrc: 'https://connect.trezor.io/9/',
         lazyLoad: false,
         manifest: {
-          email: 'support@wootz.com',
+          email: 'support@brave.com',
           appUrl: 'https://wootz.com'
         }
       })

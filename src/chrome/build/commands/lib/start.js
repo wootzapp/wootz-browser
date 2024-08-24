@@ -2,8 +2,8 @@ const path = require('path')
 const fs = require('fs-extra')
 const ip = require('ip')
 const URL = require('url').URL
-const config = require('../lib/config')
-const util = require('../lib/util')
+const config = require('./config')
+const util = require('./util')
 
 const start = (passthroughArgs, buildConfig = config.defaultBuildConfig, options) => {
   config.buildConfig = buildConfig

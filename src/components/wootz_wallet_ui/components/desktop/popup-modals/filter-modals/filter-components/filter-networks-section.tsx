@@ -7,12 +7,10 @@ import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/dist/query'
 
 // Constants
-import { emptyRewardsInfo } from '../../../../../common/async/base-query-cache'
 
 // Queries
 import {
   useGetVisibleNetworksQuery,
-  useGetRewardsInfoQuery
 } from '../../../../../common/slices/api.slice'
 
 // Types
@@ -54,8 +52,7 @@ export const FilterNetworksSection = ({
   const { data: visibleNetworks = [] } = useGetVisibleNetworksQuery(
     networksSubset ? skipToken : undefined
   )
-  const { data: { rewardsNetwork: providerNetwork } = emptyRewardsInfo } =
-    useGetRewardsInfoQuery(networksSubset ? skipToken : undefined)
+
   const networks = networksSubset || visibleNetworks
 
   // Memos

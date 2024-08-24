@@ -1,4 +1,4 @@
-// Copyright (c) 2023 The Wootz Authors. All rights reserved.
+// Copyright (c) 2023 The Brave Authors. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { BrowserRouter } from 'react-router-dom'
 
-import { initLocale } from 'wootz-ui'
+import { initLocale } from 'brave-ui'
 
 // style
 import walletDarkTheme from '../../../../theme/wallet-dark'
@@ -25,23 +25,23 @@ import * as WalletActions from '../../../../common/actions/wallet_actions'
 // Components
 import {
   // eslint-disable-next-line import/no-named-default
-  default as WootzCoreThemeProvider
-} from '../../../../../common/WootzCoreThemeProvider'
+  default as BraveCoreThemeProvider
+} from '../../../../../common/BraveCoreThemeProvider'
 import { DepositFundsScreen } from '../deposit-funds'
 
-import { setIconBasePath } from '@wootz/leo/react/icon'
-setIconBasePath('chrome://resources/wootz-icons')
+import { setIconBasePath } from '@brave/leo/react/icon'
+setIconBasePath('chrome://resources/brave-icons')
 
 export function AndroidDepositApp() {
   return (
     <Provider store={store}>
       <BrowserRouter>
-        <WootzCoreThemeProvider
+        <BraveCoreThemeProvider
           dark={walletDarkTheme}
           light={walletLightTheme}
         >
           <DepositFundsScreen isAndroid={true} />
-        </WootzCoreThemeProvider>
+        </BraveCoreThemeProvider>
       </BrowserRouter>
     </Provider>
   )

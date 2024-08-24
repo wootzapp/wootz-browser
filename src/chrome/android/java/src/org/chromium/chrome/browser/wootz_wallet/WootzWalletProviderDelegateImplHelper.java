@@ -13,7 +13,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.Callbacks;
 import org.chromium.base.Log;
 import org.chromium.wootz_wallet.mojom.CoinType;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.settings.WootzWalletPreferences;
 import org.chromium.content_public.browser.WebContents;
 
@@ -24,9 +24,9 @@ public class WootzWalletProviderDelegateImplHelper {
     @CalledByNative
     public static void showPanel() {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             // activity.showWalletPanel(false);
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "showPanel " + e);
         }
     }
@@ -34,9 +34,9 @@ public class WootzWalletProviderDelegateImplHelper {
     @CalledByNative
     public static void showWalletBackup() {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             activity.openWootzWalletBackup();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "showWalletBackup", e);
         }
     }
@@ -44,9 +44,9 @@ public class WootzWalletProviderDelegateImplHelper {
     @CalledByNative
     public static void showWalletOnboarding() {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             // activity.showWalletOnboarding();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "showWalletOnboarding " + e);
         }
     }
@@ -54,9 +54,9 @@ public class WootzWalletProviderDelegateImplHelper {
     @CalledByNative
     public static void walletInteractionDetected(WebContents webContents) {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             activity.walletInteractionDetected(webContents);
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "walletInteractionDetected " + e);
         }
     }
@@ -69,9 +69,9 @@ public class WootzWalletProviderDelegateImplHelper {
     @CalledByNative
     public static void ShowAccountCreation(@CoinType.EnumType int coinType) {
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             activity.showAccountCreation(coinType);
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "ShowAccountCreation " + e);
         }
     }

@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { useHistory } from 'react-router-dom'
-import SegmentedControlItem from '@wootz/leo/react/controlItem'
+import SegmentedControlItem from '@brave/leo/react/controlItem'
 
 // utils
 import { getLocale } from '../../../../../common/locale'

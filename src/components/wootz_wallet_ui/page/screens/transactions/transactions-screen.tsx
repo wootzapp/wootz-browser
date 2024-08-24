@@ -16,7 +16,7 @@ import {
 import { AllNetworksOption } from '../../../options/network-filter-options'
 
 // utils
-import { getLocale } from 'wootz-ui'
+import { getLocale } from 'brave-ui'
 import { accountInfoEntityAdaptorInitialState } from '../../../common/slices/entities/account-info.entity'
 import { useAccountFromAddressQuery } from '../../../common/slices/api.slice.extra'
 import {

@@ -46,7 +46,7 @@ import android.content.Intent;
 import android.provider.Browser;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
 import org.chromium.ui.util.ColorUtils;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.base.IntentUtils;
 import androidx.browser.customtabs.CustomTabsIntent;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -315,18 +315,18 @@ public class TabUtils {
 
     public static void openUrlInNewTab(boolean isIncognito, String url) {
         try {
-            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
-            chromeActivity.getTabCreator(isIncognito).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+            WootzActivity wootzActivity = WootzActivity.getWootzActivity();
+            wootzActivity.getTabCreator(isIncognito).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "openUrlInNewTab " + e);
         }
     }
 
     public static void bringChromeTabbedActivityToTheTop(Activity activity) {
-        Intent chromeActivityIntent = new Intent(activity, ChromeTabbedActivity.class);
-        chromeActivityIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        chromeActivityIntent.setAction(Intent.ACTION_VIEW);
-        activity.startActivity(chromeActivityIntent);
+        Intent wootzActivityIntent = new Intent(activity, ChromeTabbedActivity.class);
+        wootzActivityIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        wootzActivityIntent.setAction(Intent.ACTION_VIEW);
+        activity.startActivity(wootzActivityIntent);
     }
 
     public static void openUrlInCustomTab(Context context, String url) {

@@ -4,12 +4,12 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Icon from '@wootz/leo/react/icon'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Input from '@wootz/leo/react/input'
+import Icon from '@brave/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Input from '@brave/leo/react/input'
 
 // Assets
-import { LoaderIcon } from 'wootz-ui/components/icons'
+import { LoaderIcon } from 'brave-ui/components/icons'
 
 // Shared Styles
 import {

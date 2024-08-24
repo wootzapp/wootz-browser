@@ -5,12 +5,6 @@
 
 import styled from 'styled-components'
 
-// Utils
-import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
-
-// Types
-import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
-
 export const AccountBox = styled.div<{
   orb?: string
   size?: 'huge' | 'big' | 'medium' | 'small' | 'tiny'
@@ -34,14 +28,14 @@ export const AccountBox = styled.div<{
   margin-right: ${(p) => (p.marginRight !== undefined ? p.marginRight : 0)}px;
 `
 
-export const ExternalAccountBox = styled(AccountBox)<{
-  provider: ExternalWalletProvider | null
-}>`
-  background-color: ${(p) =>
-    p.provider ? getRewardsProviderBackground(p.provider) : 'none'};
-  background-image: unset;
-  background-size: unset;
-`
+// export const ExternalAccountBox = styled(AccountBox)<{
+//   provider: ExternalWalletProvider | null
+// }>`
+//   background-color: ${(p) =>
+//     p.provider ? getRewardsProviderBackground(p.provider) : 'none'};
+//   background-image: unset;
+//   background-size: unset;
+// `
 
 export const ExternalAccountIcon = styled.img<{
   size?: 'huge' | 'big' | 'medium' | 'small' | 'tiny'

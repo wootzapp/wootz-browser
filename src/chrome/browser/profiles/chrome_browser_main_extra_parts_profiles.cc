@@ -1279,6 +1279,7 @@ void ChromeBrowserMainExtraPartsProfiles::
 #endif
 #if BUILDFLAG(IS_ANDROID)
   WebApkInstallServiceFactory::GetInstance();
+  
   if (base::FeatureList::IsEnabled(syncer::kWebApkBackupAndRestoreBackend)) {
     webapk::WebApkSyncServiceFactory::GetInstance();
   }

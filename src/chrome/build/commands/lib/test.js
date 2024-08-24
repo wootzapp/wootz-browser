@@ -1,9 +1,9 @@
 const fs = require('fs-extra')
 const path = require('path')
 
-const config = require('../lib/config')
-const Log = require('../lib/logging')
-const util = require('../lib/util')
+const config = require('./config')
+const Log = require('./logging')
+const util = require('./util')
 const assert = require('assert')
 
 const getTestBinary = (suite) => {

@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { CSSProperties } from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import * as leo from '@brave/leo/tokens/css/variables'
 import {
   AreaChart,
   Area,

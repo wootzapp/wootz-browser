@@ -32,7 +32,7 @@ import org.chromium.wootz_wallet.mojom.PermissionLifetimeOption;
 import org.chromium.chrome.R;
 // import org.chromium.chrome.browser.WootzRewardsHelper;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.fragments.CreateAccountBottomSheetFragment;
 import org.chromium.chrome.browser.wootz_wallet.permission.WootzPermissionAccountsListAdapter;
@@ -72,9 +72,9 @@ public class ConnectAccountFragment extends BaseDAppsFragment implements Permiss
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreate " + e);
         }
     }
@@ -137,14 +137,14 @@ public class ConnectAccountFragment extends BaseDAppsFragment implements Permiss
     private void initComponents() {
         mFaviconHelper = new FaviconHelper();
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             GURL pageUrl = getCurrentHostHttpAddress();
             FaviconImageCallback imageCallback = (bitmap,
                     iconUrl) -> ConnectAccountFragment.this.onFaviconAvailable(pageUrl, bitmap);
             // 0 is a max bitmap size for download
             mFaviconHelper.getLocalFaviconImageForURL(
                     activity.getCurrentProfile(), pageUrl, 0, imageCallback);
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "initComponents " + e);
         }
         assert mWalletModel != null;
@@ -279,7 +279,7 @@ public class ConnectAccountFragment extends BaseDAppsFragment implements Permiss
     }
 
     private GURL getCurrentHostHttpAddress() {
-        ChromeTabbedActivity activity = ChromeActivity.getChromeTabbedActivity();
+        ChromeTabbedActivity activity = WootzActivity.getChromeTabbedActivity();
         if (activity != null && activity.getActivityTab() != null) {
             return activity.getActivityTab().getUrl().getOrigin();
         }

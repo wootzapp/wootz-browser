@@ -5,10 +5,6 @@
 
 import styled from 'styled-components'
 
-// Utils
-import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
-import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
-
 // Shared Styles
 import { AssetIconFactory, AssetIconProps } from '../style'
 
@@ -16,7 +12,6 @@ export const IconWrapper = styled.div<{
   marginRight: number
   isTestnet: boolean
   size?: string
-  externalProvider?: ExternalWalletProvider | null
 }>`
   display: flex;
   align-items: center;
@@ -26,13 +21,6 @@ export const IconWrapper = styled.div<{
   height: ${(p) => (p.size ? p.size : '15px')};
   margin-right: ${(p) => `${p.marginRight}px`};
   filter: ${(p) => (p.isTestnet ? 'grayscale(100%)' : 'none')};
-  background-color: ${(p) =>
-    p.externalProvider
-      ? getRewardsProviderBackground(p.externalProvider)
-      : 'none'};
-  border-radius: ${(p) => (p.externalProvider ? '100%' : 'none')};
-  padding: ${(p) => (p.externalProvider ? '2px' : '0px')};
-`
 
 export type IconSize =
   | 'huge'
@@ -44,7 +32,6 @@ export type IconSize =
 
 interface IconProps extends AssetIconProps {
   size?: IconSize
-  isExternalProvider?: boolean
 }
 
 function getNetworkIconWidthFromSize(size?: IconSize): string {
@@ -66,27 +53,9 @@ function getNetworkIconWidthFromSize(size?: IconSize): string {
   }
 }
 
-function getExternalProviderIconSize(size?: IconSize): string {
-  switch (size) {
-    case 'huge':
-      return '24px'
-    case 'big':
-      return '20px'
-    case 'small':
-      return '16px'
-    case 'tiny':
-      return '12px'
-    case 'extra-small':
-      return '8px'
-    default:
-      return '10px'
-  }
-}
 
 export const NetworkIcon = AssetIconFactory<IconProps>((props) => ({
-  width: props.isExternalProvider
-    ? getExternalProviderIconSize(props.size)
-    : getNetworkIconWidthFromSize(props.size),
+  width: getNetworkIconWidthFromSize(props.size),
   height: 'auto'
 }))
 

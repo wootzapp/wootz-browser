@@ -1,4 +1,4 @@
-// Copyright (c) 2016 The chrome Authors. All rights reserved.
+// Copyright (c) 2016 The Brave Authors. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -19,9 +19,9 @@ if (process.platform === 'win32') {
   dirName = fs.realpathSync.native(dirName)
 }
 const rootDir = path.resolve(dirName, '..', '..', '..', '..', '..')
-const chromeCoreDir = path.join(rootDir, 'src', 'chrome')
+const braveCoreDir = path.join(rootDir, 'src')
 
-var packageConfig = function (key, sourceDir = chromeCoreDir) {
+var packageConfig = function (key, sourceDir = braveCoreDir) {
   let packages = { config: {} }
   const configAbsolutePath = path.join(sourceDir, 'package.json')
   if (fs.existsSync(configAbsolutePath)) {
@@ -43,8 +43,8 @@ const getEnvConfig = (key, default_value = undefined) => {
   if (!envConfig) {
     envConfig = {}
 
-    // Parse src/chrome/.env with all included env files.
-    let envConfigPath = path.join(chromeCoreDir, '.env')
+    // Parse src/brave/.env with all included env files.
+    let envConfigPath = path.join(braveCoreDir, '.env')
     // It's okay to not have the initial `.env` file.
     if (fs.existsSync(envConfigPath)) {
       while (envConfigPath) {
@@ -110,16 +110,16 @@ const parseExtraInputs = (inputs, accumulator, callback) => {
   }
 }
 
-const getchromeVersion = (ignorePatchVersionNumber) => {
-  const chromeVersion = packageConfig(['version'])
+const getBraveVersion = (ignorePatchVersionNumber) => {
+  const braveVersion = packageConfig(['version'])
   if (!ignorePatchVersionNumber) {
-    return chromeVersion
+    return braveVersion
   }
 
-  const chromeVersionParts = chromeVersion.split('.')
-  assert(chromeVersionParts.length == 3)
-  chromeVersionParts[2] = '0'
-  return chromeVersionParts.join('.')
+  const braveVersionParts = braveVersion.split('.')
+  assert(braveVersionParts.length == 3)
+  braveVersionParts[2] = '0'
+  return braveVersionParts.join('.')
 }
 
 const getHostOS = () => {
@@ -142,7 +142,7 @@ const Config = function () {
   this.defaultBuildConfig = getEnvConfig(['default_build_config']) || 'Component'
   this.buildConfig = this.defaultBuildConfig
   this.signTarget = 'sign_app'
-  this.buildTargets = ['chrome']
+  this.buildTargets = ['brave']
   this.rootDir = rootDir
   this.isUniversalBinary = false
   this.isChromium = false
@@ -150,13 +150,13 @@ const Config = function () {
   this.srcDir = path.join(this.rootDir, 'src')
   this.chromeVersion = this.getProjectVersion('chrome')
   this.chromiumRepo = getEnvConfig(['projects', 'chrome', 'repository', 'url'])
-  this.chromeCoreDir = chromeCoreDir
+  this.braveCoreDir = braveCoreDir
   this.buildToolsDir = path.join(this.srcDir, 'build')
   this.resourcesDir = path.join(this.rootDir, 'resources')
-  this.depotToolsDir = getDepotToolsDir(this.chromeCoreDir)
+  this.depotToolsDir = getDepotToolsDir(this.braveCoreDir)
   this.depotToolsRepo = getEnvConfig(['projects', 'depot_tools', 'repository', 'url'])
   this.defaultGClientFile = path.join(this.rootDir, '.gclient')
-  this.gClientFile = process.env.chrome_GCLIENT_FILE || this.defaultGClientFile
+  this.gClientFile = process.env.BRAVE_GCLIENT_FILE || this.defaultGClientFile
   this.gClientVerbose = getEnvConfig(['gclient_verbose']) || false
   this.hostOS = getHostOS()
   this.targetArch = getEnvConfig(['target_arch']) || process.arch
@@ -164,15 +164,15 @@ const Config = function () {
   this.targetEnvironment = getEnvConfig(['target_environment'])
   this.gypTargetArch = 'x64'
   this.targetAndroidBase = 'classic'
-  this.chromeServicesProductionDomain = getEnvConfig(['chrome_services_production_domain']) || ''
-  this.chromeServicesStagingDomain = getEnvConfig(['chrome_services_staging_domain']) || ''
-  this.chromeServicesDevDomain = getEnvConfig(['chrome_services_dev_domain']) || ''
-  this.chromeServicesKey = getEnvConfig(['chrome_services_key']) || ''
-  this.chromeGoogleApiKey = getEnvConfig(['chrome_google_api_key']) || 'AIzaSyAREPLACEWITHYOUROWNGOOGLEAPIKEY2Q'
-  this.googleApiEndpoint = getEnvConfig(['chrome_google_api_endpoint']) || 'https://www.googleapis.com/geolocation/v1/geolocate?key='
+  this.braveServicesProductionDomain = getEnvConfig(['brave_services_production_domain']) || ''
+  this.braveServicesStagingDomain = getEnvConfig(['brave_services_staging_domain']) || ''
+  this.braveServicesDevDomain = getEnvConfig(['brave_services_dev_domain']) || ''
+  this.braveServicesKey = getEnvConfig(['brave_services_key']) || ''
+  this.braveGoogleApiKey = getEnvConfig(['brave_google_api_key']) || 'AIzaSyAREPLACEWITHYOUROWNGOOGLEAPIKEY2Q'
+  this.googleApiEndpoint = getEnvConfig(['brave_google_api_endpoint']) || 'https://www.googleapis.com/geolocation/v1/geolocate?key='
   this.googleDefaultClientId = getEnvConfig(['google_default_client_id']) || ''
   this.googleDefaultClientSecret = getEnvConfig(['google_default_client_secret']) || ''
-  this.infuraProjectId = getEnvConfig(['chrome_infura_project_id']) || ''
+  this.infuraProjectId = getEnvConfig(['brave_infura_project_id']) || ''
   this.sardineClientId = getEnvConfig(['sardine_client_id']) || ''
   this.sardineClientSecret = getEnvConfig(['sardine_client_secret']) || ''
   this.bitFlyerProductionClientId = getEnvConfig(['bitflyer_production_client_id']) || ''
@@ -211,19 +211,19 @@ const Config = function () {
   this.zebPaySandboxClientId = getEnvConfig(['zebpay_sandbox_client_id']) || ''
   this.zebPaySandboxClientSecret = getEnvConfig(['zebpay_sandbox_client_secret']) || ''
   this.zebPaySandboxOauthUrl = getEnvConfig(['zebpay_sandbox_oauth_url']) || ''
-  this.chromeSyncEndpoint = getEnvConfig(['chrome_sync_endpoint']) || ''
+  this.braveSyncEndpoint = getEnvConfig(['brave_sync_endpoint']) || ''
   this.safeBrowsingApiEndpoint = getEnvConfig(['safebrowsing_api_endpoint']) || ''
   this.updaterProdEndpoint = getEnvConfig(['updater_prod_endpoint']) || ''
   this.updaterDevEndpoint = getEnvConfig(['updater_dev_endpoint']) || ''
-  this.webcompatReportApiEndpoint = getEnvConfig(['webcompat_report_api_endpoint']) || 'https://webcompat.chrome.com/1/webcompat'
+  this.webcompatReportApiEndpoint = getEnvConfig(['webcompat_report_api_endpoint']) || 'https://webcompat.brave.com/1/webcompat'
   this.rewardsGrantDevEndpoint = getEnvConfig(['rewards_grant_dev_endpoint']) || ''
   this.rewardsGrantStagingEndpoint = getEnvConfig(['rewards_grant_staging_endpoint']) || ''
   this.rewardsGrantProdEndpoint = getEnvConfig(['rewards_grant_prod_endpoint']) || ''
-  this.ignorePatchVersionNumber = !this.ischromeReleaseBuild() && getEnvConfig(['ignore_patch_version_number'], !this.isCI)
-  this.chromeVersion = getchromeVersion(this.ignorePatchVersionNumber)
-  this.chromeIOSMarketingPatchVersion = getEnvConfig(['chrome_ios_marketing_version_patch']) || ''
-  this.androidOverrideVersionName = this.chromeVersion
-  this.releaseTag = this.chromeVersion.split('+')[0]
+  this.ignorePatchVersionNumber = !this.isBraveReleaseBuild() && getEnvConfig(['ignore_patch_version_number'], !this.isCI)
+  this.braveVersion = getBraveVersion(this.ignorePatchVersionNumber)
+  this.braveIOSMarketingPatchVersion = getEnvConfig(['brave_ios_marketing_version_patch']) || ''
+  this.androidOverrideVersionName = this.braveVersion
+  this.releaseTag = this.braveVersion.split('+')[0]
   this.mac_signing_identifier = getEnvConfig(['mac_signing_identifier'])
   this.mac_installer_signing_identifier = getEnvConfig(['mac_installer_signing_identifier']) || ''
   this.mac_signing_keychain = getEnvConfig(['mac_signing_keychain']) || 'login'
@@ -241,8 +241,8 @@ const Config = function () {
   // Make sure "src/" is a part of RBE "exec_root" to allow "src/" files as inputs.
   this.rbeExecRoot = this.rootDir
   this.realRewrapperDir = process.env.RBE_DIR || path.join(this.srcDir, 'buildtools', 'reclient')
-  this.chromeStatsApiKey = getEnvConfig(['chrome_stats_api_key']) || ''
-  this.chromeStatsUpdaterUrl = getEnvConfig(['chrome_stats_updater_url']) || ''
+  this.braveStatsApiKey = getEnvConfig(['brave_stats_api_key']) || ''
+  this.braveStatsUpdaterUrl = getEnvConfig(['brave_stats_updater_url']) || ''
   this.ignore_compile_failure = false
   this.enable_hangout_services_extension = false
   this.enable_pseudolocales = false
@@ -251,37 +251,37 @@ const Config = function () {
   this.sign_widevine_passwd = process.env.SIGN_WIDEVINE_PASSPHRASE || ''
   this.signature_generator = path.join(this.srcDir, 'third_party', 'widevine', 'scripts', 'signature_generator.py') || ''
   this.extraGnArgs = {}
-  this.extraGnGenOpts = getEnvConfig(['chrome_extra_gn_gen_opts']) || ''
+  this.extraGnGenOpts = getEnvConfig(['brave_extra_gn_gen_opts']) || ''
   this.extraNinjaOpts = []
-  this.chromeAndroidSafeBrowsingApiKey = getEnvConfig(['chrome_safebrowsing_api_key']) || ''
-  this.chromeSafetyNetApiKey = getEnvConfig(['chrome_safetynet_api_key']) || ''
-  this.chromeAndroidDeveloperOptionsCode = getEnvConfig(['chrome_android_developer_options_code']) || ''
-  this.chromeAndroidKeystorePath = getEnvConfig(['chrome_android_keystore_path'])
-  this.chromeAndroidKeystoreName = getEnvConfig(['chrome_android_keystore_name'])
-  this.chromeAndroidKeystorePassword = getEnvConfig(['chrome_android_keystore_password'])
-  this.chromeAndroidKeyPassword = getEnvConfig(['chrome_android_key_password'])
-  this.chromeVariationsServerUrl = getEnvConfig(['chrome_variations_server_url']) || ''
+  this.braveAndroidSafeBrowsingApiKey = getEnvConfig(['brave_safebrowsing_api_key']) || ''
+  this.braveSafetyNetApiKey = getEnvConfig(['brave_safetynet_api_key']) || ''
+  this.braveAndroidDeveloperOptionsCode = getEnvConfig(['brave_android_developer_options_code']) || ''
+  this.braveAndroidKeystorePath = getEnvConfig(['brave_android_keystore_path'])
+  this.braveAndroidKeystoreName = getEnvConfig(['brave_android_keystore_name'])
+  this.braveAndroidKeystorePassword = getEnvConfig(['brave_android_keystore_password'])
+  this.braveAndroidKeyPassword = getEnvConfig(['brave_android_key_password'])
+  this.braveVariationsServerUrl = getEnvConfig(['brave_variations_server_url']) || ''
   this.nativeRedirectCCDir = path.join(this.srcDir, 'out', 'redirect_cc')
   this.useRemoteExec = getEnvConfig(['use_remoteexec']) || false
   this.offline = getEnvConfig(['offline']) || false
   this.use_libfuzzer = false
   this.androidAabToApk = false
-  this.usechromeHermeticToolchain = this.rbeService.includes('.chrome.com:')
-  this.chrome_services_key_id = getEnvConfig(['chrome_services_key_id']) || ''
+  this.useBraveHermeticToolchain = this.rbeService.includes('.brave.com:')
+  this.brave_services_key_id = getEnvConfig(['brave_services_key_id']) || ''
   this.service_key_aichat = getEnvConfig(['service_key_aichat']) || ''
-  this.chromeIOSDeveloperOptionsCode = getEnvConfig(['chrome_ios_developer_options_code']) || ''
+  this.braveIOSDeveloperOptionsCode = getEnvConfig(['brave_ios_developer_options_code']) || ''
 }
 
 Config.prototype.isReleaseBuild = function () {
   return this.buildConfig === 'Release'
 }
 
-Config.prototype.ischromeReleaseBuild = function () {
-  const ischromeReleaseBuildValue = getEnvConfig(['is_chrome_release_build'])
-  if (ischromeReleaseBuildValue !== undefined) {
-    assert(ischromeReleaseBuildValue === '0' || ischromeReleaseBuildValue === '1',
-      'Bad is_chrome_release_build value (should be 0 or 1)')
-    return ischromeReleaseBuildValue === '1'
+Config.prototype.isBraveReleaseBuild = function () {
+  const isBraveReleaseBuildValue = getEnvConfig(['is_brave_release_build'])
+  if (isBraveReleaseBuildValue !== undefined) {
+    assert(isBraveReleaseBuildValue === '0' || isBraveReleaseBuildValue === '1',
+      'Bad is_brave_release_build value (should be 0 or 1)')
+    return isBraveReleaseBuildValue === '1'
   }
 
   return false
@@ -321,22 +321,22 @@ Config.prototype.isOfficialBuild = function () {
   return this.isReleaseBuild() && !this.isAsan()
 }
 
-Config.prototype.getchromeLogoIconName = function () {
-  let iconName = "chrome-icon-dev-color.svg"
-  if (this.ischromeReleaseBuild()) {
+Config.prototype.getBraveLogoIconName = function () {
+  let iconName = "brave-icon-dev-color.svg"
+  if (this.isBraveReleaseBuild()) {
     if (this.channel === "beta") {
-      iconName = "chrome-icon-beta-color.svg"
+      iconName = "brave-icon-beta-color.svg"
     } else if (this.channel === "nightly") {
-      iconName = "chrome-icon-nightly-color.svg"
+      iconName = "brave-icon-nightly-color.svg"
     } else {
-      iconName = "chrome-icon-release-color.svg"
+      iconName = "brave-icon-release-color.svg"
     }
   }
   return iconName
 }
 
 Config.prototype.buildArgs = function () {
-  const version = this.chromeVersion
+  const version = this.braveVersion
   let version_parts = version.split('+')[0]
   version_parts = version_parts.split('.')
 
@@ -352,9 +352,9 @@ Config.prototype.buildArgs = function () {
     v8_enable_verify_heap: this.isAsan(),
     disable_fieldtrial_testing_config: true,
     safe_browsing_mode: 1,
-    chrome_services_key: this.chromeServicesKey,
-    root_extra_deps: ["//chrome"],
-    clang_unsafe_buffers_paths: "//chrome/build/config/unsafe_buffers_paths.txt",
+    brave_services_key: this.braveServicesKey,
+    root_extra_deps: ["//brave"],
+    clang_unsafe_buffers_paths: "//brave/build/config/unsafe_buffers_paths.txt",
     // TODO: Re-enable when chromium_src overrides work for files in relative
     // paths like widevine_cmdm_compoennt_installer.cc
     // use_jumbo_build: !this.officialBuild,
@@ -362,8 +362,8 @@ Config.prototype.buildArgs = function () {
     is_universal_binary: this.isUniversalBinary,
     proprietary_codecs: true,
     ffmpeg_branding: "Chrome",
-    branding_path_component: "chrome",
-    branding_path_product: "chrome",
+    branding_path_component: "brave",
+    branding_path_product: "brave",
     enable_nacl: false,
     enable_widevine: true,
     enable_feed_v2: true,
@@ -373,12 +373,12 @@ Config.prototype.buildArgs = function () {
     is_official_build: this.isOfficialBuild(),
     is_debug: this.isDebug(),
     dcheck_always_on: getEnvConfig(['dcheck_always_on']) || this.isComponentBuild(),
-    chrome_channel: this.channel,
-    chrome_google_api_key: this.chromeGoogleApiKey,
-    chrome_google_api_endpoint: this.googleApiEndpoint,
+    brave_channel: this.channel,
+    brave_google_api_key: this.braveGoogleApiKey,
+    brave_google_api_endpoint: this.googleApiEndpoint,
     google_default_client_id: this.googleDefaultClientId,
     google_default_client_secret: this.googleDefaultClientSecret,
-    chrome_infura_project_id: this.infuraProjectId,
+    brave_infura_project_id: this.infuraProjectId,
     bitflyer_production_client_id: this.bitFlyerProductionClientId,
     bitflyer_production_client_secret: this.bitFlyerProductionClientSecret,
     bitflyer_production_fee_address: this.bitFlyerProductionFeeAddress,
@@ -415,21 +415,21 @@ Config.prototype.buildArgs = function () {
     zebpay_sandbox_client_id: this.zebPaySandboxClientId,
     zebpay_sandbox_client_secret: this.zebPaySandboxClientSecret,
     zebpay_sandbox_oauth_url: this.zebPaySandboxOauthUrl,
-    chrome_version_major: version_parts[0],
-    chrome_version_minor: version_parts[1],
-    chrome_version_build: version_parts[2],
+    brave_version_major: version_parts[0],
+    brave_version_minor: version_parts[1],
+    brave_version_build: version_parts[2],
     chrome_version_string: this.chromeVersion,
-    chrome_sync_endpoint: this.chromeSyncEndpoint,
+    brave_sync_endpoint: this.braveSyncEndpoint,
     safebrowsing_api_endpoint: this.safeBrowsingApiEndpoint,
-    chrome_variations_server_url: this.chromeVariationsServerUrl,
+    brave_variations_server_url: this.braveVariationsServerUrl,
     updater_prod_endpoint: this.updaterProdEndpoint,
     updater_dev_endpoint: this.updaterDevEndpoint,
     webcompat_report_api_endpoint: this.webcompatReportApiEndpoint,
     rewards_grant_dev_endpoint: this.rewardsGrantDevEndpoint,
     rewards_grant_staging_endpoint: this.rewardsGrantStagingEndpoint,
     rewards_grant_prod_endpoint: this.rewardsGrantProdEndpoint,
-    chrome_stats_api_key: this.chromeStatsApiKey,
-    chrome_stats_updater_url: this.chromeStatsUpdaterUrl,
+    brave_stats_api_key: this.braveStatsApiKey,
+    brave_stats_updater_url: this.braveStatsUpdaterUrl,
     enable_hangout_services_extension: this.enable_hangout_services_extension,
     enable_cdm_host_verification: this.enableCDMHostVerification(),
     enable_pseudolocales: this.enable_pseudolocales,
@@ -441,15 +441,15 @@ Config.prototype.buildArgs = function () {
     use_libfuzzer: this.use_libfuzzer,
     enable_updater: this.isOfficialBuild(),
     enable_update_notifications: this.isOfficialBuild(),
-    chrome_services_production_domain: this.chromeServicesProductionDomain,
-    chrome_services_staging_domain: this.chromeServicesStagingDomain,
-    chrome_services_dev_domain: this.chromeServicesDevDomain,
+    brave_services_production_domain: this.braveServicesProductionDomain,
+    brave_services_staging_domain: this.braveServicesStagingDomain,
+    brave_services_dev_domain: this.braveServicesDevDomain,
     enable_dangling_raw_ptr_feature_flag: false,
-    chrome_services_key_id: this.chrome_services_key_id,
+    brave_services_key_id: this.brave_services_key_id,
     service_key_aichat: this.service_key_aichat,
   }
 
-  if (!this.ischromeReleaseBuild()) {
+  if (!this.isBraveReleaseBuild()) {
     args.chrome_pgo_phase = 0
 
     // Don't randomize mojom message ids. When randomization is enabled, all
@@ -466,7 +466,7 @@ Config.prototype.buildArgs = function () {
   }
 
   if (this.ignorePatchVersionNumber) {
-    assert(!this.ischromeReleaseBuild())
+    assert(!this.isBraveReleaseBuild())
 
     // Allow dummy LASTCHANGE to be set. When the real LASTCHANGE is used, ~2300
     // targets are rebuilt with each version bump.
@@ -484,10 +484,10 @@ Config.prototype.buildArgs = function () {
         args.notary_password = this.notary_password
       }
     } else if (this.targetOS === 'android') {
-      args.chrome_android_keystore_path = this.chromeAndroidKeystorePath
-      args.chrome_android_keystore_name = this.chromeAndroidKeystoreName
-      args.chrome_android_keystore_password = this.chromeAndroidKeystorePassword
-      args.chrome_android_key_password = this.chromeAndroidKeyPassword
+      args.brave_android_keystore_path = this.braveAndroidKeystorePath
+      args.brave_android_keystore_name = this.braveAndroidKeystoreName
+      args.brave_android_keystore_password = this.braveAndroidKeystorePassword
+      args.brave_android_key_password = this.braveAndroidKeyPassword
     }
   }
 
@@ -556,7 +556,7 @@ Config.prototype.buildArgs = function () {
       // Include vaapi support
       // TODO: Consider setting use_vaapi_x11 instead of use_vaapi. Also
       // consider enabling it for x86 builds. See
-      // https://github.com/chrome/chrome-browser/issues/1024#issuecomment-1175397914
+      // https://github.com/brave/brave-browser/issues/1024#issuecomment-1175397914
       args.use_vaapi = true
 
     }
@@ -572,17 +572,17 @@ Config.prototype.buildArgs = function () {
   // from out/<dir>/args.gn by Python scripts during the build. We do this to
   // handle gn args in upstream build scripts without introducing git conflict.
   if (this.targetOS !== 'android' && this.targetOS !== 'ios') {
-    args.enable_chrome_page_graph = true
+    args.enable_brave_page_graph = true
   } else {
-    args.enable_chrome_page_graph = false
+    args.enable_brave_page_graph = false
   }
   // Enable Page Graph WebAPI probes only in dev/nightly builds.
-  if (args.enable_chrome_page_graph &&
-      (!this.ischromeReleaseBuild() || this.channel === 'dev' ||
+  if (args.enable_brave_page_graph &&
+      (!this.isBraveReleaseBuild() || this.channel === 'dev' ||
        this.channel === 'nightly')) {
-    args.enable_chrome_page_graph_webapi_probes = true
+    args.enable_brave_page_graph_webapi_probes = true
   } else {
-    args.enable_chrome_page_graph_webapi_probes = false
+    args.enable_brave_page_graph_webapi_probes = false
   }
 
   if (this.targetOS) {
@@ -593,17 +593,17 @@ Config.prototype.buildArgs = function () {
     args.android_channel = this.channel
     if (!this.isReleaseBuild()) {
       args.android_channel = 'default'
-      args.chrome_public_manifest_package = 'com.chrome.browser_default'
+      args.chrome_public_manifest_package = 'com.brave.browser_default'
     } else if (this.channel === '') {
       args.android_channel = 'stable'
-      args.chrome_public_manifest_package = 'com.chrome.browser'
+      args.chrome_public_manifest_package = 'com.brave.browser'
     } else if (this.channel === 'beta') {
-      args.chrome_public_manifest_package = 'com.chrome.browser_beta'
+      args.chrome_public_manifest_package = 'com.brave.browser_beta'
     } else if (this.channel === 'dev') {
-      args.chrome_public_manifest_package = 'com.chrome.browser_dev'
+      args.chrome_public_manifest_package = 'com.brave.browser_dev'
     } else if (this.channel === 'nightly') {
       args.android_channel = 'canary'
-      args.chrome_public_manifest_package = 'com.chrome.browser_nightly'
+      args.chrome_public_manifest_package = 'com.brave.browser_nightly'
     }
     // exclude_unwind_tables is inherited form upstream and is false for any
     // Android build
@@ -613,9 +613,9 @@ Config.prototype.buildArgs = function () {
       this.targetAndroidOutputFormat || (this.buildConfig === 'Release' ? 'aab' : 'apk')
     args.android_override_version_name = this.androidOverrideVersionName
 
-    args.chrome_android_developer_options_code = this.chromeAndroidDeveloperOptionsCode
-    args.chrome_safetynet_api_key = this.chromeSafetyNetApiKey
-    args.chrome_safebrowsing_api_key = this.chromeAndroidSafeBrowsingApiKey
+    args.brave_android_developer_options_code = this.braveAndroidDeveloperOptionsCode
+    args.brave_safetynet_api_key = this.braveSafetyNetApiKey
+    args.brave_safebrowsing_api_key = this.braveAndroidSafeBrowsingApiKey
     args.safe_browsing_mode = 2
 
     // Required since cr126 to use Chrome password store
@@ -654,8 +654,8 @@ Config.prototype.buildArgs = function () {
     if (this.targetEnvironment) {
       args.target_environment = this.targetEnvironment
     }
-    if (this.chromeIOSMarketingPatchVersion != '') {
-      args.chrome_ios_marketing_version_patch = this.chromeIOSMarketingPatchVersion
+    if (this.braveIOSMarketingPatchVersion != '') {
+      args.brave_ios_marketing_version_patch = this.braveIOSMarketingPatchVersion
     }
     args.enable_stripping = !this.isComponentBuild()
     // Component builds are not supported for iOS:
@@ -665,7 +665,7 @@ Config.prototype.buildArgs = function () {
     args.fatal_linker_warnings = !this.isComponentBuild()
     // DCHECK's crash on Static builds without allowing the debugger to continue
     // Can be removed when approprioate DCHECK's have been fixed:
-    // https://github.com/chrome/chrome-browser/issues/10334
+    // https://github.com/brave/brave-browser/issues/10334
     args.dcheck_always_on = this.isComponentBuild()
 
     if (!args.is_official_build) {
@@ -684,22 +684,22 @@ Config.prototype.buildArgs = function () {
     args.ios_enable_credential_provider_extension = true
     args.ios_enable_widget_kit_extension = false
 
-    args.chrome_ios_developer_options_code = this.chromeIOSDeveloperOptionsCode
+    args.brave_ios_developer_options_code = this.braveIOSDeveloperOptionsCode
 
     // This is currently being flipped on and off by the Chromium team to test
     // however it causes crashes for us at launch. Check `ios/features.gni`
     // in the future to see if this is no longer needed
-    // https://github.com/chrome/chrome-browser/issues/29934
+    // https://github.com/brave/brave-browser/issues/29934
     args.ios_partition_alloc_enabled = false
     args.use_partition_alloc = false
 
-    args.ios_provider_target = "//chrome/ios/browser/providers:chrome_providers"
+    args.ios_provider_target = "//brave/ios/browser/providers:brave_providers"
 
     args.ios_locales_pack_extra_source_patterns = [
-      "%root_gen_dir%/components/COMPONENTS_strings_",
+      "%root_gen_dir%/components/brave_components_strings_",
     ]
     args.ios_locales_pack_extra_deps = [
-      "//components/resources:strings",
+      "//brave/components/resources:strings",
     ]
 
     delete args.safebrowsing_api_endpoint
@@ -711,9 +711,9 @@ Config.prototype.buildArgs = function () {
     delete args.enable_nacl
     delete args.enable_widevine
     delete args.enable_hangout_services_extension
-    delete args.chrome_google_api_endpoint
-    delete args.chrome_google_api_key
-    delete args.chrome_stats_updater_url
+    delete args.brave_google_api_endpoint
+    delete args.brave_google_api_key
+    delete args.brave_stats_updater_url
     delete args.bitflyer_production_client_id
     delete args.bitflyer_production_client_secret
     delete args.bitflyer_production_fee_address
@@ -766,7 +766,7 @@ Config.prototype.shouldSign = function () {
   }
 
   if (this.targetOS === 'android') {
-    return this.chromeAndroidKeystorePath !== undefined
+    return this.braveAndroidKeystorePath !== undefined
   }
 
   if (this.getTargetOS() === 'mac') {
@@ -925,24 +925,24 @@ Config.prototype.update = function (options) {
     this.gClientFile = options.gclient_file
   }
 
-  if (options.chrome_google_api_key) {
-    this.chromeGoogleApiKey = options.chrome_google_api_key
+  if (options.brave_google_api_key) {
+    this.braveGoogleApiKey = options.brave_google_api_key
   }
 
-  if (options.chrome_safebrowsing_api_key) {
-    this.chromeAndroidSafeBrowsingApiKey = options.chrome_safebrowsing_api_key
+  if (options.brave_safebrowsing_api_key) {
+    this.braveAndroidSafeBrowsingApiKey = options.brave_safebrowsing_api_key
   }
 
-  if (options.chrome_safetynet_api_key) {
-    this.chromeSafetyNetApiKey = options.chrome_safetynet_api_key
+  if (options.brave_safetynet_api_key) {
+    this.braveSafetyNetApiKey = options.brave_safetynet_api_key
   }
 
-  if (options.chrome_google_api_endpoint) {
-    this.googleApiEndpoint = options.chrome_google_api_endpoint
+  if (options.brave_google_api_endpoint) {
+    this.googleApiEndpoint = options.brave_google_api_endpoint
   }
 
-  if (options.chrome_infura_project_id) {
-    this.infuraProjectId = options.chrome_infura_project_id
+  if (options.brave_infura_project_id) {
+    this.infuraProjectId = options.brave_infura_project_id
   }
 
   if (options.bitflyer_production_client_id) {
@@ -1117,12 +1117,12 @@ Config.prototype.update = function (options) {
     this.rewardsGrantProdEndpoint = options.rewards_grant_prod_endpoint
   }
 
-  if (options.chrome_stats_api_key) {
-    this.chromeStatsApiKey = options.chrome_stats_api_key
+  if (options.brave_stats_api_key) {
+    this.braveStatsApiKey = options.brave_stats_api_key
   }
 
-  if (options.chrome_stats_updater_url) {
-    this.chromeStatsUpdaterUrl = options.chrome_stats_updater_url
+  if (options.brave_stats_updater_url) {
+    this.braveStatsUpdaterUrl = options.brave_stats_updater_url
   }
 
   if (options.channel) {
@@ -1182,7 +1182,7 @@ Config.prototype.update = function (options) {
   if (options.xcode_gen) {
     assert(process.platform === 'darwin' || options.target_os === 'ios')
     if (options.xcode_gen === 'ios') {
-      this.xcode_gen_target = '//chrome/ios:*'
+      this.xcode_gen_target = '//brave/ios:*'
     } else {
       this.xcode_gen_target = options.xcode_gen
     }
@@ -1242,16 +1242,16 @@ Object.defineProperty(Config.prototype, 'defaultOptions', {
                                            'rust-toolchain', 'bin'), true)
     env = this.addPathToEnv(env, this.depotToolsDir, true)
     if (this.getTargetOS() === 'mac' && process.platform !== 'darwin') {
-      const crossCompilePath = path.join(this.srcDir, 'chrome', 'build', 'mac',
+      const crossCompilePath = path.join(this.srcDir, 'brave', 'build', 'mac',
                                          'cross-compile', 'path')
       env = this.addPathToEnv(env, crossCompilePath, true)
     }
     const pythonPaths = [
-      ['chrome', 'script'],
+      ['brave', 'script'],
       ['tools', 'grit', 'grit', 'extern'],
-      ['chrome', 'vendor', 'requests'],
-      ['chrome', 'third_party', 'cryptography'],
-      ['chrome', 'third_party', 'macholib'],
+      ['brave', 'vendor', 'requests'],
+      ['brave', 'third_party', 'cryptography'],
+      ['brave', 'third_party', 'macholib'],
       ['build'],
       ['third_party', 'depot_tools'],
     ]
@@ -1266,20 +1266,20 @@ Object.defineProperty(Config.prototype, 'defaultOptions', {
       // https://peps.python.org/pep-0540/
       env.PYTHONUTF8 = '1'
     }
-    env.TARGET_ARCH = this.gypTargetArch // for chrome scripts
+    env.TARGET_ARCH = this.gypTargetArch // for brave scripts
     env.RUSTUP_HOME = path.join(this.srcDir, 'third_party', 'rust-toolchain')
     // Fix `gclient runhooks` - broken since depot_tools a7b20b34f85432b5958963b75edcedfef9cf01fd
     env.GSUTIL_ENABLE_LUCI_AUTH = '0'
 
     if (this.channel != "") {
-      env.chrome_CHANNEL = this.channel
+      env.BRAVE_CHANNEL = this.channel
     }
 
-    if (!this.usechromeHermeticToolchain) {
+    if (!this.useBraveHermeticToolchain) {
       env.DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
     } else {
       // Use hermetic toolchain only internally.
-      env.USE_chrome_HERMETIC_TOOLCHAIN = '1'
+      env.USE_BRAVE_HERMETIC_TOOLCHAIN = '1'
       env.DEPOT_TOOLS_WIN_TOOLCHAIN = '1'
       env.GYP_MSVS_HASH_7393122652 = 'd325744cf9'
       env.DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL = `${this.internalDepsUrl}/windows-hermetic-toolchain/`
@@ -1318,7 +1318,7 @@ Object.defineProperty(Config.prototype, 'defaultOptions', {
       // These env vars are required during `build` stage.
 
       // Autoninja generates -j value when RBE is enabled, adjust limits for
-      // chrome-specific setup.
+      // Brave-specific setup.
       env.NINJA_CORE_MULTIPLIER = Math.min(20, env.NINJA_CORE_MULTIPLIER || 20)
       env.NINJA_CORE_LIMIT = Math.min(160, env.NINJA_CORE_LIMIT || 160)
 

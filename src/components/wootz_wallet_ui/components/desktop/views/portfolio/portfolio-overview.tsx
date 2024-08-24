@@ -166,19 +166,10 @@ export const PortfolioOverview = () => {
       })
     })
   const { data: defaultFiat } = useGetDefaultFiatCurrencyQuery()
-  const {
-    data: {
-      balance: rewardsBalance,
-      rewardsToken,
-      status: rewardsStatus,
-      rewardsAccount: externalRewardsAccount,
-      rewardsNetwork: externalRewardsNetwork
-    } = emptyRewardsInfo,
-    isLoading: isLoadingRewardsInfo
-  } = useGetRewardsInfoQuery()
 
-  const isLoadingTokensOrRewards = isLoadingRewardsInfo || isLoadingUserTokens
-  const isLoadingAccountsOrRewards = isLoadingRewardsInfo || isLoadingAccounts
+
+  const isLoadingTokensOrRewards =  isLoadingUserTokens
+  const isLoadingAccountsOrRewards = isLoadingAccounts
 
   // State
   const [showPortfolioSettings, setShowPortfolioSettings] =
@@ -295,7 +286,7 @@ export const PortfolioOverview = () => {
       return {
         asset,
         assetBalance:
-          getIsRewardsToken(asset) && rewardsBalance
+           rewardsBalance
             ? new Amount(rewardsBalance)
                 .multiplyByDecimals(asset.decimals)
                 .format()
@@ -466,8 +457,7 @@ export const PortfolioOverview = () => {
             assetBalance={
               !tokenBalancesRegistry
                 ? ''
-                : selectedGroupAssetsByItem === AccountsGroupByOption.id &&
-                  !getIsRewardsToken(item.asset)
+                : selectedGroupAssetsByItem === AccountsGroupByOption.id 
                 ? getBalance(
                     account?.accountId,
                     item.asset,

@@ -15,7 +15,7 @@
 #include "chrome/browser/wootz_wallet/meld_integration_service_factory.h"
 #include "chrome/browser/wootz_wallet/swap_service_factory.h"
 #include "chrome/browser/ui/webui/wootz_wallet/wallet_common_ui.h"
-#include "chrome/browser/ui/webui/wootz_webui_source.h"
+// #include "chrome/browser/ui/webui/wootz_webui_source.h"
 #include "components/wootz_wallet/browser/blockchain_registry.h"
 #include "components/wootz_wallet/browser/wootz_wallet_constants.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"

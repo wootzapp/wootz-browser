@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Button from '@wootz/leo/react/button'
+import Button from '@brave/leo/react/button'
 
 export const LinkButton = styled(Button)<{ width?: string }>`
   --leo-button-radius: 12px;

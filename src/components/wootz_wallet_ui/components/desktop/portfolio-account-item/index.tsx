@@ -21,16 +21,13 @@ import {
   getPriceIdForToken
 } from '../../../utils/pricing-utils'
 import { makeAccountRoute } from '../../../utils/routes-utils'
-import { getIsRewardsAccount } from '../../../utils/rewards_utils'
-import {
-  externalWalletProviderFromString //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+
 import { getLocale } from '../../../../common/locale'
 
 // Components
 import WithHideBalancePlaceholder from '../with-hide-balance-placeholder'
 import { PortfolioAccountMenu } from '../wallet-menus/portfolio-account-menu'
-import { RewardsMenu } from '../wallet-menus/rewards_menu'
+
 import { PopupModal } from '../popup-modals/index'
 import { DepositModal } from '../popup-modals/account-settings-modal/account-settings-modal'
 
@@ -55,7 +52,6 @@ import {
   AccountButton
 } from './style'
 import {
-  WootzRewardsIndicator,
   VerticalSpacer,
   Text,
   Row,
@@ -98,12 +94,6 @@ export const PortfolioAccountItem = (props: Props) => {
   const accountMenuRef = React.useRef<HTMLDivElement>(null)
   const depositModalRef = React.useRef<HTMLDivElement>(null)
 
-  // Memos & Computed
-  const isRewardsAccount = getIsRewardsAccount(account.accountId)
-
-  const externalProvider = isRewardsAccount
-    ? externalWalletProviderFromString(account.accountId.uniqueKey)
-    : null
 
   const formattedAssetBalance: string = React.useMemo(() => {
     return new Amount(assetBalance)
@@ -169,104 +159,6 @@ export const PortfolioAccountItem = (props: Props) => {
 
   return (
     <>
-      <StyledWrapper isRewardsAccount={isRewardsAccount}>
-        <AccountButton
-          onClick={onSelectAccount}
-          disabled={isRewardsAccount}
-        >
-          <Row width='unset'>
-            <CreateAccountIcon
-              size='huge'
-              marginRight={12}
-              account={account}
-              externalProvider={externalProvider}
-            />
-            <Column alignItems='flex-start'>
-              <Text
-                textSize='14px'
-                isBold={true}
-                textColor='primary'
-                textAlign='left'
-              >
-                {account.name}
-              </Text>
-              {isRewardsAccount && (
-                <>
-                  <VerticalSpacer space='6px' />
-                  <WootzRewardsIndicator>
-                    {getLocale('wootzWalletWootzRewardsTitle')}
-                  </WootzRewardsIndicator>
-                </>
-              )}
-              {account.address && !isRewardsAccount && (
-                <Text
-                  textSize='12px'
-                  isBold={false}
-                  textColor='primary'
-                  textAlign='left'
-                >
-                  {reduceAddress(account.address)}
-                </Text>
-              )}
-            </Column>
-          </Row>
-          <Column
-            alignItems='flex-end'
-            margin='0px 12px 0px 0px'
-          >
-            <WithHideBalancePlaceholder
-              size='small'
-              hideBalances={hideBalances ?? false}
-            >
-              <Text
-                textSize='14px'
-                isBold={true}
-                textColor='primary'
-                textAlign='right'
-              >
-                {`${formattedAssetBalance} ${asset.symbol}`}
-              </Text>
-              <Text
-                textSize='12px'
-                isBold={false}
-                textColor='secondary'
-                textAlign='right'
-              >
-                {fiatBalance.formatAsFiat(defaultFiatCurrency)}
-              </Text>
-            </WithHideBalancePlaceholder>
-          </Column>
-        </AccountButton>
-        <AccountMenuWrapper ref={accountMenuRef}>
-          <AccountMenuButton
-            onClick={() => setShowAccountMenu((prev) => !prev)}
-          >
-            <AccountMenuIcon />
-          </AccountMenuButton>
-          {showAccountMenu && (
-            <>
-              {isRewardsAccount ? (
-                <RewardsMenu />
-              ) : (
-                <PortfolioAccountMenu
-                  onClickViewOnExplorer={
-                    blockExplorerSupported
-                      ? onViewAccountOnBlockExplorer
-                      : undefined
-                  }
-                  onClickSell={
-                    isSellSupported && !isAssetsBalanceZero
-                      ? showSellModal
-                      : undefined
-                  }
-                  onClickDeposit={onShowDepositModal}
-                />
-              )}
-            </>
-          )}
-        </AccountMenuWrapper>
-      </StyledWrapper>
-
       {showDepositModal && (
         <PopupModal
           title={getLocale('wootzWalletDepositCryptoButton')}

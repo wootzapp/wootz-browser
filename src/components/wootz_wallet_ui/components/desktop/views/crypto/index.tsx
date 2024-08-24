@@ -119,7 +119,7 @@ export const CryptoView = ({ sessionRoute }: Props) => {
     if (isPanel) {
       chrome.tabs.create(
         {
-          url: `chrome://wallet${WalletRoutes.Backup}`
+          url: `wootzapp://wallet${WalletRoutes.Backup}`
         },
         () => {
           if (chrome.runtime.lastError) {

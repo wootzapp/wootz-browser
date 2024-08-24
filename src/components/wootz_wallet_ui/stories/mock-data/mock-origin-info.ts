@@ -15,6 +15,6 @@ export const mockUniswapOriginInfo: WootzWallet.OriginInfo = {
 }
 
 export const mockWootzWalletOrigin: WootzWallet.OriginInfo = {
-  originSpec: 'wootz://wallet',
+  originSpec: 'wootzapp://wallet',
   eTldPlusOne: 'wallet'
 }

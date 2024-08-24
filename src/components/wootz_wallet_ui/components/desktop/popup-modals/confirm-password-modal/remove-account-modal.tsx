@@ -5,8 +5,8 @@
 
 import * as React from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import { type InputEventDetail } from '@wootz/leo/react/input'
+import * as leo from '@brave/leo/tokens/css/variables'
+import { type InputEventDetail } from '@brave/leo/react/input'
 
 // actions
 import {

@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Button from '@wootz/leo/react/button'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Button from '@brave/leo/react/button'
 
 // shared styles
 import { Row } from '../shared/style'

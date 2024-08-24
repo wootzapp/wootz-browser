@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import Input, { InputEventDetail } from '@wootz/leo/react/input'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
 
 // utils
 import { getLocale } from '$web-common/locale'

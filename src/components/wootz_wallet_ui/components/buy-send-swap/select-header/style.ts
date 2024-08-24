@@ -4,7 +4,7 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import styled from 'styled-components'
 import { WalletButton } from '../../shared/style'
-import { CaratStrongLeftIcon } from 'wootz-ui/components/icons'
+import { CaratStrongLeftIcon } from 'brave-ui/components/icons'
 import Plus from '../../../assets/svg-icons/plus-icon.svg'
 
 export const Header = styled.div`

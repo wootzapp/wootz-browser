@@ -11,9 +11,7 @@ import { useLocation } from 'react-router-dom'
 import {
   LOCAL_STORAGE_KEYS //
 } from '../../../../../../common/constants/local-storage-keys'
-import {
-  emptyRewardsInfo //
-} from '../../../../../../common/async/base-query-cache'
+
 
 // Types
 import {
@@ -28,7 +26,6 @@ import { getLocale } from '../../../../../../../common/locale'
 import Amount from '../../../../../../utils/amount'
 import { getBalance } from '../../../../../../utils/balance-utils'
 import { computeFiatAmount } from '../../../../../../utils/pricing-utils'
-import { getIsRewardsToken } from '../../../../../../utils/rewards_utils'
 
 // Options
 import { PortfolioAssetOptions } from '../../../../../../options/nav-options'
@@ -53,7 +50,6 @@ import {
 import {
   useGetDefaultFiatCurrencyQuery,
   useGetNetworkQuery,
-  useGetRewardsInfoQuery,
   useGetSelectedChainQuery
 } from '../../../../../../common/slices/api.slice'
 import {
@@ -113,9 +109,6 @@ export const AccountsAndTransactionsList = ({
   const { data: selectedAssetNetwork } = useGetNetworkQuery(
     selectedAsset ?? skipToken
   )
-  const {
-    data: { balance: rewardsBalance, rewardsAccount } = emptyRewardsInfo
-  } = useGetRewardsInfoQuery()
 
   // hooks
   const {
@@ -130,11 +123,6 @@ export const AccountsAndTransactionsList = ({
     React.useState<WootzWallet.AccountInfo>()
   const [showSellModal, setShowSellModal] = React.useState<boolean>(false)
 
-  // Memos & Computed
-  const isRewardsToken = getIsRewardsToken(selectedAsset)
-
-  const externalRewardsAccount = isRewardsToken ? rewardsAccount : undefined
-
   const filteredAccountsByCoinType = React.useMemo(() => {
     if (!selectedAsset) {
       return []
@@ -148,9 +136,7 @@ export const AccountsAndTransactionsList = ({
     if (!selectedAsset) {
       return []
     }
-    if (isRewardsToken) {
-      return externalRewardsAccount ? [externalRewardsAccount] : []
-    }
+
     return filteredAccountsByCoinType
       .filter((account) =>
         new Amount(
@@ -174,9 +160,7 @@ export const AccountsAndTransactionsList = ({
       })
   }, [
     selectedAsset,
-    isRewardsToken,
     filteredAccountsByCoinType,
-    externalRewardsAccount,
     tokenBalancesRegistry,
     spotPriceRegistry
   ])
@@ -213,7 +197,7 @@ export const AccountsAndTransactionsList = ({
   ) {
     return (
       <>
-        {!isRewardsToken && (
+        {(
           <Row padding='24px 0px'>
             <SegmentedControl
               navOptions={PortfolioAssetOptions}
@@ -296,14 +280,6 @@ export const AccountsAndTransactionsList = ({
     <>
       {selectedAsset && (
         <>
-          {!isRewardsToken && (
-            <Row padding='24px 0px'>
-              <SegmentedControl
-                navOptions={PortfolioAssetOptions}
-                width={384}
-              />
-            </Row>
-          )}
           {hash !== WalletRoutes.TransactionsHash && (
             <>
               {accountsList.length !== 0 ? (
@@ -322,50 +298,7 @@ export const AccountsAndTransactionsList = ({
                     >
                       {getLocale('wootzWalletAccounts')}
                     </Text>
-                    {!isRewardsToken && (
-                      <Row
-                        width='unset'
-                        justifyContent='flex-end'
-                      >
-                        {!hidePortfolioBalances ? (
-                          <>
-                            <Text
-                              isBold={true}
-                              textColor='text01'
-                              textSize='14px'
-                            >
-                              {formattedFullAssetBalance}
-                            </Text>
-                            <HorizontalSpace space='4px' />
-                            <Text
-                              isBold={false}
-                              textColor='text03'
-                              textSize='14px'
-                            >
-                              {'(' +
-                                fullAssetFiatBalance.formatAsFiat(
-                                  defaultFiatCurrency
-                                ) +
-                                ')'}
-                            </Text>
-                          </>
-                        ) : (
-                          <Text
-                            isBold={true}
-                            textColor='text01'
-                            textSize='14px'
-                          >
-                            ******
-                          </Text>
-                        )}
-                        <HorizontalSpace space='16px' />
-                        <ToggleVisibilityButton onClick={onToggleHideBalances}>
-                          <EyeIcon
-                            name={hidePortfolioBalances ? 'eye-off' : 'eye-on'}
-                          />
-                        </ToggleVisibilityButton>
-                      </Row>
-                    )}
+                    
                   </Row>
                   <VerticalDivider />
                   <VerticalSpacer space={8} />
@@ -375,11 +308,8 @@ export const AccountsAndTransactionsList = ({
                       asset={selectedAsset}
                       account={account}
                       assetBalance={
-                        isRewardsToken && rewardsBalance
-                          ? new Amount(rewardsBalance)
-                              .multiplyByDecimals(selectedAsset.decimals)
-                              .format()
-                          : getBalance(
+                       
+                          getBalance(
                               account.accountId,
                               selectedAsset,
                               tokenBalancesRegistry

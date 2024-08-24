@@ -123,7 +123,7 @@ describe('getIsWootzWalletOrigin', () => {
   it('should return `false` if it is not a Wootz Wallet origin', () => {
     expect(getIsWootzWalletOrigin(mockUniswapOriginInfo)).toBe(false)
     expect(
-      getIsWootzWalletOrigin({ originSpec: 'chrome://wallet@newtab' })
+      getIsWootzWalletOrigin({ originSpec: 'wootzapp://wallet@newtab' })
     ).toBe(false)
   })
   it('should return `true` if it is a Wootz Wallet origin', () => {

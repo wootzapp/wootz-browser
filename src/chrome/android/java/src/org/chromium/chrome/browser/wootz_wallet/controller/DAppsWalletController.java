@@ -5,7 +5,7 @@
 
 package org.chromium.chrome.browser.wootz_wallet.controller;
 
-import static org.chromium.chrome.browser.app.ChromeActivity.WOOTZ_WALLET_HOST;
+import static org.chromium.chrome.browser.app.WootzActivity.WOOTZ_WALLET_HOST;
 
 import android.content.Context;
 import android.content.DialogInterface;
@@ -23,7 +23,7 @@ import org.chromium.wootz_wallet.mojom.AssetRatioService;
 import org.chromium.wootz_wallet.mojom.WootzWalletService;
 import org.chromium.wootz_wallet.mojom.JsonRpcService;
 import org.chromium.wootz_wallet.mojom.KeyringService;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.modal.WootzWalletPanel;
@@ -61,7 +61,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     public DAppsWalletController(Context mContext, View mAnchorViewHost) {
         this.mContext = mContext;
         this.mAnchorViewHost = mAnchorViewHost;
-        this.mActivity = ChromeActivity.getChromeTabbedActivity();
+        this.mActivity = WootzActivity.getChromeTabbedActivity();
         WebContents webContents = null;
         mDefaultLifecycleObserver =
                 new DefaultLifecycleObserver() {
@@ -87,13 +87,13 @@ public class DAppsWalletController implements ConnectionErrorHandler {
                     DAppsWalletController.this.cleanUp();
                 };
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             webContents = activity.getCurrentWebContents();
 
             ObservableSupplier<BrowserControlsManager> managerSupplier =
                     activity.getBrowserControlsManagerSupplier();
             mFullscreenManager = managerSupplier.get().getFullscreenManager();
-        } catch (ChromeActivity.ChromeActivityNotFoundException | NullPointerException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException | NullPointerException e) {
             Log.e(TAG, "Constructor", e);
         }
 

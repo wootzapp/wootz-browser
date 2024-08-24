@@ -136,6 +136,7 @@ template("chrome_extra_paks") {
       "//chrome/common:resources",
       "//components/autofill/core/browser:autofill_address_rewriter_resources",
       "//components/resources",
+      "//components/resources:resources_repack",
       "//content:content_resources",
       "//content/browser/resources:resources",
       "//mojo/public/js:resources",

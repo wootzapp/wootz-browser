@@ -5,8 +5,8 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query'
-import ProgressRingReact from '@wootz/leo/react/progressRing'
-import Input, { InputEventDetail } from '@wootz/leo/react/input'
+import ProgressRingReact from '@brave/leo/react/progressRing'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
 
 // redux
 import { useDispatch, useSelector } from 'react-redux'

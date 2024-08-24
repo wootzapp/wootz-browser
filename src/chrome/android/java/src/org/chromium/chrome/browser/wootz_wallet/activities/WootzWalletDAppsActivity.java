@@ -20,7 +20,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.fragments.ApproveTxBottomSheetDialogFragment;
 import org.chromium.chrome.browser.wootz_wallet.fragments.dapps.AddSwitchChainNetworkFragment;
@@ -40,7 +40,6 @@ import org.chromium.chrome.browser.profiles.ProfileProvider;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.chromium.chrome.browser.app.ChromeActivity;
 
 /**
  * Base activity for all DApps-related activities
@@ -104,7 +103,7 @@ public class WootzWalletDAppsActivity extends WootzWalletBaseActivity
         mActivityType = ActivityType.valueOf(
                 intent.getIntExtra("activityType", ActivityType.ADD_ETHEREUM_CHAIN.getValue()));
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
             mWalletModel.getDappsModel().mProcessNextDAppsRequest.observe(this, activityType -> {
                 if (activityType == null) return;
@@ -121,7 +120,7 @@ public class WootzWalletDAppsActivity extends WootzWalletBaseActivity
                 }
             });
 
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "triggerLayoutInflation", e);
         }
 
@@ -273,9 +272,9 @@ public class WootzWalletDAppsActivity extends WootzWalletBaseActivity
         // TODO (pavi): update the flow with dapps model
         // (under-development) and get rid of explicit clear state call
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             activity.getWalletModel().getDappsModel().clearDappsState();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onDestroy " + e);
         }
 

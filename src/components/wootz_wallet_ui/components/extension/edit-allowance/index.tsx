@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import * as React from 'react'
-import Radio from 'wootz-ui/components/formControls/radio'
+import Radio from 'brave-ui/components/formControls/radio'
 
 // Utils
 import { getLocale } from '$web-common/locale'

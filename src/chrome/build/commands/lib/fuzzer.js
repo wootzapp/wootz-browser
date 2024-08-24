@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 const build = require('./build')
-const config = require('../lib/config')
+const config = require('./config')
 const fs = require('fs-extra')
 const path = require('path')
 const { spawn } = require('child_process')

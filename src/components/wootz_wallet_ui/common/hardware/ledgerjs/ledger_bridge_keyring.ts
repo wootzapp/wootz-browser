@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-import { LEDGER_HARDWARE_VENDOR } from 'gen/wootz/components/wootz_wallet/common/wootz_wallet.mojom.m.js'
+import { LEDGER_HARDWARE_VENDOR } from 'gen/components/wootz_wallet/common/wootz_wallet.mojom.m.js'
 import { WootzWallet, HardwareVendor } from '../../../constants/types'
 import { getLocale } from '../../../../common/locale'
 import { HardwareOperationResult } from '../types'

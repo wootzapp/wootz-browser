@@ -18,7 +18,7 @@ import { StyledWrapper, Title, Description } from './style'
 export const WelcomePanel = () => {
   // methods
   const onSetup = () => {
-    chrome.tabs.create({ url: 'chrome://wallet' }, () => {
+    chrome.tabs.create({ url: 'wootzapp://wallet' }, () => {
       if (chrome.runtime.lastError) {
         console.error('tabs.create failed: ' + chrome.runtime.lastError.message)
       }

@@ -45,7 +45,6 @@ export function createWalletApiBase() {
       'TransactionSimulationsOptIn',
       'UserBlockchainTokens',
       'NftDiscoveryEnabledStatus',
-      'WootzRewards-Info',
       'NFTPinningStatus',
       'NFTSPinningStatus',
       'AutoPinEnabled',

@@ -46,7 +46,7 @@ import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.wootz_wallet.mojom.TransactionType;
 import org.chromium.wootz_wallet.mojom.TxService;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.adapters.ApproveTxFragmentPageAdapter;
@@ -74,7 +74,6 @@ import java.util.concurrent.Executors;
 
 import org.chromium.chrome.browser.util.LiveDataUtil;
 import org.chromium.chrome.browser.tab.TabUtils;
-import org.chromium.chrome.browser.app.ChromeActivity;
 
 public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogFragment {
     private static final String TAG = "ApproveTx";
@@ -201,10 +200,10 @@ public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogF
     public Dialog onCreateDialog(Bundle savedInstanceState) {
         Dialog dialog = super.onCreateDialog(savedInstanceState);
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             mWalletModel = activity.getWalletModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreateDialog ", e);
         }
         return dialog;

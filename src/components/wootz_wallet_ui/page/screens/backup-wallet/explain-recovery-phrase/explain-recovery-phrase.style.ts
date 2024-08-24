@@ -4,10 +4,10 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Dialog from '@wootz/leo/react/dialog'
-import Button from '@wootz/leo/react/button'
-import Icon from '@wootz/leo/react/icon'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Dialog from '@brave/leo/react/dialog'
+import Button from '@brave/leo/react/button'
+import Icon from '@brave/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 import WarningCircleOutlineIcon from '../../../../assets/svg-icons/warning-circle-outline-icon.svg'
 import ExamplePhraseLight from './images/example_recovery_phrase_light.png'

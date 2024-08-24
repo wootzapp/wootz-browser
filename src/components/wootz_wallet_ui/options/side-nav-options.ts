@@ -7,8 +7,6 @@ import { getLocale } from '../../common/locale'
 import {
   WalletIconD,
   WalletIconL,
-  RewardsIconL,
-  RewardsIconD,
   CreditCardIconL,
   CreditCardIconD
 } from '../assets/svg-icons/nav-button-icons'
@@ -19,12 +17,6 @@ export const NavOptions = (): NavObjectType[] => [
     primaryIcon: WalletIconL,
     secondaryIcon: WalletIconD,
     id: 'crypto'
-  },
-  {
-    name: getLocale('wootzWalletSideNavRewards'),
-    primaryIcon: RewardsIconL,
-    secondaryIcon: RewardsIconD,
-    id: 'rewards'
   },
   {
     name: getLocale('wootzWalletSideNavCards'),

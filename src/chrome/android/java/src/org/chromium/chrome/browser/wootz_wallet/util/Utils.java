@@ -72,7 +72,7 @@ import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.wootz_wallet.mojom.TransactionStatus;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.model.AccountSelectorItemModel;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -1176,12 +1176,12 @@ public class Utils {
     public static Profile getProfile(boolean isIncognito) {
         ChromeActivity chromeActivity = null;
         try {
-            chromeActivity = ChromeActivity.getChromeActivity();
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+            chromeActivity = WootzActivity.getWootzActivity();
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "getProfile " + e);
         }
         if (chromeActivity == null) {
-            chromeActivity = ChromeActivity.getChromeTabbedActivity();
+            chromeActivity = WootzActivity.getChromeTabbedActivity();
         }
         if (chromeActivity == null) {
             return ProfileManager.getLastUsedRegularProfile(); // Last resort

@@ -3,10 +3,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import styled from 'styled-components'
-import { CaratStrongLeftIcon } from 'wootz-ui/components/icons'
+import { CaratStrongLeftIcon } from 'brave-ui/components/icons'
 import { WalletButton } from '../style'
 
-// Will use wootz-ui button comp in the future!
+// Will use brave-ui button comp in the future!
 // Currently is missing "tiny" variant
 export const StyledWrapper = styled(WalletButton)`
   display: flex;

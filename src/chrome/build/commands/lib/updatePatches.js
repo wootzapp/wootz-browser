@@ -5,7 +5,7 @@
 
 const path = require('path')
 const fs = require('fs-extra')
-const util = require('../lib/util')
+const util = require('./util')
 
 const desiredReplacementSeparator = '-'
 const patchExtension = '.patch'

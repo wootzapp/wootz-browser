@@ -4,8 +4,8 @@
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 const path = require('path')
-const config = require('../lib/config')
-const util = require('../lib/util')
+const config = require('./config')
+const util = require('./util')
 const l10nUtil = require('./l10nUtil')
 
 const resetChromeStringFiles = () => {

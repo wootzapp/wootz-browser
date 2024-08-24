@@ -7,9 +7,9 @@ import * as React from 'react'
 import { useDispatch } from 'react-redux'
 import { EntityId } from '@reduxjs/toolkit'
 import { useHistory } from 'react-router'
-import Checkbox from '@wootz/leo/react/checkbox'
-import ProgressRing from '@wootz/leo/react/progressRing'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Checkbox from '@brave/leo/react/checkbox'
+import ProgressRing from '@brave/leo/react/progressRing'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 // context
 import {

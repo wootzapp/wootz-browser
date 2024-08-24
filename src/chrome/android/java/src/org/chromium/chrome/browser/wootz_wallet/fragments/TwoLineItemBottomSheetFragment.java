@@ -20,7 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.wootz_wallet.adapters.TwoLineItemRecyclerViewAdapter;
 import org.chromium.chrome.browser.wootz_wallet.adapters.TwoLineItemRecyclerViewAdapter.TwoLineItem;
 
@@ -53,9 +53,9 @@ public class TwoLineItemBottomSheetFragment extends WalletBottomSheetDialogFragm
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            WootzActivity activity = WootzActivity.getWootzActivity();
             registerKeyringObserver(activity.getWalletModel().getKeyringModel());
-        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }

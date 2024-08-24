@@ -6,11 +6,11 @@
 import * as React from 'react'
 import { useDispatch } from 'react-redux'
 import { useHistory, useParams } from 'react-router'
-import Input, { InputEventDetail } from '@wootz/leo/react/input'
-import Dropdown from '@wootz/leo/react/dropdown'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
+import Dropdown from '@brave/leo/react/dropdown'
 import {
   SelectItemEventDetail //
-} from '@wootz/leo/types/src/components/menu/menu.svelte'
+} from '@brave/leo/types/src/components/menu/menu.svelte'
 
 // utils
 import { FILECOIN_FORMAT_DESCRIPTION_URL } from '../../../../common/constants/urls'

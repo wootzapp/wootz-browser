@@ -69,7 +69,7 @@ import {
 
 const onClickAddAccount = () => {
   chrome.tabs.create(
-    { url: `chrome://wallet${WalletRoutes.AddAccountModal}` },
+    { url: `wootzapp://wallet${WalletRoutes.AddAccountModal}` },
     () => {
       if (chrome.runtime.lastError) {
         console.error('tabs.create failed: ' + chrome.runtime.lastError.message)
