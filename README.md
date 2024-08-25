@@ -123,5 +123,5 @@ Structure](https://www.chromium.org/developers/how-tos/getting-around-the-chrome
 
 ## License
 
-Wootzapp  is licensed under the GNU Affero General Public License v3.0 and as commercial software. For commercial licensing, please contact us or raise a issue in this github.
+Wootzapp  is licensed under the GNU Affero General Public License v3.0 and as commercial software. For commercial licensing, please contact us or raise an issue in this github.
 
