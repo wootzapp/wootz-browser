@@ -5,7 +5,7 @@
 import("//mojo/public/tools/bindings/mojom.gni")
 import("//third_party/protobuf/proto_library.gni")
 
-assert(!is_android, "AccessCodeCast is not for android.")
+# assert(!is_android, "AccessCodeCast is not for android.")
 
 mojom("mojo_bindings") {
   sources = [ "access_code_cast.mojom" ]

@@ -21,7 +21,9 @@
 #include "content/public/browser/download_item_utils.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/user_script.h"
-
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 using content::BrowserThread;
 using download::DownloadItem;
 using extensions::WebstoreInstaller;
@@ -53,12 +55,11 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
         content::DownloadItemUtils::GetWebContents(
             const_cast<DownloadItem*>(&download_item));
     if (!web_contents) {
-      Browser* browser = chrome::FindLastActiveWithProfile(profile);
-      if (!browser) {
-        browser = Browser::Create(
-            Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
+      for (size_t i = 0; i < TabModelList::size(); ++i) {
+        if (TabModelList::get(i)->IsActiveModel())
+          web_contents = TabModelList::get(i)->GetActiveWebContents();
       }
-      web_contents = browser->tab_strip_model()->GetActiveWebContents();
+
     }
     return std::make_unique<ExtensionInstallPrompt>(web_contents);
   }
@@ -102,9 +103,6 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
 }
 
 bool IsExtensionDownload(const DownloadItem& download_item) {
-  if (download_item.GetTargetDisposition() ==
-      DownloadItem::TARGET_DISPOSITION_PROMPT)
-    return false;
 
   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
       extensions::UserScript::IsURLUserScript(download_item.GetURL(),

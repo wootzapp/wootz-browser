@@ -464,7 +464,9 @@ class ExtensionService : public ExtensionServiceInterface,
   }
 
   ExtensionAllowlist* allowlist() { return &allowlist_; }
-
+  // Android
+  // Reload extensions. Called from Java.
+  // void ReloadExtensions();
   //////////////////////////////////////////////////////////////////////////////
   // For Testing
 

@@ -376,10 +376,12 @@ bool PreReadFileSlow(const FilePath& file_path, int64_t max_bytes) {
 FilePath MakeAbsoluteFilePath(const FilePath& input) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
   char full_path[PATH_MAX];
-  if (realpath(input.value().c_str(), full_path) == nullptr)
+  if (realpath(input.value().c_str(), full_path) == nullptr) {
     return FilePath();
+  }
   return FilePath(full_path);
 }
+
 
 std::optional<FilePath> MakeAbsoluteFilePathNoResolveSymbolicLinks(
     const FilePath& input) {

@@ -1684,10 +1684,6 @@ ChromeContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
                          weak_factory_.GetWeakPtr())));
 
   bool add_profiles_extra_parts = true;
-#if BUILDFLAG(IS_ANDROID)
-  if (startup_data_.HasBuiltProfilePrefService())
-    add_profiles_extra_parts = false;
-#endif
   if (add_profiles_extra_parts)
     chrome::AddProfilesExtraParts(main_parts.get());
 

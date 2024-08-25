@@ -1933,7 +1933,7 @@ static_library("browser") {
     "webid/identity_provider_permission_request.h",
   ]
 
-  if (!is_android) {
+  #if (!is_android) {
     sources += [
       "accessibility/embedded_a11y_extension_loader.cc",
       "accessibility/embedded_a11y_extension_loader.h",
@@ -1961,8 +1961,8 @@ static_library("browser") {
       "search_engine_choice/search_engine_choice_dialog_service_factory.h",
       "search_engine_choice/search_engine_choice_profile_tagger.cc",
       "search_engine_choice/search_engine_choice_profile_tagger.h",
-      "supervised_user/desktop/supervised_user_service_platform_delegate.cc",
-      "supervised_user/desktop/supervised_user_service_platform_delegate.h",
+      # "supervised_user/desktop/supervised_user_service_platform_delegate.cc",
+      # "supervised_user/desktop/supervised_user_service_platform_delegate.h",
       "user_education/browser_feature_promo_storage_service.cc",
       "user_education/browser_feature_promo_storage_service.h",
       "user_education/browser_tutorial_service.cc",
@@ -1982,7 +1982,7 @@ static_library("browser") {
       "webapps/webapps_client_desktop.cc",
       "webapps/webapps_client_desktop.h",
     ]
-  }
+  #}
 
   configs += [
     "//build/config/compiler:wexit_time_destructors",
@@ -2041,7 +2041,6 @@ static_library("browser") {
     "//chrome/common",
     "//chrome/common:buildflags",
     "//chrome/common:constants",
-    "//chrome/browser/ui",
     "//chrome/services/file_util/public/mojom",
     "//components/account_id",
     "//components/autofill/core/browser",
@@ -2671,7 +2670,7 @@ static_library("browser") {
     "//ui/webui",
   ]
 
-  if (!is_android) {
+  # if (!is_android) {
     deps += [
       "//chrome/browser/ui/lens",
       "//chrome/browser/ui/webui/search_engine_choice:mojo_bindings",
@@ -2679,7 +2678,7 @@ static_library("browser") {
       "//components/manta/proto",
       "//components/user_education/common",
     ]
-  }
+  #}
 
   if (enable_feed_v2) {
     sources += [
@@ -4816,7 +4815,7 @@ static_library("browser") {
       # //chrome/browser instead.
       "//chrome/browser/smart_card",
     ]
-    if (!is_android && !is_chromeos) {
+    if (!is_chromeos) {
       sources += [
         "device_notifications/device_status_icon_renderer.cc",
         "device_notifications/device_status_icon_renderer.h",
@@ -8000,9 +7999,9 @@ static_library("browser") {
       "//components/spellcheck/common",
     ]
 
-    if (!is_android) {
+    # if (!is_android) {
       deps += [ "//third_party/hunspell" ]
-    }
+    # }
   }
 
   if (enable_extensions) {
@@ -8127,7 +8126,7 @@ static_library("browser") {
       "navigation_predictor/preloading_model_handler.cc",
       "navigation_predictor/preloading_model_handler.h",
     ]
-    if (!is_android) {
+    # if (!is_android) {
       sources += [
         "new_tab_page/modules/history_clusters/ranking/history_clusters_module_ranking_model_executor.cc",
         "new_tab_page/modules/history_clusters/ranking/history_clusters_module_ranking_model_executor.h",
@@ -8138,7 +8137,7 @@ static_library("browser") {
         "new_tab_page/modules/history_clusters/ranking:history_clusters_module_proto",
         "//third_party/tflite_support",
       ]
-    }
+    #}
     deps += [ "//components/segmentation_platform/internal:optimization_guide_segmentation_handler" ]
   }
 
@@ -8755,7 +8754,7 @@ static_library("test_support") {
   }
 }
 
-if (!is_android) {
+# if (!is_android) {
   static_library("test_support_ui") {
     testonly = true
     configs += [ "//build/config:precompiled_headers" ]
@@ -8792,7 +8791,7 @@ if (!is_android) {
       public_deps += [ "//chrome/browser/ui/webui/app_home:mojo_bindings" ]
     }
   }
-}
+#}
 
 if (is_android) {
   java_cpp_enum("sharing_send_message_result_generated_enum") {

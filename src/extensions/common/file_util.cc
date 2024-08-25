@@ -289,7 +289,9 @@ std::optional<base::Value::Dict> LoadManifest(
     const base::FilePath::CharType* manifest_filename,
     std::string* error) {
   base::FilePath manifest_path = extension_path.Append(manifest_filename);
+  LOG(INFO) << "file_util.cc: LoadManifest: manifest_path: " << manifest_path;
   if (!base::PathExists(manifest_path)) {
+    LOG(INFO) << "file_util.cc: LoadManifest: !base::PathExists(manifest_path)";
     *error = l10n_util::GetStringUTF8(IDS_EXTENSION_MANIFEST_UNREADABLE);
     return std::nullopt;
   }
@@ -298,6 +300,7 @@ std::optional<base::Value::Dict> LoadManifest(
   std::unique_ptr<base::Value> root(deserializer.Deserialize(nullptr, error));
   if (!root.get()) {
     if (error->empty()) {
+      LOG(INFO) << "file_util.cc: LoadManifest: error->empty()";
       // If |error| is empty, then the file could not be read.
       // It would be cleaner to have the JSON reader give a specific error
       // in this case, but other code tests for a file error with
@@ -306,11 +309,13 @@ std::optional<base::Value::Dict> LoadManifest(
     } else {
       *error = base::StringPrintf(
           "%s  %s", manifest_errors::kManifestParseError, error->c_str());
+          LOG(INFO) << "file_util.cc: LoadManifest: !error->empty(): error: " << *error;
     }
     return std::nullopt;
   }
 
   if (!root->is_dict()) {
+    LOG(INFO) << "file_util.cc: LoadManifest: !root->is_dict()";
     *error = l10n_util::GetStringUTF8(IDS_EXTENSION_MANIFEST_INVALID);
     return std::nullopt;
   }

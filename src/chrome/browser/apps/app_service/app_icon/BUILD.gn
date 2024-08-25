@@ -4,7 +4,7 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 source_set("app_icon") {
   sources = [

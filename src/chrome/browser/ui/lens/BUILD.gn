@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 # Contained Lens dependencies are currently for desktop platforms only
-assert(!is_android, "Lens Overlay is for desktop platforms only")
+# assert(!is_android, "Lens Overlay is for desktop platforms only")
 
 static_library("lens") {
   sources = [

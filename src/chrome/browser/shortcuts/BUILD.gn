@@ -4,7 +4,7 @@
 
 import("//chrome/browser/buildflags.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 source_set("shortcuts") {
   public = [ "shortcut_icon_generator.h" ]
@@ -148,7 +148,7 @@ if (!is_chromeos) {
       "//chrome/browser/ui",
       "//chrome/common:non_code_constants",
       "//chrome/test:test_support",
-      "//chrome/test:test_support_ui",
+      #"//chrome/test:test_support_ui",
       "//content/public/browser",
       "//skia",
       "//testing/gtest",

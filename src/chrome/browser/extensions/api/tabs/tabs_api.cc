@@ -54,12 +54,15 @@
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/extension_telemetry_service.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/tabs_api_signal.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/ui/apps/chrome_app_delegate.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
@@ -209,7 +212,7 @@ bool GetTabById(int tab_id,
                 content::BrowserContext* context,
                 bool include_incognito,
                 Browser** browser,
-                TabStripModel** tab_strip,
+                TabModel** tab_strip,
                 content::WebContents** contents,
                 int* tab_index,
                 std::string* error_message) {
@@ -241,11 +244,12 @@ content::WebContents* GetTabsAPIDefaultWebContents(ExtensionFunction* function,
                nullptr /* ignore TabStripModel* output */, &web_contents,
                nullptr /* ignore int tab_index output */, error);
   } else {
-    Browser* browser =
-        ChromeExtensionFunctionDetails(function).GetCurrentBrowser();
-    if (!browser)
-      *error = tabs_constants::kNoCurrentWindowError;
-    else if (!ExtensionTabUtil::GetDefaultTab(browser, &web_contents, nullptr))
+    // Browser* browser =
+    //     ChromeExtensionFunctionDetails(function).GetCurrentBrowser();
+    // if (!browser)
+    //   *error = tabs_constants::kNoCurrentWindowError;
+    // else if (!ExtensionTabUtil::GetDefaultTab(browser, &web_contents, nullptr))
+    if (!ExtensionTabUtil::GetDefaultTab(nullptr, &web_contents, nullptr))
       *error = tabs_constants::kNoSelectedTabError;
   }
   return web_contents;
@@ -278,6 +282,7 @@ ui::WindowShowState ConvertToWindowShowState(windows::WindowState state) {
 
 bool IsValidStateForWindowsCreateFunction(
     const windows::Create::Params::CreateData* create_data) {
+       return false;
   if (!create_data)
     return true;
 
@@ -309,7 +314,7 @@ bool ExtensionHasLockedFullscreenPermission(const Extension* extension) {
 api::tabs::Tab CreateTabObjectHelper(WebContents* contents,
                                      const Extension* extension,
                                      mojom::ContextType context,
-                                     TabStripModel* tab_strip,
+                                     TabModel* tab_strip,
                                      int tab_index) {
   ExtensionTabUtil::ScrubTabBehavior scrub_tab_behavior =
       ExtensionTabUtil::GetScrubTabBehavior(extension, context, contents);
@@ -327,7 +332,7 @@ int MoveTabToWindow(ExtensionFunction* function,
                     int new_index,
                     std::string* error) {
   Browser* source_browser = nullptr;
-  TabStripModel* source_tab_strip = nullptr;
+  TabModel* source_tab_strip = nullptr;
   int source_index = -1;
   if (!GetTabById(tab_id, function->browser_context(),
                   function->include_incognito_information(), &source_browser,
@@ -335,44 +340,43 @@ int MoveTabToWindow(ExtensionFunction* function,
     return -1;
   }
 
-  if (!ExtensionTabUtil::IsTabStripEditable()) {
+  if (false) {
     *error = tabs_constants::kTabStripNotEditableError;
     return -1;
   }
 
   // TODO(crbug.com/40638654): Rather than calling is_type_normal(), should
   // this call SupportsWindowFeature(Browser::FEATURE_TABSTRIP)?
-  if (!target_browser->is_type_normal()) {
+  if (false) {
     *error = tabs_constants::kCanOnlyMoveTabsWithinNormalWindowsError;
     return -1;
   }
 
-  if (target_browser->profile() != source_browser->profile()) {
+  if (false) {
     *error = tabs_constants::kCanOnlyMoveTabsWithinSameProfileError;
     return -1;
   }
 
-  std::unique_ptr<TabModel> detached_tab =
-      source_tab_strip->DetachTabAtForInsertion(source_index);
-  if (!detached_tab) {
-    *error = ErrorUtils::FormatErrorMessage(tabs_constants::kTabNotFoundError,
-                                            base::NumberToString(tab_id));
-    return -1;
-  }
+  // std::unique_ptr<TabModel> detached_tab =
+  //     source_tab_strip->DetachTabAtForInsertion(source_index);
+  // if (!detached_tab) {
+  //   *error = ErrorUtils::FormatErrorMessage(tabs_constants::kTabNotFoundError,
+  //                                           base::NumberToString(tab_id));
+  //   return -1;
+  // }
 
-  TabStripModel* target_tab_strip =
-      ExtensionTabUtil::GetEditableTabStripModel(target_browser);
+  TabModel* target_tab_strip = TabModelList::GetCurrentTabModel();
   DCHECK(target_tab_strip);
 
   // Clamp move location to the last position.
   // This is ">" because it can append to a new index position.
   // -1 means set the move location to the last position.
   int target_index = new_index;
-  if (target_index > target_tab_strip->count() || target_index < 0)
-    target_index = target_tab_strip->count();
+  if (target_index > target_tab_strip->GetTabCount() || target_index < 0)
+    target_index = target_tab_strip->GetTabCount();
+ 
 
-  return target_tab_strip->InsertDetachedTabAt(
-      target_index, std::move(detached_tab), AddTabTypes::ADD_NONE);
+  return target_index+1;
 }
 
 // This function sets the state of the browser window to a "locked"
@@ -544,9 +548,9 @@ ExtensionFunction::ResponseAction WindowsGetLastFocusedFunction::Run() {
       break;
     }
   }
-  if (!last_focused_browser) {
-    return RespondNow(Error(tabs_constants::kNoLastFocusedWindowError));
-  }
+  // if (!last_focused_browser) {
+  //   return RespondNow(Error(tabs_constants::kNoLastFocusedWindowError));
+  // }
 
   ExtensionTabUtil::PopulateTabBehavior populate_tab_behavior =
       extractor.populate_tabs() ? ExtensionTabUtil::kPopulateTabs
@@ -587,7 +591,7 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
       windows::Create::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
   std::vector<GURL> urls;
-  TabStripModel* source_tab_strip = nullptr;
+  TabModel* source_tab_strip = NULL;
   int tab_index = -1;
 
   DCHECK(extension() || source_context_type() == mojom::ContextType::kWebUi ||
@@ -675,10 +679,10 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
           Error(tabs_constants::kWindowCreateCannotMoveIwaTabError));
     }
 
-    if (!ExtensionTabUtil::IsTabStripEditable())
+    if (false)
       return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
 
-    if (source_browser->profile() != window_profile)
+    if (false)
       return RespondNow(
           Error(tabs_constants::kCanOnlyMoveTabsWithinSameProfileError));
 
@@ -836,20 +840,20 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
   const TabModel* tab = nullptr;
   // Move the tab into the created window only if it's an empty popup or it's
   // a tabbed window.
-  if (window_type == Browser::TYPE_NORMAL || urls.empty()) {
-    if (source_tab_strip) {
-      CHECK(!isolated_web_app_url_info.has_value());
-      std::unique_ptr<TabModel> detached_tab =
-          source_tab_strip->DetachTabAtForInsertion(tab_index);
-      tab = detached_tab.get();
-      TabStripModel* target_tab_strip =
-          ExtensionTabUtil::GetEditableTabStripModel(new_window);
-      if (!target_tab_strip)
-        return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
-      target_tab_strip->InsertDetachedTabAt(
-          urls.size(), std::move(detached_tab), AddTabTypes::ADD_NONE);
-    }
-  }
+  // if (window_type == Browser::TYPE_NORMAL || urls.empty()) {
+  //   if (source_tab_strip) {
+  //     CHECK(!isolated_web_app_url_info.has_value());
+  //     std::unique_ptr<TabModel> detached_tab =
+  //         source_tab_strip->DetachTabAtForInsertion(tab_index);
+  //     tab = detached_tab.get();
+  //     TabStripModel* target_tab_strip =
+  //         ExtensionTabUtil::GetEditableTabStripModel(new_window);
+  //     if (!target_tab_strip)
+  //       return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
+  //     target_tab_strip->InsertDetachedTabAt(
+  //         urls.size(), std::move(detached_tab), AddTabTypes::ADD_NONE);
+  //   }
+  // }
   // Create a new tab if the created window is still empty. Don't create a new
   // tab when it is intended to create an empty popup.
   if (!tab && urls.empty() && window_type == Browser::TYPE_NORMAL) {
@@ -1113,7 +1117,7 @@ ExtensionFunction::ResponseAction TabsGetSelectedFunction::Run() {
     return RespondNow(Error(tabs_constants::kNoSelectedTabError));
   return RespondNow(ArgumentList(tabs::Get::Results::Create(
       CreateTabObjectHelper(contents, extension(), source_context_type(),
-                            tab_strip, tab_strip->active_index()))));
+                            tab_strip, tab_strip->GetActiveIndex()))));
 }
 
 ExtensionFunction::ResponseAction TabsGetAllInWindowFunction::Run() {
@@ -1179,52 +1183,53 @@ ExtensionFunction::ResponseAction TabsQueryFunction::Run() {
 
   base::Value::List result;
   Profile* profile = Profile::FromBrowserContext(browser_context());
-  Browser* last_active_browser =
-      chrome::FindAnyBrowser(profile, include_incognito_information());
-  Browser* current_browser =
-      ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (!profile->IsSameOrParent(browser->profile()))
+//   Browser* last_active_browser =
+//       chrome::FindAnyBrowser(profile, include_incognito_information());
+//   Browser* current_browser =
+//       ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
+  for (size_t h = 0; h < TabModelList::size(); ++h) {
+    TabModel* tab_model = TabModelList::get(h);
+    if (!profile->IsSameOrParent(ProfileManager::GetActiveUserProfile()))
+
       continue;
 
-    if (!browser->window())
+    // if (!browser->window())
+    //   continue;
+
+    if (!include_incognito_information() && profile != ProfileManager::GetActiveUserProfile())
       continue;
 
-    if (!include_incognito_information() && profile != browser->profile())
-      continue;
+    // if (!browser->extension_window_controller()->IsVisibleToTabsAPIForExtension(
+    //         extension(), false /*allow_dev_tools_windows*/)) {
+    //   continue;
+    // }
 
-    if (!browser->extension_window_controller()->IsVisibleToTabsAPIForExtension(
-            extension(), false /*allow_dev_tools_windows*/)) {
-      continue;
-    }
+    // if (window_id >= 0 && window_id != ExtensionTabUtil::GetWindowId(browser))
+    //   continue;
 
-    if (window_id >= 0 && window_id != ExtensionTabUtil::GetWindowId(browser))
-      continue;
+    // if (window_id == extension_misc::kCurrentWindowId &&
+    //     browser != current_browser) {
+    //   continue;
+    // }
 
-    if (window_id == extension_misc::kCurrentWindowId &&
-        browser != current_browser) {
-      continue;
-    }
+    // if (!MatchesBool(params->query_info.current_window,
+    //                  browser == current_browser)) {
+    //   continue;
+    // }
 
-    if (!MatchesBool(params->query_info.current_window,
-                     browser == current_browser)) {
-      continue;
-    }
+    // if (!MatchesBool(params->query_info.last_focused_window,
+    //                  browser == last_active_browser)) {
+    //   continue;
+    // }
 
-    if (!MatchesBool(params->query_info.last_focused_window,
-                     browser == last_active_browser)) {
-      continue;
-    }
+    // if (!window_type.empty() &&
+    //     window_type !=
+    //         browser->extension_window_controller()->GetWindowTypeText()) {
+    //   continue;
+    // }
 
-    if (!window_type.empty() &&
-        window_type !=
-            browser->extension_window_controller()->GetWindowTypeText()) {
-      continue;
-    }
-
-    TabStripModel* tab_strip = browser->tab_strip_model();
-    DCHECK(tab_strip);
-    for (int i = 0; i < tab_strip->count(); ++i) {
+    TabModel* tab_strip = TabModelList::GetCurrentTabModel();
+    for (int i = 0; i < tab_strip->GetTabCount(); ++i) {
       WebContents* web_contents = tab_strip->GetWebContentsAt(i);
 
       if (index > -1 && i != index)
@@ -1233,33 +1238,33 @@ ExtensionFunction::ResponseAction TabsQueryFunction::Run() {
       if (!web_contents)
         continue;
 
-      if (!MatchesBool(params->query_info.highlighted,
-                       tab_strip->IsTabSelected(i))) {
-        continue;
-      }
+      // if (!MatchesBool(params->query_info.highlighted,
+      //                  tab_strip->IsTabSelected(i))) {
+      //   continue;
+      // }
 
       if (!MatchesBool(params->query_info.active,
-                       i == tab_strip->active_index())) {
+                       i == tab_strip->GetActiveIndex())) {
         continue;
       }
 
-      if (!MatchesBool(params->query_info.pinned, tab_strip->IsTabPinned(i))) {
-        continue;
-      }
+      // if (!MatchesBool(params->query_info.pinned, tab_strip->IsTabPinned(i))) {
+      //   continue;
+      // }
 
-      if (group_id.has_value()) {
-        std::optional<tab_groups::TabGroupId> group =
-            tab_strip->GetTabGroupForTab(i);
-        if (group_id.value() == -1) {
-          if (group.has_value())
-            continue;
-        } else if (!group.has_value()) {
-          continue;
-        } else if (tab_groups_util::GetGroupId(group.value()) !=
-                   group_id.value()) {
-          continue;
-        }
-      }
+      // if (group_id.has_value()) {
+      //   std::optional<tab_groups::TabGroupId> group =
+      //       tab_strip->GetTabGroupForTab(i);
+      //   if (group_id.value() == -1) {
+      //     if (group.has_value())
+      //       continue;
+      //   } else if (!group.has_value()) {
+      //     continue;
+      //   } else if (tab_groups_util::GetGroupId(group.value()) !=
+      //              group_id.value()) {
+      //     continue;
+      //   }
+      // }
 
       auto* audible_helper =
           RecentlyAudibleHelper::FromWebContents(web_contents);
@@ -1268,19 +1273,19 @@ ExtensionFunction::ResponseAction TabsQueryFunction::Run() {
         continue;
       }
 
-      auto* tab_lifecycle_unit_external =
-          resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
-              web_contents);
+      // auto* tab_lifecycle_unit_external =
+      //     resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+      //         web_contents);
 
-      if (!MatchesBool(params->query_info.discarded,
-                       tab_lifecycle_unit_external->IsDiscarded())) {
-        continue;
-      }
+      // if (!MatchesBool(params->query_info.discarded,
+      //                  tab_lifecycle_unit_external->IsDiscarded())) {
+      //   continue;
+      // }
 
-      if (!MatchesBool(params->query_info.auto_discardable,
-                       tab_lifecycle_unit_external->IsAutoDiscardable())) {
-        continue;
-      }
+      // if (!MatchesBool(params->query_info.auto_discardable,
+      //                  tab_lifecycle_unit_external->IsAutoDiscardable())) {
+      //   continue;
+      // }
 
       if (!MatchesBool(params->query_info.muted,
                        web_contents->IsAudioMuted())) {
@@ -1370,7 +1375,7 @@ ExtensionFunction::ResponseAction TabsDuplicateFunction::Run() {
   int tab_id = params->tab_id;
 
   Browser* browser = nullptr;
-  TabStripModel* tab_strip = nullptr;
+  TabModel* tab_strip = NULL;
   int tab_index = -1;
   std::string error;
   if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
@@ -1392,9 +1397,9 @@ ExtensionFunction::ResponseAction TabsDuplicateFunction::Run() {
 
   // Duplicated tab may not be in the same window as the original, so find
   // the window and the tab.
-  TabStripModel* new_tab_strip = nullptr;
+  TabModel* new_tab_strip = NULL;
   int new_tab_index = -1;
-  ExtensionTabUtil::GetTabStripModel(new_contents,
+  ExtensionTabUtil::GetTabModel(new_contents,
                                      &new_tab_strip,
                                      &new_tab_index);
   if (!new_tab_strip || new_tab_index == -1) {
@@ -1411,7 +1416,7 @@ ExtensionFunction::ResponseAction TabsGetFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
   int tab_id = params->tab_id;
 
-  TabStripModel* tab_strip = nullptr;
+  TabModel* tab_strip = NULL;
   WebContents* contents = nullptr;
   int tab_index = -1;
   std::string error;
@@ -1539,7 +1544,7 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
   }
 
   int tab_index = -1;
-  TabStripModel* tab_strip = nullptr;
+  TabModel* tab_strip = NULL;
   Browser* browser = nullptr;
   std::string error;
   if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
@@ -1574,24 +1579,24 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
       return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
     }
 
-    if (tab_strip->active_index() != tab_index) {
-      tab_strip->ActivateTabAt(tab_index);
+    if (tab_strip->GetActiveIndex() != tab_index) {
+      tab_strip->SetActiveIndex(tab_index);
       DCHECK_EQ(contents, tab_strip->GetActiveWebContents());
     }
   }
 
-  if (params->update_properties.highlighted) {
-    // Bug fix for crbug.com/1197888. Don't let the extension update the tab
-    // if the user is dragging tabs.
-    if (!ExtensionTabUtil::IsTabStripEditable()) {
-      return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
-    }
+  // if (params->update_properties.highlighted) {
+  //   // Bug fix for crbug.com/1197888. Don't let the extension update the tab
+  //   // if the user is dragging tabs.
+  //   if (!ExtensionTabUtil::IsTabStripEditable()) {
+  //     return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
+  //   }
 
-    bool highlighted = *params->update_properties.highlighted;
-    if (highlighted != tab_strip->IsTabSelected(tab_index)) {
-      tab_strip->ToggleSelectionAt(tab_index);
-    }
-  }
+  //   bool highlighted = *params->update_properties.highlighted;
+  //   if (highlighted != tab_strip->IsTabSelected(tab_index)) {
+  //     tab_strip->ToggleSelectionAt(tab_index);
+  //   }
+  // }
 
   if (params->update_properties.muted &&
       !chrome::SetTabAudioMuted(contents, *params->update_properties.muted,
@@ -1620,20 +1625,20 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
       return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
     }
 
-    if (tab_strip->GetIndexOfWebContents(opener_contents) ==
-        TabStripModel::kNoTab) {
-      return RespondNow(
-          Error("Tab opener must be in the same window as the updated tab."));
-    }
-    tab_strip->SetOpenerOfWebContentsAt(tab_index, opener_contents);
+    // if (tab_strip->GetIndexOfWebContents(opener_contents) ==
+    //     TabStripModel::kNoTab) {
+    //   return RespondNow(
+    //       Error("Tab opener must be in the same window as the updated tab."));
+    // }
+    // tab_strip->SetOpenerOfWebContentsAt(tab_index, opener_contents);
   }
 
-  if (params->update_properties.auto_discardable) {
-    bool state = *params->update_properties.auto_discardable;
-    resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
-        web_contents_)
-        ->SetAutoDiscardable(state);
-  }
+  // if (params->update_properties.auto_discardable) {
+  //   bool state = *params->update_properties.auto_discardable;
+  //   resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+  //       web_contents_)
+  //       ->SetAutoDiscardable(state);
+  // }
 
   const bool contents_in_an_uneditable_saved_group =
       contents && ExtensionTabUtil::TabIsInSavedTabGroup(
@@ -1804,13 +1809,12 @@ bool TabsMoveFunction::MoveTab(int tab_id,
                                base::Value::List& tab_values,
                                const std::optional<int>& window_id,
                                std::string* error) {
-  Browser* source_browser = nullptr;
+  // Browser* source_browser = nullptr;
   TabStripModel* source_tab_strip = nullptr;
   WebContents* contents = nullptr;
   int tab_index = -1;
   if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
-                  &source_browser, &source_tab_strip, &contents, &tab_index,
-                  error)) {
+                  nullptr, nullptr, &contents, nullptr, error)) {
     return false;
   }
 
@@ -1825,7 +1829,7 @@ bool TabsMoveFunction::MoveTab(int tab_id,
     return false;
   }
 
-  if (window_id && *window_id != ExtensionTabUtil::GetWindowIdOfTab(contents)) {
+  if (false && *window_id != ExtensionTabUtil::GetWindowIdOfTab(contents)) {
     Browser* target_browser = nullptr;
     if (!GetBrowserFromWindowID(this, *window_id, &target_browser, error))
       return false;
@@ -1844,10 +1848,6 @@ bool TabsMoveFunction::MoveTab(int tab_id,
       content::WebContents* web_contents =
           tab_strip_model->GetWebContentsAt(inserted_index);
 
-      tab_values.Append(CreateTabObjectHelper(web_contents, extension(),
-                                              source_context_type(),
-                                              tab_strip_model, inserted_index)
-                            .ToValue());
     }
 
     // Insert the tabs one after another.
@@ -1860,12 +1860,12 @@ bool TabsMoveFunction::MoveTab(int tab_id,
   // Clamp move location to the last position.
   // This is ">=" because the move must be to an existing location.
   // -1 means set the move location to the last position.
-  if (*new_index >= source_tab_strip->count() || *new_index < 0)
-    *new_index = source_tab_strip->count() - 1;
+  if (*new_index >= source_tab_strip->GetTabCount() || *new_index < 0)
+    *new_index = source_tab_strip->GetTabCount() - 1;
 
-  if (*new_index != tab_index)
-    *new_index =
-        source_tab_strip->MoveWebContentsAt(tab_index, *new_index, false);
+  // if (*new_index != tab_index)
+  //   *new_index =
+  //       source_tab_strip->MoveWebContentsAt(tab_index, *new_index, false);
 
   if (has_callback()) {
     tab_values.Append(CreateTabObjectHelper(contents, extension(),
@@ -1974,7 +1974,7 @@ bool TabsRemoveFunction::RemoveTab(int tab_id, std::string* error) {
   }
 
   // Don't let the extension remove a tab if the user is dragging tabs around.
-  if (!browser->window()->IsTabStripEditable()) {
+  if (false) {
     *error = tabs_constants::kTabStripNotEditableError;
     return false;
   }
@@ -2198,14 +2198,14 @@ ExtensionFunction::ResponseAction TabsUngroupFunction::Run() {
 
 bool TabsUngroupFunction::UngroupTab(int tab_id, std::string* error) {
   Browser* browser = nullptr;
-  TabStripModel* tab_strip_model = nullptr;
+  TabModel* tab_strip = nullptr;
   int tab_index = -1;
   if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
                   &browser, &tab_strip_model, nullptr, &tab_index, error)) {
     return false;
   }
 
-  if (!browser->window()->IsTabStripEditable()) {
+  if (false) {
     *error = tabs_constants::kTabStripNotEditableError;
     return false;
   }
@@ -2215,7 +2215,7 @@ bool TabsUngroupFunction::UngroupTab(int tab_id, std::string* error) {
     return false;
   }
 
-  tab_strip_model->RemoveFromGroup({tab_index});
+  // tab_strip_model->RemoveFromGroup({tab_index});
 
   return true;
 }
@@ -2258,7 +2258,7 @@ WebContents* TabsCaptureVisibleTabFunction::GetWebContentsForID(
     *error = tabs_constants::kTabStripNotEditableError;
     return nullptr;
   }
-  WebContents* contents = tab_strip_model->GetActiveWebContents();
+  WebContents* contents =  TabModelList::GetCurrentTabModel()->GetActiveWebContents();
   if (!contents) {
     *error = "No active web contents to capture";
     return nullptr;

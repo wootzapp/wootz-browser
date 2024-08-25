@@ -72,6 +72,12 @@
 #include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "third_party/blink/public/common/features.h"
 #include "url/gurl.h"
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/extensions/api/tabs/tabs_event_router.h"
+#include "chrome/browser/extensions/api/tabs/tabs_windows_api.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 
 using content::NavigationEntry;
 using content::WebContents;
@@ -124,9 +130,9 @@ Browser* CreateAndShowBrowser(Profile* profile,
 // take care of setting the id to TAB_ID_NONE if necessary (for
 // example with devtools).
 int GetTabIdForExtensions(const WebContents* web_contents) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
-  if (browser && !ExtensionTabUtil::BrowserSupportsTabs(browser))
-    return -1;
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  // if (browser && !ExtensionTabUtil::BrowserSupportsTabs(browser))
+  //   return -1;
   return sessions::SessionTabHelper::IdForTab(web_contents).id();
 }
 
@@ -216,22 +222,22 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
 
   std::string error;
   Browser* browser = GetBrowserFromWindowID(chrome_details, window_id, &error);
-  if (!browser) {
-    if (!params.create_browser_if_needed)
-      return base::unexpected(error);
+  // if (!browser) {
+  //   if (!params.create_browser_if_needed)
+  //     return base::unexpected(error);
 
-    browser = CreateAndShowBrowser(profile, user_gesture, &error);
-    if (!browser)
-      return base::unexpected(error);
-  }
+  //   browser = CreateAndShowBrowser(profile, user_gesture, &error);
+  //   if (!browser)
+  //     return base::unexpected(error);
+  // }
 
   // Ensure the selected browser is normal.
-  if (!browser->is_type_normal() && browser->IsAttemptingToCloseBrowser())
-    browser = chrome::FindTabbedBrowser(
-        profile, function->include_incognito_information());
-  if (!browser || !browser->window()) {
-    return base::unexpected(tabs_constants::kNoCurrentWindowError);
-  }
+  // if (!browser->is_type_normal() && browser->IsAttemptingToCloseBrowser())
+  //   browser = chrome::FindTabbedBrowser(
+  //       profile, function->include_incognito_information());
+  // if (!browser || !browser->window()) {
+  //   return base::unexpected(tabs_constants::kNoCurrentWindowError);
+  // }
 
   // TODO(jstritar): Add a constant, chrome.tabs.TAB_ID_ACTIVE, that
   // represents the active tab.
@@ -272,17 +278,17 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
   if (url.SchemeIs(kExtensionScheme) &&
       (!function->extension() ||
        !IncognitoInfo::IsSplitMode(function->extension())) &&
-      browser->profile()->IsOffTheRecord()) {
-    Profile* original_profile = browser->profile()->GetOriginalProfile();
+      ProfileManager::GetActiveUserProfile()->IsOffTheRecord()) {
+    Profile* profile = ProfileManager::GetActiveUserProfile()->GetOriginalProfile();
 
-    browser = chrome::FindTabbedBrowser(original_profile, false);
-    if (!browser) {
-      browser = CreateBrowser(original_profile, user_gesture);
-      if (!browser) {
-        return base::unexpected(tabs_constants::kBrowserWindowNotAllowed);
-      }
-      browser->window()->Show();
-    }
+    // browser = chrome::FindTabbedBrowser(original_profile, false);
+    // if (!browser) {
+    //   browser = CreateBrowser(original_profile, user_gesture);
+    //   if (!browser) {
+    //     return base::unexpected(tabs_constants::kBrowserWindowNotAllowed);
+    //   }
+    //   browser->window()->Show();
+    // }
   }
 
   if (opener_browser && browser != opener_browser) {
@@ -293,7 +299,7 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
   // If index is specified, honor the value, but keep it bound to
   // -1 <= index <= tab_strip->count() where -1 invokes the default behavior.
   int index = params.index.value_or(-1);
-  index = std::clamp(index, -1, browser->tab_strip_model()->count());
+  index = base::ClampToRange(index, -1, TabModelList::GetCurrentTabModel()->GetTabCount());
 
   int add_types = active ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE;
   add_types |= AddTabTypes::ADD_FORCE_INDEX;
@@ -320,15 +326,15 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
 
   // The tab may have been created in a different window, so make sure we look
   // at the right tab strip.
-  TabStripModel* tab_strip = navigate_params.browser->tab_strip_model();
-  const int new_index = tab_strip->GetIndexOfWebContents(
-      navigate_params.navigated_or_inserted_contents);
-  if (opener) {
-    // Only set the opener if the opener tab is in the same tab strip as the
-    // new tab.
-    if (tab_strip->GetIndexOfWebContents(opener) != TabStripModel::kNoTab)
-      tab_strip->SetOpenerOfWebContentsAt(new_index, opener);
-  }
+  // TabStripModel* tab_strip = navigate_params.browser->tab_strip_model();
+  // const int new_index = tab_strip->GetIndexOfWebContents(
+  //     navigate_params.navigated_or_inserted_contents);
+  // if (opener) {
+  //   // Only set the opener if the opener tab is in the same tab strip as the
+  //   // new tab.
+  //   if (tab_strip->GetIndexOfWebContents(opener) != TabStripModel::kNoTab)
+  //     tab_strip->SetOpenerOfWebContentsAt(new_index, opener);
+  // }
 
   if (active)
     navigate_params.navigated_or_inserted_contents->SetInitialFocus();
@@ -351,7 +357,8 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
   // Return data about the newly created tab.
   return ExtensionTabUtil::CreateTabObject(
              navigate_params.navigated_or_inserted_contents, scrub_tab_behavior,
-             function->extension(), tab_strip, new_index)
+             function->extension(), TabModelList::GetCurrentTabModel(),
+             TabModelList::GetCurrentTabModel()->GetTabCount())
       .ToValue();
 }
 
@@ -424,13 +431,13 @@ int ExtensionTabUtil::GetWindowIdOfTab(const WebContents* web_contents) {
 
 // static
 std::string ExtensionTabUtil::GetBrowserWindowTypeText(const Browser& browser) {
-  if (browser.is_type_devtools())
-    return tabs_constants::kWindowTypeValueDevTools;
+  // if (browser.is_type_devtools())
+  //   return tabs_constants::kWindowTypeValueDevTools;
   // Browser::TYPE_APP_POPUP is considered 'popup' rather than 'app' since
   // chrome.windows.create({type: 'popup'}) uses
   // Browser::CreateParams::CreateForAppPopup().
-  if (browser.is_type_popup() || browser.is_type_app_popup())
-    return tabs_constants::kWindowTypeValuePopup;
+  // if (browser.is_type_popup() || browser.is_type_app_popup())
+  //   return tabs_constants::kWindowTypeValuePopup;
   if (browser.is_type_app())
     return tabs_constants::kWindowTypeValueApp;
   return tabs_constants::kWindowTypeValueNormal;
@@ -1052,16 +1059,17 @@ bool ExtensionTabUtil::OpenOptionsPageFromAPI(
   // mode extension, this API could only be called from a regular profile, since
   // that's the only place it's running.
   DCHECK(!profile->IsOffTheRecord() || IncognitoInfo::IsSplitMode(extension));
-  Browser* browser = chrome::FindBrowserWithProfile(profile);
-  if (!browser)
-    browser = CreateBrowser(profile, true);
-  if (!browser)
-    return false;
-  return extensions::ExtensionTabUtil::OpenOptionsPage(extension, browser);
+//   Browser* browser = chrome::FindBrowserWithProfile(profile);
+//   if (!browser)
+//     browser = Browser::Create(Browser::CreateParams(profile, true));
+//   if (!browser)
+//     return false;
+  return extensions::ExtensionTabUtil::OpenOptionsPage(extension,
+                                                       TabModelList::GetCurrentTabModel()->GetActiveWebContents());
 }
 
 bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
-                                       Browser* browser) {
+                                       content::WebContents* web_contents) {
   if (!OptionsPageInfo::HasOptionsPage(extension))
     return false;
 
@@ -1069,13 +1077,6 @@ bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
   // running in split mode, because it won't be able to save settings from OTR.
   // This version of OpenOptionsPage() can be called from an OTR window via e.g.
   // the action menu, since that's not initiated by the extension.
-  std::unique_ptr<chrome::ScopedTabbedBrowserDisplayer> displayer;
-  if (browser->profile()->IsOffTheRecord() &&
-      !IncognitoInfo::IsSplitMode(extension)) {
-    displayer = std::make_unique<chrome::ScopedTabbedBrowserDisplayer>(
-        browser->profile()->GetOriginalProfile());
-    browser = displayer->browser();
-  }
 
   GURL url_to_navigate;
   bool open_in_tab = OptionsPageInfo::ShouldOpenInTab(extension);
@@ -1098,10 +1099,13 @@ bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
   // However, if the options page opens inside the chrome://extensions page, we
   // can override an existing page.
   // Note: ref behavior is to ignore.
-  ShowSingletonTabOverwritingNTP(browser, url_to_navigate,
-                                 open_in_tab
-                                     ? NavigateParams::RESPECT
-                                     : NavigateParams::IGNORE_AND_NAVIGATE);
+
+  web_contents->OpenURL(
+      content::OpenURLParams(
+          url_to_navigate, content::Referrer(),
+          WindowOpenDisposition::NEW_FOREGROUND_TAB,
+          ui::PAGE_TRANSITION_LINK, false
+    ));
   return true;
 }
 

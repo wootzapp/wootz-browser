@@ -174,6 +174,7 @@ CrxInstaller::~CrxInstaller() {
 }
 
 void CrxInstaller::InstallCrx(const base::FilePath& source_file) {
+  LOG(INFO) << "crx_installer.cc: InstallCrx: source_file: " << source_file;
   crx_file::VerifierFormat format =
       off_store_install_allow_reason_ == OffStoreInstallDisallowed
           ? GetWebstoreVerifierFormat(

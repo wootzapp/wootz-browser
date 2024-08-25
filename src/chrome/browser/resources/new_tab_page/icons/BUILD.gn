@@ -4,7 +4,7 @@
 
 import("//ui/webui/resources/tools/generate_grd.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 generate_grd("build_grdp") {
   grd_prefix = "new_tab_page"

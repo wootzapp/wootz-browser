@@ -5,6 +5,7 @@
 package org.chromium.ui.base;
 
 import android.Manifest;
+import android.annotation.TargetApi;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
@@ -21,6 +22,9 @@ import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.webkit.MimeTypeMap;
+import android.os.storage.StorageManager;
+import android.provider.DocumentsContract;
+import androidx.annotation.Nullable;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -57,6 +61,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 
 /**
  * A dialog that is triggered from a file input field that allows a user to select a file based on
@@ -250,6 +256,7 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
     private long mNativeSelectFileDialog;
     private List<String> mFileTypes;
+    private boolean mIsFolder;
     private boolean mCapture;
     private boolean mAllowMultiple;
     private Uri mCameraOutputUri;
@@ -315,9 +322,10 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
      */
     @CalledByNative
     protected void selectFile(
-            String[] fileTypes, boolean capture, boolean multiple, WindowAndroid window) {
+            String[] fileTypes, boolean capture, boolean multiple, boolean isFolder, WindowAndroid window) {
         mFileTypes = new ArrayList<String>(Arrays.asList(fileTypes));
         mCapture = capture;
+        mIsFolder = isFolder;
         mAllowMultiple = multiple;
         mWindowAndroid = (sWindowAndroidForTesting == null) ? window : sWindowAndroidForTesting;
 
@@ -422,6 +430,11 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
     /** Called to launch an intent to allow user to select files. */
     private void launchSelectFileIntent() {
+        Intent folderSelector = null;
+        if (mIsFolder) {
+            folderSelector = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            folderSelector.addCategory(Intent.CATEGORY_DEFAULT);
+        }
         boolean hasCameraPermission = mWindowAndroid.hasPermission(Manifest.permission.CAMERA);
         if (mSupportsImageCapture && hasCameraPermission) {
             // GetCameraIntentTask will call LaunchSelectFileWithCameraIntent later.
@@ -612,17 +625,26 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
             // If one and only one category of accept type was specified (image, video, etc..),
             // then update the intent to specifically target that request.
-            if (shouldShowImageTypes()) {
+            if (shouldShowImageTypes() && !mIsFolder) {
+                Log.i("SelectFileDialog.java", "shouldShowImageTypes");
                 if (camera != null) extraIntents.add(camera);
                 types.add(noOpMimeType);
                 getContentIntent.putExtra(Intent.EXTRA_MIME_TYPES, types.toArray(new String[0]));
-            } else if (shouldShowVideoTypes()) {
+            } else if (shouldShowVideoTypes() && !mIsFolder) {
+                Log.i("SelectFileDialog.java", "shouldShowVideoTypes");
                 if (camcorder != null) extraIntents.add(camcorder);
                 types.add(noOpMimeType);
                 getContentIntent.putExtra(Intent.EXTRA_MIME_TYPES, types.toArray(new String[0]));
-            } else if (shouldShowAudioTypes()) {
+            } else if (shouldShowAudioTypes() && !mIsFolder) {
+                Log.i("SelectFileDialog.java", "shouldShowAudioTypes");
                 if (soundRecorder != null) extraIntents.add(soundRecorder);
                 getContentIntent.putExtra(Intent.EXTRA_MIME_TYPES, types.toArray(new String[0]));
+            } else if (mIsFolder) {
+                Intent folderSelector = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                folderSelector.addCategory(Intent.CATEGORY_DEFAULT);
+                Log.i("SelectFileDialog.java", "mIsFolder, add(folderSelector)");
+                if (folderSelector != null) extraIntents.add(folderSelector);
+                getContentIntent.setType(ALL_TYPES);
             }
 
             // If any types are specified, then only accept openable files, as coercing
@@ -633,13 +655,23 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
         Bundle extras = getContentIntent.getExtras();
         if (extras == null || extras.get(Intent.EXTRA_MIME_TYPES) == null) {
             // We couldn't resolve a single accept type, so fallback to a generic chooser.
-            if (camera != null) extraIntents.add(camera);
-            if (camcorder != null) extraIntents.add(camcorder);
-            if (soundRecorder != null) extraIntents.add(soundRecorder);
+            if (!mIsFolder) {
+                Log.i("SelectFileDialog.java", "!mIsFolder");
+                if (camera != null) extraIntents.add(camera);
+                if (camcorder != null) extraIntents.add(camcorder);
+                if (soundRecorder != null) extraIntents.add(soundRecorder);
+            } else {
+                Log.i("SelectFileDialog.java", "mIsFolder, add(folderSelector), 2");
+                Intent folderSelector = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                folderSelector.addCategory(Intent.CATEGORY_DEFAULT);
+                if (folderSelector != null) extraIntents.add(folderSelector);
+            }
+
         }
 
         Intent chooser = new Intent(Intent.ACTION_CHOOSER);
         if (!extraIntents.isEmpty()) {
+            Log.i("SelectFileDialog.java", "EXTRA_INITIAL_INTENTS");
             chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraIntents.toArray(new Intent[] {}));
         }
         chooser.putExtra(Intent.EXTRA_INTENT, getContentIntent);
@@ -1170,6 +1202,16 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
             String[] displayNames = new String[mUris.length];
             try {
                 for (int i = 0; i < mUris.length; i++) {
+                    // Convert content Uri to absolute file path if in folder selection mode
+                    if (mIsFolder) {
+                        Context context = ContextUtils.getApplicationContext();
+                        String path = FileUtil.getFullPathFromTreeUri(mUris[i], context);
+                        if (path != null) {
+                            mUris[i] = Uri.fromFile(new File(path));
+                            Log.i("SelectFileDialog.java", "mUris: %s, path: %s", mUris[i].toString(), path);
+                        } else
+                            Log.i("SelectFileDialog.java", "mUris: %s, path: %s", mUris[i].toString(), "NULL");
+                    }
                     // The selected files must be returned as a list of absolute paths. A MIUI 8.5
                     // device was observed to return a file:// URI instead, so convert if necessary.
                     // See https://crbug.com/752834 for context.
@@ -1177,18 +1219,28 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
                         if (isPathUnderAppDir(mUris[i].getSchemeSpecificPart(), mContext)) {
                             return null;
                         }
-                        mFilePaths[i] = mUris[i].getSchemeSpecificPart();
+                        String filePath = mUris[i].getSchemeSpecificPart();
+                        // Remove extra "//" if exists
+                        if (filePath.startsWith("//") && filePath.length() > 2)
+                          mFilePaths[i] = filePath.substring(2);
+                        Log.i("SelectFileDialog.java", "mFilePaths1: %s", mFilePaths[i]);
+
                     } else {
                         if (ContentResolver.SCHEME_CONTENT.equals(mUris[i].getScheme())
                                 && isContentUriUnderAppDir(mUris[i], mContext)) {
                             return null;
                         }
                         mFilePaths[i] = mUris[i].toString();
+                        Log.i("SelectFileDialog.java", "mFilePaths2: %s", mFilePaths[i]);
                     }
-
-                    displayNames[i] =
-                            ContentUriUtils.getDisplayName(
-                                    mUris[i], mContext, MediaStore.MediaColumns.DISPLAY_NAME);
+                    if (mIsFolder) {
+                        displayNames[i] = mFilePaths[i];
+                        Log.i("SelectFileDialog.java", "displayNames1: %s", displayNames[i]);
+                    } else {
+                        displayNames[i] = ContentUriUtils.getDisplayName(
+                                mUris[i], mContext, MediaStore.MediaColumns.DISPLAY_NAME);
+                        Log.i("SelectFileDialog.java", "displayNames2: %s", displayNames[i]);
+                     }
                 }
             } catch (SecurityException e) {
                 // Some third party apps will present themselves as being able
@@ -1688,5 +1740,104 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
         void onContactsSelected(
                 long nativeSelectFileDialogImpl, SelectFileDialog caller, String contacts);
+    }
+
+    // The following code is from
+    // <a href="https://stackoverflow.com/questions/34927748#36162691">Stack Overflow</a>.
+    // Licensed under CC-BY-SA 3.0.
+    private static final class FileUtil {
+        private static final String[] PRIMARY_VOLUME_NAME = {"primary", "raw"};
+
+        @Nullable
+        static String getFullPathFromTreeUri(@Nullable final Uri treeUri, Context con) {
+            if (treeUri == null) return null;
+            String volumePath = getVolumePath(getVolumeIdFromTreeUri(treeUri),con);
+            if (volumePath == null)
+                Log.i("SelectFileDialog.java", "volumePath: %s", "NULL");
+            else
+                Log.i("SelectFileDialog.java", "volumePath: %s", volumePath);
+            if (volumePath == null) return File.separator;
+            if (volumePath.endsWith(File.separator))
+                volumePath = volumePath.substring(0, volumePath.length() - 1);
+
+            String documentPath = getDocumentPathFromTreeUri(treeUri);
+            if (documentPath == null || documentPath.equals(""))
+                Log.i("SelectFileDialog.java", "documentPath: %s", "NULL");
+            else
+                Log.i("SelectFileDialog.java", "documentPath: %s", documentPath);
+            if (volumePath.endsWith(File.separator))
+                volumePath = volumePath.substring(0, volumePath.length() - 1);
+            if (documentPath.endsWith(File.separator))
+                documentPath = documentPath.substring(0, documentPath.length() - 1);
+
+            if (documentPath.length() > 0) {
+                if (!documentPath.startsWith(volumePath)) {
+                    if (documentPath.startsWith(File.separator))
+                        return volumePath + documentPath;
+                    else
+                        return volumePath + File.separator + documentPath;
+                }
+                else
+                    return documentPath;
+            }
+            else return volumePath;
+        }
+
+        private static String getVolumePath(final String volumeId, Context context) {
+            Log.i("SelectFileDialog.java", "getVolumePath: volumeId: %s", volumeId);
+            try {
+                StorageManager mStorageManager =
+                        (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
+                Class<?> storageVolumeClazz = Class.forName("android.os.storage.StorageVolume");
+                Method getVolumeList = mStorageManager.getClass().getMethod("getVolumeList");
+                Method getUuid = storageVolumeClazz.getMethod("getUuid");
+                Method getPath = storageVolumeClazz.getMethod("getPath");
+                Method isPrimary = storageVolumeClazz.getMethod("isPrimary");
+                Object result = getVolumeList.invoke(mStorageManager);
+
+                final int length = Array.getLength(result);
+                Log.i("SelectFileDialog.java", "getVolumePath: length: %d", length);
+                for (int i = 0; i < length; i++) {
+                    Object storageVolumeElement = Array.get(result, i);
+                    String uuid = (String) getUuid.invoke(storageVolumeElement);
+                    Log.i("SelectFileDialog.java", "getVolumePath: uuid: %s", uuid);
+                    Boolean primary = (Boolean) isPrimary.invoke(storageVolumeElement);
+                    Log.i("SelectFileDialog.java", "getVolumePath: primary: %b", primary);
+
+                    // primary volume?
+                    for (String volume_name : PRIMARY_VOLUME_NAME) {
+                        if (primary && volume_name.equals(volumeId))
+                            return (String) getPath.invoke(storageVolumeElement);
+                    }
+
+                    // other volumes?
+                    if (uuid != null && uuid.equals(volumeId))
+                        return (String) getPath.invoke(storageVolumeElement);
+                }
+                // not found.
+                return null;
+            } catch (Exception ex) {
+                Log.e("SelectFileDialog.java", "getVolumePath: Exception: %s", ex.getMessage());
+                return null;
+            }
+        }
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        private static String getVolumeIdFromTreeUri(final Uri treeUri) {
+            final String docId = DocumentsContract.getTreeDocumentId(treeUri);
+            Log.i("SelectFileDialog.java", "getVolumeIdFromTreeUri: docId: %s", docId);
+            final String[] split = docId.split(":");
+            if (split.length > 0) return split[0];
+            else return null;
+        }
+
+        @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+        private static String getDocumentPathFromTreeUri(final Uri treeUri) {
+            final String docId = DocumentsContract.getTreeDocumentId(treeUri);
+            Log.i("SelectFileDialog.java", "getDocumentPathFromTreeUri: docId: %s", docId);
+            final String[] split = docId.split(":");
+            if ((split.length >= 2) && (split[1] != null)) return split[1];
+            else return File.separator;
+        }
     }
 }

@@ -22,6 +22,7 @@ class Browser;
 class ChromeExtensionFunctionDetails;
 class ExtensionFunction;
 class GURL;
+class TabModel;
 class Profile;
 class TabStripModel;
 namespace content {
@@ -121,6 +122,7 @@ class ExtensionTabUtil {
                                         ScrubTabBehavior scrub_tab_behavior,
                                         const Extension* extension,
                                         TabStripModel* tab_strip,
+                                        TabModel* tab_strip,
                                         int tab_index);
 
   // Creates a base::Value::Dict representing the window for the given
@@ -160,7 +162,7 @@ class ExtensionTabUtil {
                                    ScrubTabBehavior scrub_tab_behavior);
 
   // Gets the |tab_strip_model| and |tab_index| for the given |web_contents|.
-  static bool GetTabStripModel(const content::WebContents* web_contents,
+  static bool GetTabModel(const content::WebContents* web_contents,
                                TabStripModel** tab_strip_model,
                                int* tab_index);
   static bool GetDefaultTab(Browser* browser,
@@ -172,7 +174,7 @@ class ExtensionTabUtil {
                          content::BrowserContext* browser_context,
                          bool include_incognito,
                          Browser** browser,
-                         TabStripModel** tab_strip,
+                         TabModel** tab_strip,
                          content::WebContents** contents,
                          int* tab_index);
   static bool GetTabById(int tab_id,
@@ -240,7 +242,7 @@ class ExtensionTabUtil {
   // Open the extension's options page. Returns true if an options page was
   // successfully opened (though it may not necessarily *load*, e.g. if the
   // URL does not exist).
-  static bool OpenOptionsPage(const Extension* extension, Browser* browser);
+  static bool OpenOptionsPage(const Extension* extension, content::WebContents* web_contents);
 
   // Returns true if the given Browser can report tabs to extensions.
   // Example of Browsers which don't support tabs include apps and devtools.

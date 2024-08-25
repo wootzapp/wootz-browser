@@ -3229,7 +3229,7 @@ source_set("browser") {
       deps += [ "//gpu/vulkan/init" ]
     }
     libs += [ "jnigraphics" ]
-  } else {
+
     # Not Android.
     sources += [
       # The WebAuthn devtools protocol API is not supported in Android yet.
@@ -3341,7 +3341,7 @@ source_set("browser") {
     ]
   }
 
-  if (!is_android && !is_ios) {
+  if (is_android && !is_ios) {
     sources += [
       # Devtools frontend not included in Android and iOS
       "devtools/devtools_frontend_host_impl.cc",

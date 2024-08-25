@@ -2219,7 +2219,12 @@ Your Google account may have other forms of browsing history like searches and a
     <message name="IDS_WALLET_TX_STATUS_ERROR" desc="Wootz wallet tx status is error">
       Error
     </message>
-
+      <message name="IDS_EXTENSION_INSTALL_PROMPT_OK_BUTTON" desc="OK button for extension install dialog [CHAR-LIMIT=16]">
+        Install
+      </message>
+      <message name="IDS_EXTENSION_PROMPT_UNINSTALL_BUTTON" desc="Text for the uninstall button on the extension uninstall prompt">
+        Remove
+      </message>
       <!-- About WootzApp preferences -->
       <message name="IDS_PREFS_ABOUT_WOOTZAPP" desc="Title for the About WootzApp page. [CHAR_LIMIT=32]">
         About WootzApp

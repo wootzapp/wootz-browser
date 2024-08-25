@@ -6,7 +6,7 @@ import("//build/buildflag_header.gni")
 import("//build/config/chromeos/ui_mode.gni")
 import("//components/soda/buildflags.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 buildflag_header("buildflags") {
   header = "buildflags.h"

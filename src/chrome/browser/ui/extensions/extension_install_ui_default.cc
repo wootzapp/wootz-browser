@@ -58,12 +58,6 @@ namespace {
 Browser* FindOrCreateVisibleBrowser(Profile* profile) {
   // TODO(mpcomplete): remove this workaround for http://crbug.com/244246
   // after fixing http://crbug.com/38676.
-  if (!IncognitoModePrefs::CanOpenBrowser(profile))
-    return nullptr;
-  chrome::ScopedTabbedBrowserDisplayer displayer(profile);
-  Browser* browser = displayer.browser();
-  if (browser->tab_strip_model()->count() == 0)
-    chrome::AddTabAt(browser, GURL(), -1, true);
   return browser;
 }
 
@@ -168,7 +162,6 @@ void ExtensionInstallUIDefault::OnInstallSuccess(
   if (extension->is_app()) {
     if (use_app_installed_bubble_) {
       if (browser)
-        ShowPlatformBubble(extension, browser, *icon);
       return;
     }
 
@@ -176,7 +169,6 @@ void ExtensionInstallUIDefault::OnInstallSuccess(
     return;
   }
 
-  ShowPlatformBubble(extension, browser, *icon);
 }
 
 void ExtensionInstallUIDefault::OnInstallFailure(

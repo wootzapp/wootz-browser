@@ -2706,7 +2706,7 @@ if (!is_robolectric && enable_java_templates) {
         final_dex_path = _final_dex_path
       }
       if (defined(invoker.assert_no_native_deps)) {
-        assert_no_deps = invoker.assert_no_native_deps
+          assert_no_deps = invoker.assert_no_native_deps
       }
 
       if (_is_bundle_module) {

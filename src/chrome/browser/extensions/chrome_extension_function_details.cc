@@ -79,8 +79,7 @@ gfx::NativeWindow ChromeExtensionFunctionDetails::GetNativeWindowForUI() {
   // TODO(devlin): This seems weird. Why wouldn't we check this first?
   content::WebContents* sender_web_contents = function_->GetSenderWebContents();
   if (sender_web_contents &&
-      web_modal::WebContentsModalDialogManager::FromWebContents(
-           sender_web_contents)) {
+      sender_web_contents->GetTopLevelNativeWindow()) {
     return sender_web_contents->GetTopLevelNativeWindow();
   }
 

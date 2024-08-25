@@ -62,7 +62,7 @@ template("chrome_repack_percent") {
       deps += invoker.deps
     }
 
-    if (toolkit_views) {
+    if (true) {
       sources += [
         "$root_gen_dir/chrome/app_icon_resources_${percent}_percent.pak",
         "$root_gen_dir/ui/views/resources/views_resources_${percent}_percent.pak",
@@ -151,7 +151,7 @@ template("chrome_extra_paks") {
       sources += invoker.additional_paks
     }
 
-    if (!is_android) {
+    if (true) {
       # New paks should be added here by default.
       sources += [
         "$root_gen_dir/chrome/about_sys_resources.pak",
@@ -167,7 +167,7 @@ template("chrome_extra_paks") {
         "$root_gen_dir/chrome/hats_resources.pak",
         "$root_gen_dir/chrome/history_resources.pak",
         "$root_gen_dir/chrome/identity_internals_resources.pak",
-        "$root_gen_dir/chrome/inline_login_resources.pak",
+        # "$root_gen_dir/chrome/inline_login_resources.pak",
         "$root_gen_dir/chrome/key_value_pair_viewer_shared_resources.pak",
         "$root_gen_dir/chrome/lens_search_bubble_resources.pak",
         "$root_gen_dir/chrome/lens_untrusted_resources.pak",
@@ -402,14 +402,14 @@ template("chrome_extra_paks") {
       sources += [ "$root_gen_dir/chrome/webui_js_error_resources.pak" ]
       deps += [ "//chrome/browser/resources/webui_js_error:resources" ]
     }
-    if (!is_android && !is_chromeos_ash) {
+    if (!is_android && !is_chromeos_ash || is_android) {
       sources += [
         "$root_gen_dir/chrome/intro_resources.pak",
         "$root_gen_dir/chrome/profile_picker_resources.pak",
         "$root_gen_dir/chrome/welcome_resources.pak",
       ]
       deps += [
-        "//chrome/browser/resources/intro:resources",
+        # "//chrome/browser/resources/intro:resources",
         "//chrome/browser/resources/signin/profile_picker:resources",
         "//chrome/browser/resources/welcome:resources",
       ]
@@ -471,7 +471,7 @@ template("chrome_extra_paks") {
       deps += [ "//chrome/browser/resources/tab_strip:resources" ]
     }
 
-    if (headless_enable_commands && !is_android) {
+    if (headless_enable_commands && true) {
       sources += [ "$root_gen_dir/components/headless/command_handler/headless_command_resources.pak" ]
       deps += [ "//components/headless/command_handler" ]
     }

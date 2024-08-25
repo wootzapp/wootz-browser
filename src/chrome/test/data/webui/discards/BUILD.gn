@@ -4,7 +4,7 @@
 
 import("../build_webui_tests.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 build_webui_tests("build") {
   files = [ "discards_test.ts" ]

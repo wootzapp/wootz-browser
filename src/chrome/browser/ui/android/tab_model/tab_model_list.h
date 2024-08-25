@@ -49,6 +49,7 @@ class TabModelList {
       content::WebContents* web_contents);
   static TabModel* GetTabModelForTabAndroid(TabAndroid* tab_android);
   static TabModel* FindTabModelWithId(SessionID desired_id);
+  static TabModel* GetCurrentTabModel();
   static TabModel* FindNativeTabModelForJavaObject(
       const base::android::ScopedJavaLocalRef<jobject>& jtab_model);
   static bool IsOffTheRecordSessionActive();
