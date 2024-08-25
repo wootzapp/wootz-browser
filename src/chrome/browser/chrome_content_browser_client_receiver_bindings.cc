@@ -6,6 +6,7 @@
 
 #include "chrome/browser/chrome_content_browser_client.h"
 
+#include "base/logging.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/chrome_browser_interface_binders.h"
 #include "chrome/browser/chrome_content_browser_client_parts.h"
 #include "chrome/browser/content_settings/content_settings_manager_delegate.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/headless/headless_mode_util.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/net/net_error_tab_helper.h"
@@ -40,6 +42,17 @@
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/user_prefs/user_prefs.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "components/wootz_wallet/browser/wootz_wallet_p3a_private.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/ethereum_provider_impl.h"
+#include "components/wootz_wallet/browser/solana_provider_impl.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/common_utils.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
@@ -129,6 +142,48 @@
 #endif
 
 namespace {
+
+void MaybeBindEthereumProvider(
+    content::RenderFrameHost* const frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::EthereumProvider> receiver) {
+     LOG(ERROR)<<"ANKIT3 WINDOW";       
+  auto* wootz_wallet_service =
+      wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
+          frame_host->GetBrowserContext());
+  if (!wootz_wallet_service) {
+    return;
+  }
+     LOG(ERROR)<<"ANKIT4 WINDOW";       
+      
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(frame_host);
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<wootz_wallet::EthereumProviderImpl>(
+          HostContentSettingsMapFactory::GetForProfile(
+              Profile::FromBrowserContext(frame_host->GetBrowserContext())),
+          wootz_wallet_service,
+          std::make_unique<wootz_wallet::WootzWalletProviderDelegateImpl>(
+              web_contents, frame_host),
+          user_prefs::UserPrefs::Get(web_contents->GetBrowserContext())),
+      std::move(receiver));
+}
+
+void MaybeBindWalletP3A(
+    content::RenderFrameHost* const frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::WootzWalletP3A> receiver) {
+  auto* context = frame_host->GetBrowserContext();
+  if (wootz_wallet::IsAllowedForContext(frame_host->GetBrowserContext())) {
+    wootz_wallet::WootzWalletService* wallet_service =
+        wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(context);
+    DCHECK(wallet_service);
+    wallet_service->GetWootzWalletP3A()->Bind(std::move(receiver));
+  } else {
+    // Dummy API to avoid reporting P3A for OTR contexts
+    mojo::MakeSelfOwnedReceiver(
+        std::make_unique<wootz_wallet::WootzWalletP3APrivate>(),
+        std::move(receiver));
+  }
+}
 
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 // Helper method for ExposeInterfacesToRenderer() that checks the latest
@@ -329,8 +384,22 @@ void ChromeContentBrowserClient::BindMediaServiceReceiver(
 void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
+
+  LOG(ERROR)<<"WOOTZAPP ETHEREUM IMPL HELLO ANKIT";    
   chrome::internal::PopulateChromeFrameBinders(map, render_frame_host);
   chrome::internal::PopulateChromeWebUIFrameBinders(map, render_frame_host);
+
+
+  map->Add<wootz_wallet::mojom::WootzWalletP3A>(
+      base::BindRepeating(&MaybeBindWalletP3A));
+
+  if (wootz_wallet::IsAllowedForContext(
+          render_frame_host->GetBrowserContext())) {
+     LOG(ERROR)<<"ANKIT2 WINDOW";       
+      map->Add<wootz_wallet::mojom::EthereumProvider>(
+          base::BindRepeating(&MaybeBindEthereumProvider));
+     
+  }
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   map->Add<spellcheck::mojom::SpellCheckHost>(base::BindRepeating(
@@ -358,6 +427,8 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
                                                 extension);
 #endif
 }
+
+
 
 void ChromeContentBrowserClient::RegisterWebUIInterfaceBrokers(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/containers/contains.h"
+#include "base/logging.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/strcat.h"
@@ -144,6 +145,8 @@ EthereumProviderImpl::EthereumProviderImpl(
       eth_block_tracker_(json_rpc_service_),
       eth_logs_tracker_(json_rpc_service_),
       prefs_(prefs) {
+
+  LOG(ERROR)<<"ETHEREUM IMPL HELLO";      
   DCHECK(json_rpc_service_);
   json_rpc_service_->AddObserver(
       rpc_observer_receiver_.BindNewPipeAndPassRemote());
