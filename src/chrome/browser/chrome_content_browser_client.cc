@@ -131,6 +131,8 @@
 #include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/private_network_access/chrome_private_network_device_delegate.h"
 #include "chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.h"
+#include "chrome/browser/profiles/wootz_renderer_updater.h"
+#include "chrome/browser/profiles/wootz_renderer_updater_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_io_data.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -1852,6 +1854,12 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
     content::RenderProcessHost* host) {
   Profile* profile = Profile::FromBrowserContext(host->GetBrowserContext());
 
+  // The WootzRendererUpdater might be null for some irregular profiles, e.g.
+  // the System Profile.
+  if (WootzRendererUpdater* service =
+          WootzRendererUpdaterFactory::GetForProfile(profile)) {
+    service->InitializeRenderer(host);
+  }
   WebRtcLoggingController::AttachToRenderProcessHost(host);
 
   // The audio manager outlives the host, so it's safe to hand a raw pointer to
