@@ -210,6 +210,9 @@ class PermissionsClient {
   // permission availability checks. This is used for example when a permission
   // should only be available on secure origins. Return true to bypass embedding
   // origin checks for the passed in origins.
+  virtual bool WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin, 
+                                     const GURL& embedding_origin,  
+                                     ContentSettingsType type);     
   virtual bool CanBypassEmbeddingOriginCheck(const GURL& requesting_origin,
                                              const GURL& embedding_origin);
 

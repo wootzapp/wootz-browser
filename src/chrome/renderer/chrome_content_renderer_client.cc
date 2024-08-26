@@ -67,6 +67,7 @@
 #include "chrome/renderer/web_link_preview_triggerer_impl.h"
 #include "chrome/renderer/websocket_handshake_throttle_provider_impl.h"
 #include "chrome/renderer/worker_content_settings_client.h"
+#include "chrome/renderer/wootz_wallet/wootz_wallet_render_frame_observer.h"
 #include "chrome/services/speech/buildflags/buildflags.h"
 #include "components/autofill/content/renderer/autofill_agent.h"
 #include "components/autofill/content/renderer/password_autofill_agent.h"
@@ -171,6 +172,8 @@
 #include "ui/base/webui/jstemplate_builder.h"
 #include "url/origin.h"
 #include "v8/include/v8-isolate.h"
+
+#include "chrome/renderer/wootz_render_thread_observer.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/renderer/sandbox_status_extension_android.h"
@@ -609,6 +612,7 @@ void ChromeContentRendererClient::RenderFrameCreated(
     }
   }
 
+
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   ChromeExtensionsRendererClient::GetInstance()->RenderFrameCreated(
       render_frame, registry);
@@ -787,6 +791,15 @@ void ChromeContentRendererClient::RenderFrameCreated(
     new wallet::BoardingPassExtractor(render_frame, registry);
   }
 #endif
+
+
+  // if (base::FeatureList::IsEnabled(
+  //         wootz_wallet::features::kNativeWootzWalletFeature)) {
+    new wootz_wallet::WootzWalletRenderFrameObserver(
+        render_frame, 
+        base::BindRepeating(&WootzRenderThreadObserver::GetDynamicParams));
+  // }
+
 }
 
 void ChromeContentRendererClient::WebViewCreated(

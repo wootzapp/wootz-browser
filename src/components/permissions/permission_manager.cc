@@ -310,6 +310,13 @@ void PermissionManager::RequestPermissionsFromCurrentDocument(
     base::OnceCallback<void(const std::vector<PermissionStatus>&)>
         permission_status_callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!forced_requesting_origin_.is_empty()) {                         
+    auto desc = std::move(request_description);                        
+    desc.requesting_origin = forced_requesting_origin_;                
+    RequestPermissionsInternal(render_frame_host, desc,                
+                               std::move(permission_status_callback)); 
+    return;                                                            
+  }
   RequestPermissionsInternal(render_frame_host, request_description,
                              std::move(permission_status_callback));
 }
@@ -358,6 +365,7 @@ PermissionManager::GetPermissionResultForCurrentDocument(
       PermissionUtil::PermissionTypeToContentSettingType(permission);
 
   const GURL requesting_origin =
+      !forced_requesting_origin_.is_empty() ? forced_requesting_origin_:
       PermissionUtil::GetLastCommittedOriginAsURL(render_frame_host);
   const GURL embedding_origin =
       GetEmbeddingOrigin(render_frame_host, requesting_origin);

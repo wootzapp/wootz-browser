@@ -1,0 +1,25 @@
+include_rules = [
+  "+wootz/third_party/argon2",
+]
+
+specific_include_rules = {
+  "bitcoin_utils\.cc": [
+    "+wootz/third_party/bitcoin-core/src/src/base58.h",
+    "+wootz/third_party/bitcoin-core/src/src/bech32.h",
+    "+wootz/third_party/bitcoin-core/src/src/util/strencodings.h",
+  ],
+  "encoding_utils\.cc": [
+    "+wootz/third_party/bitcoin-core/src/src/base58.h",
+  ],
+  "hash_utils\.cc": [
+    "+wootz/third_party/bitcoin-core/src/src/crypto/ripemd160.h",
+  ],
+  "wootz_wallet_types\.h": [
+    "+boost/multiprecision/cpp_int.hpp",
+  ],
+  "zcash_utils\.cc": [
+    "+wootz/third_party/bitcoin-core/src/src/base58.h",
+    "+wootz/third_party/bitcoin-core/src/src/bech32.h",
+    "+wootz/third_party/bitcoin-core/src/src/util/strencodings.h",
+  ],
+}

@@ -40,6 +40,7 @@ import org.chromium.chrome.browser.profiles.ProfileProvider;
 import java.util.HashMap;
 import java.util.Map;
 
+
 /**
  * Base activity for all DApps-related activities
  */

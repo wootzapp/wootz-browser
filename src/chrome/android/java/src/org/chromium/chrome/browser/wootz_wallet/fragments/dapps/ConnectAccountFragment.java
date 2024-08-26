@@ -30,7 +30,7 @@ import org.chromium.wootz_wallet.mojom.AccountInfo;
 import org.chromium.wootz_wallet.mojom.CoinType;
 import org.chromium.wootz_wallet.mojom.PermissionLifetimeOption;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.WootzRewardsHelper;
+// import org.chromium.chrome.browser.WootzRewardsHelper;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.WootzActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
@@ -223,22 +223,24 @@ public class ConnectAccountFragment extends BaseDAppsFragment implements Permiss
 
     @Override
     public void connectAccount(@NonNull final AccountInfo account) {
-        Tab tab = WootzRewardsHelper.currentActiveChromeTabbedActivityTab();
-        if (tab != null) {
-            if (tab.getWebContents() != null) {
+        // Tab tab = WootzRewardsHelper.currentActiveChromeTabbedActivityTab();
+        // if (tab != null) {
+        if (true) {
+            // if (tab.getWebContents() != null) {
+            if (true) {
                 // Static data for WootzDappPermissionPromptDialog.show
                 setConnectAccountPendingData(account.address, PermissionLifetimeOption.FOREVER);
-                ConnectAccountFragmentJni.get().connectAccount(
-                        account.address, account.accountId.coin, tab.getWebContents(), success -> {
-                            if (!success) {
-                                return;
-                            }
-                            if (CoinType.SOL != account.accountId.coin) {
-                                getKeyringService().setSelectedAccount(
-                                        account.accountId, setSuccess -> {});
-                            }
-                            updateAccounts();
-                        });
+                // ConnectAccountFragmentJni.get().connectAccount(
+                //         account.address, account.accountId.coin, tab.getWebContents(), success -> {
+                //             if (!success) {
+                //                 return;
+                //             }
+                //             if (CoinType.SOL != account.accountId.coin) {
+                //                 getKeyringService().setSelectedAccount(
+                //                         account.accountId, setSuccess -> {});
+                //             }
+                //             updateAccounts();
+                //         });
             }
         }
     }

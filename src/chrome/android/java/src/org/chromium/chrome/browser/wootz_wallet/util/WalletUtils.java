@@ -18,7 +18,7 @@ import org.chromium.wootz_wallet.mojom.AccountInfo;
 import org.chromium.wootz_wallet.mojom.CoinType;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.WootzActivity;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.mojo_base.mojom.TimeDelta;
 
 import java.nio.ByteBuffer;
@@ -106,13 +106,35 @@ public class WalletUtils {
         return AccountInfo.deserialize(ByteBuffer.wrap(bytes));
     }
 
-    public static void openWebWallet() {
+    /**
+     * Opens a web Wallet tab.
+     *
+     * @param forceNewTab when {@code true} it closes all Wallet tabs starting with {@link
+     *     WootzActivity#WOOTZ_WALLET_BASE_URL} before opening a new tab. Otherwise, it tries to
+     *     refresh an old tab whose URL starts with @link WootzActivity#WOOTZ_WALLET_BASE_URL}.
+     */
+    public static void openWebWallet(final boolean forceNewTab) {
         try {
             WootzActivity activity = WootzActivity.getWootzActivity();
-            activity.openNewOrSelectExistingTab(WootzActivity.WOOTZ_WALLET_URL, true);
+            if (forceNewTab) {
+                activity.closeAllTabsByOrigin(WootzActivity.WOOTZ_WALLET_ORIGIN);
+            }
+
+            activity.openNewOrRefreshExistingTab(
+                    WootzActivity.WOOTZ_WALLET_ORIGIN, WootzActivity.WOOTZ_WALLET_URL);
             TabUtils.bringChromeTabbedActivityToTheTop(activity);
         } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "Error while opening wallet tab.", e);
+        }
+    }
+
+    /** Closes all Wallet tabs that contains the base URL `wootzapp://wallet`. */
+    public static void closeWebWallet() {
+        try {
+            WootzActivity activity = WootzActivity.getWootzActivity();
+            activity.closeAllTabsByOrigin(WootzActivity.WOOTZ_WALLET_ORIGIN);
+        } catch (WootzActivity.WootzActivityNotFoundException e) {
+            Log.e(TAG, "Error while closing the Wallet tab.", e);
         }
     }
 

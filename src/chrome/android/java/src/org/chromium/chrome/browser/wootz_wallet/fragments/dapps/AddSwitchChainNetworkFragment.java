@@ -45,11 +45,13 @@ import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.DefaultFaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.FaviconImageCallback;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.chromium.chrome.browser.util.LiveDataUtil;
 
 public class AddSwitchChainNetworkFragment extends BaseDAppsFragment {
     private final List<NavigationItem> mTabTitles;

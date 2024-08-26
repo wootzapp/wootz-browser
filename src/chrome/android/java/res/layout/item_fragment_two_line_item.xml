@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (c) 2023 The Brave Authors. All rights reserved.
+<!-- Copyright (c) 2023 The Wootz Authors. All rights reserved.
      This Source Code Form is subject to the terms of the Mozilla Public
      License, v. 2.0. If a copy of the MPL was not distributed with this file,
      You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -36,7 +36,7 @@
 
     <TextView
         android:id="@+id/item_fragment_two_line_title"
-        style="@style/BraveWalletTextView"
+        style="@style/WootzWalletTextView"
         android:layout_width="0dp"
         android:textAppearance="?attr/textAppearanceListItem"
         android:textStyle="bold"
@@ -47,7 +47,7 @@
 
     <TextView
         android:id="@+id/item_fragment_two_line_sub_title"
-        style="@style/BraveWalletTextViewSubTitle"
+        style="@style/WootzWalletTextViewSubTitle"
         android:textSize="14sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="@id/item_fragment_two_line_title"

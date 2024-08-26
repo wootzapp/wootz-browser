@@ -133,6 +133,9 @@ ban_features = [
 [crate.log]
 group = 'test'
 
+[crate.multihash]
+extra_kv = { rustenv = [ "CARGO_MANIFEST_DIR=\" + rebase_path(\"//third_party/rust/chromium_crates_io/vendor/multihash-0.16.3\") + \"" ]}
+
 [crate.nom]
 remove_deps = ['minimal-lexical']
 

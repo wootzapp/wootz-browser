@@ -6,6 +6,11 @@ found in the LICENSE file.
 -->
 
 <resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Wootz wallet -->
+    <dimen name="wootz_wallet_tab_indicator_height">2dp</dimen>
+    <dimen name="small_regular">12sp</dimen>
+    <dimen name="x_small_semibold">11sp</dimen>
     <!-- TabSwitcher - The space between tabs in the toolbar swiping transition. -->
     <dimen name="toolbar_swipe_space_between_tabs">30dp</dimen>
     <!-- TabSwitcher - The minimum distance from the edge to commit a toolbar side swap. -->
@@ -425,4 +430,13 @@ found in the LICENSE file.
     <!-- Autofill dialog dimensions. -->
     <dimen name="autofill_dialog_progress_bar_size">36dp</dimen>
 
+
+    <dimen name="onboarding_network_selection_item_width">103dp</dimen>
+    <dimen name="onboarding_network_selection_item_height">96dp</dimen>
+
+
+    <dimen name="zero_margin"> 0dp </dimen>
+    <dimen name="large_regular">16sp</dimen>
+    <dimen name="heading_h1">32sp</dimen>
+    <dimen name="heading_h3">22sp</dimen>
 </resources>

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_
 
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/browser_context.h"
@@ -49,4 +49,4 @@ class SwapServiceFactory : public BrowserContextKeyedServiceFactory {
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_SWAP_SERVICE_FACTORY_H_

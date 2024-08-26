@@ -250,7 +250,7 @@ import org.chromium.webapk.lib.client.WebApkNavigationClient;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletActivity;
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
  * and associated classes.
@@ -2799,8 +2799,20 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             openChromeManagementPage();
             return true;
         }
-
-        return false;
+        
+        if (id == R.id.wootz_wallet_id) {
+            // openWootzWallet(false, false, false);
+            Intent wootzWalletIntent = new Intent(this, WootzWalletActivity.class);
+            wootzWalletIntent.putExtra(WootzWalletActivity.IS_FROM_DAPPS, false);
+            wootzWalletIntent.putExtra(WootzWalletActivity.RESTART_WALLET_ACTIVITY_SETUP, false);
+            wootzWalletIntent.putExtra(
+                    WootzWalletActivity.RESTART_WALLET_ACTIVITY_RESTORE, false);
+            wootzWalletIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            wootzWalletIntent.setAction(Intent.ACTION_VIEW);
+            startActivity(wootzWalletIntent);
+            // return true;
+        } 
+        return true;
     }
 
     /**

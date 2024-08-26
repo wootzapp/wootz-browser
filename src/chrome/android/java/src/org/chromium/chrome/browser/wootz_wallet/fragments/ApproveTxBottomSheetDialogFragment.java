@@ -61,7 +61,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.TokenUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.TransactionUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -71,6 +71,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import org.chromium.chrome.browser.util.LiveDataUtil;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogFragment {
     private static final String TAG = "ApproveTx";

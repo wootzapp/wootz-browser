@@ -1,0 +1,37 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//build/config/features.gni")
+
+source_set("wootz_wallet") {
+  visibility = [
+    "//chrome:child_dependencies",
+    "//chrome/renderer/*",
+    "//chrome/renderer/*",
+  ]
+
+  sources = [
+    "wootz_wallet_render_frame_observer.cc",
+    "wootz_wallet_render_frame_observer.h",
+    "wootz_wallet_render_frame_observer_p3a_util.cc",
+    "wootz_wallet_render_frame_observer_p3a_util.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/common:common",
+    "//chrome/common:mojo_bindings",
+    "//components/wootz_wallet/common:common",
+    "//components/wootz_wallet/common:mojom",
+    "//components/wootz_wallet/renderer",
+    "//content/public/common",
+    "//content/public/renderer",
+    "//gin",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public/common",
+    "//v8",
+  ]
+}

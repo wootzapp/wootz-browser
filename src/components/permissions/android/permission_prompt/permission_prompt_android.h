@@ -57,13 +57,15 @@ class PermissionPromptAndroid : public PermissionPrompt {
 
   // We show one permission at a time except for grouped mic+camera, for which
   // we still have a single icon and message text.
+  size_t NotUsed() { return 0; }                          
+  Delegate* delegate() const { return delegate_; } 
   size_t PermissionCount() const;
   ContentSettingsType GetContentSettingType(size_t position) const;
   int GetIconId() const;
 
   PermissionRequest::AnnotatedMessageText GetAnnotatedMessageText() const;
 
-  bool ShouldUseRequestingOriginFavicon() const;
+  bool virtual ShouldUseRequestingOriginFavicon() const;
 
   GURL GetRequestingOrigin() const;
   content::WebContents* web_contents() { return web_contents_; }

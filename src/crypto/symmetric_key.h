@@ -43,6 +43,11 @@ class CRYPTO_EXPORT SymmetricKey {
   // used to derive the key from the password. |key_size_in_bits| must be a
   // multiple of 8. The caller is responsible for deleting the returned
   // SymmetricKey.
+                                    
+  static std::unique_ptr<SymmetricKey> DeriveKeyFromPasswordUsingPbkdf2Sha256(                                   
+      Algorithm algorithm, const std::string& password,                     
+      const std::string& salt, size_t iterations, size_t key_size_in_bits); 
+
   static std::unique_ptr<SymmetricKey> DeriveKeyFromPasswordUsingPbkdf2(
       Algorithm algorithm,
       const std::string& password,

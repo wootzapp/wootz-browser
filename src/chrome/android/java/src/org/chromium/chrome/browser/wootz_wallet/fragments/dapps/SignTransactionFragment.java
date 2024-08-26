@@ -50,7 +50,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.TransactionUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletConstants;
 import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

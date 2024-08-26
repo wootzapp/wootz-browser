@@ -1,0 +1,15 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//build/config/features.gni")
+
+declare_args() {
+  wootz_infura_project_id = ""
+  enable_zcash_by_default = !is_ios && !is_android
+
+  # Flag is used to allow future size difference calculation
+  # iOS temporary disabled due build errors
+  enable_orchard = !is_ios
+}

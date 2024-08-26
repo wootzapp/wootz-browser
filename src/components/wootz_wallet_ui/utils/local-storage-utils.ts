@@ -1,0 +1,218 @@
+// Copyright (c) 2023 The Wootz Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// types
+import {
+  SupportedTestNetworks,
+  SupportedCoinTypes,
+  WootzWallet,
+  PanelTypes,
+  AssetIdsByCollectionNameRegistry
+} from '../constants/types'
+import {
+  TokenBalancesRegistry //
+} from '../common/slices/entities/token-balance.entity'
+
+// utils
+import { networkEntityAdapter } from '../common/slices/entities/network.entity'
+import { LOCAL_STORAGE_KEYS } from '../common/constants/local-storage-keys'
+import { createEmptyTokenBalancesRegistry } from './balance-utils'
+
+/** Set local storage in a way that hooks can detect the change */
+export const setLocalStorageItem = (key: string, stringifiedValue: string) => {
+  window.localStorage.setItem(key, stringifiedValue)
+  window.dispatchEvent(
+    new StorageEvent('local-storage', {
+      key
+    })
+  )
+}
+
+export const parseJSONFromLocalStorage = <T = any>(
+  storageString: keyof typeof LOCAL_STORAGE_KEYS,
+  fallback: T
+): T => {
+  try {
+    return JSON.parse(
+      window.localStorage.getItem(LOCAL_STORAGE_KEYS[storageString]) || ''
+    ) as T
+  } catch (e) {
+    return fallback
+  }
+}
+
+export const makeInitialFilteredOutNetworkKeys = () => {
+  const localHostNetworkKeys = SupportedCoinTypes.map((coin) => {
+    return networkEntityAdapter
+      .selectId({
+        chainId: WootzWallet.LOCALHOST_CHAIN_ID,
+        coin: coin
+      })
+      .toString()
+  })
+  const testNetworkKeys = SupportedTestNetworks.filter(
+    (chainId) => chainId !== WootzWallet.LOCALHOST_CHAIN_ID
+  ).map((chainId) => {
+    if (
+      chainId === WootzWallet.SOLANA_DEVNET ||
+      chainId === WootzWallet.SOLANA_TESTNET
+    ) {
+      return networkEntityAdapter
+        .selectId({
+          chainId: chainId,
+          coin: WootzWallet.CoinType.SOL
+        })
+        .toString()
+    }
+    if (chainId === WootzWallet.FILECOIN_TESTNET) {
+      return networkEntityAdapter
+        .selectId({
+          chainId: chainId,
+          coin: WootzWallet.CoinType.FIL
+        })
+        .toString()
+    }
+    return networkEntityAdapter
+      .selectId({
+        chainId: chainId,
+        coin: WootzWallet.CoinType.ETH
+      })
+      .toString()
+  })
+  return [...testNetworkKeys, ...localHostNetworkKeys]
+}
+
+export function isPersistanceOfPanelProhibited(panelType: PanelTypes) {
+  return (
+    panelType === 'connectWithSite' || panelType === 'connectHardwareWallet'
+  )
+}
+
+export function storeCurrentAndPreviousPanel(
+  panelType: PanelTypes,
+  previousPanel: PanelTypes | undefined
+) {
+  if (!isPersistanceOfPanelProhibited(panelType)) {
+    window.localStorage.setItem(LOCAL_STORAGE_KEYS.CURRENT_PANEL, panelType)
+  }
+
+  if (previousPanel && !isPersistanceOfPanelProhibited(previousPanel)) {
+    window.localStorage.setItem(
+      LOCAL_STORAGE_KEYS.LAST_VISITED_PANEL,
+      previousPanel
+    )
+  }
+}
+
+export function getStoredPortfolioTimeframe(): WootzWallet.AssetPriceTimeframe {
+  const storedValue = window.localStorage.getItem(
+    LOCAL_STORAGE_KEYS.PORTFOLIO_TIME_LINE_OPTION
+  )
+
+  if (storedValue !== undefined) {
+    return Number(
+      window.localStorage.getItem(LOCAL_STORAGE_KEYS.PORTFOLIO_TIME_LINE_OPTION)
+    )
+  }
+
+  return WootzWallet.AssetPriceTimeframe.OneDay
+}
+
+export function setStoredPortfolioTimeframe(
+  timeframe: WootzWallet.AssetPriceTimeframe
+) {
+  window.localStorage.setItem(
+    LOCAL_STORAGE_KEYS.PORTFOLIO_TIME_LINE_OPTION,
+    timeframe.toString()
+  )
+}
+
+export const getPersistedPortfolioTokenBalances = (): TokenBalancesRegistry => {
+  try {
+    const registry: TokenBalancesRegistry = JSON.parse(
+      window.localStorage.getItem(LOCAL_STORAGE_KEYS.TOKEN_BALANCES) ||
+        JSON.stringify(createEmptyTokenBalancesRegistry())
+    )
+    if (registry.accounts) {
+      return registry
+    }
+    return createEmptyTokenBalancesRegistry()
+  } catch (error) {
+    console.error(error)
+    return createEmptyTokenBalancesRegistry()
+  }
+}
+
+export const getPersistedPortfolioSpamTokenBalances =
+  (): TokenBalancesRegistry => {
+    try {
+      const registry: TokenBalancesRegistry = JSON.parse(
+        window.localStorage.getItem(LOCAL_STORAGE_KEYS.SPAM_TOKEN_BALANCES) ||
+          JSON.stringify(createEmptyTokenBalancesRegistry())
+      )
+      if (registry.accounts) {
+        return registry
+      }
+      return createEmptyTokenBalancesRegistry()
+    } catch (error) {
+      console.error(error)
+      return createEmptyTokenBalancesRegistry()
+    }
+  }
+
+export const setPersistedPortfolioTokenBalances = (
+  registry: TokenBalancesRegistry
+) => {
+  try {
+    window.localStorage.setItem(
+      LOCAL_STORAGE_KEYS.TOKEN_BALANCES,
+      JSON.stringify(registry)
+    )
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const setPersistedPortfolioSpamTokenBalances = (
+  registry: TokenBalancesRegistry
+) => {
+  try {
+    window.localStorage.setItem(
+      LOCAL_STORAGE_KEYS.SPAM_TOKEN_BALANCES,
+      JSON.stringify(registry)
+    )
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const getPersistedNftCollectionNamesRegistry =
+  (): AssetIdsByCollectionNameRegistry => {
+    const emptyRegistry: AssetIdsByCollectionNameRegistry = {}
+    try {
+      const registry: AssetIdsByCollectionNameRegistry = JSON.parse(
+        window.localStorage.getItem(
+          LOCAL_STORAGE_KEYS.NFT_COLLECTION_NAMES_REGISTRY
+        ) || JSON.stringify(emptyRegistry)
+      )
+      return registry ?? emptyRegistry
+    } catch (error) {
+      console.error(error)
+      return emptyRegistry
+    }
+  }
+
+export const setPersistedNftCollectionNamesRegistry = (
+  registry: AssetIdsByCollectionNameRegistry
+) => {
+  try {
+    window.localStorage.setItem(
+      LOCAL_STORAGE_KEYS.NFT_COLLECTION_NAMES_REGISTRY,
+      JSON.stringify(registry)
+    )
+  } catch (error) {
+    console.error(error)
+  }
+}

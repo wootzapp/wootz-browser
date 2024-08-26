@@ -23,64 +23,6 @@ group("resources") {
 
   ]
 
-  if (!is_android) {
-    public_deps += [
-      ":app_icon_resources",
-      ":component_extension_resources",
-      ":dev_ui_paks",
-      "about_sys:resources",
-      "access_code_cast:resources",
-      "app_service_internals:resources",
-      "bookmarks:resources",
-      "commerce/product_specifications:resources",
-      "downloads:resources",
-      "feedback:resources",
-      "gaia_auth_host:resources",
-      "hats:resources",
-      "history:resources",
-      "identity_internals:resources",
-      "key_value_pair_viewer_shared:resources",
-      "lens/overlay:resources",
-      "lens/overlay/search_bubble:resources",
-      "management:resources",
-      "new_tab_page:resources",
-      "new_tab_page_instant:resources",
-      "new_tab_page_third_party:resources",
-      "omnibox_popup:resources",
-      "password_manager:resources",
-      "privacy_sandbox:resources",
-      "privacy_sandbox/internals:resources",
-      "profile_internals:resources",
-      "search_engine_choice:resources",
-      "settings:resources",
-      "settings_shared:resources",
-      "side_panel/bookmarks:resources",
-      "side_panel/commerce:resources",
-      "side_panel/companion:resources",
-      "side_panel/customize_chrome:resources",
-      "side_panel/history_clusters:resources",
-      "side_panel/performance_controls:resources",
-      "side_panel/read_anything:resources",
-      "side_panel/reading_list:resources",
-      "side_panel/shared:resources",
-      "side_panel/user_notes:resources",
-      "signin:resources",
-      "suggest_internals:resources",
-      "support_tool:resources",
-      "tab_search:resources",
-      "web_app_internals:resources",
-      "webui_gallery:resources",
-      "whats_new:resources",
-
-    ]
-    if (is_chrome_branded) {
-      public_deps += [
-        "lens:resources",
-        "media_router/cast_feedback:resources",
-      ]
-    }
-  }
-
   if (is_chromeos_ash) {
     public_deps += [
       "ash/extended_updates:resources",
@@ -307,7 +249,7 @@ repack("dev_ui_paks") {
     "$root_gen_dir/chrome/net_internals_resources.pak",
     "$root_gen_dir/chrome/throttle_resources.pak",
     # "$root_gen_dir/chrome/wootz_react_app_resources.pak",
-    "$root_gen_dir/chrome/wootz_tsx_page_resources.pak",
+    # "$root_gen_dir/chrome/wootz_tsx_page_resources.pak",
     "$root_gen_dir/chrome/rewards_resources.pak",
     "$root_gen_dir/chrome/omnibox_resources.pak",
     "$root_gen_dir/chrome/predictors_resources.pak",

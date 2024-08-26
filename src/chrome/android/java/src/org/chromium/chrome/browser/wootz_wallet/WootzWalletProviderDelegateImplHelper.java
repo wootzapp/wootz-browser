@@ -25,7 +25,7 @@ public class WootzWalletProviderDelegateImplHelper {
     public static void showPanel() {
         try {
             WootzActivity activity = WootzActivity.getWootzActivity();
-            activity.showWalletPanel(false);
+            // activity.showWalletPanel(false);
         } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "showPanel " + e);
         }
@@ -45,7 +45,7 @@ public class WootzWalletProviderDelegateImplHelper {
     public static void showWalletOnboarding() {
         try {
             WootzActivity activity = WootzActivity.getWootzActivity();
-            activity.showWalletOnboarding();
+            // activity.showWalletOnboarding();
         } catch (WootzActivity.WootzActivityNotFoundException e) {
             Log.e(TAG, "showWalletOnboarding " + e);
         }

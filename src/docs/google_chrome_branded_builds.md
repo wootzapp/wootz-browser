@@ -27,7 +27,7 @@ continues to work as expected in the open source build.
 E.g.
 [`//components/resources/default_100_percent/chromium`](../components/resources/default_100_percent/chromium)
 vs
-[`//components/resources/default_100_percent/google_chrome`](https://chrome-internal.googlesource.com/chrome/components/default_100_percent/google_chrome/).
+[`//components/resources/default_100_percent/google_chrome`](https://chrome-internal.googlesource.com/components/default_100_percent/google_chrome/).
 
 For strings, it’s ok to check them into the open source repository, but make
 sure that you refer to the correct product, i.e., check in a version of the
@@ -63,7 +63,7 @@ Each `google_chrome` version of a product directory points to a separate
 internal git repo. Some examples:
 - https://chrome-internal.googlesource.com/chrome/theme/google_chrome/
 - https://chrome-internal.googlesource.com/chrome/theme/default_100_percent/google_chrome/
-- https://chrome-internal.googlesource.com/chrome/components/default_200_percent/google_chrome/
+- https://chrome-internal.googlesource.com/componentst_200_percent/google_chrome/
 
 To add resources there, `cd` to this repo, add your new assets and `git cl
 upload` to start an internal code review. Once it lands, you will need to create

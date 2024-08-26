@@ -1,0 +1,37 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+if (is_android) {
+  import("//build/config/android/rules.gni")
+}
+
+config("external_config") {
+  defines = [ "USE_NUM_NONE", "USE_FIELD_10X26", "USE_FIELD_INV_BUILTIN", "USE_SCALAR_8X32", "USE_SCALAR_INV_BUILTIN", "ENABLE_MODULE_GENERATOR", "ENABLE_MODULE_RANGEPROOF", "ENABLE_MODULE_ECDH", "ENABLE_MODULE_SURJECTIONPROOF" ]
+  include_dirs = [
+    "include",
+  ]
+}
+
+config("internal_config") {
+  cflags = [
+    # static uint32_t le32dec(const void *p)
+    # static void le32enc(void *p, uint32_t value)
+    "-Wno-unused-function",
+  ]
+}
+
+source_set("bip39wally-core") {
+  public_configs = [ ":external_config" ]
+  configs += [ ":internal_config" ]
+  sources = [
+    "src/bip39.cc",
+    "src/hmac.cc",
+    "src/internal.cc",
+    "src/mnemonic.cc",
+    "src/pbkdf2.cc",
+    "src/wordlist.cc",
+    "src/ccan/ccan/crypto/sha256/sha256.cc",
+    "src/ccan/ccan/crypto/sha512/sha512.cc",
+  ]
+}
