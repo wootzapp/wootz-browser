@@ -7,7 +7,7 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <org.chromium.chrome.browser.site_settings.BraveWalletEthereumConnectedSitesPreference
+    <org.chromium.chrome.browser.site_settings.WootzWalletEthereumConnectedSitesPreference
         android:key="pref_wootz_wallet_ethereum_connected_sites"
         android:layout="@layout/wootz_wallet_connected_sites_preference_layout" />
 
