@@ -1108,7 +1108,6 @@ void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
   registry->RegisterDictionaryPref(kEasyUnlockHardlockState);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-  registry->RegisterDictionaryPref(kWootzWalletKeyrings); 
   registry->RegisterDictionaryPref(kTypeSubscribedForInvalidations);
   registry->RegisterStringPref(kActiveRegistrationToken, std::string());
   registry->RegisterStringPref(kFCMInvalidationClientIDCache, std::string());
@@ -1897,7 +1896,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
-
+  
+  registry->RegisterDictionaryPref(kWootzWalletKeyrings);
   throttle_webui::RegisterProfilePrefs(registry);
   LOG(ERROR)<< "After throttle_webui::RegisterProfilePrefs(registry)";
   // User prefs. Please keep this list alphabetized.
