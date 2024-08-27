@@ -551,6 +551,7 @@
 #endif
 
 #include "chrome/browser/ui/webui/throttle/throttle_prefs.h"
+#include "components/wootz_wallet/browser/wootz_wallet_prefs.h"
 
 namespace {
 
@@ -1896,8 +1897,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
-  
-  registry->RegisterDictionaryPref(kWootzWalletKeyrings);
+  wootz_wallet::RegisterProfilePrefs(registry);
   throttle_webui::RegisterProfilePrefs(registry);
   LOG(ERROR)<< "After throttle_webui::RegisterProfilePrefs(registry)";
   // User prefs. Please keep this list alphabetized.
