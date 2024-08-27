@@ -120,7 +120,7 @@ std::optional<bool> PermissionsClient::HasPreviouslyAutoRevokedPermission(
 bool PermissionsClient::CanBypassEmbeddingOriginCheck(
     const GURL& requesting_origin,
     const GURL& embedding_origin) {
-  return false;
+  return true;
 }
 
 bool PermissionsClient::WootzCanBypassEmbeddingOriginCheck(

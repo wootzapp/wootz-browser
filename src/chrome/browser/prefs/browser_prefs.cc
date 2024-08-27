@@ -1104,6 +1104,9 @@ inline constexpr char kDefaultSearchProviderChoiceLocationPrefName[] =
 // Register local state used only for migration (clearing or moving to a new
 // key).
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
+
+wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
+
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   registry->RegisterDictionaryPref(kEasyUnlockHardlockState);
@@ -1244,6 +1247,8 @@ void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
 void RegisterProfilePrefsForMigration(
     user_prefs::PrefRegistrySyncable* registry) {
   chrome_browser_net::secure_dns::RegisterProbesSettingBackupPref(registry);
+  wootz_wallet::RegisterProfilePrefsForMigration(registry);
+
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1616,6 +1621,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
   accessibility::AccessibilityPrefsController::RegisterLocalStatePrefs(
       registry);
 #endif
+  wootz_wallet::RegisterLocalStatePrefs(registry);
+
   breadcrumbs::RegisterPrefs(registry);
   browser_shutdown::RegisterPrefs(registry);
   BrowserProcessImpl::RegisterPrefs(registry);
@@ -2537,6 +2544,8 @@ void MigrateObsoleteProfilePrefs(PrefService* profile_prefs,
 
   // Check MigrateDeprecatedAutofillPrefs() to see if this is safe to remove.
   autofill::prefs::MigrateDeprecatedAutofillPrefs(profile_prefs);
+
+  // wootz_wallet::MigrateObsoleteProfilePrefs(registry);
 
   // Added 3/2020.
   // TODO(crbug.com/40122991): Remove this once the privacy settings redesign
