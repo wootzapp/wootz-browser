@@ -9,6 +9,7 @@
 #include <optional>
 #include <utility>
 
+#include "base/logging.h"
 #include "components/wootz_wallet/renderer/v8_helper.h"
 #include "build/buildflag.h"
 #include "content/public/common/isolated_world_ids.h"
@@ -78,6 +79,8 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
   if (!CanCreateProvider()) {
     return;
   }
+
+
 
   CHECK(render_frame());
   v8::Isolate* isolate =
