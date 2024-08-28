@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/no_destructor.h"
+#include "base/logging.h"
 #include "components/wootz_wallet/common/wootz_wallet_constants.h"
 #include "components/wootz_wallet/common/wootz_wallet_response_helpers.h"
 #include "components/wootz_wallet/common/encoding_utils.h"
@@ -93,6 +94,7 @@ constexpr char kSolanaProxyHandlerScript[] = R"((function() {
 JSSolanaProvider::JSSolanaProvider(content::RenderFrame* render_frame)
     : RenderFrameObserver(render_frame),
       v8_value_converter_(content::V8ValueConverter::Create()) {
+  LOG(ERROR)<<"JSSolanaProvider ANKIT";      
   EnsureConnected();
   v8_value_converter_->SetStrategy(&strategy_);
 }

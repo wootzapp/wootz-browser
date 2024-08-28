@@ -9,6 +9,7 @@
 
 #include "base/check_is_test.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
 #include "chrome/common/wootz_renderer_configuration.mojom.h"
 #include "components/wootz_wallet/browser/keyring_service.h"
@@ -35,6 +36,8 @@ WootzRendererUpdater::WootzRendererUpdater(
     : profile_(profile),
       keyring_service_(keyring_service),
       local_state_(local_state) {
+
+  LOG(ERROR)<<"WootzRendererUpdater ANKIT";    
   PrefService* pref_service = profile->GetPrefs();
   wootz_wallet_ethereum_provider_.Init(kDefaultEthereumWallet, pref_service);
   wootz_wallet_solana_provider_.Init(kDefaultSolanaWallet, pref_service);

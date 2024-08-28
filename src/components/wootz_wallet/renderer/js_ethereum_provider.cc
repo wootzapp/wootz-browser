@@ -14,6 +14,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
+#include "base/logging.h"
 #include "components/wootz_wallet/common/eth_request_helper.h"
 #include "components/wootz_wallet/common/hex_utils.h"
 #include "components/wootz_wallet/common/value_conversion_utils.h"
@@ -110,6 +111,8 @@ void JSEthereumProvider::SendResponse(
 
 JSEthereumProvider::JSEthereumProvider(content::RenderFrame* render_frame)
     : RenderFrameObserver(render_frame) {
+
+  LOG(ERROR)<<"JSEthereumProvider ANKIT";    
   uuid_ = base::Uuid::GenerateRandomV4().AsLowercaseString();
   EnsureConnected();
 }
