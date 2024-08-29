@@ -19,6 +19,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/logging.h"
 #include "components/api_request_helper/api_request_helper.h"
 #include "components/wootz_wallet/browser/account_resolver_delegate_impl.h"
 #include "components/wootz_wallet/browser/wootz_wallet_constants.h"
@@ -1386,9 +1387,12 @@ mojom::AccountIdPtr EthereumProviderImpl::FindAccountByAddress(
 
 void EthereumProviderImpl::Init(
     ::mojo::PendingRemote<mojom::EventsListener> events_listener) {
+  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
   if (!events_listener_.is_bound()) {
+  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
     events_listener_.Bind(std::move(events_listener));
   }
+
 }
 
 void EthereumProviderImpl::ChainChangedEvent(
