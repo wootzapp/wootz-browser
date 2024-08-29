@@ -15,7 +15,7 @@
 #elif BUILDFLAG(IS_WIN)
 #include "ui/base/dragdrop/os_exchange_data_provider_win.h"
 #endif
-
+#include "ui/base/dragdrop/os_exchange_data_provider_non_backed.h"
 namespace ui {
 
 // static
@@ -38,6 +38,8 @@ OSExchangeDataProviderFactory::CreateProvider() {
 #elif BUILDFLAG(IS_FUCHSIA)
   // TODO(crbug.com/42050646): Implement OSExchangeDataProvider for Fuchsia.
   return std::make_unique<OSExchangeDataProviderNonBacked>();
+#elif defined(OS_ANDROID)
+  return std::make_unique<OSExchangeDataProviderAndroid>();
 #else
 #error "Unknown operating system"
 #endif

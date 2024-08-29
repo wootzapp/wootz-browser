@@ -89,7 +89,7 @@ generate_grd("build_grd") {
       }
     }
 
-    if (!is_android) {
+    if (is_android) {
       public_deps += [
         "cr_components/history:build_grdp",
         "cr_components/history_clusters:build_grdp",

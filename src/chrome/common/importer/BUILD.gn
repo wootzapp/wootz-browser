@@ -81,8 +81,6 @@ source_set("importer") {
   sources = [
     "firefox_importer_utils.cc",
     "firefox_importer_utils.h",
-    "imported_bookmark_entry.cc",
-    "imported_bookmark_entry.h",
     "importer_autofill_form_data_entry.cc",
     "importer_autofill_form_data_entry.h",
     "importer_bridge.cc",

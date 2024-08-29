@@ -28,7 +28,7 @@ class View;
 class Widget;
 
 namespace internal {
-#if defined(USE_AURA)
+#if defined(USE_AURA) && !defined(OS_ANDROID)
 // This class is internal to views.
 class PreMenuEventDispatchHandler;
 #endif  // defined(USE_AURA)

@@ -32,7 +32,7 @@ source_set("system_cpu") {
     sources += [ "cpu_info_provider_mac.cc" ]
   }
 
-  if (is_linux || is_chromeos) {
+  if (is_linux || is_chromeos ||is_android) {
     sources += [ "cpu_info_provider_linux.cc" ]
   }
 

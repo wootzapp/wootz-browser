@@ -90,7 +90,7 @@ static_library("discovery") {
     deps += [ "//chromeos/ash/components/network" ]
   }
 
-  if (is_posix) {
+  if (is_posix && !is_android) {
     sources += [ "discovery_network_list_posix.cc" ]
   }
 

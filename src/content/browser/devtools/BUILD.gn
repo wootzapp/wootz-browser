@@ -10,7 +10,7 @@ import("//third_party/protobuf/proto_library.gni")
 import("//tools/grit/grit_rule.gni")
 
 # Android and iOS don't support DevTools front-end.
-if (!is_ios) {
+if (true || !is_ios) {
   source_set("devtools_resources_extern") {
     sources = [ "devtools_resources.cc" ]
 

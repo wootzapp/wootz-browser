@@ -9,7 +9,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #error "Instant is only used on desktop";
 #endif
 

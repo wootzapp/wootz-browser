@@ -4,6 +4,7 @@
 
 import("//mojo/public/tools/bindings/mojom.gni")
 
+if (is_win || is_mac || is_linux || is_chromeos || is_android) {
 mojom("mojo_bindings") {
   sources = [
     "discards.mojom",
@@ -17,4 +18,5 @@ mojom("mojo_bindings") {
   ]
 
   webui_module_path = "/"
+}
 }
