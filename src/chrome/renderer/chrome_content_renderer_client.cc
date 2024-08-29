@@ -68,6 +68,7 @@
 #include "chrome/renderer/web_link_preview_triggerer_impl.h"
 #include "chrome/renderer/websocket_handshake_throttle_provider_impl.h"
 #include "chrome/renderer/worker_content_settings_client.h"
+#include "chrome/renderer/wootz_render_thread_observer.h"
 #include "chrome/services/speech/buildflags/buildflags.h"
 #include "components/autofill/content/renderer/autofill_agent.h"
 #include "components/autofill/content/renderer/password_autofill_agent.h"
@@ -256,6 +257,7 @@
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 #include "chrome/renderer/media/chrome_key_systems.h"
 #endif
+#include "chrome/renderer/wootz_wallet_render_frame_observer.h"
 
 using autofill::AutofillAgent;
 using autofill::PasswordAutofillAgent;
@@ -570,6 +572,11 @@ void ChromeContentRendererClient::RenderThreadStarted() {
           SetParentProfileCollectorForChildProcess(std::move(collector));
     }
   }
+
+    wootz_observer_ = std::make_unique<WootzRenderThreadObserver>();
+    content::RenderThread::Get()->AddObserver(wootz_observer_.get());
+    // blink::WebScriptController::RegisterExtension(
+    // SafeBuiltins::CreateV8Extension());
 }
 
 void ChromeContentRendererClient::ExposeInterfacesToBrowser(
@@ -789,6 +796,13 @@ void ChromeContentRendererClient::RenderFrameCreated(
     new wallet::BoardingPassExtractor(render_frame, registry);
   }
 #endif
+
+
+    new wootz_wallet::WootzWalletRenderFrameObserver(
+        render_frame,
+        base::BindRepeating(&WootzRenderThreadObserver::GetDynamicParams));
+  
+
 }
 
 void ChromeContentRendererClient::WebViewCreated(

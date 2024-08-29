@@ -143,48 +143,6 @@
 
 namespace {
 
-void MaybeBindEthereumProvider(
-    content::RenderFrameHost* const frame_host,
-    mojo::PendingReceiver<wootz_wallet::mojom::EthereumProvider> receiver) {
-     LOG(ERROR)<<"ANKIT3 WINDOW";       
-  auto* wootz_wallet_service =
-      wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
-          frame_host->GetBrowserContext());
-  if (!wootz_wallet_service) {
-    return;
-  }
-     LOG(ERROR)<<"ANKIT4 WINDOW";       
-      
-  content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(frame_host);
-  mojo::MakeSelfOwnedReceiver(
-      std::make_unique<wootz_wallet::EthereumProviderImpl>(
-          HostContentSettingsMapFactory::GetForProfile(
-              Profile::FromBrowserContext(frame_host->GetBrowserContext())),
-          wootz_wallet_service,
-          std::make_unique<wootz_wallet::WootzWalletProviderDelegateImpl>(
-              web_contents, frame_host),
-          user_prefs::UserPrefs::Get(web_contents->GetBrowserContext())),
-      std::move(receiver));
-}
-
-void MaybeBindWalletP3A(
-    content::RenderFrameHost* const frame_host,
-    mojo::PendingReceiver<wootz_wallet::mojom::WootzWalletP3A> receiver) {
-  auto* context = frame_host->GetBrowserContext();
-  if (wootz_wallet::IsAllowedForContext(frame_host->GetBrowserContext())) {
-    wootz_wallet::WootzWalletService* wallet_service =
-        wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(context);
-    DCHECK(wallet_service);
-    wallet_service->GetWootzWalletP3A()->Bind(std::move(receiver));
-  } else {
-    // Dummy API to avoid reporting P3A for OTR contexts
-    mojo::MakeSelfOwnedReceiver(
-        std::make_unique<wootz_wallet::WootzWalletP3APrivate>(),
-        std::move(receiver));
-  }
-}
-
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 // Helper method for ExposeInterfacesToRenderer() that checks the latest
 // SafeBrowsing pref value on the UI thread before hopping over to the IO
@@ -381,7 +339,7 @@ void ChromeContentBrowserClient::BindMediaServiceReceiver(
 #endif
 }
 
-void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
+void ChromeContentBrowserClient::RegisterReceiverBindingsForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
 
@@ -390,16 +348,6 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
   chrome::internal::PopulateChromeWebUIFrameBinders(map, render_frame_host);
 
 
-  map->Add<wootz_wallet::mojom::WootzWalletP3A>(
-      base::BindRepeating(&MaybeBindWalletP3A));
-
-  if (wootz_wallet::IsAllowedForContext(
-          render_frame_host->GetBrowserContext())) {
-     LOG(ERROR)<<"ANKIT2 WINDOW";       
-      map->Add<wootz_wallet::mojom::EthereumProvider>(
-          base::BindRepeating(&MaybeBindEthereumProvider));
-     
-  }
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   map->Add<spellcheck::mojom::SpellCheckHost>(base::BindRepeating(

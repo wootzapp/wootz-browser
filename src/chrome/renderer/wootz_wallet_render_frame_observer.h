@@ -1,4 +1,4 @@
-/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
+/* Copyright (c) 2021 The Dark Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -12,7 +12,7 @@
 #include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "components/wootz_wallet/renderer/js_ethereum_provider.h"
 #include "components/wootz_wallet/renderer/js_solana_provider.h"
-#include "chrome/renderer/wootz_wallet/wootz_wallet_render_frame_observer_p3a_util.h"
+#include "chrome/renderer/wootz_wallet_render_frame_observer_p3a_util.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_frame_observer.h"
 #include "third_party/blink/public/web/web_navigation_type.h"

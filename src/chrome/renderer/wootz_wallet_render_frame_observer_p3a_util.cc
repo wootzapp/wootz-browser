@@ -1,17 +1,17 @@
-/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
+/* Copyright (c) 2022 The Dark Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/renderer/wootz_wallet/wootz_wallet_render_frame_observer_p3a_util.h"
+#include "chrome/renderer/wootz_wallet_render_frame_observer_p3a_util.h"
 
 #include "components/wootz_wallet/renderer/v8_helper.h"
 #include "gin/converter.h"
-#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
-#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "v8/include/v8.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 namespace wootz_wallet {
 
@@ -31,13 +31,13 @@ WootzWalletRenderFrameObserverP3AUtil::
 void WootzWalletRenderFrameObserverP3AUtil::ReportJSProviders(
     content::RenderFrame* render_frame,
     const wootz::mojom::DynamicParams& dynamic_params) {
+        LOG(ERROR)<<"ReportJSProviders";    
   CHECK(render_frame);
   if (!EnsureConnected(render_frame)) {
     return;
   }
 
-  v8::Isolate* isolate =
-      render_frame->GetWebFrame()->GetAgentGroupScheduler()->Isolate();
+  v8::Isolate* isolate = render_frame->GetWebFrame()->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   auto* web_frame = render_frame->GetWebFrame();
   v8::Local<v8::Context> context = web_frame->MainWorldScriptContext();

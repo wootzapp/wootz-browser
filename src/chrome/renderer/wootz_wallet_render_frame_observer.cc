@@ -1,22 +1,21 @@
-/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
+/* Copyright (c) 2021 The Dark Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include "chrome/renderer/wootz_wallet/wootz_wallet_render_frame_observer.h"
+#include "chrome/renderer/wootz_wallet_render_frame_observer.h"
 
 #include <memory>
 #include <optional>
 #include <utility>
 
-#include "base/logging.h"
 #include "components/wootz_wallet/renderer/v8_helper.h"
 #include "build/buildflag.h"
 #include "content/public/common/isolated_world_ids.h"
 #include "content/public/renderer/render_frame.h"
-#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_local_frame.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 namespace wootz_wallet {
 
@@ -54,11 +53,6 @@ bool WootzWalletRenderFrameObserver::CanCreateProvider() {
     return false;
   }
 
-  // Scripts can't be executed on provisional frames
-  if (render_frame()->GetWebFrame()->IsProvisional()) {
-    return false;
-  }
-
   return true;
 }
 
@@ -79,12 +73,9 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
   if (!CanCreateProvider()) {
     return;
   }
-
-
-
   CHECK(render_frame());
-  v8::Isolate* isolate =
-      render_frame()->GetWebFrame()->GetAgentGroupScheduler()->Isolate();
+  v8::Isolate* isolate = render_frame()->GetWebFrame()->GetAgentGroupScheduler()->Isolate();
+
   v8::HandleScope handle_scope(isolate);
   auto* web_frame = render_frame()->GetWebFrame();
   v8::Local<v8::Context> context = web_frame->MainWorldScriptContext();
@@ -103,21 +94,19 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
 
   if (!dynamic_params.install_window_wootz_ethereum_provider &&
       dynamic_params.install_window_ethereum_provider) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
     return;
   }
 
   if (dynamic_params.install_window_wootz_ethereum_provider &&
-      web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate, context,
-                                                         "ethereum")) {
+      web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "ethereum")) {
     JSEthereumProvider::Install(
         dynamic_params.install_window_ethereum_provider,
         dynamic_params.allow_overwrite_window_ethereum_provider,
         render_frame());
   }
 
-  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate, context,
-                                                         "solana") &&
+  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
       dynamic_params.wootz_use_native_solana_wallet) {
     JSSolanaProvider::Install(
         dynamic_params.allow_overwrite_window_solana_provider, render_frame());

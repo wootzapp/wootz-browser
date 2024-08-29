@@ -15,6 +15,7 @@
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
+#include "base/logging.h"
 #include "components/wootz_wallet/browser/account_discovery_manager.h"
 #include "components/wootz_wallet/browser/bitcoin/bitcoin_wallet_service.h"
 #include "components/wootz_wallet/browser/blockchain_registry.h"
@@ -118,6 +119,9 @@ WootzWalletService::WootzWalletService(
                                                 keyring_service_.get(),
                                                 profile_prefs)),
       weak_ptr_factory_(this) {
+
+    LOG(ERROR)<<"WootzWalletService ANKIT";
+
   CHECK(delegate_);
 
   if (IsBitcoinEnabled()) {
