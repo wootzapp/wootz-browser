@@ -244,8 +244,6 @@ class HidDevicePermissionsPrompt : public DevicePermissionsPrompt::Prompt,
     const auto& binder = GetHidManagerBinderOverride();
     if (binder)
       binder.Run(std::move(receiver));
-    else
-      content::GetDeviceService().BindHidManager(std::move(receiver));
 
     hid_manager_->GetDevicesAndSetClient(
         receiver_.BindNewEndpointAndPassRemote(),

@@ -4,7 +4,7 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(!is_android)
+# assert(!is_android)
 assert(!is_fuchsia, "Fuchsia shouldn't use anything in //chrome")
 
 static_library("discovery") {
@@ -90,7 +90,7 @@ static_library("discovery") {
     deps += [ "//chromeos/ash/components/network" ]
   }
 
-  if (is_posix) {
+  if (is_posix && !is_android) {
     sources += [ "discovery_network_list_posix.cc" ]
   }
 

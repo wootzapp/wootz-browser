@@ -131,9 +131,11 @@ void SelectFileDialogImpl::SelectFileImpl(
       base::android::ToJavaArrayOfStrings(env, accept_types.first);
 
   bool accept_multiple_files = SelectFileDialog::SELECT_OPEN_MULTI_FILE == type;
-
+  bool is_folder = false;
+  if (type == SelectFileDialog::SELECT_EXISTING_FOLDER)
+      is_folder = true;
   Java_SelectFileDialog_selectFile(env, java_object_, accept_types_java,
-                                   accept_types.second, accept_multiple_files,
+                                   accept_types.second, accept_multiple_files, is_folder,
                                    owning_window->GetJavaObject());
 }
 

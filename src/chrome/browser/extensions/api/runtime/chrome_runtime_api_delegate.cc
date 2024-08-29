@@ -285,6 +285,9 @@ bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
     info->os = extensions::api::runtime::PlatformOs::kLinux;
   } else if (strcmp(os, "openbsd") == 0) {
     info->os = extensions::api::runtime::PlatformOs::kOpenbsd;
+  } else if (strcmp(os, "android") == 0) {
+    info->os = extensions::api::runtime::PLATFORM_OS_ANDROID;
+
   } else {
     NOTREACHED_IN_MIGRATION() << "Platform not supported: " << os;
     return false;

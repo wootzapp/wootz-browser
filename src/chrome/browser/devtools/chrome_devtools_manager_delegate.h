@@ -11,7 +11,7 @@
 #include <string>
 
 #include "chrome/browser/devtools/device/devtools_device_discovery.h"
-#include "chrome/browser/devtools/protocol/protocol.h"
+
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/browser/devtools_agent_host_observer.h"

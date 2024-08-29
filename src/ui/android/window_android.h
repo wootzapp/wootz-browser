@@ -14,6 +14,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "ui/events/event_target.h"
 #include "base/time/time.h"
 #include "third_party/blink/public/common/page/content_to_visible_time_reporter.h"
 #include "ui/android/ui_android_export.h"
@@ -35,7 +36,8 @@ class WindowAndroidObserver;
 
 // Android implementation of the activity window.
 // WindowAndroid is also the root of a ViewAndroid tree.
-class UI_ANDROID_EXPORT WindowAndroid : public ViewAndroid {
+class UI_ANDROID_EXPORT WindowAndroid : public ViewAndroid,
+                           public ui::EventTarget {
  public:
   class ScopedWindowAndroidForTesting {
    public:
@@ -65,7 +67,12 @@ class UI_ANDROID_EXPORT WindowAndroid : public ViewAndroid {
   void Destroy(JNIEnv* env, const base::android::JavaParamRef<jobject>& obj);
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
-
+  static void ConvertPointToTarget(const WindowAndroid* source,
+                                   const WindowAndroid* target,
+                                   gfx::PointF* point);
+  static void ConvertPointToTarget(const WindowAndroid* source,
+                                   const WindowAndroid* target,
+                                   gfx::Point* point);
   void AttachCompositor(WindowAndroidCompositor* compositor);
   void DetachCompositor();
 
@@ -146,7 +153,11 @@ class UI_ANDROID_EXPORT WindowAndroid : public ViewAndroid {
 
   // ViewAndroid overrides.
   WindowAndroid* GetWindowAndroid() const override;
-
+  // Overridden from ui::EventTarget:
+  bool CanAcceptEvent(const ui::Event& event) override;
+  EventTarget* GetParentTarget() override;
+  std::unique_ptr<ui::EventTargetIterator> GetChildIterator() const override;
+  ui::EventTargeter* GetEventTargeter() override;
   // The ID of the display that this window belongs to.
   int display_id() const { return display_id_; }
 

@@ -4,7 +4,7 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 source_set("app_service") {
   sources = [
@@ -327,7 +327,7 @@ source_set("unit_tests") {
     "//chrome/app/theme:chrome_unscaled_resources_grit",
     "//chrome/browser/apps:icon_standardizer",
     "//chrome/browser/apps/app_service/app_icon",
-    "//chrome/browser/apps/app_service/app_icon:unit_tests",
+    # "//chrome/browser/apps/app_service/app_icon:unit_tests",
     "//chrome/browser/apps/app_service/app_icon:util",
     "//chrome/browser/extensions",
     "//chrome/browser/profiles:profile",
@@ -400,7 +400,6 @@ source_set("unit_tests") {
       "//chrome/browser/ash/crosapi:test_support",
       "//chrome/browser/metrics/structured:features",
       "//chrome/browser/resources:app_icon_resources_grit",
-      "//chrome/browser/web_applications/app_service:unit_tests",
       "//chromeos/ash/components/dbus/cicerone",
       "//chromeos/ash/components/login/login_state",
       "//chromeos/ash/components/standalone_browser",

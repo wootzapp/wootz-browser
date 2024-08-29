@@ -537,7 +537,7 @@
 #include "third_party/cros_system_api/switches/chrome_switches.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
+
 #include "chrome/browser/apps/link_capturing/link_capturing_navigation_throttle.h"
 #include "chrome/browser/devtools/chrome_devtools_manager_delegate.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -577,7 +577,7 @@
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "chrome/browser/enterprise/connectors/connectors_service.h"
 #include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
-#endif  //  !BUILDFLAG(IS_ANDROID)
+
 
 // TODO(crbug.com/40118868): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
@@ -1684,10 +1684,6 @@ ChromeContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
                          weak_factory_.GetWeakPtr())));
 
   bool add_profiles_extra_parts = true;
-#if BUILDFLAG(IS_ANDROID)
-  if (startup_data_.HasBuiltProfilePrefService())
-    add_profiles_extra_parts = false;
-#endif
   if (add_profiles_extra_parts)
     chrome::AddProfilesExtraParts(main_parts.get());
 
@@ -1702,7 +1698,7 @@ ChromeContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
 #elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   main_parts->AddParts(
       std::make_unique<ChromeBrowserMainExtraPartsViewsLinux>());
-#else
+
   main_parts->AddParts(std::make_unique<ChromeBrowserMainExtraPartsViews>());
 #endif
 #endif

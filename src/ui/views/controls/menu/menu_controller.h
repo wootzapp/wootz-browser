@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "ui/android/window_android.h"
 #include "base/callback_list.h"
 #include "base/containers/flat_set.h"
 #include "base/functional/callback_forward.h"

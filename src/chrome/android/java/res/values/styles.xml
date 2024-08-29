@@ -109,14 +109,6 @@ found in the LICENSE file.
         <item name="actionBarTheme">@style/ManageSpaceActionBarTheme</item>
     </style>
 
-    <style name="WootzWalletTextViewSubTitle" parent="Widget.AppCompat.TextView">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/wootz_theme_subtitle_text</item>
-        <item name="android:textColorLink">@color/wootz_link</item>
-        <item name="android:textAppearance">?attr/textAppearanceListItem</item>
-    </style>
-
     <!-- Style for the semi-transparent sign-in & history sync opt-in activity.
     The background is translucent since the parent activity content should be
     visible when the bottom sheet or the non-full-screen history sync opt-in

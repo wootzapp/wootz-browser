@@ -4,7 +4,7 @@
 
 import("//ui/webui/resources/tools/build_webui.gni")
 
-assert(!is_android, "access_code_cast is not for android.")
+# assert(!is_android, "access_code_cast is not for android.")
 
 build_webui("build") {
   grd_prefix = "access_code_cast"

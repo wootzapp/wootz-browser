@@ -343,8 +343,6 @@ void HidDeviceManager::LazyInitialize() {
     const auto& binder = GetHidManagerBinderOverride();
     if (binder)
       binder.Run(std::move(receiver));
-    else
-      content::GetDeviceService().BindHidManager(std::move(receiver));
   }
   // Enumerate HID devices and set client.
   std::vector<device::mojom::HidDeviceInfoPtr> empty_devices;

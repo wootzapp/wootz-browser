@@ -41,7 +41,7 @@ static_library("common") {
 
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
-  if (!is_android) {
+  if (is_android) {
     sources += [
       "discovery/media_sink_service_base.cc",
       "discovery/media_sink_service_base.h",

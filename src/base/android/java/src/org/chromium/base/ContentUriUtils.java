@@ -300,6 +300,7 @@ public abstract class ContentUriUtils {
     public static boolean delete(String uriString) {
         assert isContentUri(uriString);
         Uri parsedUri = Uri.parse(uriString);
+        Log.d(TAG, "parsedUri: %s", parsedUri.toString());
         ContentResolver resolver = ContextUtils.getApplicationContext().getContentResolver();
         return resolver.delete(parsedUri, null, null) > 0;
     }

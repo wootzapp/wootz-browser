@@ -16,7 +16,7 @@ import("//tools/typescript/webui_ts_library.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
 import("//ui/webui/webui_features.gni")
 
-assert(!is_android)
+# assert(!is_android)
 assert(!is_fuchsia, "Fuchsia shouldn't use anything in //chrome")
 
 source_set("browser_tests") {

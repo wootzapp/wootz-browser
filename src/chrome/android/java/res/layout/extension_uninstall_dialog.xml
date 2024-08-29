@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2021 The Ungoogled Chromium Authors. All rights reserved.
+
+ This file is part of Ungoogled Chromium Android.
+
+ Ungoogled Chromium Android is free software: you can redistribute it
+ and/or modify it under the terms of the GNU General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or any later version.
+
+ Ungoogled Chromium Android is distributed in the hope that it will be
+ useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+ of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with Ungoogled Chromium Android.  If not,
+ see <https://www.gnu.org/licenses/>. -->
+
+<org.chromium.chrome.browser.extensions.ExtensionUninstallCustomScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content" >
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/AlertDialogContent">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:id="@+id/subtitle"
+            android:textAppearance="@style/TextAppearance.TextMedium.Secondary"
+            android:visibility="visible"
+            android:layout_marginBottom="16dp" />
+
+        <CheckBox
+            style="@style/TextAppearance.TextSmall.Primary"
+           android:id="@+id/checkbox"
+           android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="-5dp"/>
+
+    </LinearLayout>
+
+</org.chromium.chrome.browser.extensions.ExtensionUninstallCustomScrollView>

@@ -46,7 +46,7 @@ namespace views {
 
 namespace internal {
 
-#if defined(USE_AURA)
+#if !defined(OS_APPLE) && !defined(OS_ANDROID)
 // This class adds itself as the pre target handler for the |window|
 // passed in. It currently handles touch events and forwards them to the
 // controller. Reason for this approach is views does not get raw touch
@@ -101,7 +101,7 @@ class PreMenuEventDispatchHandler : public ui::EventHandler,
 void TransferGesture(ui::GestureRecognizer* gesture_recognizer,
                      gfx::NativeView source,
                      gfx::NativeView target) {
-#if defined(USE_AURA)
+#if defined(OS_APPLE) || defined(OS_ANDROID)
   // Use kCancel for the transfer touches behavior to ensure that `source` sees
   // a valid touch stream. If kCancel is not used source's touch state may not
   // be valid after the menu is closed, potentially causing it to drop touch
@@ -180,7 +180,7 @@ void MenuHost::InitMenuHost(const InitParams& init_params) {
             show_menu_host_duration_histogram.value(), base::TimeTicks::Now()));
   }
 
-#if defined(USE_AURA)
+#if !defined(OS_APPLE) && !defined(OS_ANDROID)
   pre_dispatch_handler_ =
       std::make_unique<internal::PreMenuEventDispatchHandler>(
           menu_controller, submenu_, GetNativeView());
@@ -251,7 +251,7 @@ void MenuHost::DestroyMenuHost() {
   HideMenuHost();
   destroying_ = true;
   submenu_ = nullptr;
-#if defined(USE_AURA)
+#if !defined(OS_APPLE) && !defined(OS_ANDROID)
   pre_dispatch_handler_.reset();
 #endif
   static_cast<MenuHostRootView*>(GetRootView())->ClearSubmenu();

@@ -30,7 +30,7 @@ cast_source_set("headers") {
 
 if (!is_android) {
   cast_source_set("proxy") {
-    assert(!is_android)
+    # assert(!is_android)
 
     sources = [
       "audio_channel_broker_impl.cc",

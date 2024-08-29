@@ -2154,7 +2154,7 @@ ExtensionFunction::ResponseAction DeveloperPrivateShowOptionsFunction::Run() {
     return RespondNow(Error(kCouldNotFindWebContentsError));
 
   ExtensionTabUtil::OpenOptionsPage(extension,
-                                    chrome::FindBrowserWithTab(web_contents));
+                                    web_contents);
   return RespondNow(NoArguments());
 }
 

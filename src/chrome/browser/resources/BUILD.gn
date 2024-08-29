@@ -23,7 +23,7 @@ group("resources") {
 
   ]
 
-  if (!is_android) {
+  #if (!is_android) {
     public_deps += [
       ":app_icon_resources",
       ":component_extension_resources",
@@ -63,7 +63,7 @@ group("resources") {
       "side_panel/read_anything:resources",
       "side_panel/reading_list:resources",
       "side_panel/shared:resources",
-      "side_panel/user_notes:resources",
+      # ":resources",
       "signin:resources",
       "suggest_internals:resources",
       "support_tool:resources",
@@ -79,7 +79,7 @@ group("resources") {
         "media_router/cast_feedback:resources",
       ]
     }
-  }
+  #}
 
   if (is_chromeos_ash) {
     public_deps += [
@@ -127,7 +127,7 @@ group("resources") {
     public_deps += [ "webui_js_error:resources" ]
   }
 
-  if (!is_android && !is_chromeos_ash) {
+  if (is_android && !is_chromeos_ash) {
     public_deps += [
       "inline_login:resources",
       "intro:resources",
@@ -174,7 +174,7 @@ if (is_chromeos_ash && enable_js_type_check) {
   }
 }
 
-if (!is_android) {
+if (!is_android || true) {
   grit("component_extension_resources") {
     source = "component_extension_resources.grd"
 
@@ -244,7 +244,6 @@ group("dev_ui_resources") {
     "net_internals:resources",
     "throttle:resources",
     # "wootz_react_app:wootz_react_app_resources",
-    "wootz_tsx:wootz_tsx_app_resources",
     "rewards:resources",
     "omnibox:resources",
     "predictors:resources",
@@ -307,7 +306,6 @@ repack("dev_ui_paks") {
     "$root_gen_dir/chrome/net_internals_resources.pak",
     "$root_gen_dir/chrome/throttle_resources.pak",
     # "$root_gen_dir/chrome/wootz_react_app_resources.pak",
-    "$root_gen_dir/chrome/wootz_tsx_page_resources.pak",
     "$root_gen_dir/chrome/rewards_resources.pak",
     "$root_gen_dir/chrome/omnibox_resources.pak",
     "$root_gen_dir/chrome/predictors_resources.pak",

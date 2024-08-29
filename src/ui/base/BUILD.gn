@@ -610,7 +610,9 @@ component("base") {
   if (is_chromeos_ash || (use_aura && (is_linux || is_chromeos_lacros)) ||
       is_fuchsia) {
     sources += [
-      "dragdrop/os_exchange_data_provider_non_backed.cc",
+      
+      
+      
       "dragdrop/os_exchange_data_provider_non_backed.h",
     ]
   }
@@ -645,14 +647,6 @@ component("base") {
 
   if (!toolkit_views && !use_aura) {
     sources -= [
-      "dragdrop/drop_target_event.cc",
-      "dragdrop/drop_target_event.h",
-      "dragdrop/os_exchange_data.cc",
-      "dragdrop/os_exchange_data.h",
-      "dragdrop/os_exchange_data_provider_factory.cc",
-      "dragdrop/os_exchange_data_provider_factory.h",
-      "nine_image_painter_factory.cc",
-      "nine_image_painter_factory.h",
     ]
   }
 
@@ -661,9 +655,7 @@ component("base") {
     libs += [ "jnigraphics" ]
 
     sources -= [
-      "l10n/l10n_font_util.cc",
-      "models/button_menu_item_model.cc",
-      "theme_provider.cc",
+     
     ]
   }
 

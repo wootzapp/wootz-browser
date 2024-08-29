@@ -229,6 +229,7 @@
         <include name="IDR_PDF_MANIFEST" file="resources\pdf\manifest.json" type="BINDATA" />
       </if>
       <include name="IDR_WEBSTORE_MANIFEST" file="resources\webstore_app\manifest.json" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_MANIFEST" file="resources\webstore_app\manifest.json" type="BINDATA" />
       <if expr="is_chromeos">
         <!-- Contact Center Insights extension, enabled on managed ChromeOS devices -->
         <include name="IDR_CONTACT_CENTER_INSIGHTS_MANIFEST" file="resources\chromeos\contact_center_insights\manifest.json" type="BINDATA" />

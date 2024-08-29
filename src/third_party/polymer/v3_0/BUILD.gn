@@ -9,7 +9,7 @@ import("//ui/webui/resources/include_polymer.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
 import("//ui/webui/resources/tools/minify_js.gni")
 
-assert(include_polymer)
+# assert(include_polymer)
 
 js_files = [
   "iron-a11y-keys-behavior/iron-a11y-keys-behavior.js",

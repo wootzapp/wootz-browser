@@ -69,12 +69,19 @@ const char kImportNotSharedModule[] = "'import' is not a shared module.";
 void MaybeCleanupMetadataFolder(const base::FilePath& extension_path) {
   const std::vector<base::FilePath> reserved_filepaths =
       file_util::GetReservedMetadataFilePaths(extension_path);
-  for (const auto& file : reserved_filepaths)
-    base::DeletePathRecursively(file);
+  for (const auto& file : reserved_filepaths) {
+    LOG(INFO) << "unpacked_installer.cc: MaybeCleanupMetadataFolder: file: " << file;
+    LOG(INFO) << "unpacked_installer.cc: MaybeCleanupMetadataFolder: PathExists: " << (base::PathExists(file));
+    if (base::PathExists(file))
+      base::DeletePathRecursively(file);
+  }
 
   const base::FilePath& metadata_dir = extension_path.Append(kMetadataFolder);
-  if (base::IsDirectoryEmpty(metadata_dir))
-    base::DeletePathRecursively(metadata_dir);
+  if (base::PathExists(metadata_dir) && base::IsDirectoryEmpty(metadata_dir)) {
+    LOG(INFO) << "unpacked_installer.cc: MaybeCleanupMetadataFolder: metadata_dir: " << metadata_dir;
+    LOG(INFO) << "unpacked_installer.cc: MaybeCleanupMetadataFolder: PathExists(metadata_dir): " << (base::PathExists(metadata_dir));
+   base::DeletePathRecursively(metadata_dir);
+  }
 }
 
 }  // namespace
@@ -99,6 +106,7 @@ UnpackedInstaller::~UnpackedInstaller() {
 }
 
 void UnpackedInstaller::Load(const base::FilePath& path_in) {
+  LOG(INFO) << "unpacked_installer.cc: Load: path_in: " << path_in;
   DCHECK(extension_path_.empty());
   extension_path_ = path_in;
   GetExtensionFileTaskRunner()->PostTask(
@@ -263,7 +271,7 @@ bool UnpackedInstaller::LoadExtension(mojom::ManifestLocation location,
   // warnings/errors and ensures we don't treat a user provided file as one by
   // the Extension system.
   MaybeCleanupMetadataFolder(extension_path_);
-
+  LOG(INFO) << "unpacked_installer.cc: LoadExtension: extension_path_: " << extension_path_;
   // Treat presence of illegal filenames as a hard error for unpacked
   // extensions. Don't do so for command line extensions since this breaks
   // Chrome OS autotests (crbug.com/764787).
@@ -322,7 +330,7 @@ bool UnpackedInstaller::IsLoadingUnpackedAllowed() const {
 }
 
 void UnpackedInstaller::GetAbsolutePath() {
-  extension_path_ = base::MakeAbsoluteFilePath(extension_path_);
+  // extension_path_ = base::MakeAbsoluteFilePath(extension_path_);
 
   // Set priority explicitly to avoid unwanted task priority inheritance.
   content::GetUIThreadTaskRunner({base::TaskPriority::USER_BLOCKING})

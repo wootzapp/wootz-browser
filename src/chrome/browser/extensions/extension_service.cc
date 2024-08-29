@@ -1501,6 +1501,14 @@ void ExtensionService::RemoveComponentExtension(
   }
 }
 
+// void ExtensionService::ReloadExtensions() {
+//   // No need to load components since the only one is chromium_web_store
+//   InstalledLoader(this).LoadAllExtensions();
+//   OnInstalledExtensionsLoaded();
+
+//   SetReadyAndNotifyListeners();
+// }
+
 void ExtensionService::UnloadAllExtensionsForTest() {
   UnloadAllExtensionsInternal();
 }

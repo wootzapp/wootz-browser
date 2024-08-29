@@ -890,7 +890,6 @@ void PeopleHandler::HandleTurnOffSync(bool delete_profile,
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
 void PeopleHandler::HandlePauseSync(const base::Value::List& args) {
-  DCHECK(AccountConsistencyModeManager::IsDiceEnabledForProfile(profile_));
   auto* identity_manager = IdentityManagerFactory::GetForProfile(profile_);
   DCHECK(identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync));
 

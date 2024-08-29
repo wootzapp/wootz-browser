@@ -44,7 +44,7 @@ import("//third_party/webrtc/webrtc.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 import("//tools/grit/grit_rule.gni")
 import("//ui/base/ui_features.gni")
-
+set_sources_assignment_filter([])
 assert(enable_supervised_users)
 
 # //build/config/android/rules.gni imports //tools/grit/grit_rule.gni, which
@@ -475,6 +475,7 @@ static_library("browser") {
     "download/download_ui_controller.h",
     "download/download_ui_model.cc",
     "download/download_ui_model.h",
+    "download/drag_download_item_aura.cc",
     "download/download_ui_safe_browsing_util.cc",
     "download/download_ui_safe_browsing_util.h",
     "download/drag_download_item.h",
@@ -1933,7 +1934,7 @@ static_library("browser") {
     "webid/identity_provider_permission_request.h",
   ]
 
-  if (!is_android) {
+  #if (!is_android) {
     sources += [
       "accessibility/embedded_a11y_extension_loader.cc",
       "accessibility/embedded_a11y_extension_loader.h",
@@ -1961,8 +1962,8 @@ static_library("browser") {
       "search_engine_choice/search_engine_choice_dialog_service_factory.h",
       "search_engine_choice/search_engine_choice_profile_tagger.cc",
       "search_engine_choice/search_engine_choice_profile_tagger.h",
-      "supervised_user/desktop/supervised_user_service_platform_delegate.cc",
-      "supervised_user/desktop/supervised_user_service_platform_delegate.h",
+      # "supervised_user/desktop/supervised_user_service_platform_delegate.cc",
+      # "supervised_user/desktop/supervised_user_service_platform_delegate.h",
       "user_education/browser_feature_promo_storage_service.cc",
       "user_education/browser_feature_promo_storage_service.h",
       "user_education/browser_tutorial_service.cc",
@@ -1982,7 +1983,7 @@ static_library("browser") {
       "webapps/webapps_client_desktop.cc",
       "webapps/webapps_client_desktop.h",
     ]
-  }
+  #}
 
   configs += [
     "//build/config/compiler:wexit_time_destructors",
@@ -2041,7 +2042,6 @@ static_library("browser") {
     "//chrome/common",
     "//chrome/common:buildflags",
     "//chrome/common:constants",
-    "//chrome/browser/ui",
     "//chrome/services/file_util/public/mojom",
     "//components/account_id",
     "//components/autofill/core/browser",
@@ -2671,7 +2671,7 @@ static_library("browser") {
     "//ui/webui",
   ]
 
-  if (!is_android) {
+  # if (!is_android) {
     deps += [
       "//chrome/browser/ui/lens",
       "//chrome/browser/ui/webui/search_engine_choice:mojo_bindings",
@@ -2679,7 +2679,7 @@ static_library("browser") {
       "//components/manta/proto",
       "//components/user_education/common",
     ]
-  }
+  #}
 
   if (enable_feed_v2) {
     sources += [
@@ -3756,7 +3756,6 @@ static_library("browser") {
       ]
       deps += [ "//chrome/android/modules/dev_ui/provider:native" ]
     }
-  } else {
     #!is_android
     sources += [
       "accessibility/caption_bubble_context_browser.h",
@@ -4051,10 +4050,6 @@ static_library("browser") {
       "importer/importer_uma.h",
       "importer/in_process_importer_bridge.cc",
       "importer/in_process_importer_bridge.h",
-      "importer/profile_writer.cc",
-      "importer/profile_writer.h",
-      "intranet_redirect_detector.cc",
-      "intranet_redirect_detector.h",
       "lifetime/application_lifetime_desktop.cc",
       "lifetime/application_lifetime_desktop.h",
       "lifetime/browser_close_manager.cc",
@@ -4136,7 +4131,6 @@ static_library("browser") {
       "metrics/first_web_contents_profiler.h",
       "metrics/first_web_contents_profiler_base.cc",
       "metrics/first_web_contents_profiler_base.h",
-      "metrics/incognito_observer_desktop.cc",
       "metrics/power/battery_discharge_reporter.cc",
       "metrics/power/battery_discharge_reporter.h",
       "metrics/power/power_metrics.cc",
@@ -4449,12 +4443,6 @@ static_library("browser") {
       "sessions/restore_on_startup_policy_handler.h",
       "share/share_metrics.cc",
       "share/share_metrics.h",
-      "sharing/click_to_call/click_to_call_context_menu_observer.cc",
-      "sharing/click_to_call/click_to_call_context_menu_observer.h",
-      "sharing/click_to_call/click_to_call_metrics.cc",
-      "sharing/click_to_call/click_to_call_metrics.h",
-      "sharing/click_to_call/click_to_call_ui_controller.cc",
-      "sharing/click_to_call/click_to_call_ui_controller.h",
       "sharing/shared_clipboard/remote_copy_message_handler.cc",
       "sharing/shared_clipboard/remote_copy_message_handler.h",
       "sharing/shared_clipboard/shared_clipboard_message_handler_desktop.cc",
@@ -4635,6 +4623,9 @@ static_library("browser") {
       "upgrade_detector/build_state.cc",
       "upgrade_detector/build_state.h",
       "upgrade_detector/build_state_observer.h",
+      "upgrade_detector/directory_monitor.cc",
+      "upgrade_detector/directory_monitor.h",
+      "upgrade_detector/get_installed_version_linux.cc",
       "upgrade_detector/upgrade_detector.cc",
       "upgrade_detector/upgrade_detector.h",
       "upgrade_detector/upgrade_observer.h",
@@ -4816,7 +4807,7 @@ static_library("browser") {
       # //chrome/browser instead.
       "//chrome/browser/smart_card",
     ]
-    if (!is_android && !is_chromeos) {
+    if (!is_chromeos) {
       sources += [
         "device_notifications/device_status_icon_renderer.cc",
         "device_notifications/device_status_icon_renderer.h",
@@ -6385,11 +6376,6 @@ static_library("browser") {
       "mac/nsprocessinfo_additions.mm",
       "mac/relauncher.h",
       "mac/relauncher.mm",
-      "media/webrtc/media_authorization_wrapper_mac.h",
-      "media/webrtc/system_media_capture_permissions_mac.h",
-      "media/webrtc/system_media_capture_permissions_mac.mm",
-      "media/webrtc/system_media_capture_permissions_stats_mac.h",
-      "media/webrtc/system_media_capture_permissions_stats_mac.mm",
       "media/webrtc/thumbnail_capturer_mac.h",
       "media/webrtc/thumbnail_capturer_mac.mm",
       "media/webrtc/window_icon_util_mac.mm",
@@ -7050,10 +7036,7 @@ static_library("browser") {
 
   if (enable_click_to_call) {
     sources += [
-      "sharing/click_to_call/click_to_call_utils.cc",
-      "sharing/click_to_call/click_to_call_utils.h",
-      "sharing/click_to_call/phone_number_regex.cc",
-      "sharing/click_to_call/phone_number_regex.h",
+
     ]
   }
 
@@ -7149,7 +7132,7 @@ static_library("browser") {
       ]
     }
     if (is_linux) {
-      sources += [ "printing/printer_manager_dialog_linux.cc" ]
+      sources += []
     }
     if (enable_oop_printing) {
       sources += [
@@ -8000,9 +7983,9 @@ static_library("browser") {
       "//components/spellcheck/common",
     ]
 
-    if (!is_android) {
+    # if (!is_android) {
       deps += [ "//third_party/hunspell" ]
-    }
+    # }
   }
 
   if (enable_extensions) {
@@ -8127,7 +8110,7 @@ static_library("browser") {
       "navigation_predictor/preloading_model_handler.cc",
       "navigation_predictor/preloading_model_handler.h",
     ]
-    if (!is_android) {
+    # if (!is_android) {
       sources += [
         "new_tab_page/modules/history_clusters/ranking/history_clusters_module_ranking_model_executor.cc",
         "new_tab_page/modules/history_clusters/ranking/history_clusters_module_ranking_model_executor.h",
@@ -8138,7 +8121,7 @@ static_library("browser") {
         "new_tab_page/modules/history_clusters/ranking:history_clusters_module_proto",
         "//third_party/tflite_support",
       ]
-    }
+    #}
     deps += [ "//components/segmentation_platform/internal:optimization_guide_segmentation_handler" ]
   }
 
@@ -8755,7 +8738,7 @@ static_library("test_support") {
   }
 }
 
-if (!is_android) {
+# if (!is_android) {
   static_library("test_support_ui") {
     testonly = true
     configs += [ "//build/config:precompiled_headers" ]
@@ -8788,11 +8771,11 @@ if (!is_android) {
       "//ui/webui/resources/cr_components/app_management:mojo_bindings",
     ]
 
-    if (is_win || is_mac || is_linux) {
+    if (is_win || is_mac || is_linux || is_android) {
       public_deps += [ "//chrome/browser/ui/webui/app_home:mojo_bindings" ]
     }
   }
-}
+#}
 
 if (is_android) {
   java_cpp_enum("sharing_send_message_result_generated_enum") {

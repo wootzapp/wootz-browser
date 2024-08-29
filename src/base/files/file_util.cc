@@ -29,6 +29,7 @@
 #include "base/containers/span.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
+#include "base/logging.h"
 #include "base/functional/function_ref.h"
 #include "base/notreached.h"
 #include "base/posix/eintr_wrapper.h"
@@ -331,6 +332,7 @@ bool ReadStreamToStringWithMaxSize(FILE* stream,
 
 std::optional<std::vector<uint8_t>> ReadFileToBytes(const FilePath& path) {
   if (path.ReferencesParent()) {
+    LOG(INFO) << "base/files/file_util.cc: ReferencesParent";
     return std::nullopt;
   }
 
@@ -364,8 +366,10 @@ bool ReadFileToStringWithMaxSize(const FilePath& path,
   if (path.ReferencesParent())
     return false;
   ScopedFILE file_stream(OpenFile(path, "rb"));
-  if (!file_stream)
+  if (!file_stream) {
+    LOG(INFO) << "base/files/file_util.cc: !file_stream";
     return false;
+  }
   return ReadStreamToStringWithMaxSize(file_stream.get(), max_size, contents);
 }
 

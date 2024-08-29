@@ -6,7 +6,7 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//components/signin/features.gni")
 import("//ui/webui/resources/tools/build_webui.gni")
 
-assert(is_chromeos_lacros || enable_dice_support)
+# assert(is_chromeos_lacros || enable_dice_support)
 
 build_webui("build") {
   grd_prefix = "intro"

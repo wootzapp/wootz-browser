@@ -113,7 +113,15 @@ TabModel* TabModelList::FindNativeTabModelForJavaObject(
 
   return nullptr;
 }
+TabModel* TabModelList::GetCurrentTabModel() {
+  for (size_t i = 0; i < TabModelList::size(); ++i) {
+    TabModel* tab_model = TabModelList::get(i);
+    if (tab_model->IsActiveModel())
+      return tab_model;
+  }
 
+  return nullptr;
+}
 bool TabModelList::IsOffTheRecordSessionActive() {
   // TODO(crbug.com/40107157): This function should return true for
   // incognito CCTs.

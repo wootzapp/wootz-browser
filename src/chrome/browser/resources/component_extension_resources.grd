@@ -74,6 +74,25 @@
       <include name="IDS_READING_MODE_DARK_PNG" file="side_panel/read_anything/images/read_anything_dark.png" type="BINDATA" />
       <include name="IDS_READING_MODE_YELLOW_PNG" file="side_panel/read_anything/images/read_anything_yellow.png" type="BINDATA" />
       <include name="IDS_READING_MODE_BLUE_PNG" file="side_panel/read_anything/images/read_anything_blue.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_16_PNG" file="chromium_web_store/assets/icon/icon_16.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_24_PNG" file="chromium_web_store/assets/icon/icon_24.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_32_PNG" file="chromium_web_store/assets/icon/icon_32.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_48_PNG" file="chromium_web_store/assets/icon/icon_48.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_64_PNG" file="chromium_web_store/assets/icon/icon_64.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_ASSETS_ICON_ICON_128_PNG" file="chromium_web_store/assets/icon/icon_128.png" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_BACKGROUND_JS" file="chromium_web_store/scripts/background.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_INJECT_JS" file="chromium_web_store/scripts/inject.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_LOCALIZE_JS" file="chromium_web_store/scripts/localize.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_OPTIONS_JS" file="chromium_web_store/scripts/options.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_POPUP_JS" file="chromium_web_store/scripts/popup.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SCRIPTS_UTIL_JS" file="chromium_web_store/scripts/util.js" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SHEETS_BASE_CSS" file="chromium_web_store/sheets/base.css" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SHEETS_OPTIONS_CSS" file="chromium_web_store/sheets/options.css" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SHEETS_POPUP_CSS" file="chromium_web_store/sheets/popup.css" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_SHEETS_SCROLLBAR_CSS" file="chromium_web_store/sheets/scrollbar.css" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_MANAGED_STORAGE_JSON" file="chromium_web_store/managed_storage.json" flattenhtml="true" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_OPTIONS_HTML" file="chromium_web_store/options.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
+      <include name="IDR_CHROMIUM_WEB_STORE_POPUP_HTML" file="chromium_web_store/popup.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
     </includes>
 
     <!-- Game Controls lottie json files -->

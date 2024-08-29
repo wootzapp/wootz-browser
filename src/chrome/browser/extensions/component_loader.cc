@@ -599,6 +599,8 @@ void ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages(
 #endif
 
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  Add(IDR_CHROMIUM_WEB_STORE_MANIFEST,
+      base::FilePath(FILE_PATH_LITERAL("chromium_web_store")));
 }
 
 void ComponentLoader::

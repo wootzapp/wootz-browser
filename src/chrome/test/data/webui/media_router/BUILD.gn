@@ -5,7 +5,7 @@
 import("//build/config/chrome_build.gni")
 import("../build_webui_tests.gni")
 
-assert(!is_android)
+# assert(!is_android)
 assert(is_chrome_branded)
 
 build_webui_tests("build") {

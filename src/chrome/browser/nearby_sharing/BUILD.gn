@@ -10,8 +10,6 @@ source_set("share_target") {
     "attachment.h",
     "file_attachment.cc",
     "file_attachment.h",
-    "share_target.cc",
-    "share_target.h",
     "text_attachment.cc",
     "text_attachment.h",
     "wifi_credentials_attachment.cc",

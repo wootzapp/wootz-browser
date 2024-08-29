@@ -145,7 +145,7 @@ source_set("common") {
 }
 
 # Although fourcc is platform-agnostic; however, it is restricted by the above
-# assert(use_v4l2_codec || use_vaapi).
+assert(use_v4l2_codec || use_vaapi).
 source_set("fourcc") {
   defines = [ "MEDIA_GPU_IMPLEMENTATION" ]
   sources = [

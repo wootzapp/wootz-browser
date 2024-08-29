@@ -5,7 +5,7 @@
 import("//build/config/chromeos/ui_mode.gni")
 import("//chrome/browser/buildflags.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 source_set("link_capturing") {
   sources = [
@@ -140,6 +140,6 @@ source_set("app_service_browser_tests") {
     "//chrome/browser/web_applications:web_applications_test_support",
     "//chrome/common:chrome_features",
     "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
+    # "//chrome/test:test_support_ui",
   ]
 }

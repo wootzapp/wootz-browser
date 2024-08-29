@@ -1927,8 +1927,7 @@ template("mojom") {
   }
 
   if (defined(invoker.generate_webui_js_bindings)) {
-    assert(is_chromeos_ash,
-           "generate_webui_js_bindings can only be used on ChromeOS Ash")
+    assert(is_chromeos_ash,"generate_webui_js_bindings can only be used on ChromeOS Ash")
     assert(invoker.generate_webui_js_bindings,
            "generate_webui_js_bindings should be set to true or removed")
   }
