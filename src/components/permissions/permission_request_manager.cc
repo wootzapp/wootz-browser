@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "components/permissions/permission_request_manager.h"
-
+#include "components/wootz_wallet/browser/permission_utils.h"
 #include <string>
 
 #include "base/auto_reset.h"
@@ -120,8 +120,22 @@ bool IsExclusiveAccessRequest(RequestType type) {
          type == RequestType::kKeyboardLock;
 }
 #endif
-
 bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
+  url::Origin origin_a;
+  url::Origin origin_b;
+  if (a->request_type() == RequestType::kWootzEthereum ||
+      a->request_type() == RequestType::kWootzSolana) {
+    if (a->request_type() == b->request_type() &&
+        wootz_wallet::ParseRequestingOriginFromSubRequest(
+            a->request_type(), url::Origin::Create(a->requesting_origin()),
+            &origin_a, nullptr) &&
+        wootz_wallet::ParseRequestingOriginFromSubRequest(
+            b->request_type(), url::Origin::Create(b->requesting_origin()),
+            &origin_b, nullptr) &&
+        origin_a == origin_b) {
+      return true;
+    }
+  }
   if (a->requesting_origin() != b->requesting_origin()) {
     return false;
   }
@@ -137,7 +151,6 @@ bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
 #endif
   return false;
 }
-
 }  // namespace
 
 // PermissionRequestManager ----------------------------------------------------

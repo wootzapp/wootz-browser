@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef CHROME_RENDERER_WOOTZ_WALLET_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_
-#define CHROME_RENDERER_WOOTZ_WALLET_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_
+#ifndef CHROME_RENDERER_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_
+#define CHROME_RENDERER_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_
 
 #include <optional>
 
@@ -54,4 +54,4 @@ class WootzWalletRenderFrameObserver : public content::RenderFrameObserver {
 
 }  // namespace wootz_wallet
 
-#endif  // CHROME_RENDERER_WOOTZ_WALLET_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_
+#endif  // CHROME_RENDERER_WOOTZ_WALLET_RENDER_FRAME_OBSERVER_H_

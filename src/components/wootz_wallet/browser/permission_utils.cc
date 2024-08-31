@@ -7,7 +7,7 @@
 
 #include <optional>
 #include <string_view>
-
+#include <base/logging.h>
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
@@ -50,6 +50,8 @@ bool AddAccountToHost(const url::Origin& old_origin,
 void ExtractAddresses(permissions::RequestType type,
                       const url::Origin& origin,
                       std::queue<std::string>* address_queue) {
+
+                        LOG(ERROR)<<"dANIYAL EXTRACT";
   static base::NoDestructor<re2::RE2> kEthAddrRegex(kEthAddrPattern);
   static base::NoDestructor<re2::RE2> kAddrRegex(kAddrPattern);
   DCHECK(!origin.opaque() && address_queue);

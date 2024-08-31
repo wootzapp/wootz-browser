@@ -2444,6 +2444,7 @@ static_library("browser") {
     "//components/safe_browsing/content/browser:client_side_detection",
     "//components/safe_browsing/content/browser:safe_browsing_service",
     "//components/safe_browsing/content/browser/password_protection",
+    "//components/resources:resources_repack",
     "//components/safe_browsing/content/browser/web_ui",
     "//components/safe_browsing/core/browser",
     "//components/safe_browsing/core/browser:safe_browsing_metrics_collector",

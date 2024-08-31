@@ -1622,7 +1622,7 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map)
 {
-  RegisterReceiverBindingsForFrame(render_frame_host,map);
+   RegisterReceiverBindingsForFrame(render_frame_host,map);
     map->Add<wootz_wallet::mojom::WootzWalletP3A>(
       base::BindRepeating(&MaybeBindWalletP3A));
 
