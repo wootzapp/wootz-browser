@@ -259,6 +259,13 @@
 #endif
 #include "chrome/renderer/wootz_wallet_render_frame_observer.h"
 
+
+
+#include "components/safe_builtins/renderer/safe_builtins_helpers.h" // Jai
+#include "components/safe_builtins/renderer/safe_builtins.h"
+
+
+
 using autofill::AutofillAgent;
 using autofill::PasswordAutofillAgent;
 using autofill::PasswordGenerationAgent;
@@ -575,8 +582,9 @@ void ChromeContentRendererClient::RenderThreadStarted() {
 
     wootz_observer_ = std::make_unique<WootzRenderThreadObserver>();
     content::RenderThread::Get()->AddObserver(wootz_observer_.get());
-    // blink::WebScriptController::RegisterExtension(
-    // SafeBuiltins::CreateV8Extension());
+    
+    blink::WebScriptController::RegisterExtension(
+    wootz::SafeBuiltins::CreateV8Extension());
 }
 
 void ChromeContentRendererClient::ExposeInterfacesToBrowser(

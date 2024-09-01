@@ -9,6 +9,7 @@
 #include <optional>
 #include <utility>
 
+#include "base/logging.h"
 #include "components/wootz_wallet/renderer/v8_helper.h"
 #include "build/buildflag.h"
 #include "content/public/common/isolated_world_ids.h"
@@ -97,20 +98,25 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
     NOTREACHED();
     return;
   }
-
+ 
+ LOG(ERROR)<<"JSEthereumProvider JAGADESH" << dynamic_params.install_window_wootz_ethereum_provider<<"value:" <<web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "ethereum");
   if (dynamic_params.install_window_wootz_ethereum_provider &&
       web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "ethereum")) {
+
+  // if (dynamic_params.install_window_wootz_ethereum_provider) {
+ LOG(ERROR)<<"JSEthereumProvider JAGADESH";
+
     JSEthereumProvider::Install(
         dynamic_params.install_window_ethereum_provider,
         dynamic_params.allow_overwrite_window_ethereum_provider,
         render_frame());
   }
 
-  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
-      dynamic_params.wootz_use_native_solana_wallet) {
-    JSSolanaProvider::Install(
-        dynamic_params.allow_overwrite_window_solana_provider, render_frame());
-  }
+//   if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
+//       dynamic_params.wootz_use_native_solana_wallet) {
+//     JSSolanaProvider::Install(
+//         dynamic_params.allow_overwrite_window_solana_provider, render_frame());
+//   }
 }
 
 void WootzWalletRenderFrameObserver::OnDestruct() {

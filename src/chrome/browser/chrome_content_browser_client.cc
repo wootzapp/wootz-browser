@@ -43,6 +43,7 @@
 #include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "base/values.h"
+#include "base/logging.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "build/config/chromebox_for_meetings/buildflags.h"  // PLATFORM_CFM
@@ -1966,8 +1967,12 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
 
   // The WootzRendererUpdater might be null for some irregular profiles, e.g.
   // the System Profile.
+
+  LOG(ERROR)<<"WootzRendererUpdater JAGADESH";
   if (WootzRendererUpdater* service =
           WootzRendererUpdaterFactory::GetForProfile(profile)) {
+  LOG(ERROR)<<"WootzRendererUpdater JAGADESH GetForProfile";
+
     service->InitializeRenderer(host);
   }
   WebRtcLoggingController::AttachToRenderProcessHost(host);

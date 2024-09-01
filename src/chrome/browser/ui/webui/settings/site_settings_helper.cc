@@ -519,6 +519,8 @@ std::vector<ContentSettingsType> GetVisiblePermissionCategories(
       ContentSettingsType::AUTOMATIC_DOWNLOADS,
       ContentSettingsType::BACKGROUND_SYNC,
       ContentSettingsType::CLIPBOARD_READ_WRITE,
+      ContentSettingsType::WOOTZ_ETHEREUM,
+      ContentSettingsType::WOOTZ_SOLANA,
       ContentSettingsType::FILE_SYSTEM_WRITE_GUARD,
       ContentSettingsType::GEOLOCATION,
       ContentSettingsType::HID_GUARD,

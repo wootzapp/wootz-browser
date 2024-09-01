@@ -162,7 +162,10 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context =
       render_frame->GetWebFrame()->MainWorldScriptContext();
+  LOG(ERROR) << "Before context.IsEmpty() - JAGADESH";
   if (context.IsEmpty()) {
+
+  LOG(ERROR) << "Inside context.IsEmpty() - JAGADESH";
     return;
   }
 
@@ -175,13 +178,23 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
   v8::Local<v8::Value> wootz_ethereum_value =
       global->Get(context, gin::StringToV8(isolate, kWootzEthereum))
           .ToLocalChecked();
+      
+  LOG(ERROR) << "Before wootz_ethereum_value->IsUndefined() - JAGADESH";
   if (!wootz_ethereum_value->IsUndefined()) {
+
+  LOG(ERROR) << "Inside wootz_ethereum_value->IsUndefined() - JAGADESH";
     return;
   }
 
   gin::Handle<JSEthereumProvider> provider =
       gin::CreateHandle(isolate, new JSEthereumProvider(render_frame));
+
+
+  LOG(ERROR) << "Before provider.IsEmpty() - JAGADESH";
+
   if (provider.IsEmpty()) {
+
+  LOG(ERROR) << "Inside provider.IsEmpty() - JAGADESH";
     return;
   }
   v8::Local<v8::Value> provider_value = provider.ToV8();
@@ -195,16 +208,28 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
   // of window.ethereum to access our provider won't throw a "Illegal
   // invocation: Function must be called on an object of type
   // JSEthereumProvider" error.
+
+  LOG(ERROR) << "Before eb_frame = render_frame->GetWebFrame() - JAGADESH";
   blink::WebLocalFrame* web_frame = render_frame->GetWebFrame();
+
+
   v8::Local<v8::Proxy> ethereum_proxy;
+  LOG(ERROR) << "Before ethereum_proxy_handler_va = - JAGADESH";
   auto ethereum_proxy_handler_val =
       ExecuteScript(web_frame, kEthereumProxyHandlerScript);
+
+  LOG(ERROR) << "Before thereum_proxy_handler_obj = - JAGADESH";
   v8::Local<v8::Object> ethereum_proxy_handler_obj =
       ethereum_proxy_handler_val.ToLocalChecked()
           ->ToObject(context)
           .ToLocalChecked();
+    
+  LOG(ERROR) << "Before v8::Proxy::New(context, provider_object, - JAGADESH";
   if (!v8::Proxy::New(context, provider_object, ethereum_proxy_handler_obj)
            .ToLocal(&ethereum_proxy)) {
+
+
+  LOG(ERROR) << "inside v8::Proxy::New(context, provider_object, - JAGADESH";
     return;
   }
 
@@ -217,11 +242,19 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
     v8::Local<v8::Value> ethereum_value =
         global->Get(context, gin::StringToV8(isolate, kEthereum))
             .ToLocalChecked();
+
+
+  LOG(ERROR) << "Before nstall_ethereum_provider && ethereum_value->IsUndefined() - JAGADESH";
     if (install_ethereum_provider && ethereum_value->IsUndefined()) {
+
+
+  LOG(ERROR) << "inside nstall_ethereum_provider && ethereum_value->IsUndefined() - JAGADESH";
       if (!allow_overwrite_window_ethereum_provider) {
+  LOG(ERROR) << "Inside allow_overwrite_window_ethereum_provider - JAGADESH";
         SetProviderNonWritable(context, global, ethereum_proxy,
                                gin::StringToV8(isolate, kEthereum), true);
       } else {
+  LOG(ERROR) << "Before nglobal >Set(context, gin::StringToSymbol(isolate, kEthereum) - JAGADESH";
         global
             ->Set(context, gin::StringToSymbol(isolate, kEthereum),
                   ethereum_proxy)
@@ -230,14 +263,21 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
     }
   }
 
+
+  LOG(ERROR) << "Before nfor loop - JAGADESH";
   // Non-function properties are readonly guaranteed by gin::Wrappable
   // send should be writable because of
   // https://github.com/wootz/wootz-browser/issues/25078
   for (const std::string& method :
        {"request", "isConnected", "enable", "sendAsync"}) {
+
+  LOG(ERROR) << "Before SetOwnPropertyWritable 1 - JAGADESH";
     SetOwnPropertyWritable(context, provider_object,
                            gin::StringToV8(isolate, method), false);
   }
+
+
+  LOG(ERROR) << "Before nSetOwnPropertyWritable 2 - JAGADESH";
 
   // Set isMetaMask to writable.
   // isMetaMask should be writable because of
@@ -250,8 +290,11 @@ void JSEthereumProvider::Install(bool install_ethereum_provider,
       LoadDataResource(
           IDR_WOOTZ_WALLET_SCRIPT_ETHEREUM_PROVIDER_SCRIPT_BUNDLE_JS));
 
+  LOG(ERROR) << "rovider->BindRequestProviderListener() - JAGADESH";
   provider->BindRequestProviderListener();
   provider->AnnounceProvider();
+
+  LOG(ERROR) << "End of install- JAGADESH";
 }
 
 bool JSEthereumProvider::GetIsWootzWallet() {
@@ -711,8 +754,10 @@ void JSEthereumProvider::AnnounceProvider() {
   base::Value::Dict provider_info_value;
   provider_info_value.Set("rdns", "com.wootz.wallet");
   provider_info_value.Set("uuid", uuid_);
+  // provider_info_value.Set(
+  //     "name", l10n_util::GetStringUTF8(IDS_WALLET_EIP6963_PROVIDER_NAME));
   provider_info_value.Set(
-      "name", l10n_util::GetStringUTF8(IDS_WALLET_EIP6963_PROVIDER_NAME));
+      "name", "jaieth");
   provider_info_value.Set("icon", GetWootzWalletImage());
 
   auto detail = v8::Object::New(isolate);

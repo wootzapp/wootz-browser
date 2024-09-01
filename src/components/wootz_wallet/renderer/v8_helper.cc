@@ -92,7 +92,7 @@ v8::MaybeLocal<v8::Value> ExecuteScript(blink::WebLocalFrame* web_frame,
   if (web_frame->IsProvisional()) {
     return v8::MaybeLocal<v8::Value>();
   }
-
+  LOG(ERROR) << "ExecuteScript before LoadScriptWithSafeBuiltins - JAGADESH";
   return wootz::LoadScriptWithSafeBuiltins(web_frame, script);
 }
 
