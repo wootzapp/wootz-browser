@@ -658,7 +658,17 @@ public class ToolbarManager
                         });
         mControlContainer = controlContainer;
         mToolbarHairline = mControlContainer.findViewById(R.id.toolbar_hairline);
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            ViewGroup.MarginLayoutParams layoutParamsCC =
+                ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
+                layoutParamsCC.bottomMargin = mToolbarHairline.getHeight();
+            mControlContainer.setLayoutParams(layoutParamsCC);
 
+            ViewGroup.MarginLayoutParams layoutParamsHR =
+                ((ViewGroup.MarginLayoutParams) mToolbarHairline.getLayoutParams());
+            layoutParamsHR.topMargin = 0;
+            mToolbarHairline.setLayoutParams(layoutParamsHR);
+        }
         mBookmarkModelSupplier = bookmarkModelSupplier;
         // We need to capture a reference to setBookmarkModel/setCurrentProfile in order to remove
         // them later; there is no guarantee in the JLS that referencing the same method later will
@@ -1672,9 +1682,9 @@ public class ToolbarManager
         View mBottomRoot;
 
     private void MoveBottomBarOverTopBar() {
-        // if (mBottomRoot != null &&
-        //         ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-        if(true){
+        if (mBottomRoot != null &&
+                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if(true){
             // move up the container view of the ui
             // below there is the toolbar
             mBottomRoot.setTranslationY(-mBrowserControlsSizer.getTopControlsHeight());

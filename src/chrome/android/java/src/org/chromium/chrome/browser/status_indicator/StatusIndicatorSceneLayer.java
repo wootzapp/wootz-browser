@@ -79,9 +79,9 @@ class StatusIndicatorSceneLayer extends SceneOverlayLayer implements SceneOverla
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
         int offset = mBrowserControlsStateProvider.getTopControlsMinHeightOffset();
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             offset = (int)viewport.bottom - offset;
-        // }
+        }
         StatusIndicatorSceneLayerJni.get()
                 .updateStatusIndicatorLayer(
                         mNativePtr,

@@ -16,6 +16,7 @@ android_library("java") {
     "//chrome/test/android:chrome_java_transit",
   ]
   sources = [
+    "android/java/src/org/chromium/chrome/browser/hub/ReversedLinearLayout.java",
     "android/java/src/org/chromium/chrome/browser/hub/ApplyButtonData.java",
     "android/java/src/org/chromium/chrome/browser/hub/FadeHubLayoutAnimationFactory.java",
     "android/java/src/org/chromium/chrome/browser/hub/FadeHubLayoutAnimationFactoryImpl.java",
@@ -64,6 +65,10 @@ android_library("java") {
     "//third_party/androidx:androidx_core_core_java",
     "//third_party/androidx:androidx_interpolator_interpolator_java",
     "//ui/android:ui_no_recycler_view_java",
+  ]
+  deps += [
+    "//base:base_cached_flags_java",
+    "//chrome/browser/flags:java",
   ]
 }
 

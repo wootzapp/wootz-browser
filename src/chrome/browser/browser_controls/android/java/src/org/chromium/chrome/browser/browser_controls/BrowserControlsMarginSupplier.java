@@ -58,10 +58,10 @@ public class BrowserControlsMarginSupplier extends ObservableSupplierImpl<Rect>
         int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
                         - mBrowserControlsStateProvider.getBottomControlOffset();
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             bottomMargin += topMargin;
             topMargin = 0;
-        // }
+        }
         super.set(new Rect(0, topMargin, 0, bottomMargin));
     }
 }

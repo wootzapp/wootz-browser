@@ -63,23 +63,23 @@ public class BottomContainer extends FrameLayout
     }
     @Override
     public void onTopControlsHeightChanged(int topControlsHeight, int topControlsMinHeight) {
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
             setTranslationY(mBaseYOffset);
     }
 
     @Override
     public void onAndroidControlsVisibilityChanged(int visibility) {
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
             setTranslationY(mBaseYOffset);
     }
     @Override
     public void setTranslationY(float y) {
         mBaseYOffset = y;
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // the snackbar container is moved up because there is the top toolbar at the bottom
             mBaseYOffset = -(mBrowserControlsStateProvider.getTopControlsHeight()
                              + mBrowserControlsStateProvider.getTopControlOffset());
-        // }
+        }
         float offsetFromControls =
                 mBrowserControlsStateProvider.getBottomControlOffset()
                         - mBrowserControlsStateProvider.getBottomControlsHeight();

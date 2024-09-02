@@ -144,8 +144,8 @@ public class FeedListContentManager implements ListContentManager {
                     new FrameLayout.LayoutParams(
                             new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
                             new LayoutParams(LayoutParams.MATCH_PARENT,
-                                    // ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()
-                                    true
+                                    ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()
+                                    // true
                                         ? LayoutParams.MATCH_PARENT
                                         : LayoutParams.WRAP_CONTENT);
             enclosingLayout.setLayoutParams(layoutParams);
