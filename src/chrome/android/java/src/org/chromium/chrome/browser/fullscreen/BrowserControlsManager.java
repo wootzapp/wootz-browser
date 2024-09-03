@@ -432,8 +432,8 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
     @Override
     public int getTopControlsHeightRealOffset() {
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-        if(true)
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if(true)
             return 0;
         else
             return mTopControlContainerHeight;
@@ -504,8 +504,8 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
     @Override
     public float getTopVisibleContentOffset() {
-    //    if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-        if(true)
+       if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if(true)
             return 0;
         return getTopControlsHeight() + getTopControlOffset();
     }

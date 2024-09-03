@@ -41,12 +41,12 @@ class TopToolbarSceneLayer extends SceneOverlayLayer {
     private void pushProperties(PropertyModel model) {
         if (mResourceManagerSupplier.get() == null) return;
         float offsetY = model.get(TopToolbarOverlayProperties.CONTENT_OFFSET);
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // fix the offset of the fake top controls, used only for animations
             offsetY = model.get(TopToolbarOverlayProperties.VIEWPORT_HEIGHT) -
                       model.get(TopToolbarOverlayProperties.TOOLBAR_HEIGHT) -
                       offsetY;
-
+        }
         DrawingInfo progressInfo = model.get(TopToolbarOverlayProperties.PROGRESS_BAR_INFO);
         if (progressInfo == null) return;
 

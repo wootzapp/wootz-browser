@@ -234,12 +234,12 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
                 resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_bottom);
         int paddingTop =
                 resources.getDimensionPixelOffset(R.dimen.omnibox_suggestion_list_padding_top);
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // reverse the layout so that the items are at the bottom (in reverse order)
             // and anchored to the bottom edge
             mLayoutScrollListener.setReverseLayout(true);
             paddingTop = 0;
-        // }
+        }
         setLayoutManager(mLayoutScrollListener);
         ViewCompat.setPaddingRelative(this, 0, paddingTop, 0, paddingBottom);
 
