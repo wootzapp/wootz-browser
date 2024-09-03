@@ -480,8 +480,8 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
-                // if (actionOnRelatedTabs && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-                if(true){
+                if (actionOnRelatedTabs && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                // if(true){
                     gridLayoutManager =
                         new GridLayoutManagerDockBottom(context, GRID_LAYOUT_SPAN_COUNT_COMPACT);
                     ((GridLayoutManagerDockBottom)gridLayoutManager)
@@ -513,7 +513,7 @@ public class TabListCoordinator
                             }
                         };
                 mRecyclerView.setLayoutManager(layoutManager);
-                            } else if (mMode == TabListMode.LIST) {
+            } else if (mMode == TabListMode.LIST) {
                 LinearLayoutManager layout =
                     new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
                             @Override

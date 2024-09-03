@@ -95,7 +95,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
             int topControlsHeight) {
         if (mNativePtr == 0) return;
         boolean visible = yOffset > -layoutHelper.getHeight();
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(ContextUtils.getApplicationContext())) {
                 // the list of open tabs is moved down, above the top
                 // toolbar which is also below.
@@ -104,7 +104,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                 // and it disappears along with the moving toolbar with a higher range
                 visible = yOffset > (-layoutHelper.getHeight() - topControlsHeight);
             }
-        // }
+        }
 
         // This will hide the tab strips if necessary.
         TabStripSceneLayerJni.get()

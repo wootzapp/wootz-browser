@@ -230,7 +230,7 @@ public class AutocompleteCoordinator
 
                 dropdown.forcePhoneStyleOmnibox(forcePhoneStyleOmnibox);
                 dropdown.setAdapter(mAdapter);
-                // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                     // make margins works
                     dropdown.getViewGroup().setClipToPadding(true);
                     container.bringToFront();
@@ -239,7 +239,7 @@ public class AutocompleteCoordinator
                     ViewGroup.LayoutParams params = container.getLayoutParams();
                     ((ViewGroup.MarginLayoutParams) params).bottomMargin =
                         mDropdownEmbedder.getAnchorView().getMeasuredHeight();
-                // }
+                }
                 mRecycledViewPool.ifPresent(p -> dropdown.setRecycledViewPool(p));
 
                 if (!OmniboxFeatures.sAsyncViewInflation.isEnabled()) {

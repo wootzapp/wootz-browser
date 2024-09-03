@@ -102,8 +102,8 @@ class DropdownItemViewInfoListManager {
 
         // round the bottom corners of the last suggestion.
         if (previousItem != null) {
-            boolean toolbarToBottom = true;
-                // ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
+            boolean toolbarToBottom = /*true;*/
+                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
             previousItem.model.set(toolbarToBottom
                 ? DropdownCommonProperties.BG_TOP_CORNER_ROUNDED
                 : DropdownCommonProperties.BG_BOTTOM_CORNER_ROUNDED, true);

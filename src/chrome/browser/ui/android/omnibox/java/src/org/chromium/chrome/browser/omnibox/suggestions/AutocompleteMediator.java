@@ -1161,10 +1161,10 @@ class AutocompleteMediator
     @Override
     public void onSuggestionDropdownScroll() {
         mSuggestionsListScrolled = true;
-    //    if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-        if(!true)
+       if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if(!true)
             mDelegate.setKeyboardVisibility(false, false);
-        // }
+        }
     }
 
     /**

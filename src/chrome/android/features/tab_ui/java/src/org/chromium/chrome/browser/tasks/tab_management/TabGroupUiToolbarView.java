@@ -178,8 +178,8 @@ public class TabGroupUiToolbarView extends FrameLayout {
         mFadingEdgeEnd.setColorFilter(color, PorterDuff.Mode.SRC_IN);
     }
     void setPrimaryColorAndApplyTint(int color) {
-        // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-        if(false)
+        if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if(false)
             return;
 
         // change the background color of the bottom bar if the top toolbar is below

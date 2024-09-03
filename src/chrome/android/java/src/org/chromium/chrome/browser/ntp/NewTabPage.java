@@ -696,11 +696,11 @@ public class NewTabPage
         int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
                         - mBrowserControlsStateProvider.getBottomControlOffset();
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // move the margin of the new tab page up if the top toolbar is at the bottom
             bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
             topMargin = -mBrowserControlsStateProvider.getTopControlsHeight();
-        // }
+        }
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
             layoutParams.bottomMargin = bottomMargin;
