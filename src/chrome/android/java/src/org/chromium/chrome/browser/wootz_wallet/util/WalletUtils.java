@@ -106,7 +106,7 @@ public class WalletUtils {
         return AccountInfo.deserialize(ByteBuffer.wrap(bytes));
     }
 
-    public static void openWebWallet() {
+    public static void openWebWallet(final boolean forceNewTab) {
         try {
             ChromeActivity activity = ChromeActivity.getChromeActivity();
             activity.openNewOrSelectExistingTab(ChromeActivity.WOOTZ_WALLET_URL, true);

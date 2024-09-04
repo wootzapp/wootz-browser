@@ -3056,7 +3056,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         initTxService();
         initEthTxManagerProxy();
         initSolanaTxManagerProxy();
-        initAssetRatioService();
+        // initAssetRatioService();
         initWootzWalletService();
         initKeyringService();
         initJsonRpcService();

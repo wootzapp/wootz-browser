@@ -112,11 +112,11 @@ void WootzWalletRenderFrameObserver::DidClearWindowObject() {
         render_frame());
   }
 
-//   if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
-//       dynamic_params.wootz_use_native_solana_wallet) {
-//     JSSolanaProvider::Install(
-//         dynamic_params.allow_overwrite_window_solana_provider, render_frame());
-//   }
+  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
+      dynamic_params.wootz_use_native_solana_wallet) {
+    JSSolanaProvider::Install(
+        dynamic_params.allow_overwrite_window_solana_provider, render_frame());
+  }
 }
 
 void WootzWalletRenderFrameObserver::OnDestruct() {

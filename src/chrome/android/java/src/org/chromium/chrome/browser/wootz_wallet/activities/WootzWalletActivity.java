@@ -5,15 +5,13 @@
 
 package org.chromium.chrome.browser.wootz_wallet.activities;
 
-import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
-import androidx.annotation.Nullable;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.view.menu.MenuBuilder;
 import androidx.viewpager2.widget.ViewPager2;
@@ -21,8 +19,6 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.appbar.MaterialToolbar;
 
 import org.chromium.base.Log;
-import org.chromium.base.ApplicationStatus;
-import org.chromium.base.ApplicationStatus;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.KeyringModel;
@@ -103,13 +99,11 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mBackupWallet = intent.getBooleanExtra(SHOW_WALLET_ACTIVITY_BACKUP, false);
         }
         try {
-            WootzWalletActivity activity = (WootzWalletActivity) getActivityOfType(WootzWalletActivity.class);
-
-            mWalletModel = activity.getWalletModel();
+            mWalletModel = ChromeActivity.getChromeActivity().getWalletModel();
 
             // Update network model to use default network.
             getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
-        } catch (Exception e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "triggerLayoutInflation", e);
         }
 
@@ -170,7 +164,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
                         } else if (mBackupWallet) {
                             showBackupSequence();
                         } else {
-                            showMainLayout();
+                            showMainLayout(false);
                         }
                     });
         }
@@ -192,11 +186,11 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
         };
     }
 
-    private void showMainLayout() {
+    private void showMainLayout(final boolean forceNewTab) {
         addRemoveSecureFlag(false);
 
         mCryptoOnboardingLayout.setVisibility(View.GONE);
-        WalletUtils.openWebWallet();
+        WalletUtils.openWebWallet(forceNewTab);
     }
 
     private void addRemoveSecureFlag(final boolean add) {
@@ -233,7 +227,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     }
 
     @Override
-    public void showWallet() {
+    public void showWallet(final boolean forceNewTab) {
         if (mIsFromDapps) {
             finish();
             try {
@@ -243,7 +237,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
                 Log.e(TAG, "onboardingCompleted", e);
             }
         } else {
-            showMainLayout();
+            showMainLayout(forceNewTab);
         }
     }
 
@@ -286,20 +280,5 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
 
     public KeyringModel getKeyringModel() {
         return mWalletModel.getKeyringModel();
-    }
-
-    private static Activity getActivityOfType(Class<?> classOfActivity) {
-        for (Activity ref : ApplicationStatus.getRunningActivities()) {
-            if (!classOfActivity.isInstance(ref)) continue;
-
-            return ref;
-        }
-
-        return null;
-    }
-
-    @Nullable
-    public WalletModel getWalletModel() {
-        return mWalletModel;
     }
 }

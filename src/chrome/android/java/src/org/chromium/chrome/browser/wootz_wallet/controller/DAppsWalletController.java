@@ -113,7 +113,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     }
 
     public void showWalletPanel() {
-        initAssetRatioService();
+        // initAssetRatioService();
         initKeyringService();
         initJsonRpcService();
         initWootzWalletService();
@@ -179,7 +179,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
             mAssetRatioService.close();
             mAssetRatioService = null;
         }
-        initAssetRatioService();
+        // initAssetRatioService();
         initKeyringService();
         initJsonRpcService();
         initWootzWalletService();

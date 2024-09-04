@@ -14,12 +14,12 @@ namespace android {
 static jlong JNI_AssetRatioServiceFactory_GetInterfaceToAssetRatioService(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& profile_android) {
-  auto* profile = Profile::FromJavaObject(profile_android);
-  auto pending =
-      wootz_wallet::AssetRatioServiceFactory::GetInstance()->GetForContext(
-          profile);
+  // auto* profile = Profile::FromJavaObject(profile_android);
+  // auto pending =
+  //     wootz_wallet::AssetRatioServiceFactory::GetInstance()->GetForContext(
+  //         profile);
 
-  return static_cast<jlong>(pending.PassPipe().release().value());
+  return static_cast<jlong>(1);
 }
 
 }  // namespace android

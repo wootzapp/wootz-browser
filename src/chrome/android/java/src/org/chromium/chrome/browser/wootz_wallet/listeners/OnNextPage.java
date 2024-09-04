@@ -13,7 +13,7 @@ package org.chromium.chrome.browser.wootz_wallet.listeners;
 public interface OnNextPage {
     void incrementPages(int pages);
 
-    void showWallet();
+    void showWallet(final boolean forceNewTab);
 
     void gotoCreationPage();
 
