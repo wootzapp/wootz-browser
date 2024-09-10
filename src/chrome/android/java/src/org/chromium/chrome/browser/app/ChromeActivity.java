@@ -250,6 +250,7 @@ import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
 import org.chromium.webapk.lib.client.WebApkNavigationClient;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -541,8 +542,11 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
     }
 
+    public static WeakReference<ChromeActivity> mActivity;
+
     @Override
     public void performPreInflationStartup() {
+        mActivity = new WeakReference<>(this);
         setupUnownedUserDataSuppliers();
 
         View rootView = getWindow().getDecorView().getRootView();
@@ -1504,10 +1508,13 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     @NonNull
     public static ChromeActivity getChromeActivity() throws ChromeActivityNotFoundException {
+
         ChromeActivity activity = (ChromeActivity) getActivityOfType(ChromeActivity.class);
         if (activity != null) {
+            Log.e("Balram Activity not null","getChromeActivity");
             return activity;
         }
+            Log.e("Balram Activity  null","getChromeActivity");
 
         throw new ChromeActivityNotFoundException("ChromeActivity Not Found");
     }
@@ -1520,10 +1527,13 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     private static Activity getActivityOfType(Class<?> classOfActivity) {
         for (Activity ref : ApplicationStatus.getRunningActivities()) {
+           Log.e("asdf", ""+ref.getClass());
+
             if (!classOfActivity.isInstance(ref)) continue;
 
             return ref;
         }
+
 
         return null;
     }
@@ -2279,7 +2289,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     @Override
     public void finishNativeInitialization() {
+        // Log.e("WOOTZAPP ANKITIVAN", "finishNativeInitializatioN");
         mNativeInitialized = true;
+
         OfflineContentAggregatorNotificationBridgeUiFactory.instance();
         maybeRemoveWindowBackground();
         DownloadManagerService.getDownloadManagerService()
@@ -2288,6 +2300,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         PowerMonitor.create();
 
         super.finishNativeInitialization();
+        initWalletNativeServices();
 
         getProfileProviderSupplier().runSyncOrOnAvailable(this::initializeManualFillingComponent);
 
@@ -2329,13 +2342,20 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     }
 
     private void setupWalletModel() {
+        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 IVAN2 ");
+
         PostTask.postTask(TaskTraits.UI_DEFAULT, () -> {
+                                    Log.e("WOOTZAPP BALRAM", "getChromeActivity2 IVAN2 ");
+
             if (mWalletModel == null) {
+                        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 IVAN2 ");
+
                 mWalletModel = new WalletModel(getApplicationContext(), mKeyringService,
                         mBlockchainRegistry, mJsonRpcService, mTxService, mEthTxManagerProxy,
                         mSolanaTxManagerProxy, mAssetRatioService, mWootzWalletService,
                         mSwapService);
             } else {
+                        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 IVAN2 ");
                 mWalletModel.resetServices(getApplicationContext(), mKeyringService,
                         mBlockchainRegistry, mJsonRpcService, mTxService, mEthTxManagerProxy,
                         mSolanaTxManagerProxy, mAssetRatioService, mWootzWalletService,
@@ -2343,6 +2363,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             }
             setupObservers();
         });
+        initWalletNativeServices();
     }
 
     @MainThread
@@ -2438,69 +2459,97 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     }
 
     private void initWootzWalletService() {
+        Log.e("WootzAPP ANKITIVAN","initWootzWalletService"); 
         if (mWootzWalletService != null) {
             return;
         }
 
         mWootzWalletService = WootzWalletServiceFactory.getInstance().getWootzWalletService(this);
+        Log.e("WootzAPP ANKITIVAN","initWootzWalletService"+mWootzWalletService); 
+
     }
 
     private void initKeyringService() {
+        Log.e("WootzAPP ANKITIVAN","initKeyringService");
+
         if (mKeyringService != null) {
             return;
         }
 
         mKeyringService = WootzWalletServiceFactory.getInstance().getKeyringService(this);
+        // Log.e("WootzAPP ANKITIVAN","initJsonRpcService"+mKeyringService);
+        Log.e("WootzAPP ANKITIVAN","initKeyringService");
+
     }
 
     private void initJsonRpcService() {
+        Log.e("WootzAPP ANKITIVAN","initJsonRpcService");
+
         if (mJsonRpcService != null) {
             return;
         }
 
         mJsonRpcService = WootzWalletServiceFactory.getInstance().getJsonRpcService(this);
+        // Log.e("WootzAPP ANKITIVAN","initJsonRpcService"+mJsonRpcService);
     }
 
     private void initTxService() {
+        Log.e("WOOTZAPP", "initTxService");
         if (mTxService != null) {
             return;
         }
 
         mTxService = WootzWalletServiceFactory.getInstance().getTxService(this);
+        // Log.e("WOOTZAPP", "initTxService"+mTxService);
+
     }
 
     private void initEthTxManagerProxy() {
+         Log.e("WootzApp IVANANKIT","initEthTxManagerProxy");
+        
         if (mEthTxManagerProxy != null) {
             return;
         }
 
         mEthTxManagerProxy = WootzWalletServiceFactory.getInstance().getEthTxManagerProxy(this);
+        
+        // Log.e("WootzApp IVANANKIT","initEthTxManagerProxy"+mEthTxManagerProxy);
     }
 
     private void initSolanaTxManagerProxy() {
+        Log.e("WootzApp IVANANKIT","initEthTxManagerProxy");
         if (mSolanaTxManagerProxy != null) {
             return;
         }
 
         mSolanaTxManagerProxy =
                 WootzWalletServiceFactory.getInstance().getSolanaTxManagerProxy(this);
+        // Log.e("WootzApp IVANANKIT","initSolanaTxManagerProxy"+mSolanaTxManagerProxy);
+
     }
 
     private void initBlockchainRegistry() {
+        Log.e("initBlockchainRegistry not null","wootzapp");
         if (mBlockchainRegistry != null) {
             return;
         }
+        
 
         mBlockchainRegistry = BlockchainRegistryFactory.getInstance().getBlockchainRegistry(this);
+        // Log.e("initBlockchainRegistry not null","wootzapp "+mBlockchainRegistry);
+
     }
 
-    private void initAssetRatioService() {
-        if (mAssetRatioService != null) {
-            return;
-        }
+    // private void initAssetRatioService() {
+    //     Log.e("WootzApp IVANANKIT","initAssetRatioService");
 
-        mAssetRatioService = AssetRatioServiceFactory.getInstance().getAssetRatioService(this);
-    }
+    //     if (mAssetRatioService != null) {
+    //         return;
+    //     }
+
+    //     mAssetRatioService = AssetRatioServiceFactory.getInstance().getAssetRatioService(this);
+    //     // Log.e("WootzApp IVANANKIT","initAssetRatioService"+mAssetRatioService);
+    // }
 
 
     private void initializeManualFillingComponent(ProfileProvider profileProvider) {
@@ -3067,7 +3116,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     private void cleanUpWalletNativeServices() {
         clearWalletModelServices();
         if (mKeyringService != null) mKeyringService.close();
-        if (mAssetRatioService != null) mAssetRatioService.close();
+        // if (mAssetRatioService != null) mAssetRatioService.close();
         if (mBlockchainRegistry != null) mBlockchainRegistry.close();
         if (mJsonRpcService != null) mJsonRpcService.close();
         if (mTxService != null) mTxService.close();
