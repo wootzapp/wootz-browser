@@ -18,7 +18,9 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewStub;
-
+import android.view.Gravity;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -121,6 +123,11 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     @Override
     public void initWithToolbar(int toolbarLayoutId) {
         try (TraceEvent te = TraceEvent.scoped("ToolbarControlContainer.initWithToolbar")) {
+            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                // the top toolbar is docked at the bottom
+                CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)getLayoutParams();
+                layoutParams.gravity = Gravity.START | Gravity.BOTTOM;
+            }
             mToolbarContainer =
                     (ToolbarViewResourceFrameLayout) findViewById(R.id.toolbar_container);
             ViewStub toolbarStub = findViewById(R.id.toolbar_stub);

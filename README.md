@@ -119,3 +119,9 @@ Documentation in the source is rooted in [docs/README.md](docs/README.md).
 
 Learn how to [Get Around the Chromium Source Code Directory
 Structure](https://www.chromium.org/developers/how-tos/getting-around-the-chrome-source-code).
+
+
+## License
+
+Wootzapp  is licensed under the GNU Affero General Public License v3.0 and as commercial software. For commercial licensing, please contact us or raise an issue in this github. 
+

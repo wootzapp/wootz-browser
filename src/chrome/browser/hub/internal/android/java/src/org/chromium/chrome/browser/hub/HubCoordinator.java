@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
 
+import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -17,6 +18,9 @@ import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.TransitiveObservableSupplier;
 import org.chromium.chrome.browser.layouts.LayoutType;
+
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
@@ -87,6 +91,12 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
         mHubPaneHostCoordinator =
                 new HubPaneHostCoordinator(hubPaneHostView, paneManager.getFocusedPaneSupplier());
+                if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                    LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)
+                    hubPaneHostView.getLayoutParams();
+                    params.bottomMargin = hubToolbarView.getHeight();
+                    hubPaneHostView.setLayoutParams(params);
+                }
 
         mHubLayoutController = hubLayoutController;
         mHandleBackPressSupplier = new ObservableSupplierImpl<>();
