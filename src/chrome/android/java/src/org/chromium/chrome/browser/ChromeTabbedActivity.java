@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.Browser;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 import android.util.Pair;
@@ -29,9 +30,13 @@ import android.view.Window;
 import android.view.WindowManager;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.LifecycleRegistry;
@@ -265,6 +270,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 
@@ -3766,8 +3772,92 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         return shouldShowOverviewPageOnStart(getIntent());
     }
 
+    private void checkBiometricSupportAndAuthenticate() {
+        BiometricManager biometricManager = BiometricManager.from(this);
+        switch (biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG
+                        | BiometricManager.Authenticators.DEVICE_CREDENTIAL)) {
+            case BiometricManager.BIOMETRIC_SUCCESS:
+                initiateBiometricAuthentication();
+                break;
+            case BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE:
+                Toast.makeText(this, "No biometric hardware available", Toast.LENGTH_SHORT).show();
+                break;
+            case BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE:
+                Toast.makeText(this, "Biometric hardware currently unavailable", Toast.LENGTH_SHORT)
+                        .show();
+                break;
+            case BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED:
+                Intent enrollIntent = new Intent(Settings.ACTION_BIOMETRIC_ENROLL);
+                enrollIntent.putExtra(
+                        Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG
+                                | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                startActivity(enrollIntent);
+                break;
+            default:
+                Toast.makeText(this, "Biometric authentication not supported", Toast.LENGTH_SHORT)
+                        .show();
+        }
+    }
+
+    private void initiateBiometricAuthentication() {
+        Executor executor = ContextCompat.getMainExecutor(this);
+        BiometricPrompt biometricPrompt =
+                new BiometricPrompt(
+                        this,
+                        executor,
+                        new BiometricPrompt.AuthenticationCallback() {
+                            @Override
+                            public void onAuthenticationError(
+                                    int errorCode, @NonNull CharSequence errString) {
+                                super.onAuthenticationError(errorCode, errString);
+                                Toast.makeText(
+                                                getApplicationContext(),
+                                                "Authentication error: " + errString,
+                                                Toast.LENGTH_SHORT)
+                                        .show();
+                                finish();
+                            }
+
+                            @Override
+                            public void onAuthenticationSucceeded(
+                                    @NonNull BiometricPrompt.AuthenticationResult result) {
+                                super.onAuthenticationSucceeded(result);
+                                Toast.makeText(
+                                                getApplicationContext(),
+                                                "Authentication succeeded!",
+                                                Toast.LENGTH_SHORT)
+                                        .show();
+                            }
+
+                            @Override
+                            public void onAuthenticationFailed() {
+                                super.onAuthenticationFailed();
+                                Toast.makeText(
+                                                getApplicationContext(),
+                                                "Authentication failed",
+                                                Toast.LENGTH_SHORT)
+                                        .show();
+                                initiateBiometricAuthentication();
+                            }
+                        });
+
+        BiometricPrompt.PromptInfo promptInfo =
+                new BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Biometric login")
+                        .setSubtitle("Log in using your biometric credential")
+                        .setAllowedAuthenticators(
+                                BiometricManager.Authenticators.BIOMETRIC_STRONG
+                                        | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                        .build();
+
+        biometricPrompt.authenticate(promptInfo);
+    }
+
     @Override
     public void onStart() {
+        checkBiometricSupportAndAuthenticate();
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
         }
@@ -3789,6 +3879,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     @Override
     public void onResume() {
+        checkBiometricSupportAndAuthenticate();
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onResume")) {
             super.onResume();
         }
