@@ -2303,7 +2303,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
 
 #if BUILDFLAG(IS_ANDROID)
   registry->RegisterBooleanPref(prefs::kVirtualKeyboardResizesLayoutByDefault,
-                                false);
+                                true);
 #endif
 
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)

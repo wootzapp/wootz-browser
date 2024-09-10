@@ -21,8 +21,10 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.ResourceManager;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 
 import java.util.List;
 
@@ -62,6 +64,12 @@ public class TopToolbarOverlayCoordinator implements SceneOverlay {
                                 TopToolbarOverlayProperties.CONTENT_OFFSET,
                                 browserControlsStateProvider.getContentOffset())
                         .with(TopToolbarOverlayProperties.ANONYMIZE, false)
+                        .with(TopToolbarOverlayProperties.VIEWPORT_HEIGHT, 0)
+                        .with(TopToolbarOverlayProperties.TOOLBAR_HEIGHT,
+                                browserControlsStateProvider.getTopControlsHeight()
+                                + (DeviceFormFactor.isNonMultiDisplayContextOnTablet(context)
+                                ? context.getResources().getDimensionPixelSize(R.dimen.toolbar_hairline_height)
+                                : -context.getResources().getDimensionPixelSize(R.dimen.toolbar_hairline_height)))
                         .build();
         mSceneLayer = new TopToolbarSceneLayer(resourceManagerSupplier);
         mChangeProcessor =
@@ -113,6 +121,7 @@ public class TopToolbarOverlayCoordinator implements SceneOverlay {
     @Override
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
+            mModel.set(TopToolbarOverlayProperties.VIEWPORT_HEIGHT, viewport.height());
         return mSceneLayer;
     }
 

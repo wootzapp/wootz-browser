@@ -1331,10 +1331,6 @@
     "META": {"sizes": {"includes": [50],}},
     "includes": [8460],
   },
-  "chrome/browser/resources/wootz_tsx/dist/wootzapp_page_resources.grd": {
-    "META": {"sizes": {"includes": [1000]}},
-    "includes": [8500],
-  },
   # END "everything else" section.
   # Everything but chrome/, components/, content/, and ios/
 

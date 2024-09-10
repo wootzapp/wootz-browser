@@ -1259,6 +1259,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/webauth/authenticator/CableAuthenticatorActivity.java",
   "java/src/org/chromium/chrome/browser/webauth/authenticator/CableAuthenticatorUSBActivity.java",
   "java/src/org/chromium/chrome/browser/webshare/ShareServiceImplementationFactory.java",
+
   "java/src/org/chromium/chrome/browser/wootz_wallet/AssetRatioServiceFactory.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/BlockchainRegistryFactory.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/WootzWalletProviderDelegateImplHelper.java",
@@ -1361,3 +1362,4 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletNativeUtils.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletUtils.java",
 ]
+

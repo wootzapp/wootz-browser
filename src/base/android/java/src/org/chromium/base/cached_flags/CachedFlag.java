@@ -142,7 +142,7 @@ public class CachedFlag extends Flag {
         editor.putBoolean(getSharedPreferenceKey(), isEnabledInNative);
     }
 
-    String getSharedPreferenceKey() {
+    public String getSharedPreferenceKey() {
         // Create the key only once to avoid String concatenation every flag check.
         if (mPreferenceKey == null) {
             mPreferenceKey = CachedFlagsSharedPreferences.FLAGS_CACHED.createKey(mFeatureName);

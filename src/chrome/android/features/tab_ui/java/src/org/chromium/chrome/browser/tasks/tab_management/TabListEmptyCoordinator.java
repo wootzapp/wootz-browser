@@ -9,11 +9,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
-
+import android.widget.FrameLayout;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
-
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 /**
  * Empty coordinator that is responsible for showing an empty state view in tab switcher when we are
  * in no tab state.
@@ -30,13 +31,16 @@ class TabListEmptyCoordinator {
     private ListObserver<Void> mListObserver;
     private boolean mIsTabSwitcherShowing;
     private boolean mIsListObserverAttached;
+    private BrowserControlsStateProvider mBrowserControlsStateProvider;
 
-    public TabListEmptyCoordinator(ViewGroup rootView, TabListModel model) {
+    public TabListEmptyCoordinator(ViewGroup rootView, TabListModel model,
+                                   BrowserControlsStateProvider browserControlsStateProvider) {
         mRootView = rootView;
         mContext = rootView.getContext();
 
         // Observe TabListModel to determine when to add / remove empty state view.
         mModel = model;
+        mBrowserControlsStateProvider = browserControlsStateProvider;
         mListObserver =
                 new ListObserver<Void>() {
                     @Override
@@ -121,6 +125,16 @@ class TabListEmptyCoordinator {
     public void attachEmptyView() {
         if (mEmptyView != null && mEmptyView.getParent() == null) {
             mRootView.addView(mEmptyView);
+            FrameLayout.LayoutParams emptyViewParams =
+                    (FrameLayout.LayoutParams) mEmptyView.getLayoutParams();
+            int toolbarHeightPx = mBrowserControlsStateProvider.getTopControlsHeight();
+            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(true){
+                emptyViewParams.bottomMargin = toolbarHeightPx;
+            } else {
+                emptyViewParams.topMargin = toolbarHeightPx;
+            }
+            mEmptyView.setLayoutParams(emptyViewParams);
         }
         setEmptyViewVisibility(View.GONE);
     }

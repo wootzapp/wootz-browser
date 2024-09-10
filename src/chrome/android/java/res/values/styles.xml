@@ -171,6 +171,7 @@ found in the LICENSE file.
         <item name="actionBarTheme">@style/ManageSpaceActionBarTheme</item>
     </style>
 
+
     <!-- Wootz Wallet -->
     <style name="WootzWalletTextView" parent="Widget.AppCompat.TextView">
         <item name="android:layout_width">wrap_content</item>
@@ -330,6 +331,7 @@ found in the LICENSE file.
         <item name="fontStyle">normal</item>
         <item name="fontWeight">400</item>
     </style>
+
 
     <!-- Style for the semi-transparent sign-in & history sync opt-in activity.
     The background is translucent since the parent activity content should be

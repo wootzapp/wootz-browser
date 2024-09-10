@@ -1,0 +1,79 @@
+import("//build/config/python.gni")
+
+# generates the file specified in ouput_file containing
+# the inclusion of all .inc files found in the folder
+# specified
+#
+# Parameters
+#   directories (required)
+#       A list of folders from which to extract the .inc files
+#
+#   output_file (required)
+#       The name of the include file to be generated
+#
+# Example
+#
+# cpp_bromite_include("bromite_content_settings") {
+#   directories = [ "bromite_content_settings/placeholder.txt" ]
+#   output_file = "bromite_content_settings.inc"
+# }
+#
+template("cpp_bromite_include") {
+  action_with_pydeps(target_name) {
+    forward_variables_from(invoker,
+                           TESTONLY_AND_VISIBILITY + [
+                                 "deps",
+                                 "inputs",
+                               ])
+    script = "//build/bromite/gyp/cpp_bromite_include.py"
+
+    _rebased_directories = rebase_path(invoker.inputs, root_build_dir)
+    _output = "$target_gen_dir/" + invoker.output_file
+    _output_rebased = rebase_path(_output)
+
+    args = [
+      "--output=$_output_rebased",
+    ]
+    args += _rebased_directories
+
+    outputs = [ _output ]
+  }
+}
+
+# allows the generation of the java file needed for
+# the inclusion of the defined site settings
+# in separate files
+# used by content settings patch
+template("java_bromite_impl") {
+  action_with_pydeps(target_name) {
+    forward_variables_from(invoker,
+                           TESTONLY_AND_VISIBILITY + [
+                                 "deps",
+                                 "inputs",
+                                 "namespace",
+                                 "static_classes",
+                               ])
+    script = "//build/bromite/gyp/java_bromite_impl.py"
+    namespace = ""
+    static_classes = false
+
+    _srcjar_path = "${target_gen_dir}/${target_name}.srcjar"
+    _rebased_srcjar_path = rebase_path(_srcjar_path, root_build_dir)
+    _rebased_directories = rebase_path(invoker.inputs, root_build_dir)
+    _rebased_template = rebase_path(invoker.template, root_build_dir)
+    _namespace = invoker.namespace
+    _static_classes = invoker.static_classes
+
+    args = [
+      "--srcjar=$_rebased_srcjar_path",
+      "--template=$_rebased_template",
+      "--namespace=$_namespace",
+    ]
+    if (_static_classes) {
+      args += [ "--static_classes", ]
+    }
+    args += _rebased_directories
+
+    outputs = [ _srcjar_path ]
+  }
+}

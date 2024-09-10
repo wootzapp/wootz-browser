@@ -8,7 +8,7 @@ import android.annotation.SuppressLint;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
+import android.view.View;
 import org.chromium.base.Callback;
 import org.chromium.ui.base.WindowDelegate;
 
@@ -113,6 +113,8 @@ public interface OmniboxSuggestionsDropdownEmbedder {
     /** Return the delegate used to interact with the Window. */
     @NonNull
     WindowDelegate getWindowDelegate();
+    @NonNull
+    View getAnchorView();
 
     /** Return whether the suggestions are being rendered in the tablet UI. */
     boolean isTablet();

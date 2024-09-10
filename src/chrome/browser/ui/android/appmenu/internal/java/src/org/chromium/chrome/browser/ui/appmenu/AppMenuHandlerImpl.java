@@ -16,7 +16,7 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
@@ -219,6 +219,14 @@ class AppMenuHandlerImpl
                                     id, customViewBinders, customViewTypeOffsetMap);
                         }),
                         this);
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // reverses the order of items in the menu
+            ModelList modelListReversed = new ModelList();
+            for (int i = 0; i < mModelList.size(); i++) {
+                modelListReversed.add(0, mModelList.get(i));
+            }
+            mModelList = modelListReversed;
+        }
         mModelList.addObserver(mListObserver);
         ContextThemeWrapper wrapper =
                 new ContextThemeWrapper(mContext, R.style.OverflowMenuThemeOverlay);
