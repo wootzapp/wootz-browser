@@ -46,6 +46,7 @@ cargo_crate("lib") {
   deps = [
     "//third_party/rust/cfg_if/v1:lib",
     "//third_party/rust/digest/v0_10:lib",
+    "//third_party/rust/cpufeatures/v0_2:lib",
   ]
 
   # Only for usage from third-party crates. Add the crate to
