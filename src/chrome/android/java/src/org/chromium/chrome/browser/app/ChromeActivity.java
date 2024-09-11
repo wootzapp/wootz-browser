@@ -3115,7 +3115,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     }
 
     private void cleanUpWalletNativeServices() {
+        Log.e("initBlockchainRegistry not null","wootzapp");
         clearWalletModelServices();
+        Log.e("initBlockchainRegistry not null","wootzapp");
         if (mKeyringService != null) mKeyringService.close();
         // if (mAssetRatioService != null) mAssetRatioService.close();
         if (mBlockchainRegistry != null) mBlockchainRegistry.close();
