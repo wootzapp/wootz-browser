@@ -3108,6 +3108,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         initSolanaTxManagerProxy();
         // initAssetRatioService();
         initWootzWalletService();
+        
         initKeyringService();
         initJsonRpcService();
         initSwapService();
@@ -3115,9 +3116,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     }
 
     private void cleanUpWalletNativeServices() {
-        Log.e("initBlockchainRegistry not null","wootzapp");
+        Log.e("cleanUpWalletNativeServices","wootzapp");
         clearWalletModelServices();
-        Log.e("initBlockchainRegistry not null","wootzapp");
+        Log.e("cleanUpWalletNativeServices","wootzapp");
         if (mKeyringService != null) mKeyringService.close();
         // if (mAssetRatioService != null) mAssetRatioService.close();
         if (mBlockchainRegistry != null) mBlockchainRegistry.close();
