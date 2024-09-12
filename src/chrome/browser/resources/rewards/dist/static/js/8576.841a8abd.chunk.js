@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkrewards=self.webpackChunkrewards||[]).push([[8576],{79578:(c,r,a)=>{a.d(r,{rr:()=>d});var e=a(86511);const t="0x313ce567",n=[],s=[{type:"uint8"}];async function d(c){return(0,e.readContract)({contract:c.contract,method:[t,n,s],params:[]})}},8576:(c,r,a)=>{a.d(r,{decimals:()=>n});var e=a(27059),t=a(79578);async function n(c){return(0,e.n)((()=>(0,t.rr)(c)),{cacheKey:`${c.contract.chain.id}:${c.contract.address}:decimals`,cacheTime:Number.POSITIVE_INFINITY})}}}]);
+//# sourceMappingURL=8576.841a8abd.chunk.js.map

@@ -243,7 +243,7 @@ group("dev_ui_resources") {
     "memory_internals:resources",
     "net_internals:resources",
     "throttle:resources",
-    "rewards:resources",
+    "rewards:rewards_resources",
     "omnibox:resources",
     "predictors:resources",
     "privacy_sandbox/internals:resources",
