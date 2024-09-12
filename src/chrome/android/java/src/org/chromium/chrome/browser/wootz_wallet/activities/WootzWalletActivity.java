@@ -20,7 +20,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.KeyringModel;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
@@ -98,14 +98,20 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mRestartRestoreAction = intent.getBooleanExtra(RESTART_WALLET_ACTIVITY_RESTORE, false);
             mBackupWallet = intent.getBooleanExtra(SHOW_WALLET_ACTIVITY_BACKUP, false);
         }
-        try {
-            mWalletModel = WootzActivity.getWootzActivity().getWalletModel();
+        
+        Log.e("WOTZAPP IVAN", "getChromeActivity IVAN");
+   
+        // try {
+        mWalletModel = ChromeActivity.mActivity.get().getWalletModel();
 
-            // Update network model to use default network.
-            getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
-            Log.e(TAG, "triggerLayoutInflation", e);
-        }
+
+        Log.e("WOOTZAPP IVAN", "getChromeActivity1 IVAN1 "+ mWalletModel);
+              
+            // // Update network model to use default network.
+            // getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
+        // } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        //     Log.e(TAG, "triggerLayoutInflation", e);
+        // }
 
         mCryptoOnboardingLayout = findViewById(R.id.wootz_onboarding_layout);
         mCryptoWalletOnboardingViewPager = findViewById(R.id.wootz_wallet_onboarding_viewpager);
@@ -164,7 +170,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
                         } else if (mBackupWallet) {
                             showBackupSequence();
                         } else {
-                            showMainLayout();
+                            showMainLayout(false);
                         }
                     });
         }
@@ -186,11 +192,11 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
         };
     }
 
-    private void showMainLayout() {
+    private void showMainLayout(final boolean forceNewTab) {
         addRemoveSecureFlag(false);
 
         mCryptoOnboardingLayout.setVisibility(View.GONE);
-        WalletUtils.openWebWallet();
+        WalletUtils.openWebWallet(forceNewTab);
     }
 
     private void addRemoveSecureFlag(final boolean add) {
@@ -227,17 +233,18 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     }
 
     @Override
-    public void showWallet() {
+    public void showWallet(final boolean forceNewTab) {
         if (mIsFromDapps) {
             finish();
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
-                activity.showWalletPanel(true);
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
+                getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
+                // activity.showWalletPanel(true);
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "onboardingCompleted", e);
             }
         } else {
-            showMainLayout();
+            showMainLayout(forceNewTab);
         }
     }
 

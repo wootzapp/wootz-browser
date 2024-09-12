@@ -1,3 +1,5 @@
 target_os = "android"
 target_cpu = "arm64"
-is_debug= true
+is_debug = true
+# Build arguments go here.
+# See "gn args <out_dir> --list" for available build arguments.

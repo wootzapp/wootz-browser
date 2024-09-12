@@ -104,6 +104,9 @@ template("chrome_extra_paks") {
                            ])
     output = "${invoker.output_dir}/resources.pak"
     sources = [
+      # Jai
+      "$root_gen_dir/components/wootz_components_resources.pak",
+      
       "$root_gen_dir/chrome/hello_world_resources.pak",
       "$root_gen_dir/base/tracing/protos/tracing_proto_resources.pak",
       "$root_gen_dir/chrome/browser_resources.pak",
@@ -136,6 +139,7 @@ template("chrome_extra_paks") {
       "//chrome/common:resources",
       "//components/autofill/core/browser:autofill_address_rewriter_resources",
       "//components/resources",
+      "//components/resources:resources_repack",
       "//content:content_resources",
       "//content/browser/resources:resources",
       "//mojo/public/js:resources",

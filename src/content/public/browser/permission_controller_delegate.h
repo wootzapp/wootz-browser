@@ -134,6 +134,19 @@ class CONTENT_EXPORT PermissionControllerDelegate {
   // |subscription_id| must match the value returned by the
   // SubscribeToPermissionStatusChange call. Unsubscribing an already
   // unsubscribed |subscription_id| or an `is_null()` ID is a no-op.
+//   virtual void UnsubscribeFromPermisPermissionControllerDelegateNotUsed() {}                                  
+//   virtual void RequestPermissionsForOrigin(                                 
+//       const std::vector<blink::PermissionType>& permissions,                
+//       content::RenderFrameHost* render_frame_host,                          
+//       const GURL& requesting_origin, bool user_gesture,                     
+//       base::OnceCallback<void(                                              
+//           const std::vector<blink::mojom::PermissionStatus>&)> callback) {} 
+                                                                            
+  virtual blink::mojom::PermissionStatus GetPermissionStatusForOrigin(      
+      blink::PermissionType permission,                                     
+      content::RenderFrameHost* render_frame_host,                          
+      const GURL& requesting_origin);                                       
+                                                                            
   virtual void UnsubscribeFromPermissionStatusChange(
       SubscriptionId subscription_id) = 0;
 

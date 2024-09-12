@@ -348,8 +348,7 @@ function populateRemoteTargets(devices) {
       const majorChromeVersion = browser.adbBrowserChromeVersion;
       let pageList;
       let browserSection = $(browser.id);
-      const browserNeedsFallback =
-          isVersionNewerThanHost(browser.adbBrowserVersion);
+      const browserNeedsFallback = () => true;
       if (browserSection) {
         pageList = browserSection.querySelector('.pages');
       } else {

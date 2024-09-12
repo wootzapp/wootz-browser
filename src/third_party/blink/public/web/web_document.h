@@ -98,6 +98,9 @@ class BLINK_EXPORT WebDocument : public WebNode {
   WebLocalFrame* GetFrame() const;
   bool IsHTMLDocument() const;
   bool IsXHTMLDocument() const;
+  bool IsDOMFeaturePolicyEnabled(v8::Isolate* isolate,         
+                            v8::Local<v8::Context> context, 
+                            const WebString& feature);      
   bool IsPluginDocument() const;
   WebURL BaseURL() const;
   ukm::SourceId GetUkmSourceId() const;

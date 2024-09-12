@@ -1,0 +1,31 @@
+# Copyright (c) 2022 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+
+import("//components/common/typescript.gni")
+import("//chrome/common/features.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+import("//tools/grit/repack.gni")
+
+transpile_web_ui("ledger_bridge_ui") {
+  entry_points = [ [
+        "ledger",
+        rebase_path("ledger.ts"),
+      ] ]
+  webpack_aliases = [ "browser" ]
+  resource_name = "ledger_bridge"
+
+  # TODO(apaymyshev): ledger iframe should not depend on wallet's mojo
+  deps = [
+    "//components/wootz_wallet/common:mojom_js",
+    "//components/wootz_wallet/common:preprocess_mojo",
+  ]
+}
+
+pack_web_resources("ledger_bridge_generated") {
+  resource_name = "ledger_bridge"
+  output_dir = "$root_gen_dir/components/ledger_bridge/resources"
+  deps = [ ":ledger_bridge_ui" ]
+}

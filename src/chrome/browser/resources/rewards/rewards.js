@@ -187,6 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+
     if (window) {
         window.addEventListener('click', function (event) {
             if (event.target === modal) {

@@ -571,7 +571,7 @@ void DesktopCaptureDevice::Core::OnCaptureResult(
     // to even dimensions.
     const int32_t frame_width = frame->size().width();
     const int32_t frame_height = frame->size().height();
-    // TODO(braveyao): remove the check once |CreateCroppedDesktopFrame| can
+    // TODO(wootzyao): remove the check once |CreateCroppedDesktopFrame| can
     // do this check internally.
     if (frame_width & 1 || frame_height & 1) {
       frame = webrtc::CreateCroppedDesktopFrame(

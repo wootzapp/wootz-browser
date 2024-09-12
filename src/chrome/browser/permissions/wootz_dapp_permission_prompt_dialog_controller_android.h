@@ -1,10 +1,10 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef BRAVE_BROWSER_PERMISSIONS_BRAVE_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
-#define BRAVE_BROWSER_PERMISSIONS_BRAVE_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#ifndef CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#define CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
 
 #include <jni.h>
 #include <string>
@@ -12,13 +12,13 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 
 namespace content {
 class WebContents;
 }
 
-class BraveDappPermissionPromptDialogController {
+class WootzDappPermissionPromptDialogController {
  public:
   class Delegate {
    public:
@@ -29,11 +29,11 @@ class BraveDappPermissionPromptDialogController {
   };
 
   // Both the `delegate` and `web_contents` should outlive `this`.
-  BraveDappPermissionPromptDialogController(
+  WootzDappPermissionPromptDialogController(
       Delegate* delegate,
       content::WebContents* web_contents_,
       wootz_wallet::mojom::CoinType coin_type_);
-  ~BraveDappPermissionPromptDialogController();
+  ~WootzDappPermissionPromptDialogController();
 
   void ShowDialog();
   void DismissDialog();
@@ -56,4 +56,4 @@ class BraveDappPermissionPromptDialogController {
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
 };
 
-#endif  // BRAVE_BROWSER_PERMISSIONS_BRAVE_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_
+#endif  // CHROME_BROWSER_PERMISSIONS_WOOTZ_DAPP_PERMISSION_PROMPT_DIALOG_CONTROLLER_ANDROID_H_

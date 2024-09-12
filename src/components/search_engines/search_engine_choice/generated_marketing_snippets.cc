@@ -15,8 +15,8 @@ int GetMarketingSnippetResourceId(const std::u16string& engine_keyword) {
   if (engine_keyword == TemplateURLPrepopulateData::bing.keyword) {
     return IDS_BING_SEARCH_DESCRIPTION;
   }
-  if (engine_keyword == TemplateURLPrepopulateData::brave.keyword) {
-    return IDS_BRAVE_SEARCH_DESCRIPTION;
+  if (engine_keyword == TemplateURLPrepopulateData::wootz.keyword) {
+    return IDS_WOOTZ_SEARCH_DESCRIPTION;
   }
   if (engine_keyword == TemplateURLPrepopulateData::duckduckgo.keyword) {
     return IDS_DUCKDUCKGO_SEARCH_DESCRIPTION;

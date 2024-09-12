@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grit-part>
+  <message name="IDS_CHAT_UI_TITLE" translateable="false" desc="Title for the Wootz AI product">
+    Leo
+  </message>
+  <message name="IDS_CHAT_UI_SUMMARIZE_FAILED_LABEL" desc="Label for when summarization is not possible">
+    The summarizer feature is currently available only for select articles and other long-form web pages.
+  </message>
+  <message name="IDS_CHAT_UI_ACCEPT_BUTTON_LABEL" desc="Label for button to accept agreement">
+    I understand
+  </message>
+  <message name="IDS_CHAT_UI_SUMMARIZE_BUTTON_LABEL" desc="Label for button to summarize the current page's content">
+    Summarize
+  </message>
+  <message name="IDS_CHAT_UI_ABOUT_TITLE" desc="A concise title that summarizes the purpose of AIChat">
+    About Leo
+  </message>
+  <message name="IDS_CHAT_UI_ABOUT_DESCRIPTION" desc="Outlining the functioning of AIChat (paragraph 1 of 3)">
+    Wootz Leo is a private AI smart assistant that enhances your use of the Internet. Leo is free to use with limited access. Wootz Leo Premium offers more models, higher limits and gives subscribers early access to new features. The default model for all users is currently Mixtral 8x7B. See the <ph name="LINK_BEFORE">$1</ph>Wootz wiki<ph name="LINK_AFTER">$2</ph> for more details.
+  </message>
+  <message name="IDS_CHAT_UI_ABOUT_DESCRIPTION_2" desc="Outlining the functioning of AIChat (paragraph 2 of 3)">
+    By default, when you ask Leo a question it may send and use the content of the web page you are viewing or any text you highlight on a page to Wootz Leo to provide a response. The accuracy of responses is not guaranteed, and may include inaccurate, misleading, or false information. Leo uses data from Wootz Search to improve response quality. Don't submit sensitive or private info, and use caution with any answers related to health, finance, personal safety, or similar. You can adjust Leo’s options in Settings any time. Go to Settings > Leo.
+  </message>
+  <message name="IDS_CHAT_UI_ABOUT_DESCRIPTION_3" desc="Outlining the functioning of AIChat (paragraph 3 of 3)">
+    Leo does not collect identifiers such as your IP address that can be linked to you. No data is used to train the AI models and no personal data is retained by the AI models (except for Anthropic that holds data for 30 days before deleting it). See the <ph name="LINK_BEFORE">$1</ph>privacy policy<ph name="LINK_AFTER">$2</ph> for more information.
+  </message>
+  <message name="IDS_CHAT_UI_PLACEHOLDER_LABEL" desc="Placeholder text for an input box allowing users to send messages to the AI service">
+    Enter a prompt here
+  </message>
+  <message name="IDS_CHAT_UI_SUGGEST_QUESTIONS_LABEL" desc="Button label to ask the AI Chat to suggest some related questions">
+    Suggest questions…
+  </message>
+  <message name="IDS_CHAT_UI_SUMMARIZE_VIDEO" desc="Button to summarize the video on the current page">
+    Summarize this video
+  </message>
+  <message name="IDS_CHAT_UI_SUMMARIZE_PAGE" desc="Button to summarize the article on the current page">
+    Summarize this page
+  </message>
+  <message name="IDS_CHAT_UI_PAGE_CONTENT_WARNING" desc="Description about page content being sent to a remote LLM">
+     Disconnect to stop sending this page content to Leo, and start a new conversation
+  </message>
+  <message name="IDS_CHAT_UI_ERROR_NETWORK" desc="An error presented when there is a network issue in the UI">
+     There was a network issue connecting to Leo, check your connection and try again.
+  </message>
+  <message name="IDS_CHAT_UI_ERROR_RATE_LIMIT" desc="An error presented when the user has exhausted the API request limit">
+    You've reached the premium rate limit. Please try again in a few hours.
+  </message>
+  <message name="IDS_CHAT_UI_RETRY_BUTTON_LABEL" desc="A button label to retry API again">
+     Retry
+  </message>
+  <message name="IDS_CHAT_UI_INTRO_MESSAGE_CHAT_BASIC" desc="AI Chat intro message for the default model">
+    Hi, I'm Leo. I'm a fully hosted AI assistant by Wootz. I'm powered by Llama 3 8B, a model created by Meta to be performant and applicable to many use cases. <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+  <message name="IDS_CHAT_UI_INTRO_MESSAGE_CHAT_LEO_EXPANDED" desc="AI Chat intro message for the expanded model">
+    Hi, I'm Leo. I'm a fully hosted AI assistant by Wootz. I'm powered by Mixtral 8x7B, a model created by Mistral AI to handle advanced tasks. <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+  <message name="IDS_CHAT_UI_INTRO_MESSAGE_CHAT_LEO_CLAUDE_INSTANT" desc="AI Chat intro message for the Claude Instant model">
+    Hi, I'm Leo. I'm proxied by Wootz and powered by Claude Instant, a model created by Anthropic to power conversational and text processing tasks. <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+  <message name="IDS_CHAT_UI_INTRO_MESSAGE_CHAT_LEO_CLAUDE_HAIKU" desc="AI Chat intro message for the Claude Haiku model">
+    Hi, I'm Leo. I'm proxied by Wootz and powered by Claude 3 Haiku, a model created by Anthropic to power conversational and text processing tasks.
+  </message>
+  <message name="IDS_CHAT_UI_INTRO_MESSAGE_CHAT_LEO_CLAUDE_SONNET" desc="AI Chat intro message for the Claude Sonnet model">
+    Hi, I'm Leo. I'm proxied by Wootz and powered by Claude 3 Sonnet, a model created by Anthropic to power conversational and text processing tasks.
+  </message>
+  <message name="IDS_CHAT_UI_MODEL_NAME_SYNTAX" desc="Sentence structure for model name">
+    <ph name="MODEL_NAME">$1<ex>llama2-13b</ex></ph> by <ph name="COMPANY_NAME">$2<ex>Meta</ex></ph>
+  </message>
+  <message name="IDS_CHAT_UI_MODEL_PREMIUM_LABEL_NON_PREMIUM" desc="Label indentifying that an AI Chat model is a premium model">
+    Premium
+  </message>
+  <message name="IDS_CHAT_UI_MODEL_CATEGORY_CHAT" desc="Category name for Chat">
+    Chat
+  </message>
+  <message name="IDS_CHAT_UI_MENU_NEW_CHAT" desc="Menu item for new chat">
+    New chat
+  </message>
+  <message name="IDS_CHAT_UI_MENU_GO_PREMIUM" desc="Menu item for subscribing to premium">
+    Go Premium
+  </message>
+  <message name="IDS_CHAT_UI_MENU_MANAGE_SUBSCRIPTION" desc="Menu item for managing premium subscription">
+    Manage subscription
+  </message>
+  <message name="IDS_CHAT_UI_MENU_SETTINGS" desc="Menu item for Settings">
+    Advanced Settings
+  </message>
+  <message name="IDS_CHAT_UI_MENU_TITLE_MODELS" desc="Menu section title for language models">
+    Language models
+  </message>
+<if expr="is_android">
+  <message name="IDS_CHAT_UI_UPGRADE_BUTTON_LABEL" desc="A button label to upgrade to premium model">
+     Upgrade now
+  </message>
+</if>
+<if expr="not is_android">
+  <message name="IDS_CHAT_UI_UPGRADE_BUTTON_LABEL" desc="A button label to upgrade to premium model">
+     Try 7 days free
+  </message>
+</if>
+   <message name="IDS_CHAT_UI_RATE_LIMIT_REACHED_TITLE" desc="An error message when the user has reached API limit">
+     Response rate limit reached
+  </message>
+  <message name="IDS_CHAT_UI_RATE_LIMIT_REACHED_DESC" desc="A description to unlock premium features">
+    You've reached the rate limit for Leo. Unlock a higher response rate by subscribing to Premium, or try again soon.
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_1" desc="A premium feature">
+    Explore different AI models
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_2" desc="A premium feature">
+    Unlock your creativity
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_3" desc="A premium feature">
+    Stay on topic
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_4" desc="A premium feature">
+    Chat for longer
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_LABEL" translateable="false" desc="A label for Wootz premium products">
+     Leo Premium
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_PRICING" desc="Price label to subscribe for Premium model">
+    USD $ <ph name="PRICE_VALUE">$1<ex>14.99</ex></ph> /month
+  </message>
+  <message name="IDS_CHAT_UI_DISMISS_BUTTON_LABEL" desc="A button label to dismiss dialog">
+    Dismiss
+  </message>
+  <message name="IDS_CHAT_UI_SWITCH_TO_BASIC_MODEL_BUTTON_LABEL" desc="A button label to switch to the free model">
+    Switch to the free model
+  </message>
+  <message name="IDS_CHAT_UI_UNLOCK_PREMIUM_TITLE" desc="A heading on prompt premium suggestion UI">
+    Unleash Leo's full powers with Premium:
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_1_DESC" desc="A premium feature that allows access to various models">
+    Priority access to powerful models with different skills
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_2_DESC" desc="A premium feature to various AI models">
+    Access models better suited for creative tasks and content generation.
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_3_DESC" desc="A premium feature to stay scoped within a topic">
+    Get more accurate answers for more nuanced conversations.
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_FEATURE_4_DESC" desc="A premium feature that allows higher rate limits">
+    Get higher rate limits for longer conversations.
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_REFRESH_WARNING_DESCRIPTION" desc="Warning message when AI Chat Premium authentication is expired">
+    Your Wootz account session has expired. Please visit your account page to refresh, then come back to use premium features.
+  </message>
+  <message name="IDS_CHAT_UI_PREMIUM_REFRESH_WARNING_ACTION" desc="Action to take when AI Chat Premium authentication is expired">
+    Refresh
+  </message>
+  <message name="IDS_CHAT_UI_FEEDBACK_SENT" desc="Notification message for successful feedback submission">
+    Feedback sent successfully
+  </message>
+  <message name="IDS_CHAT_UI_ANSWER_DISLIKED" desc="Notification for a disliked answer">
+    Answer disliked
+  </message>
+  <message name="IDS_CHAT_UI_ANSWER_LIKED" desc="Notification for a liked answer">
+    Answer liked
+  </message>
+  <message name="IDS_CHAT_UI_ADD_FEEDBACK_BUTTON_LABEL" desc="Button label to add feedback">
+    Add feedback
+  </message>
+  <message name="IDS_CHAT_UI_COPY_BUTTON_LABEL" desc="Button label to copy text">
+    Copy
+  </message>
+  <message name="IDS_CHAT_UI_LIKE_ANSWER_BUTTON_LABEL" desc="Button label to like an answer">
+    Like answer
+  </message>
+  <message name="IDS_CHAT_UI_DISLIKE_ANSWER_BUTTON_LABEL" desc="Button label to dislike an answer">
+    Dislike answer
+  </message>
+  <message name="IDS_CHAT_UI_PROVIDE_FEEDBACK_TITLE" desc="Title for feedback provision section">
+    Provide Wootz AI Feedback
+  </message>
+  <message name="IDS_CHAT_UI_SELECT_FEEDBACK_TOPIC" desc="Prompt to select feedback topic">
+    Select your feedback topic
+  </message>
+  <message name="IDS_CHAT_UI_FEEDBACK_CATEGORY_LABEL" desc="Label asking for the category of feedback">
+    What's your feedback about?
+  </message>
+  <message name="IDS_CHAT_UI_FEEDBACK_DESCRIPTION_LABEL" desc="Label prompting user to provide feedback">
+    Provide feedback here
+  </message>
+  <message name="IDS_CHAT_UI_FEEDBACK_PREMIUM_NOTE" desc="Note about the benefits of a premium subscription">
+    Leo Premium provides access to an expanded set of language models for even greater answer nuance. <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+  <message name="IDS_CHAT_UI_SUBMIT_BUTTON_LABEL" desc="Button label to submit data/form">
+    Submit
+  </message>
+  <message name="IDS_CHAT_UI_CANCEL_BUTTON_LABEL" desc="Button label to cancel action">
+    Cancel
+  </message>
+  <message name="IDS_CHAT_UI_SAVE_BUTTON_LABEL" desc="Button label to save data/form">
+    Save
+  </message>
+  <message name="IDS_CHAT_UI_EDITED_LABEL" desc="Text for indicating the content is edited">
+    Edited
+  </message>
+  <message name="IDS_CHAT_UI_EDIT_BUTTON_LABEL" desc="Button title to edit content">
+    Edit
+  </message>
+  <message name="IDS_CHAT_UI_OPTION_NOT_HELPFUL" desc="Select option for feedback form if the answer is not helpful">
+    Not helpful
+  </message>
+  <message name="IDS_CHAT_UI_OPTION_INCORRECT" desc="Select option for feedback form if the answer is not correct">
+    Incorrect
+  </message>
+  <message name="IDS_CHAT_UI_OPTION_UNSAFE_HARMFUL" desc="Select option for feedback form if the answer is unsafe or harmful">
+    Unsafe/harmful
+  </message>
+  <message name="IDS_CHAT_UI_OPTION_OTHER" desc="Select option for feedback form if the answer is other kind">
+    Other
+  </message>
+  <message name="IDS_CHAT_UI_RATING_ERROR" desc="An error message when the user's rating could not be submitted">
+    Your rating could not be submitted, please check network connection and try again
+  </message>
+  <message name="IDS_CHAT_UI_FEEDBACK_SUBMIT_ERROR" desc="An error message when the user's feedback could not be submitted">
+    Your feedback could not be submitted, please check network connection and try again
+  </message>
+  <message name="IDS_CHAT_UI_ERROR_CONTEXT_LIMIT_REACHING" desc="An error message when the user's chat history is reaching to maximum threshold">
+    This conversation is long and Leo may start forgetting things soon. You can get longer conversations by switching to a premium model, or you can clear the chat to reset it.
+  </message>
+  <message name="IDS_CHAT_UI_CLEAR_CHAT_BUTTON_LABEL" desc="An button label for clearing chat history">
+    Clear Chat
+  </message>
+  <message name="IDS_CHAT_UI_SEND_CHAT_BUTTON_LABEL" desc="An button label for sending a chat message">
+    Send message to Leo
+  </message>
+  <message name="IDS_CHAT_UI_GOT_IT_BUTTON_LABEL" desc="An button label for dismissing a warning">
+    Got it
+  </message>
+  <message name="IDS_CHAT_UI_PAGE_CONTENT_TOO_LONG_WARNING" desc="A warning issued when the user is trying to summarize a long content page">
+    The page is too long for Leo. Some context could be missing from the conversation. Leo was able to read <ph name="PERCENTAGE">$1<ex>75.5%</ex></ph> of the page's contents.
+  </message>
+  <message name="IDS_CHAT_UI_CONVERSATION_END_ERROR" desc="An error issued when the user cannot continue chatting">
+    This conversation is too long and cannot continue. There may be other models available with which Leo is capable of maintaining accuracy for longer conversations.
+  </message>
+  <message name="IDS_CHAT_UI_SEARCH_IN_PROGRESS" desc="Status to indicate that AI response is being enhaced with Wootz Search">
+    Improving your answer with Wootz Search…
+  </message>
+  <message name="IDS_CHAT_UI_SEARCH_QUERIES" desc="AI Response status to indicate that search queries were used to enhance the response">
+    Improved answer searching for <ph name="SEARCH_TERMS">$1<ex>"my first search engine query", "my second search engine query"</ex></ph>.
+  </message>
+  <message name="IDS_CHAT_UI_LEARN_MORE" desc="Link text to learn more about a feature">
+    Learn more
+  </message>
+  <message name="IDS_CHAT_UI_CHAT_BASIC_SUBTITLE" desc="A description for default chat model">
+    General purpose chat
+  </message>
+  <message name="IDS_CHAT_UI_CHAT_LEO_EXPANDED_SUBTITLE" desc="A description for the llama chat model">
+    Advanced chat tasks
+  </message>
+  <message name="IDS_CHAT_UI_CHAT_CLAUDE_INSTANT_SUBTITLE" desc="A description for claude-instant-v1 model">
+    Conversation and text generation
+  </message>
+  <message name="IDS_CHAT_UI_CHAT_CLAUDE_HAIKU_SUBTITLE" desc="A description for claude-3-haiku model">
+    Lightning fast chat
+  </message>
+  <message name="IDS_CHAT_UI_CHAT_CLAUDE_SONNET_SUBTITLE" desc="A description for claude-3-sonnet model">
+    Balanced speed and intelligence
+  </message>
+  <message name="IDS_CHAT_UI_LEO_SETTINGS_TOOLTIP_LABEL" desc="A label for leo settings tooltip">
+    Leo settings
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_TITLE" desc="A title for welcome guide component presented for first time users">
+    Hi, I'm Leo!
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_SUBTITLE" desc="A subtitle for welcome guide component presented for first time users">
+    An AI-powered intelligent assistant, built right into Wootz.
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_SITE_HELP_CARD_TITLE" desc="This is the title for a user prompt card designed to offer assistance with website-related tasks.">
+    Need help with a website?
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_SITE_HELP_CARD_DESC" desc="This description informs the user that the chatbot is capable of assisting with various website-related tasks such as summarizing articles and elaborating on website content. There is no specific call to action in this message.">
+    I can help you summarizing articles, expanding on a site's content and much more.
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_SITE_HELP_CARD_WITH_ACTION" desc="This description provides similar information to the previous message but concludes with a specific call to action or suggestion for the user to get started with assistance.">
+    I can help you summarizing articles, expanding on a site's content and much more. Not sure where to start? Try this:
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_CHAT_CARD_TITLE" desc="Title for the chat card option.">
+    Just want to chat?
+  </message>
+  <message name="IDS_CHAT_UI_WELCOME_GUIDE_CHAT_CARD_DESC" desc="Description prompting the user to engage in a casual conversation with the chatbot.">
+    Ask me anything! We can talk about any topic you want. I'm always learning and improving to provide better answers.
+  </message>
+  <message name="IDS_CHAT_UI_PRIVACY_TITLE" desc="Title for privacy agreement modal.">
+    Chat Privately with Wootz Leo
+  </message>
+  <message name="IDS_CHAT_UI_CONTEXT_TOGGLE_LABEL" desc="Label for toggle that enabled/disabled contextual conversations.">
+    Shape answers based on the page's contents
+  </message>
+  <message name="IDS_CHAT_UI_CONTEXT_TOGGLE_TOOLTIP_INFO" desc="Info tooltip for contextual toggle">
+    Toggle on to ask about this page. Its content will be sent to Wootz Leo along with your messages.
+  </message>
+  <message name="IDS_CHAT_UI_SUBSCRIPTION_POLICY_INFO" desc="An info text that is shown below various subcription prices">
+    All subscriptions are auto-renewed but can be cancelled at any time before renewal.
+  </message>
+  <message name="IDS_CHAT_UI_SEND_SITE_HOSTNAME_LABEL" desc="A checkbox label to opt-in or out for sending current tab's url">
+    Share the hostname of the page you are on (<ph name="HOST_NAME">$1<ex>www.example.com</ex></ph>) to help us make Leo better.
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_LEO_TOOLS" desc="The text label of Leo tools submenu in the context menu">
+    Leo AI tools
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_QUICK_ACTIONS" desc="The title of the context menu section for AI quick actions">
+    Quick actions
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE" desc="The title of the context menu section for AI creation tools">
+    Create
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_REWRITE" desc="The title of the context menu section for AI rewrite tools">
+    Rewrite
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_SUMMARIZE_TEXT" desc="The text label of context menu item to summarize selected text">
+    Summarize
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE_SOCIAL_MEDIA_COMMENT_SHORT" desc="The text label of context menu item to create a short social media post using selected text">
+    Short post
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE_SOCIAL_MEDIA_COMMENT_LONG" desc="The text label of context menu item to create a long social media post using selected text">
+    Long post
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE_BLOG_POST" desc="The text label of context menu item to create a blog post using selected text">
+    Blog post
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE_TAGLINE" desc="The text label of context menu item to create a tagline using selected text">
+    Tagline
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_PARAPHRASE" desc="The text label of context menu item to paraphrase selected text">
+    Paraphrase
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_EXPLAIN" desc="The text label of context menu item to explain selected text">
+    Explain
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_IMPROVE" desc="The text label of context menu item to improve selected text">
+    Improve
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CHANGE_TONE" desc="The text label of submenu for changing the tone of selected text">
+    Change tone
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_PROFESSIONALIZE" desc="The text label of context menu item to professionalize selected text">
+    Professional
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_PERSUASIVE_TONE" desc="The text label of context menu item to rewrite the selected text in a persuasive tone">
+    Persuasive
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_ACADEMICIZE" desc="The text label of context menu item to academicize selected text">
+    Academic
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CASUALIZE" desc="The text label of context menu item to casualize selected text">
+    Casual
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_FUNNY_TONE" desc="The text label of context menu item to rewrite the selected text in a funny tone">
+    Funny
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_SHORTEN" desc="The text label of context menu item to shorten selected text">
+    Shorten
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_EXPAND" desc="The text label of context menu item to expand selected text">
+    Expand
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CHANGE_LENGTH" desc="The text label of submenu for changing the length of selected text">
+    Change length
+  </message>
+  <message name="IDS_AI_CHAT_CONTEXT_CREATE_SOCIAL_MEDIA_POST" desc="The text label of submenu for creating social media posts using selected text">
+    Social media
+  </message>
+  <message name="IDS_AI_CHAT_MAYBE_LATER_LABEL" desc="The button label that dismisses an error prompt">
+    Maybe later
+  </message>
+  <message name="IDS_AI_CHAT_LEO_TOOLS_BUTTON_LABEL" desc="The button label for Leo's slash tools">
+    Leo tools
+  </message>
+  <message name="IDS_AI_CHAT_USE_MICROPHONE_BUTTON_LABEL" desc="The button label for Leo's microphone feature">
+    Use microphone
+  </message>
+  <message name="IDS_AI_CHAT_MENU_TITLE_CUSTOM_MODELS" desc="The menu section label for custom models added by the user">
+    Custom models
+  </message>
+</grit-part>

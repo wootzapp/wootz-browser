@@ -82,12 +82,25 @@ PermissionRequest::GetDialogAnnotatedMessageText(
           embedding_origin, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC);
 
   switch (request_type()) {
+    case RequestType::kWootzGoogleSignInPermission:
+      break;
+    case RequestType::kWootzLocalhostAccessPermission:
+      break;  
     case RequestType::kAccessibilityEvents:
       message_id = IDS_ACCESSIBILITY_EVENTS_INFOBAR_TEXT;
       break;
     case RequestType::kArSession:
       message_id = IDS_AR_INFOBAR_TEXT;
       break;
+    case RequestType::kWootzEthereum:
+      // message_id = IDS_AR_INFOBAR_TEXT;
+      break;
+    case RequestType::kWootzSolana:
+      // message_id = IDS_AR_INFOBAR_TEXT;
+      break;
+    case RequestType::kWidevine:
+      break;
+    
     case RequestType::kCameraStream:
       message_id = IDS_MEDIA_CAPTURE_VIDEO_ONLY_INFOBAR_TEXT;
       break;
@@ -177,6 +190,20 @@ PermissionRequest::GetDialogAnnotatedMessageText(
   return AnnotatedMessageText(text, bolded_ranges);
 }
 #endif
+
+bool PermissionRequest::SupportsLifetime() const {
+  return true;
+}
+
+void PermissionRequest::SetLifetime(std::optional<base::TimeDelta> lifetime) {
+  DCHECK(SupportsLifetime());
+  lifetime_ = std::move(lifetime);
+}
+
+const std::optional<base::TimeDelta>& PermissionRequest::GetLifetime() const {
+  DCHECK(SupportsLifetime());
+  return lifetime_;
+}
 
 bool PermissionRequest::IsEmbeddedPermissionElementInitiated() const {
   return data_.embedded_permission_element_initiated;

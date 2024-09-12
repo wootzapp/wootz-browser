@@ -46,7 +46,7 @@ import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.wootz_wallet.mojom.TransactionType;
 import org.chromium.wootz_wallet.mojom.TxService;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.adapters.ApproveTxFragmentPageAdapter;
@@ -61,7 +61,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.TokenUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.TransactionUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -71,6 +71,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import org.chromium.chrome.browser.util.LiveDataUtil;
+import org.chromium.chrome.browser.tab.TabUtils;
+import org.chromium.chrome.browser.app.ChromeActivity;
 
 public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogFragment {
     private static final String TAG = "ApproveTx";
@@ -197,10 +201,10 @@ public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogF
     public Dialog onCreateDialog(Bundle savedInstanceState) {
         Dialog dialog = super.onCreateDialog(savedInstanceState);
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreateDialog ", e);
         }
         return dialog;

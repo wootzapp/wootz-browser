@@ -2,6 +2,41 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+
+
+#include <optional>
+
+#include "components/permissions/permission_context_base.h"
+#include "components/permissions/permission_request_data.h"
+
+// Jai - starts
+namespace permissions {
+
+std::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists_WootzImpl(
+    ContentSettingsType content_settings_type) {
+  switch (content_settings_type) {
+    case ContentSettingsType::WOOTZ_ETHEREUM:
+      return RequestType::kWootzEthereum;
+    case ContentSettingsType::WOOTZ_SOLANA:
+      return RequestType::kWootzSolana;
+    // case ContentSettingsType::BRAVE_GOOGLE_SIGN_IN:
+    //   return RequestType::kBraveGoogleSignInPermission;
+    // case ContentSettingsType::BRAVE_LOCALHOST_ACCESS:
+    //   return RequestType::kBraveLocalhostAccessPermission;
+    default:
+      return ContentSettingsTypeToRequestTypeIfExists(content_settings_type);
+  }
+}
+
+}  // namespace permissions
+
+#define PermissionContextBase PermissionContextBase_ChromiumImpl
+
+#define ContentSettingsTypeToRequestTypeIfExists \
+  ContentSettingsTypeToRequestTypeIfExists_WootzImpl
+
+//  Jai - Ends
+
 #include "components/permissions/permission_request_data.h"
 #include "components/permissions/permission_context_base.h"
 #include "content/public/browser/permission_request_description.h"
@@ -59,3 +94,9 @@ PermissionRequestData::PermissionRequestData(PermissionRequestData&&) = default;
 PermissionRequestData::~PermissionRequestData() = default;
 
 }  // namespace permissions
+
+
+
+// Jai
+#undef ContentSettingsTypeToRequestTypeIfExists
+#undef PermissionContextBase

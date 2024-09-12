@@ -270,6 +270,7 @@ static_library("common_lib") {
     "//components/no_state_prefetch/common:mojo_bindings",
     "//components/page_load_metrics/common:common",
     "//components/pdf/common:constants",
+    "//components/resources:resources_repack"
   ]
 
   if (is_android || enable_library_cdms) {
@@ -754,6 +755,7 @@ mojom("mojo_bindings") {
     "privacy_budget/identifiability_study_configurator.mojom",
     "renderer_configuration.mojom",
     "trusted_vault_encryption_keys_extension.mojom",
+    "wootz_renderer_configuration.mojom"
   ]
 
   deps = [ "//components/lens:lens_mojo" ]

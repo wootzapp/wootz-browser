@@ -1,0 +1,11 @@
+include_rules = [
+  "+services/data_decoder/public/cpp",
+  "+services/network/public/cpp",
+  "+services/network/public/mojom",
+  "+third_party/blink/public/common",
+  "+third_party/boringssl",
+  "+third_party/re2",
+  "+chrom/components/constants",
+  "+components/version_info",
+  "+tools/json_schema_compiler",
+]

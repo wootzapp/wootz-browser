@@ -838,7 +838,7 @@ deps = {
   },
 
   'src/chrome/browser/resources/preinstalled_web_apps/internal': {
-    'url': Var('chrome_git') + '/chrome/components/default_apps.git' + '@' + '3ca47d00648c126561056443c2c5f401c02eda9d',
+    'url': Var('chrome_git') + '/components/default_apps.git' + '@' + '3ca47d00648c126561056443c2c5f401c02eda9d',
     'condition': 'checkout_src_internal',
   },
 
@@ -4326,60 +4326,60 @@ deps = {
    },
 
   'src/components/autofill/core/browser/form_parsing/internal_resources': {
-      'url': Var('chrome_git') + '/chrome/components/autofill_regex_patterns.git' + '@' +
+      'url': Var('chrome_git') + '/components/autofill_regex_patterns.git' + '@' +
         'feb267b80dd9df83ce4949470d5b1cc6214cd775',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/crash/core/app/internal': {
-    'url': Var('chrome_git') + '/chrome/components/crash.git' + '@' + '977755983e64eb91813875407050afcc7c1b6683',
+    'url': Var('chrome_git') + '/components/crash.git' + '@' + '977755983e64eb91813875407050afcc7c1b6683',
     'condition': 'checkout_src_internal',
   },
 
   'src/components/metrics/internal': {
-      'url': Var('chrome_git') + '/chrome/components/metrics/internal.git' + '@' +
+      'url': Var('chrome_git') + '/components/metrics/internal.git' + '@' +
         'ac51808a082f35a97395ebb49c74dca809bd7540',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/ntp_tiles/resources/internal': {
-      'url': Var('chrome_git') + '/chrome/components/ntp_tiles/resources.git' + '@' +
+      'url': Var('chrome_git') + '/components/ntp_tiles/resources.git' + '@' +
         '48c257ae331a9c642af38b8f62cb2c789e2a7da6',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/optimization_guide/internal': {
-      'url': Var('chrome_git') + '/chrome/components/optimization_guide.git' + '@' +
+      'url': Var('chrome_git') + '/components/optimization_guide.git' + '@' +
         '5015c9cb9b8a8b5bd5dcfd6cbaa7b41e1d2af2d7',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/plus_addresses/resources/internal': {
-      'url': Var('chrome_git') + '/chrome/components/plus_addresses/resources.git' + '@' +
+      'url': Var('chrome_git') + '/components/plus_addresses/resources.git' + '@' +
         '4f595c87a18088bf7c43613ebae849f23559f725',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/resources/default_100_percent/google_chrome': {
-      'url': Var('chrome_git') + '/chrome/components/default_100_percent/google_chrome.git' + '@' +
+      'url': Var('chrome_git') + '/components/default_100_percent/google_chrome.git' + '@' +
         'de2513c741f9caf5889b1300ea3e51ce3efc88b8',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/resources/default_200_percent/google_chrome': {
-      'url': Var('chrome_git') + '/chrome/components/default_200_percent/google_chrome.git' + '@' +
+      'url': Var('chrome_git') + '/components/default_200_percent/google_chrome.git' + '@' +
         '515db2e8d702f1b0d2c7a3fa3140a338d306102c',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/resources/default_300_percent/google_chrome': {
-      'url': Var('chrome_git') + '/chrome/components/default_300_percent/google_chrome.git' + '@' +
+      'url': Var('chrome_git') + '/components/default_300_percent/google_chrome.git' + '@' +
         '79dd350d2fee765ea02f603fc2ca140f20debb86',
       'condition': 'checkout_src_internal',
   },
 
   'src/components/site_isolation/internal': {
-      'url': Var('chrome_git') + '/chrome/components/site_isolation.git' + '@' +
+      'url': Var('chrome_git') + '/components/site_isolation.git' + '@' +
         'e0d8a7769c1daabb974bf0d229970534a0aede77',
       'condition': 'checkout_src_internal',
   },

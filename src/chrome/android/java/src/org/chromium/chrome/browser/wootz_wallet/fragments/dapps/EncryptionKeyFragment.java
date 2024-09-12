@@ -26,7 +26,7 @@ import org.chromium.wootz_wallet.mojom.DecryptRequest;
 import org.chromium.wootz_wallet.mojom.GetEncryptionPublicKeyRequest;
 import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletDAppsActivity;
 import org.chromium.chrome.browser.wootz_wallet.util.AndroidUtils;
@@ -77,9 +77,9 @@ public class EncryptionKeyFragment extends Fragment implements View.OnClickListe
         mExecutor = Executors.newSingleThreadExecutor();
         mHandler = new Handler(Looper.getMainLooper());
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate " + e);
         }
     }

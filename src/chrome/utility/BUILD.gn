@@ -38,6 +38,8 @@ static_library("utility") {
     "//chrome:strings",
     "//chrome/common",
     "//chrome/common:mojo_bindings",
+    "//components/services/wootz_wallet:lib",
+    "//components/services/wootz_wallet/public/mojom",
     "//chrome/services/on_device_translation:on_device_translation_service",
     "//chrome/services/speech/buildflags",
     "//components/heap_profiling/in_process",

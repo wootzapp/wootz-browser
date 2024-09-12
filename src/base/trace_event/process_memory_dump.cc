@@ -295,10 +295,10 @@ MemoryAllocatorDump* ProcessMemoryDump::AddAllocatorDumpInternal(
     std::unique_ptr<MemoryAllocatorDump> mad) {
   // In background mode return the black hole dump, if invalid dump name is
   // given.
-  if (dump_args_.level_of_detail == MemoryDumpLevelOfDetail::kBackground &&
-      !IsMemoryAllocatorDumpNameInAllowlist(mad->absolute_name())) {
-    return GetBlackHoleMad(mad->absolute_name());
-  }
+  // if (dump_args_.level_of_detail == MemoryDumpLevelOfDetail::kBackground &&
+  //     !IsMemoryAllocatorDumpNameInAllowlist(mad->absolute_name())) {
+  //   return GetBlackHoleMad(mad->absolute_name());
+  // }
 
   auto insertion_result = allocator_dumps_.insert(
       std::make_pair(mad->absolute_name(), std::move(mad)));

@@ -1,0 +1,20 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+chrome_browser_wootz_adaptive_captcha_sources = [
+  "//chrome/browser/wootz_adaptive_captcha/wootz_adaptive_captcha_service_factory.cc",
+  "//chrome/browser/wootz_adaptive_captcha/wootz_adaptive_captcha_service_factory.h",
+]
+
+chrome_browser_wootz_adaptive_captcha_deps = [
+  "//base",
+  "//components/wootz_adaptive_captcha",
+  "//components/wootz_rewards/browser",
+  "//chrome/browser/profiles:profile",
+  "//components/keyed_service/content:content",
+  "//components/user_prefs:user_prefs",
+  "//content/public/browser",
+  "//services/network/public/cpp:cpp",
+]

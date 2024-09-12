@@ -1,0 +1,113 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+# import("//build/rust/cargo_crate.gni")
+
+# cargo_crate("lib") {
+#   crate_name = "typenum"
+#   epoch = "1"
+#   crate_type = "rlib"
+#   crate_root =
+#       "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/lib.rs"
+#   sources = [
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/array.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/bit.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/int.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/lib.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/marker_traits.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/operator_aliases.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/private.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/type_operators.rs",
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/src/uint.rs",
+#   ]
+#   inputs = []
+
+#   build_native_rust_unit_tests = false
+#   edition = "2018"
+#   cargo_pkg_version = "1.17.0"
+#   cargo_pkg_authors =
+#       "Paho Lurie-Gregg <paho@paholg.com>, Andre Bogus <bogusandre@gmail.com>"
+#   cargo_pkg_name = "typenum"
+#   cargo_pkg_description = "Typenum is a Rust library for type-level numbers evaluated at     compile time. It currently supports bits, unsigned integers, and signed     integers. It also provides a type-level array of type-level numbers, but its     implementation is incomplete."
+#   library_configs -= [ "//build/config/compiler:chromium_code" ]
+#   library_configs += [ "//build/config/compiler:no_chromium_code" ]
+#   executable_configs -= [ "//build/config/compiler:chromium_code" ]
+#   executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+#   proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+#   proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+#   build_root = "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/build/main.rs"
+#   build_sources = [
+#     "//third_party/rust/chromium_crates_io/vendor/typenum-1.17.0/build/main.rs",
+#   ]
+
+#   # Only for usage from third-party crates. Add the crate to
+#   # //third_party/rust/chromium_crates_io/Cargo.toml to use
+#   # it from first-party code.
+#   visibility = [ "//third_party/rust/*" ]
+# }
+
+
+# Copyright (c) 2024 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "typenum"
+  epoch = "1"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/array.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/bit.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/int.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/marker_traits.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/operator_aliases.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/private.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/type_operators.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/uint.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2018"
+  cargo_pkg_version = "1.16.0"
+  cargo_pkg_authors =
+      "Paho Lurie-Gregg <paho@paholg.com>, Andre Bogus <bogusandre@gmail.com>"
+  cargo_pkg_name = "typenum"
+  cargo_pkg_description = "Typenum is a Rust library for type-level numbers evaluated at     compile time. It currently supports bits, unsigned integers, and signed     integers. It also provides a type-level array of type-level numbers, but its     implementation is incomplete."
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  build_root = "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/build/main.rs"
+  build_sources = [ "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/build/main.rs" ]
+  build_script_inputs = [
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/../build/generic_const_mappings.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/../build/main.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/../build/op.rs",
+    "//third_party/rust/chromium_crates_io/vendor/typenum-1.16.0/src/../build/tests.rs",
+  ]
+  build_script_outputs = [
+    "consts.rs",
+    "op.rs",
+  ]
+  rustenv = [
+    "TYPENUM_BUILD_CONSTS=" + rebase_path(target_gen_dir) + "/lib/consts.rs",
+    "TYPENUM_BUILD_OP=" + rebase_path(target_gen_dir) + "/lib/op.rs",
+  ]
+}
