@@ -93,7 +93,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://settings/*"
+      "wootzapp://settings/*"
     ]
   }],
   "autotestPrivate": {
@@ -104,8 +104,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
       "chrome://read-later.top-chrome/*"
     ]
   },
@@ -117,8 +117,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
       "chrome://read-later.top-chrome/*",
       "chrome://welcome/*"
     ]
@@ -128,7 +128,7 @@
     "contexts": ["webui"],
     "dependencies": [],
     "matches": [
-      "chrome://bookmarks/*"
+      "wootzapp://bookmarks/*"
     ]
   },
   "bookmarks.import": {
@@ -136,7 +136,7 @@
     "contexts": ["webui"],
     "dependencies": [],
     "matches": [
-      "chrome://bookmarks/*"
+      "wootzapp://bookmarks/*"
     ]
   },
   "brailleDisplayPrivate": {
@@ -232,7 +232,7 @@
     // Note: The dependency above effectively restricts where this can be used
     // to the specified set of URLs, so this could even be <all_urls>. Just to
     // be extra-cautious, we restrict to the chrome scheme.
-    "matches": [ "chrome://*/*" ]
+    "matches": [ "wootzapp://*/*" ]
   }, {
     // This feature is used by the Controlled Frame API and is specifically
     // enabled by //chrome.
@@ -365,7 +365,7 @@
       "internal": true,
       "channel": "stable",
       "contexts": ["webui"],
-      "matches": ["chrome://download-shelf.top-chrome/*"]
+      "matches": ["wootzapp://download-shelf.top-chrome/*"]
     }
   ],
   "echoPrivate": {
@@ -608,7 +608,7 @@
       // TODO(maybelle): Audit and remove chrome://settings or
       // chrome://os-settings as appropriate
       "chrome://os-settings/*",
-      "chrome://settings/*"
+      "wootzapp://settings/*"
     ]
   }],
   "instanceID": {
@@ -625,7 +625,7 @@
       // TODO(maybelle): Audit and remove chrome://settings or
       // chrome://os-settings as appropriate
       "chrome://os-settings/*",
-      "chrome://settings/*"
+      "wootzapp://settings/*"
     ]
   }],
   "login": [{
@@ -715,7 +715,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://settings/*",
+      "wootzapp://settings/*",
       "chrome://password-manager/*"
     ]
   }],
@@ -778,7 +778,7 @@
     "matches": [
       "chrome://multidevice-setup/*",
       "chrome://os-settings/*",
-      "chrome://settings/*",
+      "wootzapp://settings/*",
       "chrome://oobe/*"
     ],
     "platforms": ["chromeos", "lacros"]
@@ -831,7 +831,7 @@
     "contexts": ["webui"],
     "matches": [
       "chrome://os-settings/*",
-      "chrome://settings/*",
+      "wootzapp://settings/*",
       "chrome://password-manager/*"
     ]
   }],
@@ -879,8 +879,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://bookmarks-side-panel.top-chrome/*",
+      "wootzapp://bookmarks/*",
+      "wootzapp://bookmarks-side-panel.top-chrome/*",
       "chrome://read-later.top-chrome/*",
       "chrome://tab-strip.top-chrome/*"
     ]
@@ -1047,7 +1047,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
+      "wootzapp://bookmarks/*",
       "chrome://tab-strip.top-chrome/*"
     ]
   }, {

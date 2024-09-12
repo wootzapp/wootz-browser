@@ -29,7 +29,7 @@ ios_appex_bundle("appex") {
   deps = [ "//ios/chrome/push_notification_service_extension" ]
 
   extra_substitutions = [
-    "CHROME_CHANNEL_SCHEME=$url_channel_scheme",
+    "WOOTZAPP_CHANNEL_SCHEME=$url_channel_scheme",
     "CHROMIUM_SHORT_NAME=$chromium_short_name",
     "CHROMIUM_BUNDLE_ID=$ios_chromium_bundle_id",
   ]

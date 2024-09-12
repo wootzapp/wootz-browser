@@ -73,7 +73,7 @@ import java.util.List;
 @Config(manifest = Config.NONE)
 public class IntentHandlerRobolectricTest {
     private static final String[] ACCEPTED_NON_HTTP_AND_HTTPS_URLS = {
-        "chrome://newtab",
+        "wootzapp://newtab",
         "file://foo.txt",
         "ftp://www.foo.com",
         "",

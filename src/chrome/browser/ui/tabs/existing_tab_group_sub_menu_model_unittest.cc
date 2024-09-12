@@ -22,8 +22,8 @@ class ExistingTabGroupSubMenuModelTest : public BrowserWithTestWindowTest {
 // Ensure that add to group submenu only appears when there is another group to
 // move the tab into.
 TEST_F(ExistingTabGroupSubMenuModelTest, ShouldShowSubmenu) {
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
   TabStripModel* model = browser()->tab_strip_model();
   ASSERT_EQ(model->group_model()->ListTabGroups().size(), 0U);
@@ -41,9 +41,9 @@ TEST_F(ExistingTabGroupSubMenuModelTest, ShouldShowSubmenu) {
 
 // Validate that the submenu has the correct items.
 TEST_F(ExistingTabGroupSubMenuModelTest, BuildSubmenuItems) {
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
   TabStripModel* model = browser()->tab_strip_model();
   model->AddToNewGroup({0});
@@ -66,9 +66,9 @@ TEST_F(ExistingTabGroupSubMenuModelTest, BuildSubmenuItems) {
 
 // Verify tabs can be added tab groups in the same window.
 TEST_F(ExistingTabGroupSubMenuModelTest, AddTabsToGroupSameWindow) {
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
   TabStripModel* model = browser()->tab_strip_model();
   model->AddToNewGroup({0});
@@ -90,10 +90,10 @@ TEST_F(ExistingTabGroupSubMenuModelTest, AddTabsToGroupSameWindow) {
 
 // Verify non-selected tabs can be added tab groups in the same window.
 TEST_F(ExistingTabGroupSubMenuModelTest, AddNonSelectedTabsToTabGroup) {
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
   TabStripModel* model = browser()->tab_strip_model();
   model->AddToNewGroup({0});
@@ -127,15 +127,15 @@ TEST_F(ExistingTabGroupSubMenuModelTest, AddAllSelectedTabsToAnotherWindow) {
   std::unique_ptr<Browser> new_browser = CreateBrowser(
       browser()->profile(), browser()->type(), false, window_1.get());
 
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
-  AddTab(new_browser.get(), GURL("chrome://newtab"));
-  AddTab(new_browser.get(), GURL("chrome://newtab"));
-  AddTab(new_browser.get(), GURL("chrome://newtab"));
-  AddTab(new_browser.get(), GURL("chrome://newtab"));
+  AddTab(new_browser.get(), GURL("wootzapp://newtab"));
+  AddTab(new_browser.get(), GURL("wootzapp://newtab"));
+  AddTab(new_browser.get(), GURL("wootzapp://newtab"));
+  AddTab(new_browser.get(), GURL("wootzapp://newtab"));
 
   TabStripModel* model_1 = new_browser->tab_strip_model();
   TabStripModel* model_2 = browser()->tab_strip_model();
@@ -195,9 +195,9 @@ TEST_F(ExistingTabGroupSubMenuModelTest, ShouldShowExistingTabGroups) {
   std::unique_ptr<Browser> new_browser = CreateBrowser(
       browser()->profile(), browser()->type(), false, window_1.get());
 
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(new_browser.get(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(new_browser.get(), GURL("wootzapp://newtab"));
 
   TabStripModel* model_1 = browser()->tab_strip_model();
   TabStripModel* model_2 = new_browser->tab_strip_model();
@@ -236,11 +236,11 @@ TEST_F(ExistingTabGroupSubMenuModelTest, ShouldShowExistingTabGroups) {
 
 // Verify tab groups are display in the order they were created
 TEST_F(ExistingTabGroupSubMenuModelTest, ShowTabGroupsInTheOrderTheyWereAdded) {
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
-  AddTab(browser(), GURL("chrome://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
+  AddTab(browser(), GURL("wootzapp://newtab"));
 
   TabStripModel* model = browser()->tab_strip_model();
   std::vector<tab_groups::TabGroupId> group_ids;

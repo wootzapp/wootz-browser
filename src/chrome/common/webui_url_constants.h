@@ -141,6 +141,10 @@ extern const char kChromeUINetInternalsHost[];
 extern const char kChromeUINetInternalsURL[];
 extern const char kChromeUIThrottleHost[];
 extern const char kChromeUIThrottleURL[];
+extern const char kChromeUIReactHost[];
+extern const char kChromeUIReactURL[];
+extern const char kChromeUIRewardsHost[];
+extern const char kChromeUIRewardsURL[];
 extern const char kChromeUINewTabHost[];
 extern const char kChromeUINewTabPageHost[];
 extern const char kChromeUINewTabPageURL[];
@@ -152,6 +156,11 @@ extern const char kChromeUIOmniboxHost[];
 extern const char kChromeUIOmniboxURL[];
 extern const char kChromeUIOmniboxPopupHost[];
 extern const char kChromeUIOmniboxPopupURL[];
+
+extern const char kChromeUIHelloWorldURL[];
+extern const char kChromeUIHelloWorldHost[];
+
+
 #if !BUILDFLAG(IS_ANDROID)
 extern const char kChromeUIOnDeviceInternalsHost[];
 extern const char kChromeUISearchEngineChoiceURL[];

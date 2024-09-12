@@ -404,8 +404,8 @@ TEST_F(SearchTest, IsNTPOrRelatedURL) {
 TEST_F(SearchTest, IsNTPURL) {
   const SearchTestCase kTestCases[] = {
       {"chrome-search://remote-ntp", true, "Remote NTP URL"},
-      {"chrome://new-tab-page", true, "WebUI NTP"},
-      {"chrome://new-tab-page/path?params", true,
+      {"wootzapp://new-tab-page", true, "WebUI NTP"},
+      {"wootzapp://new-tab-page/path?params", true,
        "WebUI NTP with path and params"},
       {"invalid-scheme://remote-ntp", false, "Invalid Remote NTP URL"},
       {"chrome-search://most-visited/", false, "Most visited URL"},

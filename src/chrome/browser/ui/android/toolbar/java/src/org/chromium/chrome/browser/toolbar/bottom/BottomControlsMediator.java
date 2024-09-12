@@ -22,7 +22,7 @@ import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeSupplier.ChangeObse
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 /**
  * This class is responsible for reacting to events from the outside world, interacting with other
  * coordinators, running most of the business logic associated with the bottom controls component,
@@ -143,6 +143,12 @@ class BottomControlsMediator
     }
 
     void setBottomControlsVisible(boolean visible) {
+        if (visible == true
+                && mIsBottomControlsVisible == false
+                && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // always show the toolbar if the bottom controls are visible, so as not to leave the hole below.
+            // mBottomControlsStacker.getBrowserControls().getBrowserVisibilityDelegate().showControlsTransient();
+        }
         mIsBottomControlsVisible = visible;
         updateCompositedViewVisibility();
         updateAndroidViewVisibility();
@@ -175,6 +181,7 @@ class BottomControlsMediator
             int bottomOffset,
             int bottomControlsMinHeightOffset,
             boolean needsAnimate) {
+        mModel.set(BottomControlsProperties.TOPCONTROLSMINHEIGHT_OFFSET, topControlsMinHeightOffset);
         int minHeight = mBrowserControlsSizer.getBottomControlsMinHeight();
         mModel.set(BottomControlsProperties.Y_OFFSET, bottomOffset - minHeight);
 
@@ -288,10 +295,12 @@ class BottomControlsMediator
                         && !mIsInSwipeLayout
                         && mBrowserControlsSizer.getBottomControlOffset() == 0;
         if (visible) {
-            // Translate view so that its bottom is aligned with browser controls min height.
-            mModel.set(
-                    BottomControlsProperties.ANDROID_VIEW_TRANSLATE_Y,
-                    -mBrowserControlsSizer.getBottomControlsMinHeight());
+            if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                // Translate view so that its bottom is aligned with browser controls min height.
+                mModel.set(
+                        BottomControlsProperties.ANDROID_VIEW_TRANSLATE_Y,
+                        -mBrowserControlsSizer.getBottomControlsMinHeight());
+            }
         }
         mModel.set(BottomControlsProperties.ANDROID_VIEW_VISIBLE, visible);
     }

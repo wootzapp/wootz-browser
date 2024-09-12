@@ -86,9 +86,9 @@ using offline_items_collection::FailState;
 namespace {
 
 const char kDownloadNotificationNotifierId[] =
-    "chrome://downloads/notification/id-notifier";
+    "wootzapp://downloads/notification/id-notifier";
 
-const char kDownloadNotificationOrigin[] = "chrome://downloads";
+const char kDownloadNotificationOrigin[] = "wootzapp://downloads";
 
 // Background color of the preview images
 const SkColor kImageBackgroundColor = SK_ColorWHITE;

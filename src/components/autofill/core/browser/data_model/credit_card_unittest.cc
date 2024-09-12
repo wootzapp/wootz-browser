@@ -939,7 +939,7 @@ TEST(CreditCardTest, IsVerified) {
   card.set_origin("data:text/plain;charset=utf-8;base64,ZXhhbXBsZQ==");
   EXPECT_FALSE(card.IsVerified());
 
-  card.set_origin("chrome://settings/autofill");
+  card.set_origin("wootzapp://settings/autofill");
   EXPECT_FALSE(card.IsVerified());
 
   card.set_origin(kSettingsOrigin);

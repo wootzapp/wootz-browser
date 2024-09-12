@@ -40,6 +40,7 @@ import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /** ViewBinder for TabListRecyclerView. */
 class TabListContainerViewBinder {
@@ -103,14 +104,23 @@ class TabListContainerViewBinder {
         final int oldTopMargin = params.topMargin;
         final int oldBottomMargin = params.bottomMargin;
         if (model.get(IS_VISIBLE)) {
-            params.topMargin = model.get(TOP_MARGIN);
-            params.bottomMargin = model.get(BOTTOM_CONTROLS_HEIGHT);
+            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(!true){
+                params.topMargin = model.get(TOP_MARGIN);
+                params.bottomMargin = model.get(BOTTOM_CONTROLS_HEIGHT);
+            } else {
+                params.topMargin = 0;
+                params.bottomMargin = model.get(TOP_MARGIN) +
+                                      model.get(BOTTOM_CONTROLS_HEIGHT);
+            }
         } else {
             // Treat the bottom margin as 0 to avoid layout shift in tab shrink animations.
             // IS_VISIBLE will be set to true after the tab shrink animation see
             // {@link TabSwitcherMediator#showTabSwitcherView(boolean)}.
-            params.bottomMargin = 0;
-
+            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if(!true){
+                params.bottomMargin = 0;
+            }
             // Leave the top margin unchanged to avoid relayouts during scrolls and for top
             // toolbar indicators while the view is not visible. Once visible the offset will
             // adjust accordingly.

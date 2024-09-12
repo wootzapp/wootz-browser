@@ -620,7 +620,7 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
 }  // namespace
 
 base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
-  TRACE_EVENT1("navigation", "chrome::Navigate", "disposition",
+  TRACE_EVENT1("navigation", "wootzapp::Navigate", "disposition",
                params->disposition);
   Browser* source_browser = params->browser;
   if (source_browser) {

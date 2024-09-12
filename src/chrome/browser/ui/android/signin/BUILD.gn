@@ -121,7 +121,7 @@ android_resources("java_resources") {
     "java/res/drawable/account_row_background_rounded_all.xml",
     "java/res/drawable/account_row_background_rounded_down.xml",
     "java/res/drawable/account_row_background_rounded_up.xml",
-    "java/res/drawable/chrome_sync_logo.xml",
+    "java/res/drawable/wootzapp_sync_logo.xml",
     "java/res/drawable/history_sync_illustration.xml",
     "java/res/drawable/ic_expand_more_in_circle_24dp.xml",
     "java/res/layout/account_picker_bottom_sheet_continue_button.xml",

@@ -19,6 +19,8 @@ group("resources") {
   public_deps = [
     "data_sharing_internals:resources",
     "segmentation_internals:resources",
+    "hello_world:resources"
+
   ]
 
   if (!is_android) {
@@ -69,6 +71,7 @@ group("resources") {
       "web_app_internals:resources",
       "webui_gallery:resources",
       "whats_new:resources",
+
     ]
     if (is_chrome_branded) {
       public_deps += [
@@ -240,6 +243,7 @@ group("dev_ui_resources") {
     "memory_internals:resources",
     "net_internals:resources",
     "throttle:resources",
+    "rewards:resources",
     "omnibox:resources",
     "predictors:resources",
     "privacy_sandbox/internals:resources",
@@ -300,6 +304,7 @@ repack("dev_ui_paks") {
     "$root_gen_dir/chrome/memory_internals_resources.pak",
     "$root_gen_dir/chrome/net_internals_resources.pak",
     "$root_gen_dir/chrome/throttle_resources.pak",
+    "$root_gen_dir/chrome/rewards_resources.pak",
     "$root_gen_dir/chrome/omnibox_resources.pak",
     "$root_gen_dir/chrome/predictors_resources.pak",
     "$root_gen_dir/chrome/privacy_sandbox_internals_resources.pak",

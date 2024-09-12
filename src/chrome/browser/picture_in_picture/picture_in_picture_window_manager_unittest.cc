@@ -235,7 +235,7 @@ TEST_F(PictureInPictureWindowManagerTest, CorrectTypesAreSupported) {
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
   EXPECT_TRUE(
       PictureInPictureWindowManager::IsSupportedForDocumentPictureInPicture(
-          GURL("chrome://newtab")));
+          GURL("wootzapp://newtab")));
 }
 
 TEST_F(PictureInPictureWindowManagerTest, RecordsInitialSizeHistograms) {

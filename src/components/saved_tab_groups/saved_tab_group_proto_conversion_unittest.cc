@@ -94,7 +94,7 @@ TEST_F(SavedTabGroupConversionTest, GroupToSpecificRetainsData) {
 
 TEST_F(SavedTabGroupConversionTest, TabToSpecificRetainsData) {
   // Create a tab.
-  SavedTabGroupTab tab(GURL("chrome://hidden_link"), u"Hidden Title",
+  SavedTabGroupTab tab(GURL("wootzapp://hidden_link"), u"Hidden Title",
                        base::Uuid::GenerateRandomV4(), /*position=*/0,
                        base::Uuid::GenerateRandomV4(), std::nullopt, time_,
                        time_);
@@ -148,7 +148,7 @@ TEST_F(SavedTabGroupConversionTest, SpecificToTabRetainsData) {
   pb_specific->set_update_time_windows_epoch_micros(time_in_micros);
 
   sync_pb::SavedTabGroupTab* pb_tab = pb_specific->mutable_tab();
-  pb_tab->set_url("chrome://newtab/");
+  pb_tab->set_url("wootzapp://newtab/");
   pb_tab->set_group_guid(base::Uuid::GenerateRandomV4().AsLowercaseString());
   pb_tab->set_title("New Tab Title");
 

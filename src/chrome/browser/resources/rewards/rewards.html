@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="rewards.css">
+  <title>WootzApp Rewards</title>
+</head>
+<body>
+  <div id="loginPage" class="login-page">
+    <nav class="navbar">
+      <img src="art1.png" alt="Artifact Logo" class="logo">
+    </nav>
+    <div class="container">
+      <h2>Login</h2>
+      <form id="loginForm">
+        <label for="uname"><b>Email</b></label>
+        <input type="text" placeholder="Enter Email" name="uname" required>
+        <label for="psw"><b>Password</b></label>
+        <input type="password" placeholder="Enter Password" name="psw" required>
+        <button type="submit">Submit</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="rewardsPage" style="display: none;">
+    <nav class="navbar">
+      <img src="wootz.png" alt="WootzApp Logo" class="logo">
+    </nav>
+
+    <header class="header">
+      <h1>Manage WootzApp Rewards</h1>
+    </header>
+    <main class="ads-management">
+      <section>
+        <p>Control what kinds of WootzApp Rewards you see and how often. <a href="#">Learn more</a></p>
+      </section>
+      <section>
+        <h2>Partner Rewards</h2>
+        <div class="partner-card">
+          <h3>Artifact</h3>
+          <div class="rewards-details">
+            <p>Artifact Points: 1000</p>
+            <p>Artifact Wallet: 50</p>
+          </div>
+          <button>Watch An Ad</button>
+          <p>Refer A Friend Link: <a href="https://refer/11211">https://refer/11211</a></p>
+          <p><a href="#">See other Offers from Artifact</a></p>
+        </div>
+      </section>
+      <section>
+        <h2>Connect other partners</h2>
+        <button id="connectButton" class="dummy-button">Connect</button>
+      </section>
+      <section>
+        <h2>Total ads received this month</h2>
+        <div class="ads-stats">
+          <p>New tab page ads: 0</p>
+          <label class="switch">
+            <input type="checkbox">
+            <span class="slider round"></span>
+          </label>
+          <p>Notification ads: 0</p>
+          <label class="switch">
+            <input type="checkbox" checked>
+            <span class="slider round"></span>
+          </label>
+          <p>WootzApp Rewards: 0</p>
+          <label class="switch">
+            <input type="checkbox">
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </section>
+    </main>
+    <footer class="footer">
+      <button id="getUserProfileButton" class="footer-button">Get Profile</button>
+      <button id="logoutButton" class="footer-button logout">Logout</button>
+    </footer>
+  </div>
+
+  <div id="profilePage" style="display: none;">
+    <nav class="navbar">
+      <button id="backButton" class="back-button" style="background: none; border: none;">
+        <img src="back.svg" alt="Back" style="width: 50px; height: 50px;">
+      </button>
+      <span>Profile</span>
+    </nav>
+    <div class="profile-header">
+      <div class="profile-circle"></div>
+      <h2 id="profileName"></h2>
+      <p id="profileUsername"></p>
+    </div>
+    <div id="profileData" class="profile-data"></div>
+  </div>
+
+  <script src="./dist/client.js"></script>
+  <script src="./dist/chain.js"></script>
+  <script src="./dist/wallet.js"></script>
+  <script src="rewards.js"></script>
+</body>
+</html>

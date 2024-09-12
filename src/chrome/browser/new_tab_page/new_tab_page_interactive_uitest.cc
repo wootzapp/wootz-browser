@@ -229,7 +229,7 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, DISABLED_LandingPagePixelTest) {
   // if they haven't yet started loading.
   // TODO(crbug.com/40197892): This is brittle and will rot easily. Find a
   // better way to capture those resources.
-  WaitForNetworkLoad({GURL("chrome://new-tab-page/icons/icon_pencil.svg")});
+  WaitForNetworkLoad({GURL("wootzapp://new-tab-page/icons/icon_pencil.svg")});
   WaitForAnimationFrame();
 
   EXPECT_TRUE(VerifyUi("NewTabPageTest", "LandingPagePixelTest"));

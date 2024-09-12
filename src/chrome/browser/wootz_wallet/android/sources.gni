@@ -1,0 +1,22 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+wootz_browser_wootz_wallet_android_sources = [
+  "//chrome/browser/wootz_wallet/android/asset_ratio_service_factory_android.cc",
+  "//chrome/browser/wootz_wallet/android/blockchain_registry_factory_android.cc",
+  "//chrome/browser/wootz_wallet/android/wootz_wallet_service_factory_android.cc",
+  "//chrome/browser/wootz_wallet/android/swap_service_factory_android.cc",
+  "//chrome/browser/wootz_wallet/android/wallet_native_utils_android.cc",
+  "//chrome/browser/permissions/wootz_dapp_permission_prompt_dialog_controller_android.cc",
+  "//chrome/browser/permissions/wootz_dapp_permission_prompt_dialog_controller_android.h",
+  "//chrome/browser/permissions/wootz_wallet_permission_prompt_android.cc",
+  "//chrome/browser/permissions/wootz_wallet_permission_prompt_android.h",
+  "//chrome/browser/permissions/connect_account_android.cc",
+]
+
+wootz_browser_wootz_wallet_android_deps = [
+  "//chrome/components/wootz_wallet/browser",
+  "//chrome/components/wootz_wallet/browser:constants",
+]

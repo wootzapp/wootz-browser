@@ -4,19 +4,25 @@
 
 Check out the official website: https://www.wootzapp.com/
 
-### System requirements
+Please join our [discord](https://discord.gg/n9dqrRzJ8V)
+
+### System requirements for Build
 A 64-bit Intel machine running Linux with at least 8GB of RAM. More than 16GB is highly recommended.
 At least 100GB of free disk space.
 You must have Git and Python installed already.
-Most development is done on Ubuntu. Other distros may or may not work; see the Linux instructions for some suggestions.
+Most development is done on Ubuntu. Other distros may or may not work; see the [Linux instructions](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md) for some suggestions.
 
 Building the Android client on Windows or Mac is not supported and doesn't work.
+### Warning:
+Developers should **NOT** work in an existing Chromium directory to avoid potential conflicts.
+
 
 ### Installation Steps (building chromium):
 <hr/>
-First build the [chromium browser](https://chromium.googlesource.com/chromium/src/+/main/docs/android_build_instructions.md)
+
 #### Install depot_tools
 Clone the depot_tools repository:
+
 ```bash
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
@@ -30,7 +36,9 @@ Create a chromium directory for the checkout and change to it (you can call this
 ```bash
 mkdir ~/chromium && cd ~/chromium
 fetch --nohooks --no-history android
-```
+
+gclient sync --nohooks --revision src@refs/tags/127.0.6489.0 --reset --upstream -D --force --no-history
+
 
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
 ```
@@ -49,13 +57,17 @@ gclient runhooks
 ```
 
 #### Setting up the build
-```bash
-gn args out/Default
-```
+
 #### Build Options:
 
 ##### Option 1: Generate the default Chromium APK
-Edit the args.gn file to contain the following arguments:
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+
+and add following arguments:
+
 
 ```bash
 target_os = "android"
@@ -63,7 +75,13 @@ target_cpu = "arm64"
 ```
 
 ##### Option 2: Generate an optimized APK (approximately 131 MB)
-Edit the args.gn file to contain the following arguments:
+
+Run following command in ```chromium/src``` directory 
+```
+gn args out/Default
+```
+ and add following arguments:
+
 
 ```bash
 target_os = "android"
@@ -86,7 +104,7 @@ autoninja -C out/Default chrome_public_apk
 change path to root directory or parent directory of your chromium build.
 ```
 cd ..
-git clone --depth 1 https://github.com/Aankirz/wootz-browser.git
+git clone --depth 1 https://github.com/wootzapp/wootz-browser.git
 ```
 Final Step
 ```
@@ -101,3 +119,9 @@ Documentation in the source is rooted in [docs/README.md](docs/README.md).
 
 Learn how to [Get Around the Chromium Source Code Directory
 Structure](https://www.chromium.org/developers/how-tos/getting-around-the-chrome-source-code).
+
+
+## License
+
+Wootzapp  is licensed under the GNU Affero General Public License v3.0 and as commercial software. For commercial licensing, please contact us or raise an issue in this github. 
+

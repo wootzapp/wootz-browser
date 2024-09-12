@@ -425,14 +425,14 @@ class ManagementUiElement extends ManagementUiElementBase {
   private onSearchChanged_(e: CustomEvent<string>) {
     const query = e.detail;
     window.location.href =
-        `chrome://settings?search=${encodeURIComponent(query)}`;
+        `wootzapp://settings?search=${encodeURIComponent(query)}`;
   }
 
   private onTapBack_() {
     if (history.length > 1) {
       history.back();
     } else {
-      window.location.href = 'chrome://settings/help';
+      window.location.href = 'wootzapp://settings/help';
     }
   }
 

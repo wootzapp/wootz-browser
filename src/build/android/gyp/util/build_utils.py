@@ -499,4 +499,27 @@ def ReadSourcesList(sources_list_file_name):
   Note that this function should not be used to parse response files.
   """
   with open(sources_list_file_name) as f:
-    return [file_name.strip() for file_name in f]
+    files = [file_name.strip() for file_name in f]
+    # allows inclusion of all files in the indicated folder
+    # in the sources of java-related gn targets.
+    # "include_all_directory.java" is a special name and must exist in the
+    # folder since gn checks for its existence, but it will not be
+    # included in the list.
+    # example:
+    #
+    #   sources += [
+    #     "java/src/org/chromium/components/browser_ui/site_settings/impl/include_all_directory.java",
+    #   ]
+    #
+    # will include in source all files found in
+    #   "java/src/org/chromium/components/browser_ui/site_settings/impl"
+    include_dirs = [f for f in files if f.endswith('include_all_directory.java')]
+    for include_file in include_dirs:
+      directory = os.path.dirname(include_file)
+      for root, dirs, directory_files in os.walk(directory):
+        for directory_file in directory_files:
+          files.append(os.path.join(directory, directory_file))
+      files = [f for f in files if not f.endswith('include_all_directory.java')
+                               and not f.endswith('.java.tmpl')]
+
+    return files

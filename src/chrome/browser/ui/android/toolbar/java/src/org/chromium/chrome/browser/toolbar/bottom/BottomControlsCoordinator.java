@@ -30,7 +30,8 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.ViewResourceAdapter;
 import org.chromium.ui.widget.Toast;
-
+import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.tab.Tab;
 /**
  * The root coordinator for the bottom controls component. This component is intended for use with
  * bottom UI that re-sizes the web contents, scrolls off-screen, and hides when the keyboard is
@@ -73,6 +74,8 @@ public class BottomControlsCoordinator implements BackPressHandler {
      * @param constraintsSupplier Used to access current constraints of the browser controls.
      * @param readAloudRestoringSupplier Supplier that returns true if Read Aloud is currently
      *     restoring its player, e.g. after theme change.
+     *  @param topUiThemeColorProvider {@link ThemeColorProvider} for top UI.
+     * @param tabSupplier Activity tab supplier.
      */
     @SuppressLint("CutPasteId") // Not actually cut and paste since it's View vs ViewGroup.
     public BottomControlsCoordinator(
@@ -88,7 +91,9 @@ public class BottomControlsCoordinator implements BackPressHandler {
             TabObscuringHandler tabObscuringHandler,
             ObservableSupplier<Boolean> overlayPanelVisibilitySupplier,
             ObservableSupplier<Integer> constraintsSupplier,
-            Supplier<Boolean> readAloudRestoringSupplier) {
+            Supplier<Boolean> readAloudRestoringSupplier,
+            TopUiThemeColorProvider topUiThemeColorProvider,
+            ObservableSupplier<Tab> tabSupplier) {
         mRootFrameLayout = root;
         root.setConstraintsSupplier(constraintsSupplier);
         PropertyModel model = new PropertyModel(BottomControlsProperties.ALL_KEYS);
@@ -147,7 +152,8 @@ public class BottomControlsCoordinator implements BackPressHandler {
                             mMediator.setBottomControlsColor(color);
                         }
                     },
-                    root::onModelTokenChange);
+                    root::onModelTokenChange,
+                    topUiThemeColorProvider, tabSupplier);
         }
     }
 

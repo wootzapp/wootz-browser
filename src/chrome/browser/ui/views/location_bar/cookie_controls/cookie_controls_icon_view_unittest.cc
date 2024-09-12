@@ -87,7 +87,7 @@ class CookieControlsIconViewUnitTest
     view_ = browser_view()->GetLocationBarView()->AddChildView(
         std::move(icon_view));
 
-    AddTab(browser(), GURL("chrome://newtab"));
+    AddTab(browser(), GURL("wootzapp://newtab"));
   }
 
   void TearDown() override {

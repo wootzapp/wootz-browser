@@ -281,7 +281,7 @@ IN_PROC_BROWSER_TEST_P(
 
   TestNavigationThrottle(
       navigate_url, expected_url,
-      url::Origin::Create(GURL("chrome://settings/passwords/check")));
+      url::Origin::Create(GURL("wootzapp://settings/passwords/check")));
 
   ExpectUmaAndUkmMetric(
       WellKnownChangePasswordResult::kUsedWellKnownChangePassword);

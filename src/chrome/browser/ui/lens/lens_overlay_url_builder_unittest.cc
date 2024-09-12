@@ -455,7 +455,7 @@ TEST_F(LensOverlayUrlBuilderTest, IsValidSearchURLDifferentDomains) {
 TEST_F(LensOverlayUrlBuilderTest, IsValidSearchURLDifferentSchemes) {
   // GetContent() should return everything after the scheme.
   GURL different_scheme_url = GURL(base::StringPrintf(
-      "chrome://%s", GURL(kResultsSearchBaseUrl).GetContent().c_str()));
+      "wootzapp://%s", GURL(kResultsSearchBaseUrl).GetContent().c_str()));
   EXPECT_FALSE(lens::IsValidSearchResultsUrl(different_scheme_url));
 }
 

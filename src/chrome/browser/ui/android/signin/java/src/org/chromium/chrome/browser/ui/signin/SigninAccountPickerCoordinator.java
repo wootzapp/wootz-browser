@@ -247,7 +247,7 @@ public class SigninAccountPickerCoordinator implements AccountPickerDelegate {
         // TODO(crbug.com/41493758): Update the string & UI.
         Toast.makeText(
                         mWindowAndroid.getActivity().get(),
-                        R.string.sign_in_to_chrome_disabled_by_user_summary,
+                        R.string.sign_in_to_wootzapp_disabled_by_user_summary,
                         Toast.LENGTH_SHORT)
                 .show();
     }

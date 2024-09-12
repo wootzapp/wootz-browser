@@ -23,7 +23,7 @@
 namespace {
 
 // URL that the "leave site" button aborts to by default.
-const char kSafetyTipLeaveSiteUrl[] = "chrome://newtab";
+const char kSafetyTipLeaveSiteUrl[] = "wootzapp://newtab";
 
 }  // namespace
 

@@ -585,7 +585,7 @@ TEST_F(ExtensionScriptAndCaptureVisibleTest, Permissions) {
   EXPECT_FALSE(warnings.empty());
   EXPECT_EQ(ErrorUtils::FormatErrorMessage(
                 manifest_errors::kInvalidPermissionScheme,
-                manifest_keys::kPermissions, "chrome://*/"),
+                manifest_keys::kPermissions, "wootzapp://*/"),
             warnings[0].message);
   EXPECT_EQ(DISALLOWED, GetExtensionAccess(extension.get(), settings_url));
   EXPECT_EQ(DISALLOWED,
@@ -1366,7 +1366,7 @@ TEST_F(ExtensionScriptAndCaptureVisibleTest,
       "extension", kAllHostsPermission, ManifestLocation::kInternal);
   extension->permissions_data()->SetContextId(kContextId);
   const GURL policy_url("https://policy-protected.example");
-  const GURL internal_url("chrome://settings");
+  const GURL internal_url("wootzapp://settings");
 
   // To start, the extension should have access to the policy URL (since we
   // haven't applied policy settings), but not to the chrome:-scheme URL

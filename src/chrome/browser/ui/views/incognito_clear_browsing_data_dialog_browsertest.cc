@@ -142,7 +142,7 @@ IN_PROC_BROWSER_TEST_F(IncognitoClearBrowsingDataDialogTest,
                        ClearBrowsingDataNavigationInIncognito) {
   Browser* incognito_browser = CreateIncognitoBrowser();
   ui_test_utils::SendToOmniboxAndSubmit(incognito_browser,
-                                        "chrome://settings/clearBrowserData");
+                                        "wootzapp://settings/clearBrowserData");
   std::u16string current_tab_title;
   ui_test_utils::GetCurrentTabTitle(incognito_browser, &current_tab_title);
   EXPECT_EQ(u"about:blank", current_tab_title);

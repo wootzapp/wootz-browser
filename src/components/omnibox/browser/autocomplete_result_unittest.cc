@@ -1428,14 +1428,14 @@ TEST_F(AutocompleteResultTest, SortAndCullFailsWithIncorrectDefaultScheme) {
 
   const AutocompleteMatchTestData data[] = {
       {"https://chrome:123", AutocompleteMatchType::HISTORY_URL},
-      {"chrome://history", AutocompleteMatchType::HISTORY_URL}};
+      {"wootzapp://history", AutocompleteMatchType::HISTORY_URL}};
   ACMatches matches;
   PopulateAutocompleteMatchesFromTestData(data, std::size(data), &matches);
   matches[0].allowed_to_be_default_match = true;
   matches[1].allowed_to_be_default_match = true;
   TestSchemeClassifier test_scheme_classifier;
 
-  AutocompleteInput input(u"chrome:", metrics::OmniboxEventProto::HOME_PAGE,
+  AutocompleteInput input(u"wootzapp:", metrics::OmniboxEventProto::HOME_PAGE,
                           test_scheme_classifier);
   AutocompleteResult result;
   result.AppendMatches(matches);
@@ -1460,14 +1460,14 @@ TEST_F(AutocompleteResultTest, SortAndCullPermitSearchForSchemeMatching) {
   const AutocompleteMatchTestData data[] = {
       {"https://google.com/search?q=chrome:123",
        AutocompleteMatchType::SEARCH_SUGGEST},
-      {"chrome://history", AutocompleteMatchType::HISTORY_URL}};
+      {"wootzapp://history", AutocompleteMatchType::HISTORY_URL}};
   ACMatches matches;
   PopulateAutocompleteMatchesFromTestData(data, std::size(data), &matches);
   matches[0].allowed_to_be_default_match = true;
   matches[1].allowed_to_be_default_match = true;
   TestSchemeClassifier test_scheme_classifier;
 
-  AutocompleteInput input(u"chrome:", metrics::OmniboxEventProto::HOME_PAGE,
+  AutocompleteInput input(u"wootzapp:", metrics::OmniboxEventProto::HOME_PAGE,
                           test_scheme_classifier);
   AutocompleteResult result;
   result.AppendMatches(matches);

@@ -10,7 +10,9 @@ config("warnings") {
 }
 
 config("external_config") {
+
   include_dirs = [ "//third_party/argon2/src/include" ]
+
 }
 
 static_library("argon2") {
@@ -18,9 +20,11 @@ static_library("argon2") {
   public_configs = [ ":external_config" ]
 
   visibility = [
+
     "//chrome/browser/wootz_wallet:external_wallets_importer",
     "//components/wootz_wallet/browser",
     "//components/wootz_wallet/common",
+
   ]
 
   defines = [ "ARGON2_NO_THREADS" ]
@@ -39,3 +43,4 @@ static_library("argon2") {
     "src/src/ref.c",
   ]
 }
+

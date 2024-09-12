@@ -137,7 +137,7 @@ TEST_F(SBRendererUrlLoaderThrottleTest, DoesNotDeferHttpsScriptUrl) {
 
 TEST_F(SBRendererUrlLoaderThrottleTest, DoesNotDeferChromeUrl) {
   base::HistogramTester histograms;
-  GURL url("chrome://settings/");
+  GURL url("wootzapp://settings/");
   bool defer = false;
   network::ResourceRequest request =
       GetResourceRequest(url, network::mojom::RequestDestination::kScript);
@@ -202,7 +202,7 @@ TEST_F(SBRendererUrlLoaderThrottleTest,
 TEST_F(SBRendererUrlLoaderThrottleTest,
        VerifyTotalDelayHistograms_SkipChromeUrl) {
   base::HistogramTester histograms;
-  GURL url("chrome://settings/");
+  GURL url("wootzapp://settings/");
   bool defer = false;
   network::ResourceRequest request =
       GetResourceRequest(url, network::mojom::RequestDestination::kScript);

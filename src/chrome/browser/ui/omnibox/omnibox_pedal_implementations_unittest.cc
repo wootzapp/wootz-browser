@@ -17980,7 +17980,7 @@ TEST_F(OmniboxPedalImplementationsTest, PedalClearBrowsingDataExecutes) {
   const OmniboxPedal* pedal = provider()->FindPedalMatch(u"clear browser data");
   EXPECT_EQ(OmniboxPedalId::CLEAR_BROWSING_DATA, pedal->PedalId());
 
-  EXPECT_EQ(GURL("chrome://settings/clearBrowserData"),
+  EXPECT_EQ(GURL("wootzapp://settings/clearBrowserData"),
             ExecuteContextAndReturnResult(pedal));
 }
 
