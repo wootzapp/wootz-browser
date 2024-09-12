@@ -34,20 +34,20 @@ export PATH="$PATH:/path/to/depot_tools"
 #### Get the code
 Create a chromium directory for the checkout and change to it (you can call this whatever you like and put it wherever you like, as long as the full path has no spaces):
 ```bash
-mkdir ~/chromium && cd ~/chromium
+mkdir chromium && cd chromium
 fetch --nohooks --no-history android
 
 gclient sync --nohooks --revision src@refs/tags/127.0.6489.0 --reset --upstream -D --force --no-history
-
+```
 
 When fetch completes, it will have created a hidden .gclient file and a directory called src in the working directory. The remaining instructions assume you have switched to the src directory:
-```
+```bash
 cd src
 ```
 
 #### Install additional build dependencies
 Once you have checked out the code, run
-```
+```bash
 build/install-build-deps.sh --android
 ```
 Once you've run install-build-deps at least once, you can now run the Chromium-specific hooks, which will download additional binaries and other things you might need:
