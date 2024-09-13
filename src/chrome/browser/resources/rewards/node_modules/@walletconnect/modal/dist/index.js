@@ -1,0 +1,2 @@
+import{ModalCtrl as t,ThemeCtrl as o,ConfigCtrl as i,OptionsCtrl as n}from"@walletconnect/modal-core";class d{constructor(e){this.openModal=t.open,this.closeModal=t.close,this.subscribeModal=t.subscribe,this.setTheme=o.setThemeConfig,o.setThemeConfig(e),i.setConfig(e),this.initUi()}async initUi(){if(typeof window<"u"){await import("@walletconnect/modal-ui");const e=document.createElement("wcm-modal");document.body.insertAdjacentElement("beforeend",e),n.setIsUiLoaded(!0)}}}export{d as WalletConnectModal};
+//# sourceMappingURL=index.js.map

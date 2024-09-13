@@ -1,0 +1,12 @@
+import { wideModalScreenThreshold } from "../ui/ConnectWallet/constants.js";
+/**
+ * Return true if the current screen size can fit the wide connect modal
+ * @internal
+ */
+export function canFitWideModal() {
+    if (typeof window !== "undefined") {
+        return window.innerWidth >= wideModalScreenThreshold;
+    }
+    return false;
+}
+//# sourceMappingURL=canFitWideModal.js.map

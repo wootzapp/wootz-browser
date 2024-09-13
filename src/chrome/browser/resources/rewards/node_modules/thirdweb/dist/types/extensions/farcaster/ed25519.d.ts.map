@@ -1,0 +1,1 @@
+{"version":3,"file":"ed25519.d.ts","sourceRoot":"","sources":["../../../../src/extensions/farcaster/ed25519.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,GAAG,EAAE,MAAM,6BAA6B,CAAC;AAEvD;;GAEG;AACH,MAAM,MAAM,cAAc,GAAG;IAC3B,SAAS,EAAE,GAAG,CAAC;IACf,UAAU,EAAE,GAAG,CAAC;CACjB,CAAC;AAEF;;;;;;;;GAQG;AACH,wBAAsB,oBAAoB,IAAI,OAAO,CAAC,cAAc,CAAC,CAOpE"}

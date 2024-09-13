@@ -605,7 +605,7 @@
     "includes": [4800],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/rewards/rewards_resources.grd": {
-    "META": {"sizes": {"includes": [20]}},
+    "META": {"sizes": {"includes": [30]}},
     "includes": [4810],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/quota_internals/quota_internals_resources.grd": {
@@ -1330,6 +1330,10 @@
   "<(SHARED_INTERMEDIATE_DIR)/resources/inspector_overlay/inspector_overlay_resources.grd": {
     "META": {"sizes": {"includes": [50],}},
     "includes": [8460],
+  },
+  "chrome/browser/resources/rewards/dist/rewards_resources.grd": {
+    "META": {"sizes": {"includes": [1800]}},
+    "includes": [8540],
   },
   # END "everything else" section.
   # Everything but chrome/, components/, content/, and ios/

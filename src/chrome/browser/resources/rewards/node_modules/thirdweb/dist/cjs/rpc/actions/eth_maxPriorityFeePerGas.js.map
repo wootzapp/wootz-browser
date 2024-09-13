@@ -1,0 +1,1 @@
+{"version":3,"file":"eth_maxPriorityFeePerGas.js","sourceRoot":"","sources":["../../../../src/rpc/actions/eth_maxPriorityFeePerGas.ts"],"names":[],"mappings":";;AAeA,4DAOC;AArBD,wDAA0D;AAE1D;;;;;;;;;;;GAWG;AACI,KAAK,UAAU,wBAAwB,CAC5C,OAAyC;IAEzC,MAAM,MAAM,GAAG,MAAM,OAAO,CAAC;QAC3B,MAAM,EAAE,0BAA0B;KACnC,CAAC,CAAC;IACH,OAAO,IAAA,oBAAW,EAAC,MAAM,CAAC,CAAC;AAC7B,CAAC"}

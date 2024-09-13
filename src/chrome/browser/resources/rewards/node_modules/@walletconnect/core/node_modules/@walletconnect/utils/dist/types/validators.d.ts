@@ -1,0 +1,44 @@
+import { SessionTypes, ProposalTypes, RelayerTypes, EngineTypes } from "@walletconnect/types";
+import { ErrorResponse } from "@walletconnect/jsonrpc-types";
+export declare type ErrorObject = {
+    message: string;
+    code: number;
+} | null;
+export declare function isValidArray(arr: any, itemCondition?: (item: any) => boolean): boolean;
+export declare function isValidObject(obj: any): number | false;
+export declare function isUndefined(input: any): input is undefined;
+export declare function isValidString(input: any, optional: boolean): input is string;
+export declare function isValidNumber(input: any, optional: boolean): boolean;
+export declare function isSessionCompatible(session: SessionTypes.Struct, params: EngineTypes.FindParams): boolean;
+export declare function isValidChainId(value: any): boolean;
+export declare function isValidAccountId(value: any): boolean;
+export declare function isValidUrl(value: any): boolean;
+export declare function isProposalStruct(input: any): input is ProposalTypes.Struct;
+export declare function isSessionStruct(input: any): input is SessionTypes.Struct;
+export declare function isValidController(input: any, method: string): ErrorObject;
+export declare function isValidNamespaceMethodsOrEvents(input: any): input is string;
+export declare function isValidChains(key: string, chains: any, context: string): ErrorObject;
+export declare function isValidNamespaceChains(namespaces: any, method: string, type: string): null;
+export declare function isValidAccounts(accounts: any, context: string): ErrorObject;
+export declare function isValidNamespaceAccounts(input: any, method: string): null;
+export declare function isValidActions(namespace: any, context: string): ErrorObject;
+export declare function isValidNamespaceActions(input: any, method: string): null;
+export declare function isValidRequiredNamespaces(input: any, method: string, type: string): ErrorObject;
+export declare function isValidNamespaces(input: any, method: string): ErrorObject;
+export declare function isValidRelay(input: any): input is RelayerTypes.ProtocolOptions;
+export declare function isValidRelays(input: any, optional: boolean): input is RelayerTypes.ProtocolOptions[];
+export declare function isValidId(input: any): boolean;
+export declare function isValidParams(input: any): boolean;
+export declare function isValidErrorReason(input: any): input is ErrorResponse;
+export declare function isValidRequest(request: any): boolean;
+export declare function isValidResponse(response: any): boolean;
+export declare function isValidEvent(event: any): boolean;
+export declare function isValidNamespacesChainId(namespaces: SessionTypes.Namespaces, chainId: string): boolean;
+export declare function isValidNamespacesRequest(namespaces: SessionTypes.Namespaces, chainId: string, method: string): boolean;
+export declare function isValidNamespacesEvent(namespaces: SessionTypes.Namespaces, chainId: string, eventName: string): boolean;
+export declare function isConformingNamespaces(requiredNamespaces: ProposalTypes.RequiredNamespaces, namespaces: SessionTypes.Namespaces, context: string): ErrorObject;
+export declare function isValidRequestExpiry(expiry: number, boundaries: {
+    min: number;
+    max: number;
+}): boolean;
+//# sourceMappingURL=validators.d.ts.map

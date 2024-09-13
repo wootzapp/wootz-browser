@@ -1,0 +1,65 @@
+import { MeshStandardMaterial } from 'three';
+import { AlphaMode, GLTF, Material as GLTFMaterial, RGB } from '../../three-components/gltf-instance/gltf-2.0.js';
+import { Material as MaterialInterface } from './api.js';
+import { LazyLoader, VariantData } from './model.js';
+import { PBRMetallicRoughness } from './pbr-metallic-roughness.js';
+import { TextureInfo } from './texture-info.js';
+import { ThreeDOMElement } from './three-dom-element.js';
+declare const $pbrMetallicRoughness: unique symbol;
+declare const $normalTexture: unique symbol;
+declare const $occlusionTexture: unique symbol;
+declare const $emissiveTexture: unique symbol;
+declare const $backingThreeMaterial: unique symbol;
+declare const $applyAlphaCutoff: unique symbol;
+export declare const $lazyLoadGLTFInfo: unique symbol;
+declare const $initialize: unique symbol;
+export declare const $getLoadedMaterial: unique symbol;
+export declare const $ensureMaterialIsLoaded: unique symbol;
+export declare const $gltfIndex: unique symbol;
+export declare const $setActive: unique symbol;
+export declare const $variantIndices: unique symbol;
+declare const $isActive: unique symbol;
+export declare const $variantSet: unique symbol;
+declare const $modelVariants: unique symbol;
+/**
+ * Material facade implementation for Three.js materials
+ */
+export declare class Material extends ThreeDOMElement implements MaterialInterface {
+    private [$pbrMetallicRoughness];
+    private [$normalTexture];
+    private [$occlusionTexture];
+    private [$emissiveTexture];
+    private [$lazyLoadGLTFInfo]?;
+    private [$gltfIndex];
+    private [$isActive];
+    private [$variantSet];
+    readonly [$modelVariants]: Map<string, VariantData>;
+    get [$backingThreeMaterial](): MeshStandardMaterial;
+    constructor(onUpdate: () => void, gltf: GLTF, gltfMaterial: GLTFMaterial, gltfIndex: number, isActive: boolean, modelVariants: Map<string, VariantData>, correlatedMaterials: Set<MeshStandardMaterial>, lazyLoadInfo?: LazyLoader | undefined);
+    private [$initialize];
+    [$getLoadedMaterial](): Promise<MeshStandardMaterial>;
+    [$ensureMaterialIsLoaded](): void;
+    ensureLoaded(): Promise<void>;
+    get isLoaded(): boolean;
+    get isActive(): boolean;
+    [$setActive](isActive: boolean): void;
+    get name(): string;
+    set name(name: string);
+    get pbrMetallicRoughness(): PBRMetallicRoughness;
+    get normalTexture(): TextureInfo;
+    get occlusionTexture(): TextureInfo;
+    get emissiveTexture(): TextureInfo;
+    get emissiveFactor(): RGB;
+    get index(): number;
+    [$variantIndices](): Set<number>;
+    hasVariant(name: string): boolean;
+    setEmissiveFactor(rgb: RGB | string): void;
+    [$applyAlphaCutoff](): void;
+    setAlphaCutoff(cutoff: number): void;
+    getAlphaCutoff(): number;
+    setDoubleSided(doubleSided: boolean): void;
+    getDoubleSided(): boolean;
+    setAlphaMode(alphaMode: AlphaMode): void;
+    getAlphaMode(): AlphaMode;
+}
+export {};

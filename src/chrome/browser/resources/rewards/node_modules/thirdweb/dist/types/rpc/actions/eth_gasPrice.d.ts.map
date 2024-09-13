@@ -1,0 +1,1 @@
+{"version":3,"file":"eth_gasPrice.d.ts","sourceRoot":"","sources":["../../../../src/rpc/actions/eth_gasPrice.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,gBAAgB,EAAE,cAAc,EAAE,MAAM,MAAM,CAAC;AAG7D;;;;;;;;;;;GAWG;AACH,wBAAsB,YAAY,CAChC,OAAO,EAAE,gBAAgB,CAAC,cAAc,CAAC,GACxC,OAAO,CAAC,MAAM,CAAC,CAKjB"}

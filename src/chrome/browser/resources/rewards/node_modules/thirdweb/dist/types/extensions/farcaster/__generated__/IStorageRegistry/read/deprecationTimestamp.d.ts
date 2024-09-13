@@ -1,0 +1,44 @@
+import type { BaseTransactionOptions } from "../../../../../transaction/types.js";
+import type { Hex } from "../../../../../utils/encoding/hex.js";
+export declare const FN_SELECTOR: "0x2c39d670";
+/**
+ * Checks if the `deprecationTimestamp` method is supported by the given contract.
+ * @param availableSelectors An array of 4byte function selectors of the contract. You can get this in various ways, such as using "whatsabi" or if you have the ABI of the contract available you can use it to generate the selectors.
+ * @returns A boolean indicating if the `deprecationTimestamp` method is supported.
+ * @extension FARCASTER
+ * @example
+ * ```ts
+ * import { isDeprecationTimestampSupported } from "thirdweb/extensions/farcaster";
+ * const supported = isDeprecationTimestampSupported(["0x..."]);
+ * ```
+ */
+export declare function isDeprecationTimestampSupported(availableSelectors: string[]): boolean;
+/**
+ * Decodes the result of the deprecationTimestamp function call.
+ * @param result - The hexadecimal result to decode.
+ * @returns The decoded result as per the FN_OUTPUTS definition.
+ * @extension FARCASTER
+ * @example
+ * ```ts
+ * import { decodeDeprecationTimestampResult } from "thirdweb/extensions/farcaster";
+ * const result = decodeDeprecationTimestampResultResult("...");
+ * ```
+ */
+export declare function decodeDeprecationTimestampResult(result: Hex): bigint;
+/**
+ * Calls the "deprecationTimestamp" function on the contract.
+ * @param options - The options for the deprecationTimestamp function.
+ * @returns The parsed result of the function call.
+ * @extension FARCASTER
+ * @example
+ * ```ts
+ * import { deprecationTimestamp } from "thirdweb/extensions/farcaster";
+ *
+ * const result = await deprecationTimestamp({
+ *  contract,
+ * });
+ *
+ * ```
+ */
+export declare function deprecationTimestamp(options: BaseTransactionOptions): Promise<bigint>;
+//# sourceMappingURL=deprecationTimestamp.d.ts.map

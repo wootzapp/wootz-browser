@@ -1,0 +1,9 @@
+import './wcm-android-wallet-selection';
+import './wcm-connector-waiting';
+import './wcm-desktop-wallet-selection';
+import './wcm-legal-notice';
+import './wcm-mobile-wallet-selection';
+import './wcm-modal';
+import './wcm-platform-selection';
+import './wcm-view-all-wallets-button';
+import './wcm-walletconnect-qr';

@@ -1,0 +1,1 @@
+{"version":3,"file":"contractOptions.d.ts","sourceRoot":"","sources":["../../../../../src/extensions/farcaster/contracts/contractOptions.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,0BAA0B,CAAC;AACtD,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,2BAA2B,CAAC;AAEhE;;;GAGG;AACH,MAAM,MAAM,wBAAwB,GAAG;IACrC,MAAM,EAAE,cAAc,CAAC;IACvB,KAAK,CAAC,EAAE,KAAK,CAAC;CACf,CAAC"}

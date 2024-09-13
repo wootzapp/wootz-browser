@@ -1,0 +1,1 @@
+{"version":3,"file":"SetMaxKeysPerFid.js","sourceRoot":"","sources":["../../../../../../../src/extensions/farcaster/__generated__/IKeyRegistry/events/SetMaxKeysPerFid.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,uCAAuC,CAAC;AAErE;;;;;;;;;;;;;;;;GAgBG;AACH,MAAM,UAAU,qBAAqB;IACnC,OAAO,YAAY,CAAC;QAClB,SAAS,EAAE,wDAAwD;KACpE,CAAC,CAAC;AACL,CAAC"}

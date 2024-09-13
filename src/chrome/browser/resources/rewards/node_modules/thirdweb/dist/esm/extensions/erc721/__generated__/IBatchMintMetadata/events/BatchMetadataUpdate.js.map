@@ -1,0 +1,1 @@
+{"version":3,"file":"BatchMetadataUpdate.js","sourceRoot":"","sources":["../../../../../../../src/extensions/erc721/__generated__/IBatchMintMetadata/events/BatchMetadataUpdate.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,uCAAuC,CAAC;AAErE;;;;;;;;;;;;;;;;GAgBG;AACH,MAAM,UAAU,wBAAwB;IACtC,OAAO,YAAY,CAAC;QAClB,SAAS,EACP,qEAAqE;KACxE,CAAC,CAAC;AACL,CAAC"}

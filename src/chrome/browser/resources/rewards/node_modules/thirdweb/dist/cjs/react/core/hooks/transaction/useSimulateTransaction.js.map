@@ -1,0 +1,1 @@
+{"version":3,"file":"useSimulateTransaction.js","sourceRoot":"","sources":["../../../../../../src/react/core/hooks/transaction/useSimulateTransaction.ts"],"names":[],"mappings":";;AAoBA,wDAWC;AA/BD,uDAA4E;AAE5E,6EAGqD;AAErD;;;;;;;;;;;;GAYG;AACH,SAAgB,sBAAsB;IAQpC,OAAO,IAAA,yBAAW,EAAC;QACjB,UAAU,EAAE,CAAC,OAAO,EAAE,EAAE,CAAC,IAAA,iCAAmB,EAAC,OAAO,CAAC;KACtD,CAAC,CAAC;AACL,CAAC"}

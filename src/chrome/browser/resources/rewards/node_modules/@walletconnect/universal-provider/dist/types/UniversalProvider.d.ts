@@ -1,0 +1,56 @@
+/// <reference types="node" />
+import SignClient from "@walletconnect/sign-client";
+import { SessionTypes } from "@walletconnect/types";
+import { JsonRpcResult } from "@walletconnect/jsonrpc-types";
+import { Logger } from "@walletconnect/logger";
+import { IUniversalProvider, RpcProviderMap, ConnectParams, RequestArguments, UniversalProviderOpts, NamespaceConfig, PairingsCleanupOpts, ProviderAccounts, AuthenticateParams } from "./types";
+import EventEmitter from "events";
+export declare class UniversalProvider implements IUniversalProvider {
+    client: SignClient;
+    namespaces?: NamespaceConfig;
+    optionalNamespaces?: NamespaceConfig;
+    sessionProperties?: Record<string, string>;
+    events: EventEmitter;
+    rpcProviders: RpcProviderMap;
+    session?: SessionTypes.Struct;
+    providerOpts: UniversalProviderOpts;
+    logger: Logger;
+    uri: string | undefined;
+    private shouldAbortPairingAttempt;
+    private maxPairingAttempts;
+    private disableProviderPing;
+    static init(opts: UniversalProviderOpts): Promise<UniversalProvider>;
+    constructor(opts: UniversalProviderOpts);
+    request<T = unknown>(args: RequestArguments, chain?: string | undefined, expiry?: number | undefined): Promise<T>;
+    sendAsync(args: RequestArguments, callback: (error: Error | null, response: JsonRpcResult) => void, chain?: string | undefined, expiry?: number | undefined): void;
+    enable(): Promise<ProviderAccounts>;
+    disconnect(): Promise<void>;
+    connect(opts: ConnectParams): Promise<SessionTypes.Struct | undefined>;
+    authenticate(opts: AuthenticateParams): Promise<import("@walletconnect/types").AuthTypes.AuthenticateResponseResult>;
+    on(event: any, listener: any): void;
+    once(event: string, listener: any): void;
+    removeListener(event: string, listener: any): void;
+    off(event: string, listener: any): void;
+    get isWalletConnect(): boolean;
+    pair(pairingTopic: string | undefined): Promise<SessionTypes.Struct>;
+    setDefaultChain(chain: string, rpcUrl?: string | undefined): void;
+    cleanupPendingPairings(opts?: PairingsCleanupOpts): Promise<void>;
+    abortPairingAttempt(): void;
+    private checkStorage;
+    private initialize;
+    private createClient;
+    private createProviders;
+    private registerEventListeners;
+    private getProvider;
+    private onSessionUpdate;
+    private setNamespaces;
+    private validateChain;
+    private requestAccounts;
+    private onChainChanged;
+    private onConnect;
+    private cleanup;
+    private persist;
+    private getFromStore;
+}
+export default UniversalProvider;
+//# sourceMappingURL=UniversalProvider.d.ts.map
