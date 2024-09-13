@@ -1,0 +1,1 @@
+{"version":3,"file":"UpdatedMinStakeAmount.js","sourceRoot":"","sources":["../../../../../../../src/extensions/erc20/__generated__/IStaking20/events/UpdatedMinStakeAmount.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,uCAAuC,CAAC;AAErE;;;;;;;;;;;;;;;;GAgBG;AACH,MAAM,UAAU,0BAA0B;IACxC,OAAO,YAAY,CAAC;QAClB,SAAS,EACP,mEAAmE;KACtE,CAAC,CAAC;AACL,CAAC"}

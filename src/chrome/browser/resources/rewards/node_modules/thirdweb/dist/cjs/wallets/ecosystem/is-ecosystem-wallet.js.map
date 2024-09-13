@@ -1,0 +1,1 @@
+{"version":3,"file":"is-ecosystem-wallet.js","sourceRoot":"","sources":["../../../../src/wallets/ecosystem/is-ecosystem-wallet.ts"],"names":[],"mappings":";;AAgBA,8CAMC;AAbD;;;;;;GAMG;AACH,SAAgB,iBAAiB,CAC/B,MAAuB;IAEvB,OAAO,OAAO,MAAM,KAAK,QAAQ;QAC/B,CAAC,CAAC,MAAM,CAAC,UAAU,CAAC,YAAY,CAAC;QACjC,CAAC,CAAC,MAAM,CAAC,EAAE,CAAC,UAAU,CAAC,YAAY,CAAC,CAAC;AACzC,CAAC"}

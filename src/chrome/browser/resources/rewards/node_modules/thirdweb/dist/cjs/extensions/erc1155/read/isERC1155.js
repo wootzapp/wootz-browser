@@ -1,0 +1,22 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.isERC1155 = isERC1155;
+const supportsInterface_js_1 = require("../../erc165/__generated__/IERC165/read/supportsInterface.js");
+/**
+ * Check if a contract supports the ERC1155 interface.
+ * @param options - The transaction options.
+ * @returns A boolean indicating whether the contract supports the ERC1155 interface.
+ * @extension ERC1155
+ * @example
+ * ```ts
+ * import { isERC1155 } from "thirdweb/extensions/erc1155";
+ * const result = await isERC1155({ contract });
+ * ```
+ */
+function isERC1155(options) {
+    return (0, supportsInterface_js_1.supportsInterface)({
+        contract: options.contract,
+        interfaceId: "0xd9b67a26",
+    });
+}
+//# sourceMappingURL=isERC1155.js.map

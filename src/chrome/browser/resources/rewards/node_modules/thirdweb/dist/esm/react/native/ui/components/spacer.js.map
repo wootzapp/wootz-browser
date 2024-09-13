@@ -1,0 +1,1 @@
+{"version":3,"file":"spacer.js","sourceRoot":"","sources":["../../../../../../src/react/native/ui/components/spacer.tsx"],"names":[],"mappings":";AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,cAAc,CAAC;AACpC,OAAO,EAAE,OAAO,EAAE,MAAM,8BAA8B,CAAC;AAEvD,MAAM,UAAU,MAAM,CAAC,EAAE,IAAI,EAAkC;IAC7D,OAAO,KAAC,IAAI,IAAC,KAAK,EAAE,EAAE,MAAM,EAAE,OAAO,CAAC,IAAI,CAAC,EAAE,GAAI,CAAC;AACpD,CAAC"}

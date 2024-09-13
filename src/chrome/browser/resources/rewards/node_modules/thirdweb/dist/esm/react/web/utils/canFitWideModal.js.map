@@ -1,0 +1,1 @@
+{"version":3,"file":"canFitWideModal.js","sourceRoot":"","sources":["../../../../../src/react/web/utils/canFitWideModal.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,wBAAwB,EAAE,MAAM,kCAAkC,CAAC;AAE5E;;;GAGG;AACH,MAAM,UAAU,eAAe;IAC7B,IAAI,OAAO,MAAM,KAAK,WAAW,EAAE,CAAC;QAClC,OAAO,MAAM,CAAC,UAAU,IAAI,wBAAwB,CAAC;IACvD,CAAC;IACD,OAAO,KAAK,CAAC;AACf,CAAC"}

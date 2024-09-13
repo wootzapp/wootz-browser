@@ -1,0 +1,1 @@
+{"version":3,"file":"eth_estimateGas.d.ts","sourceRoot":"","sources":["../../../../src/rpc/actions/eth_estimateGas.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EACV,gBAAgB,EAChB,cAAc,EACd,qBAAqB,EACtB,MAAM,MAAM,CAAC;AAGd;;;;;;;;;;;;;;;GAeG;AACH,wBAAsB,eAAe,CACnC,OAAO,EAAE,gBAAgB,CAAC,cAAc,CAAC,EACzC,kBAAkB,EAAE,qBAAqB,GACxC,OAAO,CAAC,MAAM,CAAC,CAMjB"}

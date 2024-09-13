@@ -1,0 +1,114 @@
+import type { AbiParameterToPrimitiveType } from "abitype";
+import type { BaseTransactionOptions, WithOverrides } from "../../../../../transaction/types.js";
+/**
+ * Represents the parameters for the "publishContract" function.
+ */
+export type PublishContractParams = WithOverrides<{
+    publisher: AbiParameterToPrimitiveType<{
+        type: "address";
+        name: "publisher";
+    }>;
+    contractId: AbiParameterToPrimitiveType<{
+        type: "string";
+        name: "contractId";
+    }>;
+    publishMetadataUri: AbiParameterToPrimitiveType<{
+        type: "string";
+        name: "publishMetadataUri";
+    }>;
+    compilerMetadataUri: AbiParameterToPrimitiveType<{
+        type: "string";
+        name: "compilerMetadataUri";
+    }>;
+    bytecodeHash: AbiParameterToPrimitiveType<{
+        type: "bytes32";
+        name: "bytecodeHash";
+    }>;
+    implementation: AbiParameterToPrimitiveType<{
+        type: "address";
+        name: "implementation";
+    }>;
+}>;
+export declare const FN_SELECTOR: "0xd50299e6";
+/**
+ * Checks if the `publishContract` method is supported by the given contract.
+ * @param availableSelectors An array of 4byte function selectors of the contract. You can get this in various ways, such as using "whatsabi" or if you have the ABI of the contract available you can use it to generate the selectors.
+ * @returns A boolean indicating if the `publishContract` method is supported.
+ * @extension THIRDWEB
+ * @example
+ * ```ts
+ * import { isPublishContractSupported } from "thirdweb/extensions/thirdweb";
+ *
+ * const supported = isPublishContractSupported(["0x..."]);
+ * ```
+ */
+export declare function isPublishContractSupported(availableSelectors: string[]): boolean;
+/**
+ * Encodes the parameters for the "publishContract" function.
+ * @param options - The options for the publishContract function.
+ * @returns The encoded ABI parameters.
+ * @extension THIRDWEB
+ * @example
+ * ```ts
+ * import { encodePublishContractParams } from "thirdweb/extensions/thirdweb";
+ * const result = encodePublishContractParams({
+ *  publisher: ...,
+ *  contractId: ...,
+ *  publishMetadataUri: ...,
+ *  compilerMetadataUri: ...,
+ *  bytecodeHash: ...,
+ *  implementation: ...,
+ * });
+ * ```
+ */
+export declare function encodePublishContractParams(options: PublishContractParams): `0x${string}`;
+/**
+ * Encodes the "publishContract" function into a Hex string with its parameters.
+ * @param options - The options for the publishContract function.
+ * @returns The encoded hexadecimal string.
+ * @extension THIRDWEB
+ * @example
+ * ```ts
+ * import { encodePublishContract } from "thirdweb/extensions/thirdweb";
+ * const result = encodePublishContract({
+ *  publisher: ...,
+ *  contractId: ...,
+ *  publishMetadataUri: ...,
+ *  compilerMetadataUri: ...,
+ *  bytecodeHash: ...,
+ *  implementation: ...,
+ * });
+ * ```
+ */
+export declare function encodePublishContract(options: PublishContractParams): `${typeof FN_SELECTOR}${string}`;
+/**
+ * Prepares a transaction to call the "publishContract" function on the contract.
+ * @param options - The options for the "publishContract" function.
+ * @returns A prepared transaction object.
+ * @extension THIRDWEB
+ * @example
+ * ```ts
+ * import { sendTransaction } from "thirdweb";
+ * import { publishContract } from "thirdweb/extensions/thirdweb";
+ *
+ * const transaction = publishContract({
+ *  contract,
+ *  publisher: ...,
+ *  contractId: ...,
+ *  publishMetadataUri: ...,
+ *  compilerMetadataUri: ...,
+ *  bytecodeHash: ...,
+ *  implementation: ...,
+ *  overrides: {
+ *    ...
+ *  }
+ * });
+ *
+ * // Send the transaction
+ * await sendTransaction({ transaction, account });
+ * ```
+ */
+export declare function publishContract(options: BaseTransactionOptions<PublishContractParams | {
+    asyncParams: () => Promise<PublishContractParams>;
+}>): import("../../../../../transaction/prepare-transaction.js").PreparedTransaction<any, import("abitype").AbiFunction, import("../../../../../transaction/prepare-transaction.js").PrepareTransactionOptions>;
+//# sourceMappingURL=publishContract.d.ts.map

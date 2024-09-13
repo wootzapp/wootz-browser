@@ -1,0 +1,1 @@
+{"version":3,"file":"prefix.js","sourceRoot":"","sources":["../../../../src/utils/bytecode/prefix.ts"],"names":[],"mappings":";;AAiBA,oDAKC;AAtBD,+CAAqD;AAErD;;;;;;;;;;;;;;GAcG;AACH,SAAgB,oBAAoB,CAAC,QAAgB;IACnD,IAAI,IAAA,cAAK,EAAC,QAAQ,EAAE,EAAE,MAAM,EAAE,KAAK,EAAE,CAAC,EAAE,CAAC;QACvC,OAAO,QAAQ,CAAC;IAClB,CAAC;IACD,OAAO,KAAK,QAAQ,EAAE,CAAC;AACzB,CAAC"}
