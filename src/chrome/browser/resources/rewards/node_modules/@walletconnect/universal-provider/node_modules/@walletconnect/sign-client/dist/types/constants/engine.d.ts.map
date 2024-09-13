@@ -1,0 +1,1 @@
+{"version":3,"file":"engine.d.ts","sourceRoot":"","sources":["../../../src/constants/engine.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,WAAW,EAAE,MAAM,sBAAsB,CAAC;AAEnD,eAAO,MAAM,cAAc,WAAW,CAAC;AAEvC,eAAO,MAAM,eAAe,EAAE,WAAW,CAAC,UAkIzC,CAAC;AAEF,eAAO,MAAM,iCAAiC;;;CAG7C,CAAC;AAEF,eAAO,MAAM,mBAAmB,EAAE;IAAE,IAAI,EAAE,MAAM,CAAC;IAAC,MAAM,EAAE,QAAQ,CAAA;CAGjE,CAAC"}

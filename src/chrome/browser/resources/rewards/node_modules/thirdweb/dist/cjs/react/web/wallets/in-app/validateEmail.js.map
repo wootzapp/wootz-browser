@@ -1,0 +1,1 @@
+{"version":3,"file":"validateEmail.js","sourceRoot":"","sources":["../../../../../../src/react/web/wallets/in-app/validateEmail.ts"],"names":[],"mappings":";;AACA,sCAKC;AAND,kGAAkG;AAClG,SAAgB,aAAa,CAAC,GAAW;IACvC,yCAAyC;IACzC,MAAM,UAAU,GAAG,gBAAgB,CAAC;IAEpC,OAAO,UAAU,CAAC,IAAI,CAAC,GAAG,CAAC,OAAO,CAAC,KAAK,EAAE,EAAE,CAAC,CAAC,CAAC;AACjD,CAAC"}

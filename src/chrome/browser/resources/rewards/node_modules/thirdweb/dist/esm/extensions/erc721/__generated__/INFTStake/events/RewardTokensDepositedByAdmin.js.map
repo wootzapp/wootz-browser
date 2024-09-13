@@ -1,0 +1,1 @@
+{"version":3,"file":"RewardTokensDepositedByAdmin.js","sourceRoot":"","sources":["../../../../../../../src/extensions/erc721/__generated__/INFTStake/events/RewardTokensDepositedByAdmin.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,uCAAuC,CAAC;AAErE;;;;;;;;;;;;;;;;GAgBG;AACH,MAAM,UAAU,iCAAiC;IAC/C,OAAO,YAAY,CAAC;QAClB,SAAS,EAAE,qDAAqD;KACjE,CAAC,CAAC;AACL,CAAC"}

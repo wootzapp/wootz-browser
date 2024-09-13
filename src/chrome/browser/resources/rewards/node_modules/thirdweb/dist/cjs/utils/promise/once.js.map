@@ -1,0 +1,1 @@
+{"version":3,"file":"once.js","sourceRoot":"","sources":["../../../../src/utils/promise/once.ts"],"names":[],"mappings":";;AAEA,oBAQC;AARD,SAAgB,IAAI,CAAU,EAAa;IACzC,IAAI,MAAkB,CAAC;IACvB,OAAO,GAAG,EAAE;QACV,IAAI,CAAC,MAAM,EAAE,CAAC;YACZ,MAAM,GAAG,EAAE,EAAE,CAAC;QAChB,CAAC;QACD,OAAO,MAAM,CAAC;IAChB,CAAC,CAAC;AACJ,CAAC"}
