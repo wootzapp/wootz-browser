@@ -1,0 +1,26 @@
+export declare const ONE_SECOND = 1;
+export declare const FIVE_SECONDS = 5;
+export declare const TEN_SECONDS = 10;
+export declare const THIRTY_SECONDS = 30;
+export declare const SIXTY_SECONDS = 60;
+export declare const ONE_MINUTE = 60;
+export declare const FIVE_MINUTES: number;
+export declare const TEN_MINUTES: number;
+export declare const THIRTY_MINUTES: number;
+export declare const SIXTY_MINUTES: number;
+export declare const ONE_HOUR: number;
+export declare const THREE_HOURS: number;
+export declare const SIX_HOURS: number;
+export declare const TWELVE_HOURS: number;
+export declare const TWENTY_FOUR_HOURS: number;
+export declare const ONE_DAY: number;
+export declare const THREE_DAYS: number;
+export declare const FIVE_DAYS: number;
+export declare const SEVEN_DAYS: number;
+export declare const THIRTY_DAYS: number;
+export declare const ONE_WEEK: number;
+export declare const TWO_WEEKS: number;
+export declare const THREE_WEEKS: number;
+export declare const FOUR_WEEKS: number;
+export declare const ONE_YEAR: number;
+//# sourceMappingURL=time.d.ts.map

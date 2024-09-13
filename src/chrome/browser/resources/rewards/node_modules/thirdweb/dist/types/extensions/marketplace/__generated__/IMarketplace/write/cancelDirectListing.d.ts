@@ -1,0 +1,79 @@
+import type { AbiParameterToPrimitiveType } from "abitype";
+import type { BaseTransactionOptions, WithOverrides } from "../../../../../transaction/types.js";
+/**
+ * Represents the parameters for the "cancelDirectListing" function.
+ */
+export type CancelDirectListingParams = WithOverrides<{
+    listingId: AbiParameterToPrimitiveType<{
+        type: "uint256";
+        name: "_listingId";
+    }>;
+}>;
+export declare const FN_SELECTOR: "0x7506c84a";
+/**
+ * Checks if the `cancelDirectListing` method is supported by the given contract.
+ * @param availableSelectors An array of 4byte function selectors of the contract. You can get this in various ways, such as using "whatsabi" or if you have the ABI of the contract available you can use it to generate the selectors.
+ * @returns A boolean indicating if the `cancelDirectListing` method is supported.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { isCancelDirectListingSupported } from "thirdweb/extensions/marketplace";
+ *
+ * const supported = isCancelDirectListingSupported(["0x..."]);
+ * ```
+ */
+export declare function isCancelDirectListingSupported(availableSelectors: string[]): boolean;
+/**
+ * Encodes the parameters for the "cancelDirectListing" function.
+ * @param options - The options for the cancelDirectListing function.
+ * @returns The encoded ABI parameters.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { encodeCancelDirectListingParams } from "thirdweb/extensions/marketplace";
+ * const result = encodeCancelDirectListingParams({
+ *  listingId: ...,
+ * });
+ * ```
+ */
+export declare function encodeCancelDirectListingParams(options: CancelDirectListingParams): `0x${string}`;
+/**
+ * Encodes the "cancelDirectListing" function into a Hex string with its parameters.
+ * @param options - The options for the cancelDirectListing function.
+ * @returns The encoded hexadecimal string.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { encodeCancelDirectListing } from "thirdweb/extensions/marketplace";
+ * const result = encodeCancelDirectListing({
+ *  listingId: ...,
+ * });
+ * ```
+ */
+export declare function encodeCancelDirectListing(options: CancelDirectListingParams): `${typeof FN_SELECTOR}${string}`;
+/**
+ * Prepares a transaction to call the "cancelDirectListing" function on the contract.
+ * @param options - The options for the "cancelDirectListing" function.
+ * @returns A prepared transaction object.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { sendTransaction } from "thirdweb";
+ * import { cancelDirectListing } from "thirdweb/extensions/marketplace";
+ *
+ * const transaction = cancelDirectListing({
+ *  contract,
+ *  listingId: ...,
+ *  overrides: {
+ *    ...
+ *  }
+ * });
+ *
+ * // Send the transaction
+ * await sendTransaction({ transaction, account });
+ * ```
+ */
+export declare function cancelDirectListing(options: BaseTransactionOptions<CancelDirectListingParams | {
+    asyncParams: () => Promise<CancelDirectListingParams>;
+}>): import("../../../../../transaction/prepare-transaction.js").PreparedTransaction<any, import("abitype").AbiFunction, import("../../../../../transaction/prepare-transaction.js").PrepareTransactionOptions>;
+//# sourceMappingURL=cancelDirectListing.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"isERC721.js","sourceRoot":"","sources":["../../../../../src/extensions/erc721/read/isERC721.ts"],"names":[],"mappings":";;AAcA,4BAKC;AAlBD,uGAAiG;AAEjG;;;;;;;;;;GAUG;AACH,SAAgB,QAAQ,CAAC,OAA+B;IACtD,OAAO,IAAA,wCAAiB,EAAC;QACvB,QAAQ,EAAE,OAAO,CAAC,QAAQ;QAC1B,WAAW,EAAE,YAAY;KAC1B,CAAC,CAAC;AACL,CAAC"}

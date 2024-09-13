@@ -1,0 +1,1 @@
+{"version":3,"file":"types.d.ts","sourceRoot":"","sources":["../../../../../../../src/react/web/wallets/smartWallet/locale/types.ts"],"names":[],"mappings":"AAAA,MAAM,MAAM,iBAAiB,GAAG;IAC9B,UAAU,EAAE,MAAM,CAAC;IACnB,eAAe,EAAE,MAAM,CAAC;IACxB,kBAAkB,EAAE;QAClB,cAAc,EAAE,MAAM,CAAC;QACvB,QAAQ,EAAE,MAAM,CAAC;QACjB,KAAK,EAAE,MAAM,CAAC;KACf,CAAC;CACH,CAAC"}

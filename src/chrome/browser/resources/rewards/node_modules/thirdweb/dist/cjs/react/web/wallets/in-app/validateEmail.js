@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.validateEmail = validateEmail;
+// A super basic email validation function that is very forgiving to allow for a wide range emails
+function validateEmail(str) {
+    // <string> + @ + <string> + . + <string>
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    return emailRegex.test(str.replace(/\+/g, ""));
+}
+//# sourceMappingURL=validateEmail.js.map

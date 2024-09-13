@@ -1,0 +1,93 @@
+import type { AbiParameterToPrimitiveType } from "abitype";
+import type { BaseTransactionOptions, WithOverrides } from "../../../../../transaction/types.js";
+/**
+ * Represents the parameters for the "approveBuyerForListing" function.
+ */
+export type ApproveBuyerForListingParams = WithOverrides<{
+    listingId: AbiParameterToPrimitiveType<{
+        type: "uint256";
+        name: "_listingId";
+    }>;
+    buyer: AbiParameterToPrimitiveType<{
+        type: "address";
+        name: "_buyer";
+    }>;
+    toApprove: AbiParameterToPrimitiveType<{
+        type: "bool";
+        name: "_toApprove";
+    }>;
+}>;
+export declare const FN_SELECTOR: "0x48dd77df";
+/**
+ * Checks if the `approveBuyerForListing` method is supported by the given contract.
+ * @param availableSelectors An array of 4byte function selectors of the contract. You can get this in various ways, such as using "whatsabi" or if you have the ABI of the contract available you can use it to generate the selectors.
+ * @returns A boolean indicating if the `approveBuyerForListing` method is supported.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { isApproveBuyerForListingSupported } from "thirdweb/extensions/marketplace";
+ *
+ * const supported = isApproveBuyerForListingSupported(["0x..."]);
+ * ```
+ */
+export declare function isApproveBuyerForListingSupported(availableSelectors: string[]): boolean;
+/**
+ * Encodes the parameters for the "approveBuyerForListing" function.
+ * @param options - The options for the approveBuyerForListing function.
+ * @returns The encoded ABI parameters.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { encodeApproveBuyerForListingParams } from "thirdweb/extensions/marketplace";
+ * const result = encodeApproveBuyerForListingParams({
+ *  listingId: ...,
+ *  buyer: ...,
+ *  toApprove: ...,
+ * });
+ * ```
+ */
+export declare function encodeApproveBuyerForListingParams(options: ApproveBuyerForListingParams): `0x${string}`;
+/**
+ * Encodes the "approveBuyerForListing" function into a Hex string with its parameters.
+ * @param options - The options for the approveBuyerForListing function.
+ * @returns The encoded hexadecimal string.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { encodeApproveBuyerForListing } from "thirdweb/extensions/marketplace";
+ * const result = encodeApproveBuyerForListing({
+ *  listingId: ...,
+ *  buyer: ...,
+ *  toApprove: ...,
+ * });
+ * ```
+ */
+export declare function encodeApproveBuyerForListing(options: ApproveBuyerForListingParams): `${typeof FN_SELECTOR}${string}`;
+/**
+ * Prepares a transaction to call the "approveBuyerForListing" function on the contract.
+ * @param options - The options for the "approveBuyerForListing" function.
+ * @returns A prepared transaction object.
+ * @extension MARKETPLACE
+ * @example
+ * ```ts
+ * import { sendTransaction } from "thirdweb";
+ * import { approveBuyerForListing } from "thirdweb/extensions/marketplace";
+ *
+ * const transaction = approveBuyerForListing({
+ *  contract,
+ *  listingId: ...,
+ *  buyer: ...,
+ *  toApprove: ...,
+ *  overrides: {
+ *    ...
+ *  }
+ * });
+ *
+ * // Send the transaction
+ * await sendTransaction({ transaction, account });
+ * ```
+ */
+export declare function approveBuyerForListing(options: BaseTransactionOptions<ApproveBuyerForListingParams | {
+    asyncParams: () => Promise<ApproveBuyerForListingParams>;
+}>): import("../../../../../transaction/prepare-transaction.js").PreparedTransaction<any, import("abitype").AbiFunction, import("../../../../../transaction/prepare-transaction.js").PrepareTransactionOptions>;
+//# sourceMappingURL=approveBuyerForListing.d.ts.map
