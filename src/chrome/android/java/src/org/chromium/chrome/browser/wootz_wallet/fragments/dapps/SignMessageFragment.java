@@ -71,6 +71,7 @@ public class SignMessageFragment extends BaseDAppsBottomSheetDialogFragment {
         try {
             ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
+            Log.e("WOOTZAPP ANKITIVAN", "getWalletModel: " + mWalletModel);
             registerKeyringObserver(mWalletModel.getKeyringModel());
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
@@ -165,6 +166,7 @@ public class SignMessageFragment extends BaseDAppsBottomSheetDialogFragment {
     private void updateNetwork(String chainId) {
         if (JavaUtils.anyNull(mWalletModel, chainId)) return;
         var selectedNetwork = mWalletModel.getNetworkModel().getNetwork(chainId);
+        Log.e("WOOTZAPP ANKITIVAN", "updateNetwork: " + selectedNetwork);
         mNetworkName.setText(selectedNetwork.chainName);
     }
 }

@@ -52,7 +52,7 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         if (mKeyringService == null) {
             return;
         }
-        // Log.e(DEBUG, "InitWootzWalletService IVANANKIT");
+        // Log.e(DEBUG, "InitWootzWalletService ANKITIVANANKIT");
 
 
         mKeyringService.notifyUserInteraction();
@@ -172,7 +172,7 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         if (mWootzWalletService != null) {
             return;
         }
-        Log.e("WOOTZAPP", "InitWootzWalletService IVANANKIT");
+        Log.e("WOOTZAPP", "InitWootzWalletService ANKITIVANANKIT");
         mWootzWalletService = WootzWalletServiceFactory.getInstance().getWootzWalletService(this);
     }
 

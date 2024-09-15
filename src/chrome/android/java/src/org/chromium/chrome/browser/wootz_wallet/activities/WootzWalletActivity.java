@@ -99,13 +99,13 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mBackupWallet = intent.getBooleanExtra(SHOW_WALLET_ACTIVITY_BACKUP, false);
         }
         
-        Log.e("WOTZAPP IVAN", "getChromeActivity IVAN");
+        Log.e("WOTZAPP ANKITIVAN", "getChromeActivity ANKITIVAN");
    
         // try {
         mWalletModel = ChromeActivity.mActivity.get().getWalletModel();
 
 
-        Log.e("WOOTZAPP IVAN", "getChromeActivity1 IVAN1 "+ mWalletModel);
+        Log.e("WOOTZAPP ANKITIVAN", "getChromeActivity1 ANKITIVAN1 "+ mWalletModel);
               
             // // Update network model to use default network.
             // getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
@@ -282,10 +282,13 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     }
 
     public NetworkModel getNetworkModel() {
+        Log.e("WOOTZAPP ANKIANKITIVAN", "NetworkModel: " + mWalletModel.getNetworkModel());
+
         return mWalletModel.getNetworkModel();
     }
 
     public KeyringModel getKeyringModel() {
+        Log.e("WOOTZAPP ANKIANKITIVAN", "getKeyringModel: " + mWalletModel.getKeyringModel());
         return mWalletModel.getKeyringModel();
     }
 }

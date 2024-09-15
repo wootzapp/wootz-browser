@@ -131,7 +131,7 @@ public class OnboardingInitWalletFragment extends BaseOnboardingWalletFragment {
         try {
             ChromeActivity.getChromeActivity();
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
-            Log.e(TAG, "checkOnChromeActivity " + e);
+            Log.e(TAG, "checkOnChromeActivity ANKITANKITIVAN" + e);
             Intent intent = new Intent(getActivity(), ChromeTabbedActivity.class);
             intent.putExtra(WootzWalletActivity.RESTART_WALLET_ACTIVITY, true);
             intent.putExtra(WootzWalletActivity.RESTART_WALLET_ACTIVITY_SETUP, setupAction);

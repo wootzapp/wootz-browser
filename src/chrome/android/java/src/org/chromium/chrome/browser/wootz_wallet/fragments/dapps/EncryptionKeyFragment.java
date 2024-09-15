@@ -35,6 +35,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
 public class EncryptionKeyFragment extends Fragment implements View.OnClickListener {
     private static final String TAG = "ConnectAccount";
 
@@ -79,6 +80,7 @@ public class EncryptionKeyFragment extends Fragment implements View.OnClickListe
         try {
             ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
+            Log.e("WOOTZAPP ANKITIVAN", "getWalletModel: " + mWalletModel);
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate " + e);
         }
@@ -128,7 +130,7 @@ public class EncryptionKeyFragment extends Fragment implements View.OnClickListe
         if (mWalletModel == null) {
             return;
         }
-
+        Log.e("WOOTZAPP ANKIT", "initState: mWalletModel " + mWalletModel);
         mWalletModel.getCryptoModel().getNetworkModel().mPairChainAndNetwork.observe(
                 getViewLifecycleOwner(), chainIdAndInfosPair -> {
                     String chainId = chainIdAndInfosPair.first;

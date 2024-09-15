@@ -4,6 +4,8 @@
 
 chrome_java_sources = [
   "java/src/com/google/android/apps/chrome/appwidget/bookmarks/BookmarkThumbnailWidgetProvider.java",
+  "java/src/org/chromium/base/WootzPreferenceKeys.java",
+  "java/src/org/chromium/base/WootzFeatureList.java",
   "java/src/org/chromium/chrome/browser/ActivityTabProvider.java",
   "java/src/org/chromium/chrome/browser/ActivityUtils.java",
   "java/src/org/chromium/chrome/browser/AppHooks.java",

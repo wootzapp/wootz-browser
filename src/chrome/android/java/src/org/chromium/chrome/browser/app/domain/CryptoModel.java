@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.app.domain;
 
 import android.content.Context;
 
+import org.chromium.base.Log;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -191,6 +192,7 @@ public class CryptoModel {
     }
 
     public NetworkModel getNetworkModel() {
+        Log.e("WOOTZAPP ANKITIVAN getNetworkModel", "NetworkModel: " + mNetworkModel);
         return mNetworkModel;
     }
 
