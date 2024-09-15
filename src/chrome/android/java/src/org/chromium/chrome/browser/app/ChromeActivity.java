@@ -2317,16 +2317,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         PowerMonitor.create();
 
         super.finishNativeInitialization();
-        Log.e("WOOTZAPP ANKITIVAN", "Cal...");
+        
+        Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
+       
             // Offload wallet initialization to Chromium's task scheduler
-    new Thread(() -> {
-        try {
             initWalletNativeServices();
-            Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
-        } catch (Exception e) {
-            Log.e("WOOTZAPP ANKITIVAN", "Error initializing wallet services", e);
-        }
-    }).start();
+       
         Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
 
         getProfileProviderSupplier().runSyncOrOnAvailable(this::initializeManualFillingComponent);
