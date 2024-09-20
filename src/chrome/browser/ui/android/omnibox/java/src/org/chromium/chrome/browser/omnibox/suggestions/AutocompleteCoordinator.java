@@ -229,6 +229,15 @@ public class AutocompleteCoordinator
                 OmniboxSuggestionsDropdown dropdown =
                         container.findViewById(R.id.omnibox_suggestions_dropdown);
 
+                // By DevJangid
+                // Add margin to the dropdown using ViewUtils
+                int leftMargin = ViewUtils.dpToPx(context, 16);
+                int rightMargin = ViewUtils.dpToPx(context, 16);
+                int bottomMargin = ViewUtils.dpToPx(context, 60); 
+                
+                ViewGroup.MarginLayoutParams layoutParams = (ViewGroup.MarginLayoutParams) dropdown.getLayoutParams();
+                layoutParams.setMargins(leftMargin, 0, rightMargin, bottomMargin); // Set desired margins (left, top, right, bottom)
+                dropdown.setLayoutParams(layoutParams);
                                 
                 dropdown.forcePhoneStyleOmnibox(forcePhoneStyleOmnibox);
                 dropdown.setAdapter(mAdapter);

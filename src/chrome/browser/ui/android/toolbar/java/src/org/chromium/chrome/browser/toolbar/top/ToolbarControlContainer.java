@@ -135,6 +135,15 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             toolbarStub.setLayoutResource(toolbarLayoutId);
             toolbarStub.inflate();
 
+            // By DevJangid
+            MarginLayoutParams params = (MarginLayoutParams) mToolbarContainer.getLayoutParams();
+            // changed the top margin to 0 so that app menu and toolbar will not have any gap b/w them
+            int leftMargin = ViewUtils.dpToPx(getContext(), 16);
+            int rightMargin = ViewUtils.dpToPx(getContext(), 16);
+            int bottomMargin = ViewUtils.dpToPx(getContext(), 16);
+            params.setMargins(leftMargin, 0, rightMargin, bottomMargin); // left, top, right, bottom
+            mToolbarContainer.setLayoutParams(params);
+
 
             // By Devendra(dkt)
             // Add border radius
