@@ -42,7 +42,6 @@ import org.chromium.chrome.browser.toolbar.ToolbarFeatures;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.TokenHolder;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -432,11 +431,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     }
     @Override
     public int getTopControlsHeightRealOffset() {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-        // if(true)
-            return 0;
-        else
-            return mTopControlContainerHeight;
+        return 0;
     }
     @Override
     public int getTopControlsMinHeight() {
@@ -504,10 +499,9 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
     @Override
     public float getTopVisibleContentOffset() {
-       if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-        // if(true)
-            return 0;
-        return getTopControlsHeight() + getTopControlOffset();
+
+        return 0;
+        
     }
 
     @Override

@@ -16,7 +16,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 import org.chromium.base.BuildInfo;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
@@ -129,7 +129,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onDetachedFromWindow() {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             recalculateOmniboxAlignment();
         }
         mAnchorView.removeOnLayoutChangeListener(this);
@@ -231,7 +231,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         ViewUtils.getRelativeLayoutPosition(baseRelativeLayout, mAnchorView, mPositionArray);
 
         int top = mPositionArray[1] + mAnchorView.getMeasuredHeight() - contentViewTopPadding;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        if (true)
             top -= mPositionArray[1];
         int left;
         int width;
@@ -301,7 +301,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
                         ? Integer.MAX_VALUE
                         : contentView.getMeasuredHeight() - keyboardHeight;
         int height = Math.min(windowSpace, contentSpace) - top;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             ViewCompat.setPaddingRelative(
                 contentView, 0, 0, 0, keyboardHeight);
             top = 0;

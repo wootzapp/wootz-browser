@@ -11,7 +11,6 @@
 #include "base/android/feature_map.h"
 #include "base/feature_list.h"
 #include "base/features.h"
-#include "cc/base/features.h"
 #include "base/no_destructor.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/flags/android/chrome_session_state.h"
@@ -240,8 +239,6 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kMultiInstanceApplicationStatusCleanup,
     &kNavBarColorMatchesTabBackground,
     &kNewTabSearchEngineUrlAndroid,
-    &features::kMoveTopToolbarToBottom,
-    &features::kDisableToolbarSwipeUp,
     &kNotificationPermissionVariant,
     &kNotificationPermissionBottomSheet,
     &kPageAnnotationsService,

@@ -20,7 +20,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.app.ActivityOptionsCompat;
 import android.view.Gravity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import org.chromium.base.Callback;
 import org.chromium.base.IntentUtils;
@@ -295,7 +294,7 @@ public class SearchActivity extends AsyncInitializationActivity
                 (SearchActivityLocationBarLayout)
                         contentView.findViewById(R.id.search_location_bar);
         View anchorView = contentView.findViewById(R.id.toolbar);
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)
                 anchorView.getLayoutParams();
             layoutParams.gravity = Gravity.START | Gravity.BOTTOM;

@@ -46,7 +46,6 @@ import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.Sw
 import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -312,8 +311,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
-        // boolean move_top_toolbar = true;
-        boolean move_top_toolbar = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
+        boolean move_top_toolbar = true;
+        // boolean move_top_toolbar = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
         return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
                                        supportSwipeDown && move_top_toolbar);
     }
@@ -607,7 +606,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl
                 showLayout(LayoutType.TAB_SWITCHER, true);
             } else if (mSupportSwipeUp
                        && mScrollDirection == ScrollDirection.UP
-                       && !ChromeFeatureList.sDisableToolbarSwipeUp.isEnabled()) {
+                       && false) {
+            } else if (false) {
                 showLayout(LayoutType.TAB_SWITCHER, true);
             } else if (mScrollDirection == ScrollDirection.LEFT
                     || mScrollDirection == ScrollDirection.RIGHT) {

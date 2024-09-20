@@ -63,6 +63,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.translate.TranslateUtils;
+// import org.chromium.chrome.browser.ui.appmenu.AppMenu;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler.AppMenuItemType;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
@@ -379,48 +380,101 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
                 // TODO(crbug.com/40171109) : Create a new SubMenuItemProperties property key set
                 // for
                 // SUBMENU items.
-                ModelList subList = new ModelList();
-                for (int j = 0; j < item.getSubMenu().size(); ++j) {
-                    MenuItem subitem = item.getSubMenu().getItem(j);
-                    if (!subitem.isVisible()) continue;
+                // ModelList subList = new ModelList();
+                // for (int j = 0; j < item.getSubMenu().size(); ++j) {
+                //     MenuItem subitem = item.getSubMenu().getItem(j);
+                //     if (!subitem.isVisible()) continue;
 
-                    PropertyModel subModel = AppMenuUtil.menuItemToPropertyModel(subitem);
-                    subList.add(new MVCListAdapter.ListItem(0, subModel));
-                    if (subitem.getItemId() == R.id.reload_menu_id) {
-                        mReloadPropertyModel = subModel;
-                        Tab currentTab = mActivityTabProvider.get();
-                        loadingStateChanged(currentTab == null ? false : currentTab.isLoading());
+                //     PropertyModel subModel = AppMenuUtil.menuItemToPropertyModel(subitem);
+                //     subList.add(new MVCListAdapter.ListItem(0, subModel));
+                //     if (subitem.getItemId() == R.id.reload_menu_id) {
+                //         mReloadPropertyModel = subModel;
+                //         Tab currentTab = mActivityTabProvider.get();
+                //         loadingStateChanged(currentTab == null ? false : currentTab.isLoading());
+                //     }
+                // }
+                // propertyModel.set(AppMenuItemProperties.SUBMENU, subList);
+
+                SubMenu subMenu = item.getSubMenu();
+                if (item.getItemId() == R.id.icon_row_menu_id) {
+                    // Add all items from the icon row submenu
+                    for (int j = 0; j < subMenu.size(); j++) {
+                        MenuItem subItem = subMenu.getItem(j);
+                        if (subItem.isVisible()) {
+                            addMenuItemToList(subItem, modelList, customItemViewTypeProvider);
+                        }
                     }
-                }
-                propertyModel.set(AppMenuItemProperties.SUBMENU, subList);
-            }
-            int menutype = AppMenuItemType.STANDARD;
-            if (item.getItemId() == R.id.request_desktop_site_row_menu_id
-                    || item.getItemId() == R.id.share_row_menu_id
-                    || item.getItemId() == R.id.auto_dark_web_contents_row_menu_id) {
-                menutype = AppMenuItemType.TITLE_BUTTON;
-            } else if (item.getItemId() == R.id.icon_row_menu_id) {
-                int viewCount = item.getSubMenu().size();
-                if (viewCount == 3) {
-                    menutype = AppMenuItemType.THREE_BUTTON_ROW;
-                } else if (viewCount == 4) {
-                    menutype = AppMenuItemType.FOUR_BUTTON_ROW;
-                } else if (viewCount == 5) {
-                    menutype = AppMenuItemType.FIVE_BUTTON_ROW;
-                }
-            } else {
-                // Could be standard items or custom items.
-                int customType = customItemViewTypeProvider.fromMenuItemId(item.getItemId());
-                if (customType != CustomViewBinder.NOT_HANDLED) {
-                    menutype = customType;
+                } else if (item.getItemId() == R.id.request_desktop_site_row_menu_id
+                        || item.getItemId() == R.id.share_row_menu_id) {
+                    // Add only the first item from these submenus
+                    if (subMenu.size() > 0) {
+                        MenuItem firstSubItem = subMenu.getItem(0);
+                        if (firstSubItem.isVisible()) {
+                            addMenuItemToList(firstSubItem, modelList, customItemViewTypeProvider);
+                        }
+                    }
+                } else {
+                    // For other submenus, add the parent item as is
+                    addMenuItemToList(item, modelList, customItemViewTypeProvider);
                 }
             }
-            modelList.add(new MVCListAdapter.ListItem(menutype, propertyModel));
+            // int menutype = AppMenuItemType.STANDARD;
+            // if (item.getItemId() == R.id.request_desktop_site_row_menu_id
+            //         || item.getItemId() == R.id.share_row_menu_id
+            //         || item.getItemId() == R.id.auto_dark_web_contents_row_menu_id) {
+            //     menutype = AppMenuItemType.TITLE_BUTTON;
+            // } else if (item.getItemId() == R.id.icon_row_menu_id) {
+            //     int viewCount = item.getSubMenu().size();
+            //     if (viewCount == 3) {
+            //         menutype = AppMenuItemType.THREE_BUTTON_ROW;
+            //     } else if (viewCount == 4) {
+            //         menutype = AppMenuItemType.FOUR_BUTTON_ROW;
+            //     } else if (viewCount == 5) {
+            //         menutype = AppMenuItemType.FIVE_BUTTON_ROW;
+            //     }
+            // } else {
+            //     // Could be standard items or custom items.
+            //     int customType = customItemViewTypeProvider.fromMenuItemId(item.getItemId());
+            //     if (customType != CustomViewBinder.NOT_HANDLED) {
+            //         menutype = customType;
+            //     }
+            // }
+            // modelList.add(new MVCListAdapter.ListItem(menutype, propertyModel));
+            else {
+                addMenuItemToList(item, modelList, customItemViewTypeProvider);
+            }
         }
-        mModelList = modelList;
+        // mModelList = modelList;
         return modelList;
     }
+    private void addMenuItemToList(MenuItem item, ModelList modelList, 
+            CustomItemViewTypeProvider customItemViewTypeProvider) {
+        PropertyModel propertyModel = AppMenuUtil.menuItemToPropertyModel(item);
+        propertyModel.set(AppMenuItemProperties.ICON_COLOR_RES, getMenuItemIconColorRes(item));
+        propertyModel.set(AppMenuItemProperties.ICON_SHOW_BADGE, shouldShowBadgeOnMenuItemIcon(item));
+        propertyModel.set(AppMenuItemProperties.SUPPORT_ENTER_ANIMATION, true);
+        propertyModel.set(AppMenuItemProperties.MENU_ICON_AT_START, isMenuIconAtStart());
+        propertyModel.set(AppMenuItemProperties.TITLE_CONDENSED, getContentDescription(item));
 
+        int menutype = determineMenuType(item, customItemViewTypeProvider);
+        modelList.add(new MVCListAdapter.ListItem(menutype, propertyModel));
+    }
+
+    private int determineMenuType(MenuItem item, CustomItemViewTypeProvider customItemViewTypeProvider) {
+        if (item.getItemId() == R.id.request_desktop_site_row_menu_id
+                || item.getItemId() == R.id.share_row_menu_id
+                || item.getItemId() == R.id.auto_dark_web_contents_row_menu_id) {
+            return AppMenuItemType.TITLE_BUTTON;
+        } else if (item.getItemId() == R.id.icon_row_menu_id) {
+            return AppMenuItemType.FIVE_BUTTON_ROW;
+        } else {
+            int customType = customItemViewTypeProvider.fromMenuItemId(item.getItemId());
+            if (customType != CustomViewBinder.NOT_HANDLED) {
+                return customType;
+            }
+        }
+        return AppMenuItemType.STANDARD;
+    }
     @Override
     public void prepareMenu(Menu menu, AppMenuHandler handler) {
         int menuGroup = getMenuGroup();
@@ -1303,7 +1357,7 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
         boolean isRequestDesktopSite =
                 currentTab.getWebContents().getNavigationController().getUseDesktopUserAgent();
         requestMenuLabel.setTitle(R.string.menu_request_desktop_site);
-        requestMenuCheck.setVisible(true);
+        requestMenuCheck.setVisible(false);
         // Mark the checkbox if RDS is activated on this page.
         requestMenuCheck.setChecked(isRequestDesktopSite);
 

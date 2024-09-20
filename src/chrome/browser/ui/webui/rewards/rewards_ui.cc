@@ -31,8 +31,8 @@
 #include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/rewards_page_resources.h"
-#include "chrome/grit/rewards_page_resources_map.h"
+#include "chrome/grit/rewards_resources.h"
+#include "chrome/grit/rewards_resources_map.h"
 #include "components/prefs/pref_member.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
@@ -69,15 +69,14 @@ void CreateAndAddRewardsHTMLSource(Profile* profile) {
     content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
         profile, chrome::kChromeUIRewardsHost);
     webui::SetupWebUIDataSource(
-      source,
-      base::make_span(kRewardsPageResources, kRewardsPageResourcesSize),
-      IDR_REWARDS_PAGE);
+        source,
+        base::make_span(kRewardsResources, kRewardsResourcesSize),
+        IDR_REWARDS_REWARDS_HTML);
+    webui::EnableTrustedTypesCSP(source);
 
-    source->DisableTrustedTypesCSP();
-  
     source->OverrideContentSecurityPolicy(
-      network::mojom::CSPDirectiveName::ConnectSrc, "connect-src *;");
-      
+      network::mojom::CSPDirectiveName::ConnectSrc,
+      "connect-src 'self'  wootzapp://resources wootzapp://theme;");
     source->AddString("message", "Hello World!");
 }
 

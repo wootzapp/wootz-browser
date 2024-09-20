@@ -1,21 +1,48 @@
+import("//chrome/common/features.gni")
 import("//tools/grit/grit_rule.gni")
 import("//tools/grit/preprocess_if_expr.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
 
+preprocess_folder = "preprocessed"
+preprocess_manifest = "preprocessed_manifest.json"
 
-grit("rewards_resources") {
+grit("resources") {
+  defines = chrome_grit_defines
+
   enable_input_discovery_for_gn_analyze = false
-  source = "dist/rewards_resources.grd"
-
+  source = "$target_gen_dir/rewards_resources.grd"
+  deps = [ ":build_grd" ]
   outputs = [
-    "grit/rewards_page_resources.h",
-    "grit/rewards_page_resources_map.h",
-    "grit/rewards_page_resources_map.cc",
-    "rewards_page_resources.pak",
+    "grit/rewards_resources.h",
+    "grit/rewards_resources_map.h",
+    "grit/rewards_resources_map.cc",
+    "rewards_resources.pak",
   ]
   output_dir = "$root_gen_dir/chrome"
 }
 
-group("rewards_app") {
-  public_deps = [ ":rewards_resources" ]
+generate_grd("build_grd") {
+  grd_prefix = "rewards"
+  out_grd = "$target_gen_dir/rewards_resources.grd"
+  input_files = [
+    "rewards.js",
+    "rewards.css",
+    "dist/chain.js",
+    "dist/client.js",
+    "dist/wallet.js",
+    "wootz.png",
+    "back.svg",
+    "art1.png",
+  ]
+  input_files_base_dir = rebase_path(".", "//")
+  deps = [ ":preprocess" ]
+  manifest_files = [ "$target_gen_dir/$preprocess_manifest" ]
+}
+
+preprocess_if_expr("preprocess") {
+  out_folder = "$target_gen_dir/$preprocess_folder"
+  out_manifest = "$target_gen_dir/$preprocess_manifest"
+  in_files = [
+    "rewards.html",
+  ]
 }
