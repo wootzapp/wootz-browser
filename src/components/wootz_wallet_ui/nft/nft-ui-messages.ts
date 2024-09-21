@@ -5,8 +5,8 @@
 
 import { NFTMetadataReturnType } from '../constants/types'
 
-export const wootzWalletOrigin = 'chrome://wallet'
-export const wootzWalletPanelOrigin = 'chrome://wallet-panel.top-chrome'
+export const wootzWalletOrigin = 'wootzapp://wallet'
+export const wootzWalletPanelOrigin = 'wootzapp://wallet-panel.top-chrome'
 
 export type DisplayMode = 'icon' | 'grid' | 'details'
 

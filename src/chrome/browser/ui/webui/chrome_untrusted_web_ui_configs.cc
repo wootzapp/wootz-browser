@@ -8,7 +8,9 @@
 #include "build/chromeos_buildflags.h"
 #include "content/public/browser/webui_config_map.h"
 #include "printing/buildflags/buildflags.h"
-
+#include "chrome/browser/ui/webui/wootz_wallet/line_chart/line_chart_ui.h"
+#include "chrome/browser/ui/webui/wootz_wallet/market/market_ui.h"
+#include "chrome/browser/ui/webui/wootz_wallet/nft/nft_ui.h"
 #if defined(TOOLKIT_VIEWS)
 #include "chrome/browser/ui/side_panel/companion/companion_utils.h"
 #include "chrome/browser/ui/webui/hats/hats_ui.h"
@@ -31,6 +33,12 @@
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 void RegisterChromeUntrustedWebUIConfigs() {
+  content::WebUIConfigMap::GetInstance().AddUntrustedWebUIConfig(
+      std::make_unique<market::UntrustedMarketUIConfig>());
+  content::WebUIConfigMap::GetInstance().AddUntrustedWebUIConfig(
+      std::make_unique<nft::UntrustedNftUIConfig>());
+  content::WebUIConfigMap::GetInstance().AddUntrustedWebUIConfig(
+      std::make_unique<line_chart::UntrustedLineChartUIConfig>());
   // Don't add calls to `AddUntrustedWebUIConfig()` for ash-specific UIs here.
   // Add them in chrome_untrusted_web_ui_configs_chromeos.cc.
 #if BUILDFLAG(IS_CHROMEOS_ASH)

@@ -215,6 +215,9 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
   bool LogWebUIUrl(const GURL& web_ui_url) override;
   bool IsWebUIAllowedToMakeNetworkRequests(const url::Origin& origin) override;
   bool IsHandledURL(const GURL& url) override;
+  static bool HandleURLOverrideRewrite(
+      GURL* url,
+      content::BrowserContext* browser_context);
   bool HasCustomSchemeHandler(content::BrowserContext* browser_context,
                               const std::string& scheme) override;
   bool CanCommitURL(content::RenderProcessHost* process_host,

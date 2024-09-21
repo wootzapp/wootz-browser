@@ -289,10 +289,6 @@ CHAR_LIMIT guidelines:
       <message name="IDS_MARKET_PRICE_TEXT" desc="Market price text title as heading of an asset">
         Market Price
       </message>
-
-      <message name="IDS_STATUS" desc="Brave VPN settings section text">
-        Status
-      </message>
       
       <message name="IDS_SETTINGS_ETHEREUM_TITLE" desc="Title for Ethereum section in site settings" translateable="false">
         Ethereum

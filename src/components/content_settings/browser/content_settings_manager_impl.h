@@ -68,6 +68,12 @@ class ContentSettingsManagerImpl
                           const net::SiteForCookies& site_for_cookies,
                           const url::Origin& top_frame_origin,
                           base::OnceCallback<void(bool)> callback) override;
+                                                                                     
+  void AllowEphemeralStorageAccess(                                         
+      const blink::LocalFrameToken& frame_token, const url::Origin& origin, 
+      const net::SiteForCookies& site_for_cookies,                          
+      const url::Origin& top_frame_origin,                                  
+      AllowEphemeralStorageAccessCallback callback) override;               
   void OnContentBlocked(const blink::LocalFrameToken& frame_token,
                         ContentSettingsType type) override;
 

@@ -157,6 +157,18 @@ extern const char kChromeUIOmniboxURL[];
 extern const char kChromeUIOmniboxPopupHost[];
 extern const char kChromeUIOmniboxPopupURL[];
 
+extern const char kChromeUIWalletURL[];
+extern const char kChromeUIWalletOnboardingURL[] ;
+extern const char kChromeUIWalletAccountCreationURL[];
+extern const char kChromeUIWalletPanelURL[] ;
+extern const char kWalletPanelHost[];
+extern const char kChromeUIWalletPageURL[];
+extern const char kWalletPageHost[];
+extern const char kExtensionSettingsURL[];
+extern const char kWalletSettingsURL[];
+extern const char kWootzSyncPath[];
+extern const char kWootzSyncSetupPath[];
+
 extern const char kChromeUIHelloWorldURL[];
 extern const char kChromeUIHelloWorldHost[];
 

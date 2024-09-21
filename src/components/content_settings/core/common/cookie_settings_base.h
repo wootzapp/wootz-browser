@@ -232,6 +232,14 @@ class CookieSettingsBase {
   // has returned true.
   //
   // This may be called on any thread.
+  bool ShouldUseEphemeralStorage(                                               
+      const GURL& url, const net::SiteForCookies& site_for_cookies,        
+      const std::optional<url::Origin>& top_frame_origin) const;           
+  bool IsEphemeralCookieAccessAllowed(                  
+      const GURL& url, const net::SiteForCookies& site_for_cookies,        
+      const std::optional<url::Origin>& top_frame_origin,                  
+      net::CookieSettingOverrides overrides) const;                        
+                                                                    
   bool IsCookieSessionOnly(const GURL& url) const;
 
   // A helper for applying third party cookie blocking rules.

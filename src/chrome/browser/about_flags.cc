@@ -76,6 +76,7 @@
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/autofill/core/common/autofill_switches.h"
 #include "components/autofill/core/common/autofill_util.h"
+#include "components/wootz_wallet/common/features.h"
 #include "components/browser_sync/browser_sync_switches.h"
 #include "components/commerce/core/commerce_feature_list.h"
 #include "components/commerce/core/flag_descriptions.h"
@@ -970,6 +971,39 @@ const FeatureEntry::FeatureVariation kRoundedWindowsRadiusVariation[] = {
     {"16", &kRoundedWindowRadius16, 1, nullptr},
     {"18", &kRoundedWindowRadius18, 1, nullptr},
 };
+
+const FeatureEntry::Feature kWootzWalletFeatureFlags[] = {
+    {"native-wootz-wallet",
+     "Enable Wootz Wallet",
+     "Native cryptocurrency wallet support without the use of extensions",
+     kOsDesktop | kOsAndroid,
+     FEATURE_VALUE_TYPE(wootz_wallet::features::kNativeWootzWalletFeature)},
+    
+    {"wootz-wallet-zcash",
+     "Enable WootzWallet ZCash support",
+     "Zcash support for native Wootz Wallet",
+     kOsDesktop | kOsAndroid,
+     FEATURE_VALUE_TYPE(wootz_wallet::features::kWootzWalletZCashFeature)},
+
+    {"wootz-wallet-bitcoin",
+     "Enable Wootz Wallet Bitcoin support",
+     "Bitcoin support for native Wootz Wallet",
+     kOsDesktop | kOsAndroid,
+     FEATURE_VALUE_TYPE(wootz_wallet::features::kWootzWalletBitcoinFeature)},
+
+    {"wootz-wallet-enable-ankr-balances",
+     "Enable Ankr balances",
+     "Enable usage of Ankr Advanced API for fetching balances in Wootz Wallet",
+     kOsDesktop | kOsAndroid,
+     FEATURE_VALUE_TYPE(wootz_wallet::features::kWootzWalletAnkrBalancesFeature)},
+
+    {"wootz-wallet-enable-transaction-simulations",
+     "Enable transaction simulations",
+     "Enable usage of Blowfish API for running transaction simulations in Wootz Wallet",
+     kOsDesktop | kOsAndroid,
+     FEATURE_VALUE_TYPE(wootz_wallet::features::kWootzWalletTransactionSimulationsFeature)},
+};
+
 
 const FeatureEntry::FeatureParam
     kArcRoundedWindowCompatStrategyLeftRightBottomGesture = {

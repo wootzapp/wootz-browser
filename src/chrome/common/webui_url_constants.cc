@@ -8,6 +8,8 @@
 
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+#include "chrome/common/webui_url_constants.h"
+#include "components/constants/webui_url_constants.h"
 #include "components/commerce/core/commerce_constants.h"
 #include "components/history_clusters/history_clusters_internals/webui/url_constants.h"
 #include "components/lens/buildflags.h"
@@ -160,8 +162,20 @@ const char kChromeUINewTabPageThirdPartyHost[] = "new-tab-page-third-party";
 const char kChromeUINewTabPageThirdPartyURL[] =
     "wootzapp://new-tab-page-third-party/";
 
-
-
+const char kChromeUIWalletURL[] = "wootzapp://wallet/";
+const char kChromeUIWalletOnboardingURL[] =
+    "wootzapp://wallet/crypto/onboarding";
+const char kChromeUIWalletAccountCreationURL[] =
+    "wootzapp://wallet/crypto/accounts/add-account/create/";
+const char kChromeUIWalletPanelURL[] =
+    "wootzapp://wallet-panel.top-chrome/";
+const char kWalletPanelHost[] = "wallet-panel.top-chrome";
+const char kChromeUIWalletPageURL[] = "wootzapp://wallet/";
+const char kWalletPageHost[] = "wallet";
+const char kExtensionSettingsURL[] = "wootzapp://settings/extensions";
+const char kWalletSettingsURL[] = "wootzapp://settings/wallet";
+const char kWootzSyncPath[] = "wootzSync";
+const char kWootzSyncSetupPath[] = "wootzSync/setup";
 const char kChromeUIHelloWorldURL[] = "wootzapp://rewards/";
 const char kChromeUIHelloWorldHost[] = "rewards";
 
@@ -266,7 +280,7 @@ const char kChromeUIUntrustedThemeURL[] = "chrome-untrusted://theme/";
 const char kChromeUIUsbInternalsHost[] = "usb-internals";
 const char kChromeUIUserActionsHost[] = "user-actions";
 const char kChromeUIVersionHost[] = "version";
-const char kChromeUIVersionURL[] = "chrome://version/";
+const char kChromeUIVersionURL[] = "wootzapp://version/";
 const char kChromeUIWelcomeHost[] = "welcome";
 const char kChromeUIWelcomeURL[] = "chrome://welcome/";
 const char kChromeUIWhatsNewHost[] = "whats-new";

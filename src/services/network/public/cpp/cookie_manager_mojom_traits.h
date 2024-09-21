@@ -39,6 +39,26 @@ struct EnumTraits<network::mojom::CookiePriority, net::CookiePriority> {
 };
 
 template <>
+struct StructTraits<network::mojom::CookieOptionsDataView, net::CookieOptions>
+    : public StructTraits<network::mojom::CookieOptionsDataView,
+                          net::CookieOptions_ChromiumImpl> {
+  static const net::SiteForCookies& site_for_cookies(
+      const net::CookieOptions& o) {
+    return o.site_for_cookies();
+  }
+  static const std::optional<url::Origin>& top_frame_origin(
+      const net::CookieOptions& o) {
+    return o.top_frame_origin();
+  }
+  static bool should_use_ephemeral_storage(const net::CookieOptions& o) {
+    return o.should_use_ephemeral_storage();
+  }
+
+  static bool Read(network::mojom::CookieOptionsDataView mojo_options,
+                   net::CookieOptions* cookie_options);
+};
+
+template <>
 struct EnumTraits<network::mojom::CookieSameSite, net::CookieSameSite> {
   static network::mojom::CookieSameSite ToMojom(net::CookieSameSite input);
   static bool FromMojom(network::mojom::CookieSameSite input,

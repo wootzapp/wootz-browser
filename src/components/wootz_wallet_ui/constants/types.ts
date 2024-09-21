@@ -596,7 +596,7 @@ export const AccountPageTabs = {
   AccountTransactionsSub: 'transactions'
 } as const
 
-export const WalletOrigin = 'chrome://wallet'
+export const WalletOrigin = 'wootzapp://wallet'
 
 export type BlockExplorerUrlTypes =
   | 'tx'

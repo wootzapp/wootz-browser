@@ -184,9 +184,9 @@
         <span class="nav-item-text">[[downloadsTitle]]</span>
       </a>
     </li>
-    <template is="dom-if" if="[[isBraveWalletAllowed_]]">
+    <template is="dom-if" if="[[isWootzWalletAllowed_]]">
       <li class="nav-items-list-item" title="[[walletsTitle]]">
-        <a class$="nav-item [[getNavItemSelectedClassName('wallet')]]" href="chrome://wallet">
+        <a class$="nav-item [[getNavItemSelectedClassName('wallet')]]" href="wootzapp://wallet">
           <span class="nav-item-icon">
             <svg
               xmlns="http://www.w3.org/2000/svg"

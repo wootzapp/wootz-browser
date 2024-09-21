@@ -12,13 +12,13 @@ import { WootzWallet } from '../constants/types'
 import { isComponentInStorybook } from '../utils/string-utils'
 
 const marketUiOrigin = loadTimeData.getString('wootzWalletMarketUiBridgeUrl')
-export const wootzWalletPanelOrigin = 'chrome://wallet-panel.top-chrome'
+export const wootzWalletPanelOrigin = 'wootzapp://wallet-panel.top-chrome'
 
 // remove trailing /
 export const wootzMarketUiOrigin = marketUiOrigin.endsWith('/')
   ? marketUiOrigin.slice(0, -1)
   : marketUiOrigin
-export const wootzWalletOrigin = 'chrome://wallet'
+export const wootzWalletOrigin = 'wootzapp://wallet'
 
 export const enum MarketUiCommand {
   UpdateCoinMarkets = 'update-coin-markets',

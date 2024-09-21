@@ -167,9 +167,9 @@ bool ValidateAndFixAssetAddress(mojom::BlockchainTokenPtr& token) {
 }  // namespace
 
 bool IsEndpointUsingWootzWalletProxy(const GURL& url) {
-  return url.DomainIs("wallet.wootz.com") ||
-         url.DomainIs("wallet.wootzsoftware.com") ||
-         url.DomainIs("wallet.s.wootz.io");
+  return url.DomainIs("wallet.brave.com") ||
+         url.DomainIs("wallet.bravesoftware.com") ||
+         url.DomainIs("wallet.s.brave.io");
 }
 
 base::flat_map<std::string, std::string> MakeWootzServicesKeyHeaders() {

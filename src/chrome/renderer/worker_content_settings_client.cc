@@ -9,9 +9,9 @@
 #include "content/public/common/url_constants.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
+#include "net/base/features.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/url_conversion.h"
-#include "third_party/blink/public/platform/web_security_origin.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "url/origin.h"
@@ -99,6 +99,41 @@ bool WorkerContentSettingsClient::AllowStorageAccessSync(
           storage_type),
       document_origin_, site_for_cookies_, top_frame_origin_, &result);
   return result;
+}
+
+blink::WebSecurityOrigin
+WorkerContentSettingsClient::GetEphemeralStorageOriginSync() {
+  if (!base::FeatureList::IsEnabled(net::features::kWootzEphemeralStorage))
+    return {};
+
+  if (is_unique_origin_)
+    return {};
+
+  // If first party ephemeral storage is enabled, we should always ask the
+  // browser if a worker should use ephemeral storage or not.
+  if (!base::FeatureList::IsEnabled(
+          net::features::kWootzFirstPartyEphemeralStorage)) {
+    return {};
+  }
+
+  EnsureContentSettingsManager();
+
+ std::optional<url::Origin> optional_ephemeral_storage_origin;
+content_settings_manager_->AllowEphemeralStorageAccess(
+    frame_token_, document_origin_, site_for_cookies_, top_frame_origin_,
+    base::BindOnce(
+        [](std::optional<url::Origin>* storage_origin, 
+           const std::optional<url::Origin>& result) {
+            *storage_origin = result;
+        },
+        &optional_ephemeral_storage_origin));
+
+  // Don't cache the value intentionally as other WorkerContentSettingsClient
+  // methods do.
+  return blink::WebSecurityOrigin(
+      optional_ephemeral_storage_origin
+          ? blink::WebSecurityOrigin(*optional_ephemeral_storage_origin)
+          : blink::WebSecurityOrigin());
 }
 
 bool WorkerContentSettingsClient::AllowRunningInsecureContent(

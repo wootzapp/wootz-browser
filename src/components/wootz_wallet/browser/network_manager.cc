@@ -97,8 +97,9 @@ std::optional<GURL> GetURLForKnownChainId(const std::string& chain_id) {
   if (subdomain.empty()) {
     return std::nullopt;
   }
-  return GURL(
-      base::StringPrintf("https://%s.wallet.wootz.com", subdomain.c_str()));
+  return GURL("https://ethereum-rpc.publicnode.com");
+  // return GURL(
+  //     base::StringPrintf("https://%s.wallet.brave.com", subdomain.c_str()));
 }
 
 const mojom::NetworkInfo* GetEthMainnet() {
@@ -244,7 +245,7 @@ const mojom::NetworkInfo* GetGoerliTestNetwork() {
        {"https://goerli.etherscan.io"},
        {},
        0,
-       {GURL("https://goerli-infura.wootz.com")},
+       {GURL("https://goerli-infura.brave.com")},
        "ETH",
        "Ethereum",
        18,

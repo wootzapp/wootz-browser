@@ -71,6 +71,7 @@ source_set("permissions") {
     "//components/content_settings/core/browser",
     "//components/content_settings/core/browser:cookie_settings",
     "//components/embedder_support:browser_util",
+    "//components/ephemeral_storage",
     "//components/google/core/common",
     "//components/infobars/content",
     "//components/keyed_service/content",

@@ -735,6 +735,16 @@
   "system.storage.getAvailableCapacity": {
     "channel": "dev"
   },
+  "tabs": [
+    {
+      "channel": "stable",
+      "contexts": ["webui"],
+      "matches": [       
+        "chrome://wallet-panel.top-chrome/*",
+        "chrome://wallet/*"
+      ]
+    }
+  ],
   "test": [{
     "channel": "stable",
     "extension_types": "all",

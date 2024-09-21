@@ -2797,7 +2797,27 @@ static_library("browser") {
     ]
   }
 
+  sources+=[
+    "browser_context_keyed_service_factories.h",
+    "browser_context_keyed_service_factories.cc",
+    "ephemeral_storage/wootz_ephemeral_storage_service_delegate.cc",
+    "ephemeral_storage/wootz_ephemeral_storage_service_delegate.h",
+    "ephemeral_storage/ephemeral_storage_service_factory.cc",
+    "ephemeral_storage/ephemeral_storage_service_factory.h",
+    "ephemeral_storage/ephemeral_storage_tab_helper.cc",
+    "ephemeral_storage/ephemeral_storage_tab_helper.h",
+    "ephemeral_storage/tld_ephemeral_lifetime.cc",
+    "ephemeral_storage/tld_ephemeral_lifetime.h",
+    "permissions/permission_lifetime_manager_factory.cc",
+    "permissions/permission_lifetime_manager_factory.h",
+    "permissions/permission_origin_lifetime_monitor_impl.cc",
+    "permissions/permission_origin_lifetime_monitor_impl.h",
+    "wootz_wallet/wallet_data_files_installer_delegate_impl.cc",
+    "wootz_wallet/wallet_data_files_installer_delegate_impl.h",
+  ]
+
   deps += [
+    "//components/ephemeral_storage",
     "//components/wootz_wallet/browser",
     "//components/wootz_wallet/browser:utils",
     "//components/wootz_wallet/common",
@@ -3647,7 +3667,7 @@ static_library("browser") {
       "//chrome/browser/wootz_wallet:wootz_wallet_delegate",
       "//chrome/common:non_code_constants",
       "//chrome/common/wallet:mojo_bindings",
-      "//components/wootz_wallet/browser:permission_utils", # Wootz patch
+      "//components/wootz_wallet/browser:permission_utils",
       "//components/wootz_wallet/common:mojom",
       "//chrome/services/media_gallery_util/public/cpp",
       "//components/android_autofill/browser:android",

@@ -167,6 +167,25 @@ BASE_FEATURE(kSchemefulSameSite,
              "SchemefulSameSite",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+BASE_FEATURE(kWootzEphemeralStorage,
+             "EphemeralStorage",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kWootzEphemeralStorageKeepAlive,
+             "WootzEphemeralStorageKeepAlive",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+const base::FeatureParam<int> kWootzEphemeralStorageKeepAliveTimeInSeconds = {
+    &kWootzEphemeralStorageKeepAlive,
+    "WootzEphemeralStorageKeepAliveTimeInSeconds", 30};
+
+BASE_FEATURE(kWootzFirstPartyEphemeralStorage,
+             "WootzFirstPartyEphemeralStorage",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kWootzForgetFirstPartyStorage,
+             "WootzForgetFirstPartyStorage",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kLimitOpenUDPSockets,
              "LimitOpenUDPSockets",
              base::FEATURE_ENABLED_BY_DEFAULT);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2019 The Wootz Authors. All rights reserved.
+/* Copyright (c) 2019 The Chrome Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -20,32 +20,30 @@ inline constexpr char kRewardsPageTopURL[] = "chrome://rewards.top-chrome";
 inline constexpr char kRewardsInternalsHost[] = "rewards-internals";
 inline constexpr char kWelcomeHost[] = "welcome";
 inline constexpr char kWelcomeJS[] = "wootz_welcome.js";
-inline constexpr char kWootzRewardsPanelURL[] =
+inline constexpr char kChromeRewardsPanelURL[] =
     "chrome://rewards-panel.top-chrome";
-inline constexpr char kWootzRewardsPanelHost[] = "rewards-panel.top-chrome";
-inline constexpr char kWootzTipPanelURL[] = "chrome://tip-panel.top-chrome";
-inline constexpr char kWootzTipPanelHost[] = "tip-panel.top-chrome";
-inline constexpr char kWootzNewTabJS[] = "wootz_new_tab.js";
-inline constexpr char kWootzNewsInternalsHost[] = "news-internals";
-inline constexpr char kWootzUIAdblockURL[] = "chrome://adblock/";
-inline constexpr char kWootzUIWebcompatReporterURL[] = "chrome://webcompat/";
-inline constexpr char kWootzUIWalletURL[] = "wootzapp://wallet/";
-inline constexpr char kWootzUIWalletOnboardingURL[] =
+inline constexpr char kChromeRewardsPanelHost[] = "rewards-panel.top-chrome";
+inline constexpr char kChromeTipPanelURL[] = "chrome://tip-panel.top-chrome";
+inline constexpr char kChromeTipPanelHost[] = "tip-panel.top-chrome";
+inline constexpr char kChromeNewTabJS[] = "wootz_new_tab.js";
+inline constexpr char kChromeNewsInternalsHost[] = "news-internals";
+inline constexpr char kChromeUIAdblockURL[] = "chrome://adblock/";
+inline constexpr char kChromeUIWebcompatReporterURL[] = "chrome://webcompat/";
+inline constexpr char kChromeUIWalletURL[] = "wootzapp://wallet/";
+inline constexpr char kChromeUIWalletOnboardingURL[] =
     "wootzapp://wallet/crypto/onboarding";
-inline constexpr char kWootzUIWalletAccountCreationURL[] =
+inline constexpr char kChromeUIWalletAccountCreationURL[] =
     "wootzapp://wallet/crypto/accounts/add-account/create/";
-inline constexpr char kWootzUIWalletPanelURL[] =
+inline constexpr char kChromeUIWalletPanelURL[] =
     "wootzapp://wallet-panel.top-chrome/";
 inline constexpr char kWalletPanelHost[] = "wallet-panel.top-chrome";
-inline constexpr char kVPNPanelURL[] =
-    "chrome-untrusted://vpn-panel.top-chrome/";
-inline constexpr char kVPNPanelHost[] = "vpn-panel.top-chrome";
-inline constexpr char kWootzUIWalletPageURL[] = "wootzapp://wallet/";
+
+inline constexpr char kChromeUIWalletPageURL[] = "wootzapp://wallet/";
 inline constexpr char kWalletPageHost[] = "wallet";
-inline constexpr char kExtensionSettingsURL[] = "wootz://settings/extensions";
-inline constexpr char kWalletSettingsURL[] = "wootz://settings/wallet";
-inline constexpr char kWootzSyncPath[] = "wootzSync";
-inline constexpr char kWootzSyncSetupPath[] = "wootzSync/setup";
+inline constexpr char kExtensionSettingsURL[] = "wootzapp://settings/extensions";
+inline constexpr char kWalletSettingsURL[] = "wootzapp://settings/wallet";
+inline constexpr char kChromeSyncPath[] = "wootzSync";
+inline constexpr char kChromeSyncSetupPath[] = "wootzSync/setup";
 inline constexpr char kTorInternalsHost[] = "tor-internals";
 inline constexpr char kUntrustedLedgerHost[] = "ledger-bridge";
 inline constexpr char kUntrustedLedgerURL[] =

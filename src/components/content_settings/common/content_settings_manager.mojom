@@ -40,7 +40,11 @@ interface ContentSettingsManager {
       url.mojom.Origin origin,
       network.mojom.SiteForCookies site_for_cookies,
       url.mojom.Origin top_frame_origin) => (bool allowed);
-
+  AllowEphemeralStorageAccess(
+      blink.mojom.LocalFrameToken frame_token,
+      url.mojom.Origin origin,
+      network.mojom.SiteForCookies site_for_cookies,
+      url.mojom.Origin top_frame_origin) => (url.mojom.Origin? storage_origin);
   // Tells the browser that content in the current page was blocked due to the
   // user's content settings.
   OnContentBlocked(blink.mojom.LocalFrameToken frame_token,

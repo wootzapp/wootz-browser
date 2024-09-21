@@ -810,6 +810,8 @@ void EthereumProviderImpl::OnSignMessageRequestProcessed(
 bool EthereumProviderImpl::CheckAccountAllowed(
     const mojom::AccountIdPtr& account_id,
     const std::vector<std::string>& allowed_accounts) {
+  LOG(ERROR)<<"CheckAccountAllowed ANKIT IVAN";      
+
   for (const auto& allowed_account : allowed_accounts) {
     if (base::EqualsCaseInsensitiveASCII(account_id->address,
                                          allowed_account)) {
@@ -822,6 +824,8 @@ bool EthereumProviderImpl::CheckAccountAllowed(
 void EthereumProviderImpl::OnAddEthereumChainRequestCompleted(
     const std::string& chain_id,
     const std::string& error) {
+  LOG(ERROR)<<"OnAddEthereumChainRequestCompleted ANKIT IVAN";      
+
   std::string chain_id_lower = base::ToLowerASCII(chain_id);
   if (!chain_callbacks_.contains(chain_id_lower) ||
       !chain_ids_.contains(chain_id_lower)) {
@@ -838,6 +842,9 @@ void EthereumProviderImpl::OnAddEthereumChainRequestCompleted(
     chain_ids_.erase(chain_id_lower);
     return;
   }
+
+  LOG(ERROR)<<"OnAddEthereumChainRequestCompleted ANKIT IVAN";      
+
   bool reject = true;
   base::Value formed_response = GetProviderErrorDictionary(
       mojom::ProviderError::kUserRejectedRequest, error);
@@ -845,18 +852,24 @@ void EthereumProviderImpl::OnAddEthereumChainRequestCompleted(
       .Run(std::move(chain_ids_[chain_id_lower]), std::move(formed_response),
            reject, "", false);
 
+  LOG(ERROR)<<"OnAddEthereumChainRequestCompleted ANKIT IVAN";      
+
+
   chain_callbacks_.erase(chain_id_lower);
   chain_ids_.erase(chain_id_lower);
 }
 
 void EthereumProviderImpl::Request(base::Value input,
                                    RequestCallback callback) {
+                                    
   CommonRequestOrSendAsync(input, std::move(callback), false);
   delegate_->WalletInteractionDetected();
 }
 
 void EthereumProviderImpl::SendAsync(base::Value input,
                                      SendAsyncCallback callback) {
+  LOG(ERROR)<<"OnAddEthereumChainRequestCompleted ANKIT IVAN";      
+
   CommonRequestOrSendAsync(input, std::move(callback), true);
   delegate_->WalletInteractionDetected();
 }
@@ -875,6 +888,8 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
     base::ValueView input_value,
     RequestCallback request_callback,
     bool format_json_rpc_response) {
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
   auto callback = base::BindOnce(
       &EthereumProviderImpl::OnResponse, weak_factory_.GetWeakPtr(),
       format_json_rpc_response, std::move(request_callback));
@@ -884,6 +899,8 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
       l10n_util::GetStringUTF8(IDS_WALLET_REQUEST_PROCESSING_ERROR);
   DCHECK(json_rpc_service_);
   std::string input_json;
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
   if (!base::JSONWriter::Write(input_value, &input_json) ||
       input_json.empty()) {
     SendErrorOnRequest(error, error_message, std::move(callback),
@@ -922,14 +939,21 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
         std::move(callback), base::Value());
     return;
   }
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
 
   if (method == kEthAccounts || method == kEthCoinbase) {
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
     GetAllowedAccountsInternal(std::move(callback), std::move(id), method,
                                false);
   } else if (method == kEthRequestAccounts) {
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
     RequestEthereumPermissions(std::move(callback), std::move(id), method,
                                delegate_->GetOrigin());
   } else if (method == kAddEthereumChainMethod) {
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
     AddEthereumChain(normalized_json_request, std::move(callback),
                      std::move(id));
   } else if (method == kSwitchEthereumChainMethod) {
@@ -954,6 +978,8 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
                          std::move(id));
       return;
     }
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
     json_rpc_service_->SendRawTransaction(
         json_rpc_service_->GetChainIdSync(mojom::CoinType::ETH,
                                           delegate_->GetOrigin()),
@@ -1070,6 +1096,7 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
                          std::move(id));
       return;
     }
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
 
     RequestEthereumPermissions(std::move(callback), std::move(id), method,
                                delegate_->GetOrigin());
@@ -1098,6 +1125,8 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
     }
     EthUnsubscribe(subscription_id, std::move(callback), std::move(id));
   } else {
+  LOG(ERROR)<<"CommonRequestOrSendAsync ANKIT IVAN";      
+
     json_rpc_service_->Request(
         json_rpc_service_->GetChainIdSync(mojom::CoinType::ETH,
                                           delegate_->GetOrigin()),
@@ -1120,6 +1149,8 @@ void EthereumProviderImpl::RequestEthereumPermissions(
     const std::string& method,
     const url::Origin& origin) {
   DCHECK(delegate_);
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
   if (delegate_->IsPermissionDenied(mojom::CoinType::ETH)) {
     OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
                                  origin, RequestPermissionsError::kNone,
@@ -1133,6 +1164,8 @@ void EthereumProviderImpl::RequestEthereumPermissions(
       addresses.push_back(account_info->address);
     }
   }
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
 
   if (addresses.empty()) {
     if (!wallet_onboarding_shown_) {
@@ -1187,6 +1220,8 @@ void EthereumProviderImpl::RequestEthereumPermissions(
 }
 
 void EthereumProviderImpl::Enable(EnableCallback callback) {
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
   if (!delegate_->IsTabVisible()) {
     SendErrorOnRequest(
         mojom::ProviderError::kResourceUnavailable,
@@ -1206,42 +1241,26 @@ void EthereumProviderImpl::OnRequestEthereumPermissions(
     const url::Origin& origin,
     RequestPermissionsError error,
     const std::optional<std::vector<std::string>>& allowed_accounts) {
-  base::Value formed_response;
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
 
+  
+  base::Value formed_response;
   bool success = error == RequestPermissionsError::kNone;
   std::vector<std::string> accounts;
-  if (success && allowed_accounts) {
-    accounts = FilterAccounts(
-        *allowed_accounts, keyring_service_->GetSelectedEthereumDappAccount());
-  }
 
-  std::string first_allowed_account;
-  if (accounts.size() > 0) {
-    first_allowed_account = base::ToLowerASCII(accounts[0]);
+  if (success && allowed_accounts) {
+    accounts = *allowed_accounts;  
   }
-  if (success && accounts.empty()) {
-    formed_response = GetProviderErrorDictionary(
-        mojom::ProviderError::kUserRejectedRequest,
-        l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
-  } else if (!success) {
-    switch (error) {
-      case RequestPermissionsError::kRequestInProgress:
-        formed_response = GetProviderErrorDictionary(
-            mojom::ProviderError::kUserRejectedRequest,
-            l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
-        delegate_->ShowPanel();
-        break;
-      case RequestPermissionsError::kInternal:
-        formed_response = GetProviderErrorDictionary(
-            mojom::ProviderError::kInternalError,
-            l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
-        break;
-      default:
-        NOTREACHED_IN_MIGRATION();
-    }
-  } else if (method == kRequestPermissionsMethod) {
-    formed_response =
-        base::Value(PermissionRequestResponseToValue(origin, accounts));
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
+
+  std::string first_allowed_account = base::ToLowerASCII(accounts[0]); 
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
+  bool reject = false;
+
+  if (method == kRequestPermissionsMethod) {
+    formed_response = base::Value(PermissionRequestResponseToValue(origin, accounts));
   } else {
     base::Value::List list;
     for (const auto& account : accounts) {
@@ -1249,11 +1268,68 @@ void EthereumProviderImpl::OnRequestEthereumPermissions(
     }
     formed_response = base::Value(std::move(list));
   }
-  bool reject = !success || accounts.empty();
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
+
 
   std::move(callback).Run(std::move(id), std::move(formed_response), reject,
                           first_allowed_account, true);
 }
+
+// void EthereumProviderImpl::OnRequestEthereumPermissions(
+//     RequestCallback callback,
+//     base::Value id,
+//     const std::string& method,
+//     const url::Origin& origin,
+//     RequestPermissionsError error,
+//     const std::optional<std::vector<std::string>>& allowed_accounts) {
+//   base::Value formed_response;
+
+//   bool success = error == RequestPermissionsError::kNone;
+//   std::vector<std::string> accounts;
+//   if (success && allowed_accounts) {
+//     accounts = FilterAccounts(
+//         *allowed_accounts, keyring_service_->GetSelectedEthereumDappAccount());
+//   }
+
+//   std::string first_allowed_account;
+//   if (accounts.size() > 0) {
+//     first_allowed_account = base::ToLowerASCII(accounts[0]);
+//   }
+//   if (success && accounts.empty()) {
+//     formed_response = GetProviderErrorDictionary(
+//         mojom::ProviderError::kUserRejectedRequest,
+//         l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
+//   } else if (!success) {
+//     switch (error) {
+//       case RequestPermissionsError::kRequestInProgress:
+//         formed_response = GetProviderErrorDictionary(
+//             mojom::ProviderError::kUserRejectedRequest,
+//             l10n_util::GetStringUTF8(IDS_WALLET_USER_REJECTED_REQUEST));
+//         delegate_->ShowPanel();
+//         break;
+//       case RequestPermissionsError::kInternal:
+//         formed_response = GetProviderErrorDictionary(
+//             mojom::ProviderError::kInternalError,
+//             l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
+//         break;
+//       default:
+//         NOTREACHED_IN_MIGRATION();
+//     }
+//   } else if (method == kRequestPermissionsMethod) {
+//     formed_response =
+//         base::Value(PermissionRequestResponseToValue(origin, accounts));
+//   } else {
+//     base::Value::List list;
+//     for (const auto& account : accounts) {
+//       list.Append(base::ToLowerASCII(account));
+//     }
+//     formed_response = base::Value(std::move(list));
+//   }
+//   // bool reject = !success || accounts.empty();
+//   bool reject = false;
+//   std::move(callback).Run(std::move(id), std::move(formed_response), reject,
+//                           first_allowed_account, true);
+// }
 
 std::optional<std::vector<std::string>>
 EthereumProviderImpl::GetAllowedAccounts(bool include_accounts_when_locked) {
@@ -1263,6 +1339,7 @@ EthereumProviderImpl::GetAllowedAccounts(bool include_accounts_when_locked) {
       addresses.push_back(base::ToLowerASCII(account_info->address));
     }
   }
+  LOG(ERROR)<<"RequestEthereumPermissions ANKIT IVAN";      
 
   const auto selected_account =
       keyring_service_->GetSelectedEthereumDappAccount();
@@ -1288,6 +1365,8 @@ void EthereumProviderImpl::GetAllowedAccountsInternal(
     base::Value id,
     const std::string& method,
     bool include_accounts_when_locked) {
+  LOG(ERROR)<<"GetAllowedAccountsInternal ANKIT IVAN";      
+
   const auto accounts_opt = GetAllowedAccounts(include_accounts_when_locked);
   if (!accounts_opt) {
     return RejectInvalidParams(std::move(id), std::move(callback));
@@ -1322,6 +1401,8 @@ void EthereumProviderImpl::GetAllowedAccountsInternal(
 }
 
 void EthereumProviderImpl::UpdateKnownAccounts() {
+  LOG(ERROR)<<"UpdateKnownAccounts ANKIT IVAN";      
+
   const auto allowed_accounts = GetAllowedAccounts(false);
   if (!allowed_accounts) {
     return;
@@ -1342,6 +1423,8 @@ void EthereumProviderImpl::Web3ClientVersion(RequestCallback callback,
 }
 
 void EthereumProviderImpl::GetChainId(GetChainIdCallback callback) {
+  LOG(ERROR)<<"UpdateKnownAccounts ANKIT IVAN";      
+  
   if (json_rpc_service_) {
     json_rpc_service_->GetChainIdForOrigin(
         mojom::CoinType::ETH, delegate_->GetOrigin(), std::move(callback));
@@ -1352,11 +1435,15 @@ mojom::AccountIdPtr EthereumProviderImpl::FindAuthenticatedAccountByAddress(
     const std::string& address,
     base::Value& id,
     mojom::EthereumProvider::RequestCallback& callback) {
+  LOG(ERROR)<<"UpdateKnownAccounts ANKIT IVAN";      
+
   if (!EthAddress::IsValidAddress(address)) {
     RejectInvalidParams(std::move(id), std::move(callback));
     return nullptr;
   }
   auto account_id = FindAccountByAddress(address);
+  LOG(ERROR)<<"UpdateKnownAccounts ANKIT IVAN";      
+
   if (!account_id) {
     RejectAccountNotAuthed(std::move(id), std::move(callback));
     return nullptr;
@@ -1376,6 +1463,7 @@ mojom::AccountIdPtr EthereumProviderImpl::FindAuthenticatedAccountByAddress(
 mojom::AccountIdPtr EthereumProviderImpl::FindAccountByAddress(
     const std::string& address) {
   AccountResolverDelegateImpl resolver(keyring_service_);
+  LOG(ERROR)<<"UpdateKnownAccounts ANKIT IVAN";      
 
   auto account_id = resolver.ResolveAccountId(nullptr, &address);
   if (!account_id || account_id->coin != mojom::CoinType::ETH) {
@@ -1387,9 +1475,9 @@ mojom::AccountIdPtr EthereumProviderImpl::FindAccountByAddress(
 
 void EthereumProviderImpl::Init(
     ::mojo::PendingRemote<mojom::EventsListener> events_listener) {
-  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
+  LOG(ERROR)<<"EthereumProviderImpl Init ANKIT IVAN";    
   if (!events_listener_.is_bound()) {
-  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
+  LOG(ERROR)<<"EthereumProviderImpl Init ANKIT IVAN";    
     events_listener_.Bind(std::move(events_listener));
   }
 
@@ -1580,12 +1668,16 @@ void EthereumProviderImpl::OnResponse(bool format_json_rpc_response,
                                       const bool reject,
                                       const std::string& first_allowed_account,
                                       const bool update_bind_js_properties) {
+  LOG(ERROR)<<"OnResponse ANKIT IVAN";      
+
   if (format_json_rpc_response) {
     auto json_rpc_formed_response =
         ToProviderResponse(id.Clone(), reject ? nullptr : &formed_response,
                            reject ? &formed_response : nullptr);
     formed_response = std::move(json_rpc_formed_response);
   }
+  LOG(ERROR)<<"OnResponse ANKIT IVAN";      
+
 
   std::move(callback).Run(std::move(id), std::move(formed_response), reject,
                           first_allowed_account, update_bind_js_properties);

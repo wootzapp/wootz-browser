@@ -28,6 +28,7 @@
 #include "chrome/browser/content_settings/sound_content_setting_observer.h"
 #include "chrome/browser/dips/dips_bounce_detector.h"
 #include "chrome/browser/dips/dips_service.h"
+#include "chrome/browser/ephemeral_storage/ephemeral_storage_tab_helper.h"
 #include "chrome/browser/external_protocol/external_protocol_observer.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/file_system_access/file_system_access_features.h"
@@ -110,6 +111,7 @@
 #include "chrome/browser/user_notes/user_notes_tab_helper.h"
 #include "chrome/browser/v8_compile_hints/v8_compile_hints_tab_helper.h"
 #include "chrome/browser/vr/vr_tab_helper.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_tab_helper.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_isolated_world_ids.h"
@@ -805,6 +807,13 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
 #elif BUILDFLAG(ENABLE_PRINTING)
   printing::InitializePrintingForWebContents(web_contents);
 #endif
+
+if (base::FeatureList::IsEnabled(net::features::kWootzEphemeralStorage)) {
+    ephemeral_storage::EphemeralStorageTabHelper::CreateForWebContents(
+        web_contents);
+}
+
+wootz_wallet::WootzWalletTabHelper::CreateForWebContents(web_contents);
 
   // --- Section 4: The warning ---
 

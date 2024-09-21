@@ -18,6 +18,7 @@
 #include "chrome/browser/media/webrtc/media_stream_device_permission_context.h"
 #include "chrome/browser/nfc/chrome_nfc_permission_context_delegate.h"
 #include "chrome/browser/notifications/notification_permission_context.h"
+#include "chrome/browser/permissions/permission_lifetime_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/ui_thread_search_terms_data.h"
 #include "chrome/browser/storage/durable_storage_permission_context.h"
@@ -34,6 +35,7 @@
 #include "components/permissions/contexts/pointer_lock_permission_context.h"
 #include "components/permissions/contexts/speaker_selection_permission_context.h"
 #include "components/permissions/contexts/window_management_permission_context.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "components/permissions/permission_manager.h"
 #include "ppapi/buildflags/buildflags.h"
 #include "services/device/public/cpp/geolocation/buildflags.h"
@@ -112,12 +114,12 @@ permissions::PermissionManager::PermissionContextMap CreatePermissionContexts(
   permission_contexts[ContentSettingsType::KEYBOARD_LOCK] =
       std::make_unique<permissions::KeyboardLockPermissionContext>(profile);
 
-//   permission_contexts[ContentSettingsType::WOOTZ_ETHEREUM] =
-//       std::make_unique<permissions::WootzWalletPermissionContext>(
-//           profile, ContentSettingsType::WOOTZ_ETHEREUM);
-//   permission_contexts[ContentSettingsType::WOOTZ_SOLANA] =
-//       std::make_unique<permissions::WootzWalletPermissionContext>(
-//           profile, ContentSettingsType:WOOTZE_SOLANA);
+  permission_contexts[ContentSettingsType::WOOTZ_ETHEREUM] =
+      std::make_unique<permissions::WootzWalletPermissionContext>(
+          profile, ContentSettingsType::WOOTZ_ETHEREUM);
+  permission_contexts[ContentSettingsType::WOOTZ_SOLANA] =
+      std::make_unique<permissions::WootzWalletPermissionContext>(
+          profile, ContentSettingsType::WOOTZ_SOLANA);
 
   // TODO(crbug.com/40115199): Still in development for Android so we don't
   // support it on WebLayer yet.

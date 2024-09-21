@@ -164,6 +164,63 @@ CookieSettingsBase::GetContentSettingsTypes() {
   return kInstance;
 }
 
+bool CookieSettingsBase::ShouldUseEphemeralStorage(
+    const GURL& url,
+    const net::SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin) const {
+  if (!base::FeatureList::IsEnabled(net::features::kWootzEphemeralStorage))
+    return false;
+
+  const GURL first_party_url =
+      GetFirstPartyURL(site_for_cookies, base::OptionalToPtr(top_frame_origin));
+
+  if (!first_party_url.is_valid())
+    return false;
+
+  // Enable ephemeral storage for a first party URL if SESSION_ONLY cookie
+  // setting is set and the feature is enabled.
+  std::optional<CookieSettingWithMetadata> first_party_setting;
+  if (base::FeatureList::IsEnabled(
+          net::features::kWootzFirstPartyEphemeralStorage)) {
+    first_party_setting = GetCookieSettingInternal(
+        first_party_url, net::SiteForCookies::FromUrl(first_party_url),
+        first_party_url, net::CookieSettingOverrides(), nullptr);
+    if (IsSessionOnlyExplicit(*first_party_setting)) {
+      return true;
+    }
+  }
+
+  // if (net::registry_controlled_domains::SameDomainOrHost(
+  //         first_party_url, url,
+  //         net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES))
+  //   return false;  // TO BE RESEARCHED IF WE FACE EPHEMERAL ISSUES 
+
+  bool allow_3p = IsFullCookieAccessAllowed(
+      url, site_for_cookies, top_frame_origin, net::CookieSettingOverrides());
+  bool allow_1p =
+      first_party_setting
+          ? IsAllowed(first_party_setting->cookie_setting())
+          : IsFirstPartyAccessAllowed(first_party_url, this,
+                                      net::CookieSettingOverrides());
+
+  // only use ephemeral storage for block 3p
+  return allow_1p && !allow_3p;
+}
+
+
+bool CookieSettingsBase::IsEphemeralCookieAccessAllowed(
+    const GURL& url,
+    const net::SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin,
+    net::CookieSettingOverrides overrides) const {
+  if (ShouldUseEphemeralStorage(url, site_for_cookies, top_frame_origin)) {
+    return true;
+  }
+
+  return IsFullCookieAccessAllowed(url, site_for_cookies, top_frame_origin,
+                                   overrides);
+}
+
 // static
 bool CookieSettingsBase::IsThirdPartyRequest(
     const GURL& url,

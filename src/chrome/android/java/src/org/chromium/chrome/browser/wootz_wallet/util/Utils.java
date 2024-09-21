@@ -196,7 +196,8 @@ public class Utils {
 
     public static boolean shouldShowCryptoOnboarding() {
         SharedPreferences mSharedPreferences = ContextUtils.getAppSharedPreferences();
-        return mSharedPreferences.getBoolean(PREF_CRYPTO_ONBOARDING, true);
+        // return mSharedPreferences.getBoolean(PREF_CRYPTO_ONBOARDING, true);
+        return false;
     }
 
     public static void setCryptoOnboarding(boolean enabled) {

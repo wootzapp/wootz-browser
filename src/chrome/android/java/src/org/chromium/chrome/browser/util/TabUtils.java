@@ -33,13 +33,13 @@ import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
-import org.chromium.chrome.browser.app.BraveActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.night_mode.GlobalNightModeStateProviderHolder;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
-import org.chromium.chrome.browser.tasks.tab_management.BraveTabUiFeatureUtilities;
+import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 import org.chromium.chrome.browser.toolbar.LocationBarModel;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -116,10 +116,10 @@ public class TabUtils {
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 int id = item.getItemId();
-                BraveActivity activity = null;
+                ChromeActivity activity = null;
                 try {
-                    activity = BraveActivity.getBraveActivity();
-                } catch (BraveActivity.BraveActivityNotFoundException e) {
+                    activity = ChromeActivity.getChromeActivity();
+                } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                     Log.e(TAG, "showBookmarkTabPopupMenu popup click " + e);
                 }
                 if (currentTab == null || activity == null) {
@@ -148,7 +148,7 @@ public class TabUtils {
 
     public static void showTabPopupMenu(Context context, View view) {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
             Context wrapper = new ContextThemeWrapper(context,
                     GlobalNightModeStateProviderHolder.getInstance().isInNightMode()
                             ? R.style.NewTabPopupMenuDark
@@ -158,7 +158,7 @@ public class TabUtils {
             // Inflating the Popup using xml file
             popup.getMenuInflater().inflate(R.menu.new_tab_menu, popup.getMenu());
 
-            if (braveActivity != null && braveActivity.getCurrentTabModel().isIncognito()) {
+            if (chromeActivity != null && chromeActivity.getCurrentTabModel().isIncognito()) {
                 popup.getMenu().findItem(R.id.new_tab_menu_id).setVisible(false);
             }
             // registering popup with OnMenuItemClickListener
@@ -167,110 +167,90 @@ public class TabUtils {
                 public boolean onMenuItemClick(MenuItem item) {
                     int id = item.getItemId();
                     if (id == R.id.new_tab_menu_id) {
-                        openNewTab(braveActivity, false);
+                        openNewTab(chromeActivity, false);
                     } else if (id == R.id.new_incognito_tab_menu_id) {
-                        openNewTab(braveActivity, true);
+                        openNewTab(chromeActivity, true);
                     }
                     return true;
                 }
             });
             popup.show(); // showing popup menu
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "showTabPopupMenu " + e);
         }
     }
 
     public static void openNewTab() {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            boolean isIncognito = braveActivity != null
-                    ? braveActivity.getCurrentTabModel().isIncognito()
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            boolean isIncognito = chromeActivity != null
+                    ? chromeActivity.getCurrentTabModel().isIncognito()
                     : false;
-            openNewTab(braveActivity, isIncognito);
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+            openNewTab(chromeActivity, isIncognito);
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "openNewTab " + e);
         }
     }
 
-    private static void openNewTab(BraveActivity braveActivity, boolean isIncognito) {
-        if (braveActivity == null) return;
-        braveActivity.getTabModelSelector().getModel(isIncognito).commitAllTabClosures();
-        braveActivity.getTabCreator(isIncognito).launchNtp();
+    private static void openNewTab(ChromeActivity chromeActivity, boolean isIncognito) {
+        if (chromeActivity == null) return;
+        chromeActivity.getTabModelSelector().getModel(isIncognito).commitAllTabClosures();
+        chromeActivity.getTabCreator(isIncognito).launchNtp();
     }
 
     public static void openUrlInNewTab(boolean isIncognito, String url) {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            braveActivity.getTabCreator(isIncognito).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            chromeActivity.getTabCreator(isIncognito).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "openUrlInNewTab " + e);
         }
     }
 
     public static void openUrlInNewTabInBackground(boolean isIncognito, String url) {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            if (braveActivity.getTabModelSelector() != null
-                    && braveActivity.getActivityTab() != null) {
-                braveActivity.getTabModelSelector().openNewTab(new LoadUrlParams(url),
-                        BraveTabUiFeatureUtilities.isBraveTabGroupsEnabled()
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            if (chromeActivity.getTabModelSelector() != null
+                    && chromeActivity.getActivityTab() != null) {
+                chromeActivity.getTabModelSelector().openNewTab(new LoadUrlParams(url),
+                        TabUiFeatureUtilities.isTabGroupsEnabled()
                                 ? TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP
                                 : TabLaunchType.FROM_LONGPRESS_BACKGROUND,
-                        braveActivity.getActivityTab(), isIncognito);
+                        chromeActivity.getActivityTab(), isIncognito);
             }
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "openUrlInNewTabInBackground " + e);
         }
     }
 
     public static void openUrlInSameTab(String url) {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            if (braveActivity.getActivityTab() != null) {
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            if (chromeActivity.getActivityTab() != null) {
                 LoadUrlParams loadUrlParams = new LoadUrlParams(url);
-                braveActivity.getActivityTab().loadUrl(loadUrlParams);
+                chromeActivity.getActivityTab().loadUrl(loadUrlParams);
             }
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "openUrlInSameTab " + e);
         }
     }
 
     public static void reloadIgnoringCache() {
         try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            if (braveActivity.getActivityTab() != null) {
-                braveActivity.getActivityTab().reloadIgnoringCache();
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            if (chromeActivity.getActivityTab() != null) {
+                chromeActivity.getActivityTab().reloadIgnoringCache();
             }
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "reloadIgnoringCache " + e);
         }
     }
 
-    public static void enableRewardsButton() {
-        try {
-            BraveActivity braveActivity = BraveActivity.getBraveActivity();
-            if (braveActivity.getToolbarManager() == null) {
-                return;
-            }
-            View toolbarView = braveActivity.findViewById(R.id.toolbar);
-            if (toolbarView == null) {
-                return;
-            }
-            FrameLayout rewardsLayout = toolbarView.findViewById(R.id.brave_rewards_button_layout);
-            if (rewardsLayout == null) {
-                return;
-            }
-            rewardsLayout.setVisibility(View.VISIBLE);
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
-            Log.e(TAG, "enableRewardsButton " + e);
-        }
-    }
-
     public static void bringChromeTabbedActivityToTheTop(Activity activity) {
-        Intent braveActivityIntent = new Intent(activity, ChromeTabbedActivity.class);
-        braveActivityIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        braveActivityIntent.setAction(Intent.ACTION_VIEW);
-        activity.startActivity(braveActivityIntent);
+        Intent chromeActivityIntent = new Intent(activity, ChromeTabbedActivity.class);
+        chromeActivityIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        chromeActivityIntent.setAction(Intent.ACTION_VIEW);
+        activity.startActivity(chromeActivityIntent);
     }
 
     /**
@@ -283,13 +263,13 @@ public class TabUtils {
         TabUtils.bringChromeTabbedActivityToTheTop(activity);
     }
 
-    public static void openURLWithBraveActivity(String url) {
+    public static void openURLWithChromeActivity(String url) {
         try {
-            BraveActivity activity = BraveActivity.getBraveActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             activity.openNewOrSelectExistingTab(url, true);
             TabUtils.bringChromeTabbedActivityToTheTop(activity);
-        } catch (BraveActivity.BraveActivityNotFoundException e) {
-            Log.e(TAG, "openURLWithBraveActivity error", e);
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+            Log.e(TAG, "openURLWithChromeActivity error", e);
         }
     }
 

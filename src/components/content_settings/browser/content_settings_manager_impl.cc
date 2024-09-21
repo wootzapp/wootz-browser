@@ -4,6 +4,7 @@
 
 #include "components/content_settings/browser/content_settings_manager_impl.h"
 
+#include "base/containers/flat_map.h"
 #include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
 #include "base/task/thread_pool.h"
@@ -198,6 +199,20 @@ void ContentSettingsManagerImpl::AllowStorageAccess(
                                 storage_type, top_frame_origin, allowed));
 
   std::move(callback).Run(allowed);
+}
+
+void ContentSettingsManagerImpl::AllowEphemeralStorageAccess(
+    const blink::LocalFrameToken& frame_token,
+    const url::Origin& origin,
+    const net::SiteForCookies& site_for_cookies,
+    const url::Origin& top_frame_origin,
+    AllowEphemeralStorageAccessCallback callback) {
+  url::Origin storage_origin;
+  const bool should_use = cookie_settings_->ShouldUseEphemeralStorage(
+      origin, site_for_cookies, top_frame_origin, storage_origin);
+  std::move(callback).Run(should_use
+                              ? std::make_optional<url::Origin>(storage_origin)
+                              : std::nullopt);
 }
 
 void ContentSettingsManagerImpl::OnContentBlocked(

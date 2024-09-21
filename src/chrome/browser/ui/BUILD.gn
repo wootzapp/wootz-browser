@@ -480,6 +480,8 @@ static_library("ui") {
     "//chrome/browser/ui/webui/suggest_internals:mojo_bindings",
     "//chrome/browser/ui/webui/usb_internals:mojo_bindings",
     "//chrome/browser/v8_compile_hints/proto",
+    "//chrome/browser/wootz_wallet",
+    "//chrome/browser/wootz_wallet:tab_helper",
     "//chrome/common",
     "//chrome/common/net",
     "//chrome/common/search:mojo_bindings",

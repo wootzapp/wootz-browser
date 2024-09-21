@@ -149,6 +149,19 @@ void ContentSettingsRegistry::Init() {
            ContentSettingsInfo::INHERIT_IF_LESS_PERMISSIVE,
            ContentSettingsInfo::EXCEPTIONS_ON_SECURE_ORIGINS_ONLY);
 
+    Register(ContentSettingsType::WOOTZ_REMEMBER_1P_STORAGE,
+           "wootz_remember_1p_storage",
+           net::features::kWootzForgetFirstPartyStorageByDefault.Get()
+               ? CONTENT_SETTING_BLOCK
+               : CONTENT_SETTING_ALLOW,
+           WebsiteSettingsInfo::UNSYNCABLE, {},
+           {CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK},
+           WebsiteSettingsInfo::TOP_ORIGIN_ONLY_SCOPE,
+           WebsiteSettingsRegistry::DESKTOP |
+               WebsiteSettingsRegistry::PLATFORM_ANDROID,
+           ContentSettingsInfo::INHERIT_IN_INCOGNITO,
+           ContentSettingsInfo::EXCEPTIONS_ON_SECURE_AND_INSECURE_ORIGINS);       
+
   Register(ContentSettingsType::NOTIFICATIONS, "notifications",
            CONTENT_SETTING_ASK, WebsiteSettingsInfo::UNSYNCABLE,
            /*allowlisted_primary_schemes=*/{},

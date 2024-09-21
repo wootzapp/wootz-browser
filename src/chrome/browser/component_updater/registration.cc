@@ -39,6 +39,7 @@
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
+#include "components/wootz_wallet/browser/wallet_data_files_installer.h"
 #include "components/component_updater/component_updater_service.h"
 #include "components/component_updater/installer_policies/autofill_states_component_installer.h"
 #include "components/component_updater/installer_policies/on_device_head_suggest_component_installer.h"
@@ -100,6 +101,9 @@ namespace component_updater {
 
 void RegisterComponentsForUpdate() {
   auto* const cus = g_browser_process->component_updater();
+  wootz_wallet::WalletDataFilesInstaller::GetInstance()
+      .MaybeRegisterWalletDataFilesComponent(cus,
+                                             g_browser_process->local_state());
 
 #if BUILDFLAG(IS_WIN)
   RegisterRecoveryImprovedComponent(cus, g_browser_process->local_state());

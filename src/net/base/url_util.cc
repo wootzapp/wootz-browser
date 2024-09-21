@@ -156,6 +156,18 @@ std::string_view QueryIterator::GetValue() const {
   return std::string_view();
 }
 
+std::string URLToEphemeralStorageDomain(const GURL& url) {
+  std::string domain = registry_controlled_domains::GetDomainAndRegistry(
+      url, registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+
+  // GetDomainAndRegistry might return an empty string if this host is an IP
+  // address or a file URL.
+  if (domain.empty())
+    domain = url::Origin::Create(url).Serialize();
+
+  return domain;
+}
+
 const std::string& QueryIterator::GetUnescapedValue() {
   DCHECK(!at_end_);
   if (value_.is_nonempty() && unescaped_value_.empty()) {

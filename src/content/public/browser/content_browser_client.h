@@ -352,6 +352,9 @@ class CONTENT_EXPORT ContentBrowserClient {
   virtual std::unique_ptr<WebContentsViewDelegate> GetWebContentsViewDelegate(
       WebContents* web_contents);
 
+  virtual std::optional<base::UnguessableToken> GetEphemeralStorageToken(
+      RenderFrameHost* render_frame_host, const url::Origin& origin);   
+      
   // Allow embedder control GPU process launch retry on failure behavior.
   virtual bool AllowGpuLaunchRetryOnIOThread();
 

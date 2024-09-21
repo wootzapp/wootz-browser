@@ -508,6 +508,9 @@ v8::Local<v8::Promise> JSEthereumProvider::SendMethod(gin::Arguments* args) {
     params = std::make_unique<base::Value>(base::Value::Type::LIST);
   }
 
+  LOG(ERROR)<<"JSEthereumProvider params";
+  LOG(ERROR)<<"JSEthereumProvider params"<<params;    
+
   if (!EnsureConnected()) {
     return v8::Local<v8::Promise>();
   }
@@ -533,6 +536,7 @@ v8::Local<v8::Promise> JSEthereumProvider::SendMethod(gin::Arguments* args) {
 }
 
 void JSEthereumProvider::SendAsync(gin::Arguments* args) {
+  LOG(ERROR)<<"JSEthereumProvider input_value";    
   if (!EnsureConnected()) {
     return;
   }
@@ -551,7 +555,8 @@ void JSEthereumProvider::SendAsync(gin::Arguments* args) {
   std::unique_ptr<base::Value> input_value =
       content::V8ValueConverter::Create()->FromV8Value(
           input, isolate->GetCurrentContext());
-
+  LOG(ERROR)<<"JSEthereumProvider input_value";    
+  LOG(ERROR)<<"JSEthereumProvider input_value"<<input_value;    
   ethereum_provider_->SendAsync(
       std::move(*input_value),
       base::BindOnce(&JSEthereumProvider::OnRequestOrSendAsync,
@@ -566,6 +571,8 @@ bool JSEthereumProvider::IsConnected() {
 
 v8::Local<v8::Promise> JSEthereumProvider::Request(v8::Isolate* isolate,
                                                    v8::Local<v8::Value> input) {
+  LOG(ERROR)<<"JSEthereumProvider Request";    
+
   if (!input->IsObject()) {
     return v8::Local<v8::Promise>();
   }
@@ -579,6 +586,9 @@ v8::Local<v8::Promise> JSEthereumProvider::Request(v8::Isolate* isolate,
 
   v8::MaybeLocal<v8::Promise::Resolver> resolver =
       v8::Promise::Resolver::New(isolate->GetCurrentContext());
+
+  LOG(ERROR)<<"JSEthereumProvider resolver";    
+
   if (resolver.IsEmpty()) {
     return v8::Local<v8::Promise>();
   }
@@ -606,15 +616,22 @@ void JSEthereumProvider::OnRequestOrSendAsync(
     const bool reject,
     const std::string& first_allowed_account,
     const bool update_bind_js_properties) {
+
+  LOG(ERROR)<<"JSEthereumProvider OnRequestOrSendAsync";        
   if (update_bind_js_properties) {
     first_allowed_account_ = first_allowed_account;
   }
+
+  LOG(ERROR)<<"JSEthereumProvider OnRequestOrSendAsync"<<id;        
+  
   SendResponse(std::move(id), std::move(global_context),
                std::move(global_callback), std::move(promise_resolver), isolate,
                std::move(formed_response), !reject);
 }
 
 v8::Local<v8::Promise> JSEthereumProvider::Enable(v8::Isolate* isolate) {
+  LOG(ERROR)<<"JSEthereumProvider Enable";        
+
   if (!EnsureConnected()) {
     return v8::Local<v8::Promise>();
   }
@@ -624,13 +641,14 @@ v8::Local<v8::Promise> JSEthereumProvider::Enable(v8::Isolate* isolate) {
   if (resolver.IsEmpty()) {
     return v8::Local<v8::Promise>();
   }
-
+  LOG(ERROR)<<"JSEthereumProvider Enable";        
   auto global_context(
       v8::Global<v8::Context>(isolate, isolate->GetCurrentContext()));
   auto promise_resolver(
       v8::Global<v8::Promise::Resolver>(isolate, resolver.ToLocalChecked()));
   auto context(v8::Global<v8::Context>(isolate, isolate->GetCurrentContext()));
 
+  LOG(ERROR)<<"JSEthereumProvider Enable";        
   ethereum_provider_->Enable(
       base::BindOnce(&JSEthereumProvider::OnRequestOrSendAsync,
                      weak_ptr_factory_.GetWeakPtr(), std::move(global_context),
@@ -707,9 +725,12 @@ void JSEthereumProvider::AccountsChangedEvent(
 
 void JSEthereumProvider::MessageEvent(const std::string& subscription_id,
                                       base::Value result) {
+  LOG(ERROR)<<"MessageEvent ANKIT";
+
   base::Value::Dict event_args;
   base::Value::Dict data;
   data.Set("subscription", subscription_id);
+  LOG(ERROR)<<"MessageEvent"<<result;
   data.Set("result", std::move(result));
   event_args.Set("type", "eth_subscription");
   event_args.Set("data", std::move(data));
@@ -757,7 +778,7 @@ void JSEthereumProvider::AnnounceProvider() {
   // provider_info_value.Set(
   //     "name", l10n_util::GetStringUTF8(IDS_WALLET_EIP6963_PROVIDER_NAME));
   provider_info_value.Set(
-      "name", "jaieth");
+      "name", "WootzWallet");
   provider_info_value.Set("icon", GetWootzWalletImage());
 
   auto detail = v8::Object::New(isolate);

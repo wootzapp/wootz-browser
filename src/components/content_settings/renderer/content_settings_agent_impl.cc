@@ -168,6 +168,8 @@ void ContentSettingsAgentImpl::DidCommitProvisionalLoad(
   // `allowPlugins()` is called for the new page so that these functions can
   // correctly detect that a piece of content flipped from "not blocked" to
   // "blocked".
+  cached_ephemeral_storage_origins_.clear();
+
   ClearBlockedContentSettings();
 
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
@@ -277,6 +279,11 @@ bool ContentSettingsAgentImpl::AllowStorageAccessSync(
     return false;
   }
 
+   if (storage_type == StorageType::kLocalStorage ||
+      storage_type == StorageType::kSessionStorage) {
+    return !GetEphemeralStorageOriginSync().IsNull();
+  }
+
   StoragePermissionsKey key(url::Origin(frame->GetSecurityOrigin()),
                             storage_type);
   const auto permissions = cached_storage_permissions_.find(key);
@@ -293,6 +300,45 @@ bool ContentSettingsAgentImpl::AllowStorageAccessSync(
   return result;
 }
 
+blink::WebSecurityOrigin
+ContentSettingsAgentImpl::GetEphemeralStorageOriginSync() {
+  if (!base::FeatureList::IsEnabled(net::features::kWootzEphemeralStorage)) {
+    return {};
+  }
+
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+
+  if (!frame || IsFrameWithOpaqueOrigin(frame)) {
+    return {};
+  }
+
+  auto frame_origin = url::Origin(frame->GetSecurityOrigin());
+  const auto ephemeral_storage_origin_it =
+      cached_ephemeral_storage_origins_.find(frame_origin);
+  if (ephemeral_storage_origin_it != cached_ephemeral_storage_origins_.end()) {
+    return ephemeral_storage_origin_it->second;
+  }
+
+  auto top_origin = url::Origin(frame->Top()->GetSecurityOrigin());
+  // If first party ephemeral storage is enabled, we should always ask the
+  // browser if a frame should use ephemeral storage or not.
+  if (!base::FeatureList::IsEnabled(
+          net::features::kWootzFirstPartyEphemeralStorage)) {
+    return {};
+  }
+
+  std::optional<url::Origin> optional_ephemeral_storage_origin;
+  GetContentSettingsManager().AllowEphemeralStorageAccess(
+      frame->GetLocalFrameToken(), frame_origin,
+      frame->GetDocument().SiteForCookies(), top_origin,
+      &optional_ephemeral_storage_origin);
+  blink::WebSecurityOrigin ephemeral_storage_origin(
+      optional_ephemeral_storage_origin
+          ? blink::WebSecurityOrigin(*optional_ephemeral_storage_origin)
+          : blink::WebSecurityOrigin());
+  cached_ephemeral_storage_origins_[frame_origin] = ephemeral_storage_origin;
+  return ephemeral_storage_origin;
+}
 bool ContentSettingsAgentImpl::AllowReadFromClipboard() {
   return delegate_->AllowReadFromClipboard();
 }

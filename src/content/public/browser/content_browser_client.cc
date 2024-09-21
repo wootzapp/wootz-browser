@@ -187,6 +187,13 @@ bool ContentBrowserClient::ShouldLockProcessToSite(
   return true;
 }
 
+std::optional<base::UnguessableToken>
+ContentBrowserClient::GetEphemeralStorageToken(
+    RenderFrameHost* render_frame_host,
+    const url::Origin& origin) {
+  return std::nullopt;
+}
+
 bool ContentBrowserClient::ShouldEnforceNewCanCommitUrlChecks() {
   return true;
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Brave Authors. All rights reserved.
+// Copyright (c) 2022 The Wootz Authors. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
@@ -95,7 +95,7 @@ Polymer({
       value: true,
     },
 
-    isBraveWalletAllowed_: {
+    isWootzWalletAllowed_: {
       type: Boolean,
       value: true,
     },
@@ -221,8 +221,8 @@ Polymer({
   attached: function () {
     this.shouldShowRewardsButton_ =
       this.getLoadTimeDataBoolean('brToolbarShowRewardsButton')
-    this.isBraveWalletAllowed_ =
-      this.getLoadTimeDataBoolean('isBraveWalletAllowed')
+    this.isWootzWalletAllowed_ =
+      this.getLoadTimeDataBoolean('isWootzWalletAllowed')
     this.initSlotFilledDetection()
     this.initStrings()
     this.initFontLoadDetection()

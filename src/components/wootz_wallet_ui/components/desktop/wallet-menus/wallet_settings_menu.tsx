@@ -141,7 +141,7 @@ export const WalletSettingsMenu = (props: Props) => {
 
   const onClickRoute = (route: WalletRoutes | AccountPageTabs) => {
     if (route === WalletRoutes.AddHardwareAccountModalStart && isPanel) {
-      chrome.tabs.create({ url: `chrome://wallet${route}` }, () => {
+      chrome.tabs.create({ url: `wootzapp://wallet${route}` }, () => {
         if (chrome.runtime.lastError) {
           console.error(
             'tabs.create failed: ' + chrome.runtime.lastError.message
@@ -157,7 +157,7 @@ export const WalletSettingsMenu = (props: Props) => {
     if (isPanel) {
       chrome.tabs.create(
         {
-          url: `chrome://wallet${WalletRoutes.Backup}`
+          url: `wootzapp://wallet${WalletRoutes.Backup}`
         },
         () => {
           if (chrome.runtime.lastError) {

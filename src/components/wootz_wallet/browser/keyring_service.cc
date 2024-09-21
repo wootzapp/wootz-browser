@@ -1164,7 +1164,7 @@ void KeyringService::RemoveAccount(mojom::AccountIdPtr account_id,
     return;
   }
 
-  NOTREACHED_IN_MIGRATION();
+  // NOTREACHED_IN_MIGRATION();
   std::move(callback).Run(false);
 }
 

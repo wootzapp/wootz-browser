@@ -18,10 +18,13 @@
 #include "chrome/common/profiler/thread_profiler.h"
 #include "chrome/common/profiler/thread_profiler_configuration.h"
 #include "chrome/utility/services.h"
+#include "components/services/wootz_wallet/wootz_wallet_utils_service_impl.h"
+#include "components/services/wootz_wallet/public/mojom/wootz_wallet_utils_service.mojom.h"
 #include "components/heap_profiling/in_process/heap_profiler_controller.h"
 #include "components/metrics/call_stacks/call_stack_profile_builder.h"
 #include "content/public/child/child_thread.h"
 #include "content/public/common/content_switches.h"
+#include "mojo/public/cpp/bindings/service_factory.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chromeos/ash/components/mojo_service_manager/connection.h"
@@ -32,6 +35,14 @@
 #include "sandbox/policy/sandbox_type.h"
 #endif
 
+namespace {
+  auto RunWootzWalletUtilsService(
+    mojo::PendingReceiver<wootz_wallet::mojom::WootzWalletUtilsService>
+        receiver) {
+  return std::make_unique<wootz_wallet::WootzWalletUtilsServiceImpl>(
+      std::move(receiver));
+}
+}
 ChromeContentUtilityClient::ChromeContentUtilityClient() = default;
 
 ChromeContentUtilityClient::~ChromeContentUtilityClient() = default;
@@ -74,8 +85,11 @@ void ChromeContentUtilityClient::UtilityThreadStarted() {
 
 void ChromeContentUtilityClient::RegisterMainThreadServices(
     mojo::ServiceFactory& services) {
+  services.Add(RunWootzWalletUtilsService);
+
   if (utility_process_running_elevated_)
     return ::RegisterElevatedMainThreadServices(services);
+
   return ::RegisterMainThreadServices(services);
 }
 

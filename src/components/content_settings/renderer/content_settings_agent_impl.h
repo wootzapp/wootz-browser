@@ -97,6 +97,8 @@ class ContentSettingsAgentImpl
     return allow_running_insecure_content_;
   }
 
+  blink::WebSecurityOrigin GetEphemeralStorageOriginSync();
+
   void SetContentSettingsManager(
       mojo::Remote<mojom::ContentSettingsManager> manager) {
     content_settings_manager_ = std::move(manager);
@@ -158,6 +160,9 @@ class ContentSettingsAgentImpl
   const bool should_allowlist_;
 
   std::unique_ptr<Delegate> delegate_;
+
+  base::flat_map<url::Origin, blink::WebSecurityOrigin>
+      cached_ephemeral_storage_origins_;
 
   mojo::AssociatedReceiverSet<mojom::ContentSettingsAgent> receivers_;
 };

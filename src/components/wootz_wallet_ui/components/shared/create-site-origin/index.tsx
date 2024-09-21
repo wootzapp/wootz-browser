@@ -13,7 +13,7 @@ export interface Props {
 export const CreateSiteOrigin = (props: Props) => {
   const { originSpec, eTldPlusOne } = props
 
-  if (originSpec === 'chrome://wallet') {
+  if (originSpec === 'wootzapp://wallet') {
     return <span>{getLocale('wootzWalletPanelTitle')}</span>
   }
 

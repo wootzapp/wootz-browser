@@ -94,8 +94,8 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         InitTxService();
         InitEthTxManagerProxy();
         InitSolanaTxManagerProxy();
-        // InitAssetRatioService();
-        // InitWootzWalletP3A();
+        InitAssetRatioService();
+        InitWootzWalletP3A();
         InitWootzWalletService();
     }
 
@@ -231,8 +231,8 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         InitTxService();
         InitEthTxManagerProxy();
         InitSolanaTxManagerProxy();
-        // InitAssetRatioService();
-        // InitWootzWalletP3A();
+        InitAssetRatioService();
+        InitWootzWalletP3A();
         InitWootzWalletService();
     }
 

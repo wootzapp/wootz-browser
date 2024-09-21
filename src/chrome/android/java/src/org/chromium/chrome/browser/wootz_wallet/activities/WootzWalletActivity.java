@@ -36,6 +36,15 @@ import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
 /** Main Wootz Wallet activity */
 public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNextPage {
 
@@ -107,8 +116,14 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
 
         Log.e("WOOTZAPP ANKITIVAN", "getChromeActivity1 ANKITIVAN1 "+ mWalletModel);
               
-            // // Update network model to use default network.
-            // getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
+          
+         // Update network model to use default network.
+       
+        // if (networkModel != null) {
+            getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
+        // } else {
+        //     Log.e("WOOTZAPP ANKITIVAN", "NetworkModel is null, cannot update mode.");
+        // }
         // } catch (ChromeActivity.ChromeActivityNotFoundException e) {
         //     Log.e(TAG, "triggerLayoutInflation", e);
         // }
@@ -160,6 +175,17 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mCryptoWalletOnboardingViewPager.setCurrentItem(0);
             addRemoveSecureFlag(true);
         } else if (mKeyringService != null) {
+            mKeyringService.createWallet("asdfasdf", recoveryPhrase -> {});
+            mKeyringService.unlock("asdfasdf",result ->{});
+            mKeyringService.getAllAccounts(accounts ->
+                        Arrays.stream(accounts.accounts).forEach(acc ->
+                            mKeyringService.removeAccount(acc.accountId,
+                        "asdfasdf", succ -> {})
+                        )
+            );
+
+            mKeyringService.addAccount(60,0,"123", accountInfo ->
+                        mKeyringService.setSelectedAccount(accountInfo.accountId, success -> {})) ;
             mKeyringService.isLocked(
                     isLocked -> {
                         if (isLocked) {

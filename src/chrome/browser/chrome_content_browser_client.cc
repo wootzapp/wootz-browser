@@ -813,6 +813,62 @@ using web_apps::ChromeContentBrowserClientIsolatedWebAppsPart;
 
 namespace {
 
+bool HandleURLReverseOverrideRewrite(GURL* url,
+                                     content::BrowserContext* browser_context) {
+  if (ChromeContentBrowserClient::HandleURLOverrideRewrite(url,
+                                                          browser_context)) {
+    return true;
+  }
+
+// For wallet pages, return true to update the displayed URL to react-routed
+// URL rather than showing brave://wallet for everything. This is needed
+// because of a side effect from rewriting brave:// to chrome:// in
+// HandleURLRewrite handler which makes brave://wallet the virtual URL here
+// unless we return true to trigger an update of virtual URL here to the routed
+// URL. For example, we will display brave://wallet/send instead of
+// brave://wallet with this. This is Android only because currently both
+// virtual and real URLs are chrome:// on desktop, so it doesn't have this
+// issue.
+#if BUILDFLAG(IS_ANDROID)
+  if ((url->SchemeIs(content::kWootzUIScheme) ||
+       url->SchemeIs(content::kChromeUIScheme)) &&
+      url->host() == kWalletPageHost) {
+    if (url->SchemeIs(content::kChromeUIScheme)) {
+      GURL::Replacements replacements;
+      replacements.SetSchemeStr(content::kWootzUIScheme);
+      *url = url->ReplaceComponents(replacements);
+    }
+    return true;
+  }
+#endif
+
+  return false;
+}
+
+bool HandleURLRewrite(GURL* url, content::BrowserContext* browser_context) {
+  if (BraveContentBrowserClient::HandleURLOverrideRewrite(url,
+                                                          browser_context)) {
+    return true;
+  }
+
+// For wallet pages, return true so we can handle it in the reverse handler.
+// Also update the real URL from brave:// to chrome://.
+#if BUILDFLAG(IS_ANDROID)
+  if ((url->SchemeIs(content::kWootzUIScheme) ||
+       url->SchemeIs(content::kChromeUIScheme)) &&
+      url->host() == kWalletPageHost) {
+    if (url->SchemeIs(content::kWootzUIScheme)) {
+      GURL::Replacements replacements;
+      replacements.SetSchemeStr(content::kChromeUIScheme);
+      *url = url->ReplaceComponents(replacements);
+    }
+    return true;
+  }
+#endif
+
+  return false;
+}  
+
 #if BUILDFLAG(IS_ANDROID)
 // Kill switch that allows falling back to the legacy behavior on Android when
 // it comes to site isolation for Gaia's origin (|GaiaUrls::gaia_origin()|).
@@ -1637,6 +1693,9 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
      
   }
 
+  content::RegisterWebUIControllerInterfaceBinder<
+      wootz_wallet::mojom::PageHandlerFactory, AndroidWalletPageUI>(map);
+
 }
 
 // static
@@ -1892,6 +1951,73 @@ bool ChromeContentBrowserClient::IsBrowserStartupComplete() {
 
 void ChromeContentBrowserClient::SetBrowserStartupIsCompleteForTesting() {
   AfterStartupTaskUtils::SetBrowserStartupIsCompleteForTesting();
+}
+
+bool WootzContentBrowserClient::HandleURLOverrideRewrite(
+    GURL* url,
+    content::BrowserContext* browser_context) {
+  // Some of these rewrites are for WebUI pages with URL that has moved.
+  // After rewrite happens, GetWebUIFactoryFunction() will work as expected.
+  // (see browser\ui\webui\brave_web_ui_controller_factory.cc for more info)
+  //
+  // Scope of schema is intentionally narrower than content::HasWebUIScheme(url)
+  // which also allows both `chrome-untrusted` and `chrome-devtools`.
+  if (!url->SchemeIs(content::kWootzUIScheme) &&
+      !url->SchemeIs(content::kChromeUIScheme)) {
+    return false;
+  }
+
+  // brave://sync => brave://settings/braveSync
+  if (url->host() == chrome::kChromeUISyncHost) {
+    GURL::Replacements replacements;
+    replacements.SetSchemeStr(content::kChromeUIScheme);
+    replacements.SetHostStr(chrome::kChromeUISettingsHost);
+    replacements.SetPathStr(kWootzSyncPath);
+    *url = url->ReplaceComponents(replacements);
+    return true;
+  }
+
+#if !BUILDFLAG(IS_ANDROID)
+  // brave://adblock => brave://settings/shields/filters
+  if (url->host() == kAdblockHost) {
+    GURL::Replacements replacements;
+    replacements.SetSchemeStr(content::kChromeUIScheme);
+    replacements.SetHostStr(chrome::kChromeUISettingsHost);
+    replacements.SetPathStr(kContentFiltersPath);
+    *url = url->ReplaceComponents(replacements);
+    return false;
+  }
+#endif
+
+  // no special win10 welcome page
+  if (url->host() == chrome::kChromeUIWelcomeHost) {
+    *url = GURL(chrome::kChromeUIWelcomeURL);
+    return true;
+  }
+
+#if BUILDFLAG(ETHEREUM_REMOTE_CLIENT_ENABLED) && BUILDFLAG(ENABLE_EXTENSIONS)
+  auto* prefs = user_prefs::UserPrefs::Get(browser_context);
+  brave_wallet::mojom::DefaultWallet default_wallet =
+      brave_wallet::GetDefaultEthereumWallet(prefs);
+  if (!brave_wallet::IsNativeWalletEnabled() ||
+      default_wallet == brave_wallet::mojom::DefaultWallet::CryptoWallets) {
+    // If the Crypto Wallets extension is loaded, then it replaces the WebUI
+    auto* service =
+        EthereumRemoteClientServiceFactory::GetForContext(browser_context);
+    if (service->IsCryptoWalletsReady() &&
+        url->SchemeIs(content::kChromeUIScheme) &&
+        url->host() == kEthereumRemoteClientHost) {
+      auto* registry = extensions::ExtensionRegistry::Get(browser_context);
+      if (registry && registry->ready_extensions().GetByID(
+                          kEthereumRemoteClientExtensionId)) {
+        *url = GURL(kEthereumRemoteClientBaseUrl);
+        return true;
+      }
+    }
+  }
+#endif
+
+  return false;
 }
 
 bool ChromeContentBrowserClient::IsShuttingDown() {

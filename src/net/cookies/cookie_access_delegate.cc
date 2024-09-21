@@ -16,4 +16,12 @@ bool CookieAccessDelegate::ShouldTreatUrlAsTrustworthy(const GURL& url) const {
   return false;
 }
 
+bool CookieAccessDelegate::ShouldUseEphemeralStorage(
+    const GURL& url,
+    const net::SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin) const {
+  NOTREACHED() << "Should be overridden";
+}
+
+
 }  // namespace net

@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/monogram_utils.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/constants/webui_url_constants.h"
 #include "chrome/grit/platform_locale_settings.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/favicon/core/fallback_url_util.h"
@@ -204,6 +205,11 @@ bool ShouldThemifyFavicon(GURL url) {
 bool ShouldThemifyFaviconForEntry(content::NavigationEntry* entry) {
   const GURL& virtual_url = entry->GetVirtualURL();
   const GURL& actual_url = entry->GetURL();
+  
+  if (virtual_url.SchemeIs(content::kChromeUIScheme) &&
+      (virtual_url.host_piece() == chrome::kWalletPageHost)) {
+    return false;
+  }
 
   if (ShouldThemifyFavicon(virtual_url)) {
     return true;

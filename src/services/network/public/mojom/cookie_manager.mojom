@@ -439,6 +439,16 @@ interface CookieManager {
   // notifications at once?  Maybe combine with the deletion filter?
   // TODO(rdsmith): Describe the performance implications of using this method.
   // The comments in CookieMonster::AddCallbackForCookie look pretty scary.
+
+  struct CookieDeletionFilter {
+    string? ephemeral_storage_domain;
+  };  
+
+  struct CookieOptions {
+    SiteForCookies site_for_cookies;
+    url.mojom.Origin? top_frame_origin;
+    bool should_use_ephemeral_storage = false;
+  };
   AddCookieChangeListener(
       url.mojom.Url url,
       string? name,

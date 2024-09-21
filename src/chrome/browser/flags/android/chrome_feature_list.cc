@@ -64,6 +64,7 @@
 #include "components/sync/base/features.h"
 #include "components/viz/common/features.h"
 #include "components/webapps/browser/features.h"
+#include "components/wootz_wallet/common/features.h"
 #include "content/public/common/content_features.h"
 #include "device/fido/features.h"
 #include "media/base/media_switches.h"
@@ -151,6 +152,7 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &history::kOrganicRepeatableQueries,
     &history_clusters::internal::kJourneys,
     &history_clusters::internal::kOmniboxAction,
+    &wootz_wallet::features::kNativeWootzWalletFeature,
     &kAdaptiveButtonInTopToolbarTranslate,
     &kAdaptiveButtonInTopToolbarAddToBookmarks,
     &kAdaptiveButtonInTopToolbarCustomizationV2,

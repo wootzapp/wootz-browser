@@ -2487,7 +2487,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
 
         mWootzWalletService = WootzWalletServiceFactory.getInstance().getWootzWalletService(this);
-        Log.e("WootzAPP ANKITANKITIVAN","initWootzWalletService"+mWootzWalletService); 
+       Log.e("WootzAPP ANKITANKITIVAN","initWootzWalletService"+mWootzWalletService);
 
     }
 
@@ -2562,16 +2562,16 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     }
 
-    // private void initAssetRatioService() {
-    //     Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService");
+    private void initAssetRatioService() {
+        Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService");
 
-    //     if (mAssetRatioService != null) {
-    //         return;
-    //     }
+        if (mAssetRatioService != null) {
+            return;
+        }
 
-    //     mAssetRatioService = AssetRatioServiceFactory.getInstance().getAssetRatioService(this);
-    //     // Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService"+mAssetRatioService);
-    // }
+        mAssetRatioService = AssetRatioServiceFactory.getInstance().getAssetRatioService(this);
+        // Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService"+mAssetRatioService);
+    }
 
 
     private void initializeManualFillingComponent(ProfileProvider profileProvider) {
@@ -3127,11 +3127,11 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         initTxService();
         initEthTxManagerProxy();
         initSolanaTxManagerProxy();
-        // initAssetRatioService();
+        initAssetRatioService();
         initWootzWalletService();
         initKeyringService();
         initJsonRpcService();
-        // initSwapService();
+        initSwapService();
         setupWalletModel();
     }
 
@@ -3140,7 +3140,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         clearWalletModelServices();
         Log.e("cleanUpWalletNativeServices","wootzapp");
         if (mKeyringService != null) mKeyringService.close();
-        // if (mAssetRatioService != null) mAssetRatioService.close();
+        if (mAssetRatioService != null) mAssetRatioService.close();
         if (mBlockchainRegistry != null) mBlockchainRegistry.close();
         if (mJsonRpcService != null) mJsonRpcService.close();
         if (mTxService != null) mTxService.close();

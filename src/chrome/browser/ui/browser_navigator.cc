@@ -41,12 +41,16 @@
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/common/url_constants.h"
+#include "chrome/common/webui_url_constants.h"
+#include "components/wootz_wallet/browser/pref_names.h"
+#include "components/user_prefs/user_prefs.h"
 #include "components/captive_portal/core/buildflags.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
 #include "components/password_manager/content/common/web_ui_constants.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/constants/webui_url_constants.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/picture_in_picture_window_controller.h"
@@ -1035,6 +1039,9 @@ bool IsHostAllowedInIncognito(const GURL& url) {
 
 bool IsURLAllowedInIncognito(const GURL& url,
                              content::BrowserContext* browser_context) {
+
+  std::string_view host = url.host_piece();
+
   if (url.scheme() == content::kViewSourceScheme) {
     // A view-source URL is allowed in incognito mode only if the URL itself
     // is allowed in incognito mode. Remove the "view-source:" from the start
@@ -1048,6 +1055,12 @@ bool IsURLAllowedInIncognito(const GURL& url,
     }
     return stripped_url.is_valid() &&
            IsURLAllowedInIncognito(stripped_url, browser_context);
+  }
+
+   if (host == kWalletPageHost || host == kWalletPanelHost) {
+    return browser_context &&
+           user_prefs::UserPrefs::Get(browser_context)
+               ->GetBoolean(kWootzWalletPrivateWindowsEnabled);
   }
 
   return IsHostAllowedInIncognito(url);

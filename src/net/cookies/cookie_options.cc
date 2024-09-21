@@ -5,7 +5,7 @@
 // Brought to you by number 42.
 
 #include "net/cookies/cookie_options.h"
-
+#include "net/cookies/cookie_access_delegate.h"
 #include <tuple>
 
 #include "net/cookies/cookie_util.h"
@@ -46,6 +46,25 @@ void CookieOptions::SameSiteCookieContext::SetContextTypesForTesting(
     ContextType schemeful_context_type) {
   context_ = context_type;
   schemeful_context_ = schemeful_context_type;
+}
+
+void FillEphemeralStorageParams(
+    const GURL& url,
+    const SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin,
+    const CookieAccessDelegate* cookie_access_delegate,
+    CookieOptions* cookie_options) {
+  DCHECK(cookie_options);
+  if (!cookie_access_delegate) {
+    return;
+  }
+  cookie_options->set_should_use_ephemeral_storage(
+      cookie_access_delegate->ShouldUseEphemeralStorage(url, site_for_cookies,
+                                                        top_frame_origin));
+  if (cookie_options->should_use_ephemeral_storage()) {
+    cookie_options->set_site_for_cookies(site_for_cookies);
+    cookie_options->set_top_frame_origin(top_frame_origin);
+  }
 }
 
 bool CookieOptions::SameSiteCookieContext::CompleteEquivalenceForTesting(

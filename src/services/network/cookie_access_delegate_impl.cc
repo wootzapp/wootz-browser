@@ -38,6 +38,21 @@ bool CookieAccessDelegateImpl::ShouldTreatUrlAsTrustworthy(
   return IsUrlPotentiallyTrustworthy(url);
 }
 
+bool CookieAccessDelegateImpl::NotUsed() const {
+  return false;
+}
+
+bool CookieAccessDelegateImpl::ShouldUseEphemeralStorage(
+    const GURL& url,
+    const net::SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin) const {
+  if (!cookie_settings_) {
+    return false;
+  }
+  return cookie_settings_->ShouldUseEphemeralStorage(url, site_for_cookies,
+                                                     top_frame_origin);
+}
+
 net::CookieAccessSemantics CookieAccessDelegateImpl::GetAccessSemantics(
     const net::CanonicalCookie& cookie) const {
   switch (type_) {

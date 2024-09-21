@@ -225,7 +225,7 @@ export const mockEthSendTransaction = {
     microseconds: 1697723040798000
   },
   originInfo: {
-    originSpec: 'chrome://wallet',
+    originSpec: 'wootzapp://wallet',
     eTldPlusOne: ''
   },
   chainId: WootzWallet.MAINNET_CHAIN_ID,
@@ -263,7 +263,7 @@ export const mockBtcSendTransaction = {
     microseconds: 1697723040798000
   },
   originInfo: {
-    originSpec: 'chrome://wallet',
+    originSpec: 'wootzapp://wallet',
     eTldPlusOne: ''
   },
   chainId: WootzWallet.BITCOIN_MAINNET,
@@ -300,7 +300,7 @@ export const mockZecSendTransaction = {
     microseconds: 1697723040798000
   },
   originInfo: {
-    originSpec: 'chrome://wallet',
+    originSpec: 'wootzapp://wallet',
     eTldPlusOne: ''
   },
   chainId: WootzWallet.Z_CASH_MAINNET,
