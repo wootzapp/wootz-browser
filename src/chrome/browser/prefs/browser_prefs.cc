@@ -2000,12 +2000,12 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  ExtensionWebUI::RegisterProfilePrefs(registry);
+  // ExtensionWebUI::RegisterProfilePrefs(registry);
   RegisterAnimationPolicyPrefs(registry);
   extensions::ActivityLog::RegisterProfilePrefs(registry);
   extensions::AudioAPI::RegisterUserPrefs(registry);
   extensions::ExtensionPrefs::RegisterProfilePrefs(registry);
-  extensions::ExtensionsUI::RegisterProfilePrefs(registry);
+  // extensions::ExtensionsUI::RegisterProfilePrefs(registry);
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   extensions::shared_storage::RegisterProfilePrefs(registry);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -2014,7 +2014,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   // TODO(devlin): This would be more inline with the other calls here if it
   // were nested in either a class or separate namespace with a simple
   // Register[Profile]Prefs() name.
-  extensions::RegisterSettingsOverriddenUiPrefs(registry);
+  // extensions::RegisterSettingsOverriddenUiPrefs(registry);
   update_client::RegisterProfilePrefs(registry);
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
@@ -2245,7 +2245,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS) && !BUILDFLAG(IS_CHROMEOS_ASH)
-  preinstalled_apps::RegisterProfilePrefs(registry);
+  // preinstalled_apps::RegisterProfilePrefs(registry);
 #endif
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)

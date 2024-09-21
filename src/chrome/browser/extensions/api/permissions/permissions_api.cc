@@ -208,167 +208,168 @@ PermissionsRequestFunction::~PermissionsRequestFunction() {
 }
 
 ExtensionFunction::ResponseAction PermissionsRequestFunction::Run() {
-  if (!user_gesture() && !ignore_user_gesture_for_tests &&
-      extension_->location() != mojom::ManifestLocation::kComponent) {
-    return RespondNow(Error(kUserGestureRequiredError));
-  }
+  // if (!user_gesture() && !ignore_user_gesture_for_tests &&
+  //     extension_->location() != mojom::ManifestLocation::kComponent) {
+  //   return RespondNow(Error(kUserGestureRequiredError));
+  // }
 
-  gfx::NativeWindow native_window =
-      ChromeExtensionFunctionDetails(this).GetNativeWindowForUI();
-  if (!native_window && g_dialog_action == DialogAction::kDefault) {
-    return RespondNow(Error("Could not find an active window."));
-  }
+  // gfx::NativeWindow native_window =
+  //     ChromeExtensionFunctionDetails(this).GetNativeWindowForUI();
+  // if (!native_window && g_dialog_action == DialogAction::kDefault) {
+  //   return RespondNow(Error("Could not find an active window."));
+  // }
 
-  std::optional<api::permissions::Request::Params> params =
-      api::permissions::Request::Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params);
+  // std::optional<api::permissions::Request::Params> params =
+  //     api::permissions::Request::Params::Create(args());
+  // EXTENSION_FUNCTION_VALIDATE(params);
 
-  std::string error;
-  std::unique_ptr<UnpackPermissionSetResult> unpack_result =
-      permissions_api_helpers::UnpackPermissionSet(
-          params->permissions,
-          PermissionsParser::GetRequiredPermissions(extension()),
-          PermissionsParser::GetOptionalPermissions(extension()),
-          ExtensionPrefs::Get(browser_context())
-              ->AllowFileAccess(extension_->id()),
-          &error);
+  // std::string error;
+  // std::unique_ptr<UnpackPermissionSetResult> unpack_result =
+  //     permissions_api_helpers::UnpackPermissionSet(
+  //         params->permissions,
+  //         PermissionsParser::GetRequiredPermissions(extension()),
+  //         PermissionsParser::GetOptionalPermissions(extension()),
+  //         ExtensionPrefs::Get(browser_context())
+  //             ->AllowFileAccess(extension_->id()),
+  //         &error);
 
-  if (!unpack_result)
-    return RespondNow(Error(std::move(error)));
+  // if (!unpack_result)
+  //   return RespondNow(Error(std::move(error)));
 
-  // Don't allow the extension to request any permissions that weren't specified
-  // in the manifest.
-  if (!unpack_result->unlisted_apis.empty() ||
-      !unpack_result->unlisted_hosts.is_empty()) {
-    return RespondNow(Error(kNotInManifestPermissionsError));
-  }
+  // // Don't allow the extension to request any permissions that weren't specified
+  // // in the manifest.
+  // if (!unpack_result->unlisted_apis.empty() ||
+  //     !unpack_result->unlisted_hosts.is_empty()) {
+  //   return RespondNow(Error(kNotInManifestPermissionsError));
+  // }
 
-  if (!unpack_result->restricted_file_scheme_patterns.is_empty()) {
-    return RespondNow(Error(
-        "Extension must have file access enabled to request '*'.",
-        unpack_result->restricted_file_scheme_patterns.begin()->GetAsString()));
-  }
+  // if (!unpack_result->restricted_file_scheme_patterns.is_empty()) {
+  //   return RespondNow(Error(
+  //       "Extension must have file access enabled to request '*'.",
+  //       unpack_result->restricted_file_scheme_patterns.begin()->GetAsString()));
+  // }
 
-  const PermissionSet& active_permissions =
-      extension()->permissions_data()->active_permissions();
+  // const PermissionSet& active_permissions =
+  //     extension()->permissions_data()->active_permissions();
 
-  // Determine which of the requested permissions are optional permissions that
-  // are "new", i.e. aren't already active on the extension.
-  requested_optional_ = std::make_unique<const PermissionSet>(
-      std::move(unpack_result->optional_apis), ManifestPermissionSet(),
-      std::move(unpack_result->optional_explicit_hosts), URLPatternSet());
-  requested_optional_ =
-      PermissionSet::CreateDifference(*requested_optional_, active_permissions);
+  // // Determine which of the requested permissions are optional permissions that
+  // // are "new", i.e. aren't already active on the extension.
+  // requested_optional_ = std::make_unique<const PermissionSet>(
+  //     std::move(unpack_result->optional_apis), ManifestPermissionSet(),
+  //     std::move(unpack_result->optional_explicit_hosts), URLPatternSet());
+  // requested_optional_ =
+  //     PermissionSet::CreateDifference(*requested_optional_, active_permissions);
 
-  // Determine which of the requested permissions are withheld host permissions.
-  // Since hosts are not always exact matches, we cannot take a set difference.
-  // Thus we only consider requested permissions that are not already active on
-  // the extension.
-  URLPatternSet explicit_hosts;
-  for (const auto& host : unpack_result->required_explicit_hosts) {
-    if (!active_permissions.explicit_hosts().ContainsPattern(host)) {
-      explicit_hosts.AddPattern(host);
-    }
-  }
-  URLPatternSet scriptable_hosts;
-  for (const auto& host : unpack_result->required_scriptable_hosts) {
-    if (!active_permissions.scriptable_hosts().ContainsPattern(host)) {
-      scriptable_hosts.AddPattern(host);
-    }
-  }
+  // // Determine which of the requested permissions are withheld host permissions.
+  // // Since hosts are not always exact matches, we cannot take a set difference.
+  // // Thus we only consider requested permissions that are not already active on
+  // // the extension.
+  // URLPatternSet explicit_hosts;
+  // for (const auto& host : unpack_result->required_explicit_hosts) {
+  //   if (!active_permissions.explicit_hosts().ContainsPattern(host)) {
+  //     explicit_hosts.AddPattern(host);
+  //   }
+  // }
+  // URLPatternSet scriptable_hosts;
+  // for (const auto& host : unpack_result->required_scriptable_hosts) {
+  //   if (!active_permissions.scriptable_hosts().ContainsPattern(host)) {
+  //     scriptable_hosts.AddPattern(host);
+  //   }
+  // }
 
-  requested_withheld_ = std::make_unique<const PermissionSet>(
-      APIPermissionSet(), ManifestPermissionSet(), std::move(explicit_hosts),
-      std::move(scriptable_hosts));
+  // requested_withheld_ = std::make_unique<const PermissionSet>(
+  //     APIPermissionSet(), ManifestPermissionSet(), std::move(explicit_hosts),
+  //     std::move(scriptable_hosts));
 
-  // Determine the total "new" permissions; this is the set of all permissions
-  // that aren't currently active on the extension.
-  std::unique_ptr<const PermissionSet> total_new_permissions =
-      PermissionSet::CreateUnion(*requested_withheld_, *requested_optional_);
+  // // Determine the total "new" permissions; this is the set of all permissions
+  // // that aren't currently active on the extension.
+  // std::unique_ptr<const PermissionSet> total_new_permissions =
+  //     PermissionSet::CreateUnion(*requested_withheld_, *requested_optional_);
 
-  // If all permissions are already active, nothing left to do.
-  if (total_new_permissions->IsEmpty()) {
-    constexpr bool granted = true;
-    return RespondNow(WithArguments(granted));
-  }
+  // // If all permissions are already active, nothing left to do.
+  // if (total_new_permissions->IsEmpty()) {
+  //   constexpr bool granted = true;
+  //   return RespondNow(WithArguments(granted));
+  // }
 
-  // Automatically declines api permissions requests, which are blocked by
-  // enterprise policy.
-  if (!ExtensionManagementFactory::GetForBrowserContext(browser_context())
-           ->IsPermissionSetAllowed(extension(), *total_new_permissions)) {
-    return RespondNow(Error(kBlockedByEnterprisePolicy));
-  }
+  // // Automatically declines api permissions requests, which are blocked by
+  // // enterprise policy.
+  // if (!ExtensionManagementFactory::GetForBrowserContext(browser_context())
+  //          ->IsPermissionSetAllowed(extension(), *total_new_permissions)) {
+  //   return RespondNow(Error(kBlockedByEnterprisePolicy));
+  // }
 
-  // At this point, all permissions in |requested_withheld_| should be within
-  // the |withheld_permissions| section of the PermissionsData.
-  DCHECK(extension()->permissions_data()->withheld_permissions().Contains(
-      *requested_withheld_));
+  // // At this point, all permissions in |requested_withheld_| should be within
+  // // the |withheld_permissions| section of the PermissionsData.
+  // DCHECK(extension()->permissions_data()->withheld_permissions().Contains(
+  //     *requested_withheld_));
 
-  // Prompt the user for any new permissions that aren't contained within the
-  // already-granted permissions. We don't prompt for already-granted
-  // permissions since these were either granted to an earlier extension version
-  // or removed by the extension itself (using the permissions.remove() method).
-  std::unique_ptr<const PermissionSet> granted_permissions =
-      ExtensionPrefs::Get(browser_context())
-          ->GetRuntimeGrantedPermissions(extension()->id());
-  std::unique_ptr<const PermissionSet> already_granted_permissions =
-      PermissionSet::CreateIntersection(*granted_permissions,
-                                        *requested_optional_);
-  total_new_permissions = PermissionSet::CreateDifference(
-      *total_new_permissions, *already_granted_permissions);
+  // // Prompt the user for any new permissions that aren't contained within the
+  // // already-granted permissions. We don't prompt for already-granted
+  // // permissions since these were either granted to an earlier extension version
+  // // or removed by the extension itself (using the permissions.remove() method).
+  // std::unique_ptr<const PermissionSet> granted_permissions =
+  //     ExtensionPrefs::Get(browser_context())
+  //         ->GetRuntimeGrantedPermissions(extension()->id());
+  // std::unique_ptr<const PermissionSet> already_granted_permissions =
+  //     PermissionSet::CreateIntersection(*granted_permissions,
+  //                                       *requested_optional_);
+  // total_new_permissions = PermissionSet::CreateDifference(
+  //     *total_new_permissions, *already_granted_permissions);
 
-  // We don't need to show the prompt if there are no new warnings, or if
-  // we're skipping the confirmation UI. COMPONENT extensions are allowed to
-  // silently increase their permission level.
-  const PermissionMessageProvider* message_provider =
-      PermissionMessageProvider::Get();
-  // TODO(devlin): We should probably use the same logic we do for permissions
-  // increases here, where we check if there are *new* warnings (e.g., so we
-  // don't warn about the tabs permission if history is already granted).
-  bool has_no_warnings =
-      message_provider
-          ->GetPermissionMessages(message_provider->GetAllPermissionIDs(
-              *total_new_permissions, extension()->GetType()))
-          .empty();
-  if (has_no_warnings ||
-      extension_->location() == mojom::ManifestLocation::kComponent) {
-    OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
-        ExtensionInstallPrompt::Result::ACCEPTED));
-    return did_respond() ? AlreadyResponded() : RespondLater();
-  }
+  // // We don't need to show the prompt if there are no new warnings, or if
+  // // we're skipping the confirmation UI. COMPONENT extensions are allowed to
+  // // silently increase their permission level.
+  // const PermissionMessageProvider* message_provider =
+  //     PermissionMessageProvider::Get();
+  // // TODO(devlin): We should probably use the same logic we do for permissions
+  // // increases here, where we check if there are *new* warnings (e.g., so we
+  // // don't warn about the tabs permission if history is already granted).
+  // bool has_no_warnings =
+  //     message_provider
+  //         ->GetPermissionMessages(message_provider->GetAllPermissionIDs(
+  //             *total_new_permissions, extension()->GetType()))
+  //         .empty();
+  // if (has_no_warnings ||
+  //     extension_->location() == mojom::ManifestLocation::kComponent) {
+  //   OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
+  //       ExtensionInstallPrompt::Result::ACCEPTED));
+  //   return did_respond() ? AlreadyResponded() : RespondLater();
+  // }
 
-  // Otherwise, we have to prompt the user (though we might "autoconfirm" for a
-  // test.
-  if (g_dialog_action != DialogAction::kDefault) {
-    prompted_permissions_for_testing_ = total_new_permissions->Clone();
-    if (g_dialog_action == DialogAction::kAutoConfirm) {
-      OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
-          ExtensionInstallPrompt::Result::ACCEPTED));
-    } else if (g_dialog_action == DialogAction::kAutoReject) {
-      OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
-          ExtensionInstallPrompt::Result::USER_CANCELED));
-    } else {
-      CHECK_EQ(g_dialog_action, DialogAction::kProgrammatic);
-      // A test will let us know when to resolve the prompt. Add a reference to
-      // wait.
-      AddRef();  // Balanced in ResolvePendingDialogForTests().
-      g_pending_request_function = this;
-    }
-    return did_respond() ? AlreadyResponded() : RespondLater();
-  }
+  // // Otherwise, we have to prompt the user (though we might "autoconfirm" for a
+  // // test.
+  // if (g_dialog_action != DialogAction::kDefault) {
+  //   prompted_permissions_for_testing_ = total_new_permissions->Clone();
+  //   if (g_dialog_action == DialogAction::kAutoConfirm) {
+  //     OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
+  //         ExtensionInstallPrompt::Result::ACCEPTED));
+  //   } else if (g_dialog_action == DialogAction::kAutoReject) {
+  //     OnInstallPromptDone(ExtensionInstallPrompt::DoneCallbackPayload(
+  //         ExtensionInstallPrompt::Result::USER_CANCELED));
+  //   } else {
+  //     CHECK_EQ(g_dialog_action, DialogAction::kProgrammatic);
+  //     // A test will let us know when to resolve the prompt. Add a reference to
+  //     // wait.
+  //     AddRef();  // Balanced in ResolvePendingDialogForTests().
+  //     g_pending_request_function = this;
+  //   }
+  //   return did_respond() ? AlreadyResponded() : RespondLater();
+  // }
 
-  install_ui_ = std::make_unique<ExtensionInstallPrompt>(
-      Profile::FromBrowserContext(browser_context()), native_window);
-  install_ui_->ShowDialog(
-      base::BindOnce(&PermissionsRequestFunction::OnInstallPromptDone, this),
-      extension(), nullptr,
-      std::make_unique<ExtensionInstallPrompt::Prompt>(
-          ExtensionInstallPrompt::PERMISSIONS_PROMPT),
-      std::move(total_new_permissions),
-      ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  // install_ui_ = std::make_unique<ExtensionInstallPrompt>(
+  //     Profile::FromBrowserContext(browser_context()), native_window);
+  // install_ui_->ShowDialog(
+  //     base::BindOnce(&PermissionsRequestFunction::OnInstallPromptDone, this),
+  //     extension(), nullptr,
+  //     std::make_unique<ExtensionInstallPrompt::Prompt>(
+  //         ExtensionInstallPrompt::PERMISSIONS_PROMPT),
+  //     std::move(total_new_permissions),
+  //     ExtensionInstallPrompt::GetDefaultShowDialogCallback());
 
-  // ExtensionInstallPrompt::ShowDialog() can call the response synchronously.
-  return did_respond() ? AlreadyResponded() : RespondLater();
+  // // ExtensionInstallPrompt::ShowDialog() can call the response synchronously.
+  // return did_respond() ? AlreadyResponded() : RespondLater();
+  return RespondNow(Error(std::move("not implemented")));
 }
 
 bool PermissionsRequestFunction::ShouldKeepWorkerAliveIndefinitely() {

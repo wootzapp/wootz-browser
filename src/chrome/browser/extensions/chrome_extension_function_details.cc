@@ -10,7 +10,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/render_frame_host.h"
@@ -29,31 +29,31 @@ ChromeExtensionFunctionDetails::~ChromeExtensionFunctionDetails() {
 
 Browser* ChromeExtensionFunctionDetails::GetCurrentBrowser() const {
   // If the delegate has an associated browser, return it.
-  if (function_->dispatcher()) {
-    extensions::WindowController* window_controller =
-        function_->dispatcher()->GetExtensionWindowController();
-    if (window_controller) {
-      Browser* browser = window_controller->GetBrowser();
-      if (browser)
-        return browser;
-    }
-  }
+  // if (function_->dispatcher()) {
+  //   extensions::WindowController* window_controller =
+  //       function_->dispatcher()->GetExtensionWindowController();
+  //   if (window_controller) {
+  //     Browser* browser = window_controller->GetBrowser();
+  //     if (browser)
+  //       return browser;
+  //   }
+  // }
 
-  // Otherwise, try to default to a reasonable browser. If |include_incognito_|
-  // is true, we will also search browsers in the incognito version of this
-  // profile. Note that the profile may already be incognito, in which case
-  // we will search the incognito version only, regardless of the value of
-  // |include_incognito|. Look only for browsers on the active desktop as it is
-  // preferable to pretend no browser is open then to return a browser on
-  // another desktop.
-  content::WebContents* web_contents = function_->GetSenderWebContents();
-  Profile* profile = Profile::FromBrowserContext(
-      web_contents ? web_contents->GetBrowserContext()
-                   : function_->browser_context());
-  Browser* browser = chrome::FindAnyBrowser(
-      profile, function_->include_incognito_information());
-  if (browser)
-    return browser;
+  // // Otherwise, try to default to a reasonable browser. If |include_incognito_|
+  // // is true, we will also search browsers in the incognito version of this
+  // // profile. Note that the profile may already be incognito, in which case
+  // // we will search the incognito version only, regardless of the value of
+  // // |include_incognito|. Look only for browsers on the active desktop as it is
+  // // preferable to pretend no browser is open then to return a browser on
+  // // another desktop.
+  // content::WebContents* web_contents = function_->GetSenderWebContents();
+  // Profile* profile = Profile::FromBrowserContext(
+  //     web_contents ? web_contents->GetBrowserContext()
+  //                  : function_->browser_context());
+  // Browser* browser = chrome::FindAnyBrowser(
+  //     profile, function_->include_incognito_information());
+  // if (browser)
+  //   return browser;
 
   // NOTE(rafaelw): This can return NULL in some circumstances. In particular,
   // a background_page onload chrome.tabs api call can make it into here
@@ -69,38 +69,39 @@ gfx::NativeWindow ChromeExtensionFunctionDetails::GetNativeWindowForUI() {
   // Try to use WindowControllerList first because WebContents's
   // GetTopLevelNativeWindow() can't return the top level window when the tab
   // is not focused.
-  extensions::WindowController* controller =
-      extensions::WindowControllerList::GetInstance()->CurrentWindowForFunction(
-          function_);
-  if (controller)
-    return controller->window()->GetNativeWindow();
+  // extensions::WindowController* controller =
+  //     extensions::WindowControllerList::GetInstance()->CurrentWindowForFunction(
+  //         function_);
+  // if (controller)
+  //   return controller->window()->GetNativeWindow();
 
-  // Next, check the sender web contents for if it supports modal dialogs.
-  // TODO(devlin): This seems weird. Why wouldn't we check this first?
-  content::WebContents* sender_web_contents = function_->GetSenderWebContents();
-  if (sender_web_contents &&
-      web_modal::WebContentsModalDialogManager::FromWebContents(
-           sender_web_contents)) {
-    return sender_web_contents->GetTopLevelNativeWindow();
-  }
+  // // Next, check the sender web contents for if it supports modal dialogs.
+  // // TODO(devlin): This seems weird. Why wouldn't we check this first?
+  // content::WebContents* sender_web_contents = function_->GetSenderWebContents();
+  // if (sender_web_contents &&
+  //     web_modal::WebContentsModalDialogManager::FromWebContents(
+  //          sender_web_contents)) {
+  //   return sender_web_contents->GetTopLevelNativeWindow();
+  // }
 
-  // Then, check for any app windows that are open.
-  if (function_->extension() &&
-      function_->extension()->is_app()) {
-    extensions::AppWindow* window =
-        extensions::AppWindowRegistry::Get(function_->browser_context())
-            ->GetCurrentAppWindowForApp(function_->extension()->id());
-    if (window)
-      return window->web_contents()->GetTopLevelNativeWindow();
-  }
+  // // Then, check for any app windows that are open.
+  // if (function_->extension() &&
+  //     function_->extension()->is_app()) {
+  //   extensions::AppWindow* window =
+  //       extensions::AppWindowRegistry::Get(function_->browser_context())
+  //           ->GetCurrentAppWindowForApp(function_->extension()->id());
+  //   if (window)
+  //     return window->web_contents()->GetTopLevelNativeWindow();
+  // }
 
-  // As a last resort, find a browser.
-  Browser* browser = chrome::FindBrowserWithProfile(
-      Profile::FromBrowserContext(function_->browser_context()));
-  // If there are no browser windows open, no window is available.
-  // This could happen e.g. if extension launches a long process or simple
-  // sleep() in the background script, during which browser is closed.
-  if (!browser)
-    return nullptr;
-  return browser->window()->GetNativeWindow();
+  // // As a last resort, find a browser.
+  // Browser* browser = chrome::FindBrowserWithProfile(
+  //     Profile::FromBrowserContext(function_->browser_context()));
+  // // If there are no browser windows open, no window is available.
+  // // This could happen e.g. if extension launches a long process or simple
+  // // sleep() in the background script, during which browser is closed.
+  // if (!browser)
+  //   return nullptr;
+  // return browser->window()->GetNativeWindow();
+  return nullptr;
 }

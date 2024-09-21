@@ -102,45 +102,45 @@ void DashboardPrivateShowPermissionPromptForDelegatedInstallFunction::
     OnWebstoreParseSuccess(const std::string& id,
                            const SkBitmap& icon,
                            base::Value::Dict parsed_manifest) {
-  CHECK_EQ(params_->details.id, id);
+  // CHECK_EQ(params_->details.id, id);
 
-  std::string localized_name = params_->details.localized_name ?
-      *params_->details.localized_name : std::string();
+  // std::string localized_name = params_->details.localized_name ?
+  //     *params_->details.localized_name : std::string();
 
-  std::string error;
-  dummy_extension_ = ExtensionInstallPrompt::GetLocalizedExtensionForDisplay(
-      parsed_manifest, Extension::FROM_WEBSTORE, id, localized_name,
-      std::string(), &error);
+  // std::string error;
+  // dummy_extension_ = ExtensionInstallPrompt::GetLocalizedExtensionForDisplay(
+  //     parsed_manifest, Extension::FROM_WEBSTORE, id, localized_name,
+  //     std::string(), &error);
 
-  if (!dummy_extension_.get()) {
-    OnWebstoreParseFailure(params_->details.id,
-                           WebstoreInstallHelper::Delegate::MANIFEST_ERROR,
-                           kDashboardInvalidManifestError);
-    return;
-  }
+  // if (!dummy_extension_.get()) {
+  //   OnWebstoreParseFailure(params_->details.id,
+  //                          WebstoreInstallHelper::Delegate::MANIFEST_ERROR,
+  //                          kDashboardInvalidManifestError);
+  //   return;
+  // }
 
-  content::WebContents* web_contents = GetSenderWebContents();
-  if (!web_contents) {
-    // The browser window has gone away.
-    Respond(BuildResponse(api::dashboard_private::Result::kUserCancelled,
-                          kDashboardUserCancelledError));
-    // Matches the AddRef in Run().
-    Release();
-    return;
-  }
-  std::unique_ptr<ExtensionInstallPrompt::Prompt> prompt(
-      new ExtensionInstallPrompt::Prompt(
-          ExtensionInstallPrompt::DELEGATED_PERMISSIONS_PROMPT));
-  prompt->set_delegated_username(details().delegated_user);
+  // content::WebContents* web_contents = GetSenderWebContents();
+  // if (!web_contents) {
+  //   // The browser window has gone away.
+  //   Respond(BuildResponse(api::dashboard_private::Result::kUserCancelled,
+  //                         kDashboardUserCancelledError));
+  //   // Matches the AddRef in Run().
+  //   Release();
+  //   return;
+  // }
+  // std::unique_ptr<ExtensionInstallPrompt::Prompt> prompt(
+  //     new ExtensionInstallPrompt::Prompt(
+  //         ExtensionInstallPrompt::DELEGATED_PERMISSIONS_PROMPT));
+  // prompt->set_delegated_username(details().delegated_user);
 
-  install_prompt_ = std::make_unique<ExtensionInstallPrompt>(web_contents);
-  install_prompt_->ShowDialog(
-      base::BindOnce(
-          &DashboardPrivateShowPermissionPromptForDelegatedInstallFunction::
-              OnInstallPromptDone,
-          this),
-      dummy_extension_.get(), &icon, std::move(prompt),
-      ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  // install_prompt_ = std::make_unique<ExtensionInstallPrompt>(web_contents);
+  // install_prompt_->ShowDialog(
+  //     base::BindOnce(
+  //         &DashboardPrivateShowPermissionPromptForDelegatedInstallFunction::
+  //             OnInstallPromptDone,
+  //         this),
+  //     dummy_extension_.get(), &icon, std::move(prompt),
+  //     ExtensionInstallPrompt::GetDefaultShowDialogCallback());
   // Control flow finishes up in OnInstallPromptDone().
 }
 

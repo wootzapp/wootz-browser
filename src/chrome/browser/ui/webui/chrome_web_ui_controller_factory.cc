@@ -834,7 +834,7 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
   // overrides. This changes urls in |kChromeUIScheme| to extension urls, and
   // allows to use ExtensionWebUI::GetFaviconForURL.
   GURL url(page_url);
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS) // wootz ext patch
   ExtensionWebUI::HandleChromeURLOverride(&url, profile);
 
   // All extensions get their favicon from the icons part of the manifest.
@@ -905,9 +905,7 @@ bool ChromeWebUIControllerFactory::IsWebUIAllowedToMakeNetworkRequests(
       // https://crbug.com/831813
       origin.host() == chrome::kChromeUIInspectHost ||
       // https://crbug.com/859345
-      origin.host() == chrome::kChromeUIDownloadsHost ||
-
-      origin.host() == chrome::kChromeUIRewardsHost;
+      origin.host() == chrome::kChromeUIDownloadsHost;
 }
 
 ChromeWebUIControllerFactory::ChromeWebUIControllerFactory() = default;

@@ -828,7 +828,7 @@ bool ChromeDownloadManagerDelegate::ShouldCompleteDownload(
 bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
     DownloadItem* item,
     content::DownloadOpenDelayedCallback callback) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   if (download_crx_util::IsExtensionDownload(*item) &&
       !extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
     scoped_refptr<CrxInstaller> installer(

@@ -106,11 +106,11 @@ void CookiesEventRouter::CookieChangeListener::OnCookieChange(
 CookiesEventRouter::CookiesEventRouter(content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)) {
   MaybeStartListening();
-  BrowserList::AddObserver(this);
+  // BrowserList::AddObserver(this);
 }
 
 CookiesEventRouter::~CookiesEventRouter() {
-  BrowserList::RemoveObserver(this);
+  // BrowserList::RemoveObserver(this);
 }
 
 void CookiesEventRouter::OnCookieChange(bool otr,
@@ -240,37 +240,38 @@ ExtensionFunction::ResponseAction CookiesGetFunction::Run() {
   parsed_args_ = api::cookies::Get::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(parsed_args_);
 
-  // Read/validate input parameters.
-  std::string error;
-  if (!ParseUrl(extension(), parsed_args_->details.url, &url_, true, &error))
-    return RespondNow(Error(std::move(error)));
+  // // Read/validate input parameters.
+  // std::string error;
+  // if (!ParseUrl(extension(), parsed_args_->details.url, &url_, true, &error))
+  //   return RespondNow(Error(std::move(error)));
 
-  std::string store_id = parsed_args_->details.store_id.value_or(std::string());
-  network::mojom::CookieManager* cookie_manager = ParseStoreCookieManager(
-      browser_context(), include_incognito_information(), &store_id, &error);
-  if (!cookie_manager)
-    return RespondNow(Error(std::move(error)));
+  // std::string store_id = parsed_args_->details.store_id.value_or(std::string());
+  // network::mojom::CookieManager* cookie_manager = ParseStoreCookieManager(
+  //     browser_context(), include_incognito_information(), &store_id, &error);
+  // if (!cookie_manager)
+  //   return RespondNow(Error(std::move(error)));
 
-  std::optional<net::CookiePartitionKey> partition_key;
-  if (!cookies_helpers::ValidateCookieApiPartitionKey(
-          parsed_args_->details.partition_key, partition_key, error)) {
-    return RespondNow(Error(std::move(error)));
-  }
+  // std::optional<net::CookiePartitionKey> partition_key;
+  // if (!cookies_helpers::ValidateCookieApiPartitionKey(
+  //         parsed_args_->details.partition_key, partition_key, error)) {
+  //   return RespondNow(Error(std::move(error)));
+  // }
 
-  if (!parsed_args_->details.store_id)
-    parsed_args_->details.store_id = store_id;
+  // if (!parsed_args_->details.store_id)
+  //   parsed_args_->details.store_id = store_id;
 
-  DCHECK(!url_.is_empty() && url_.is_valid());
-  cookies_helpers::GetCookieListFromManager(
-      cookie_manager, url_,
-      net::CookiePartitionKeyCollection::FromOptional(partition_key),
-      base::BindOnce(&CookiesGetFunction::GetCookieListCallback, this));
+  // DCHECK(!url_.is_empty() && url_.is_valid());
+  // cookies_helpers::GetCookieListFromManager(
+  //     cookie_manager, url_,
+  //     net::CookiePartitionKeyCollection::FromOptional(partition_key),
+  //     base::BindOnce(&CookiesGetFunction::GetCookieListCallback, this));
 
-  // Extension telemetry signal intercept
-  NotifyExtensionTelemetry();
+  // // Extension telemetry signal intercept
+  // NotifyExtensionTelemetry();
 
-  // Will finish asynchronously.
-  return RespondLater();
+  // // Will finish asynchronously.
+  // return RespondLater();
+  return RespondNow(Error("not implemented"));
 }
 
 void CookiesGetFunction::GetCookieListCallback(
@@ -302,19 +303,19 @@ void CookiesGetFunction::GetCookieListCallback(
 }
 
 void CookiesGetFunction::NotifyExtensionTelemetry() {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(browser_context()));
 
-  if (!telemetry_service || !telemetry_service->enabled()) {
-    return;
-  }
+  // if (!telemetry_service || !telemetry_service->enabled()) {
+  //   return;
+  // }
 
-  auto cookies_get_signal = std::make_unique<safe_browsing::CookiesGetSignal>(
-      extension_id(), parsed_args_->details.name,
-      parsed_args_->details.store_id.value_or(std::string()),
-      parsed_args_->details.url);
-  telemetry_service->AddSignal(std::move(cookies_get_signal));
+  // auto cookies_get_signal = std::make_unique<safe_browsing::CookiesGetSignal>(
+  //     extension_id(), parsed_args_->details.name,
+  //     parsed_args_->details.store_id.value_or(std::string()),
+  //     parsed_args_->details.url);
+  // telemetry_service->AddSignal(std::move(cookies_get_signal));
 }
 
 CookiesGetAllFunction::CookiesGetAllFunction() {
@@ -407,24 +408,24 @@ void CookiesGetAllFunction::GetCookieListCallback(
 }
 
 void CookiesGetAllFunction::NotifyExtensionTelemetry() {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(browser_context()));
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(browser_context()));
 
-  if (!telemetry_service || !telemetry_service->enabled()) {
-    return;
-  }
+  // if (!telemetry_service || !telemetry_service->enabled()) {
+  //   return;
+  // }
 
-  auto cookies_get_all_signal =
-      std::make_unique<safe_browsing::CookiesGetAllSignal>(
-          extension_id(), parsed_args_->details.domain.value_or(std::string()),
-          parsed_args_->details.name.value_or(std::string()),
-          parsed_args_->details.path.value_or(std::string()),
-          parsed_args_->details.secure,
-          parsed_args_->details.store_id.value_or(std::string()),
-          parsed_args_->details.url.value_or(std::string()),
-          parsed_args_->details.session);
-  telemetry_service->AddSignal(std::move(cookies_get_all_signal));
+  // auto cookies_get_all_signal =
+  //     std::make_unique<safe_browsing::CookiesGetAllSignal>(
+  //         extension_id(), parsed_args_->details.domain.value_or(std::string()),
+  //         parsed_args_->details.name.value_or(std::string()),
+  //         parsed_args_->details.path.value_or(std::string()),
+  //         parsed_args_->details.secure,
+  //         parsed_args_->details.store_id.value_or(std::string()),
+  //         parsed_args_->details.url.value_or(std::string()),
+  //         parsed_args_->details.session);
+  // telemetry_service->AddSignal(std::move(cookies_get_all_signal));
 }
 
 CookiesSetFunction::CookiesSetFunction()
@@ -650,35 +651,36 @@ ExtensionFunction::ResponseAction CookiesGetAllCookieStoresFunction::Run() {
   base::Value::List original_tab_ids;
   Profile* incognito_profile = nullptr;
   base::Value::List incognito_tab_ids;
-  if (include_incognito_information() &&
-      original_profile->HasPrimaryOTRProfile()) {
-    incognito_profile =
-        original_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  }
-  DCHECK(original_profile != incognito_profile);
+  // if (include_incognito_information() &&
+  //     original_profile->HasPrimaryOTRProfile()) {
+  //   incognito_profile =
+  //       original_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  // }
+  // DCHECK(original_profile != incognito_profile);
 
-  // Iterate through all browser instances, and for each browser,
-  // add its tab IDs to either the regular or incognito tab ID list depending
-  // whether the browser is regular or incognito.
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile() == original_profile) {
-      cookies_helpers::AppendToTabIdList(browser, original_tab_ids);
-    } else if (browser->profile() == incognito_profile) {
-      cookies_helpers::AppendToTabIdList(browser, incognito_tab_ids);
-    }
-  }
-  // Return a list of all cookie stores with at least one open tab.
-  std::vector<api::cookies::CookieStore> cookie_stores;
-  if (!original_tab_ids.empty()) {
-    cookie_stores.push_back(cookies_helpers::CreateCookieStore(
-        original_profile, std::move(original_tab_ids)));
-  }
-  if (incognito_profile && !incognito_tab_ids.empty()) {
-    cookie_stores.push_back(cookies_helpers::CreateCookieStore(
-        incognito_profile, std::move(incognito_tab_ids)));
-  }
-  return RespondNow(ArgumentList(
-      api::cookies::GetAllCookieStores::Results::Create(cookie_stores)));
+  // // Iterate through all browser instances, and for each browser,
+  // // add its tab IDs to either the regular or incognito tab ID list depending
+  // // whether the browser is regular or incognito.
+  // for (Browser* browser : *BrowserList::GetInstance()) {
+  //   if (browser->profile() == original_profile) {
+  //     cookies_helpers::AppendToTabIdList(browser, original_tab_ids);
+  //   } else if (browser->profile() == incognito_profile) {
+  //     cookies_helpers::AppendToTabIdList(browser, incognito_tab_ids);
+  //   }
+  // }
+  // // Return a list of all cookie stores with at least one open tab.
+  // std::vector<api::cookies::CookieStore> cookie_stores;
+  // if (!original_tab_ids.empty()) {
+  //   cookie_stores.push_back(cookies_helpers::CreateCookieStore(
+  //       original_profile, std::move(original_tab_ids)));
+  // }
+  // if (incognito_profile && !incognito_tab_ids.empty()) {
+  //   cookie_stores.push_back(cookies_helpers::CreateCookieStore(
+  //       incognito_profile, std::move(incognito_tab_ids)));
+  // }
+  // return RespondNow(ArgumentList(
+  //     api::cookies::GetAllCookieStores::Results::Create(cookie_stores)));
+  return RespondNow(Error("not implemented"));
 }
 
 CookiesAPI::CookiesAPI(content::BrowserContext* context)

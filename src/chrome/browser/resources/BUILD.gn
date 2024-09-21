@@ -19,14 +19,13 @@ group("resources") {
   public_deps = [
     "data_sharing_internals:resources",
     "segmentation_internals:resources",
-    "hello_world:resources"
-
+    "hello_world:resources",
+    ":app_icon_resources",
+    ":component_extension_resources",
   ]
 
   if (!is_android) {
     public_deps += [
-      ":app_icon_resources",
-      ":component_extension_resources",
       ":dev_ui_paks",
       "about_sys:resources",
       "access_code_cast:resources",
@@ -174,7 +173,7 @@ if (is_chromeos_ash && enable_js_type_check) {
   }
 }
 
-if (!is_android) {
+
   grit("component_extension_resources") {
     source = "component_extension_resources.grd"
 
@@ -213,7 +212,7 @@ if (!is_android) {
     ]
     output_dir = "$root_gen_dir/chrome"
   }
-
+if (!is_android) {
   if (is_chrome_branded) {
     grit("preinstalled_web_apps_resources") {
       source = "preinstalled_web_apps/resources.grd"
@@ -243,7 +242,7 @@ group("dev_ui_resources") {
     "memory_internals:resources",
     "net_internals:resources",
     "throttle:resources",
-    "rewards:rewards_resources",
+    "rewards:resources",
     "omnibox:resources",
     "predictors:resources",
     "privacy_sandbox/internals:resources",
@@ -304,7 +303,7 @@ repack("dev_ui_paks") {
     "$root_gen_dir/chrome/memory_internals_resources.pak",
     "$root_gen_dir/chrome/net_internals_resources.pak",
     "$root_gen_dir/chrome/throttle_resources.pak",
-    "$root_gen_dir/chrome/rewards_page_resources.pak",
+    "$root_gen_dir/chrome/rewards_resources.pak",
     "$root_gen_dir/chrome/omnibox_resources.pak",
     "$root_gen_dir/chrome/predictors_resources.pak",
     "$root_gen_dir/chrome/privacy_sandbox_internals_resources.pak",

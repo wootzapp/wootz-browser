@@ -7,6 +7,7 @@
 
 #include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include <source_location>
 
 class PlatformNotificationServiceImpl;
 class Profile;

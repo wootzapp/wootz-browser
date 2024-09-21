@@ -94,7 +94,7 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   ContentSettingsService::GetFactoryInstance();
   declarative_net_request::RulesMonitorService::GetFactoryInstance();
   FeedbackPrivateAPI::GetFactoryInstance();
-  HidDeviceManager::GetFactoryInstance();
+  // HidDeviceManager::GetFactoryInstance();
   IdleManagerFactory::GetInstance();
   ManagementAPI::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS_ASH)

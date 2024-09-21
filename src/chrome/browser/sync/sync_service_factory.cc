@@ -117,8 +117,8 @@ std::unique_ptr<KeyedService> BuildSyncService(
   // no SyncService should be created for those types of profiles.
   CHECK(profiles::IsRegularUserProfile(profile));
 
-  init_params.sync_client =
-      std::make_unique<browser_sync::ChromeSyncClient>(profile);
+  // init_params.sync_client =
+  //     std::make_unique<browser_sync::ChromeSyncClient>(profile);
   init_params.url_loader_factory = profile->GetDefaultStoragePartition()
                                        ->GetURLLoaderFactoryForBrowserProcess();
   init_params.network_connection_tracker =
@@ -301,7 +301,7 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(
       extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(extensions::StorageFrontend::GetFactoryInstance());
-  DependsOn(web_app::WebAppProviderFactory::GetInstance());
+  // DependsOn(web_app::WebAppProviderFactory::GetInstance());
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   DependsOn(app_list::AppListSyncableServiceFactory::GetInstance());

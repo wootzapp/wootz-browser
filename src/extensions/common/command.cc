@@ -289,6 +289,8 @@ std::string Command::CommandPlatform() {
   // TODO(crbug.com/40220501): Change this once we decide what string should be
   // used for Fuchsia.
   return values::kKeybindingPlatformLinux;
+#elif BUILDFLAG(IS_ANDROID)
+  return values::kKeybindingPlatformLinux;
 #else
 #error Unsupported platform
 #endif

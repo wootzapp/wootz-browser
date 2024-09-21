@@ -96,11 +96,11 @@ ExtensionManagement::ExtensionManagement(Profile* profile)
   // before first call to Refresh(), so in order to resolve this, Refresh() must
   // be called in the initialization of ExtensionManagement.
   Refresh();
-  ReportExtensionManagementInstallCreationStage(
-      InstallStageTracker::InstallCreationStage::
-          NOTIFIED_FROM_MANAGEMENT_INITIAL_CREATION_FORCED,
-      InstallStageTracker::InstallCreationStage::
-          NOTIFIED_FROM_MANAGEMENT_INITIAL_CREATION_NOT_FORCED);
+  // ReportExtensionManagementInstallCreationStage(
+  //     InstallStageTracker::InstallCreationStage::
+  //         NOTIFIED_FROM_MANAGEMENT_INITIAL_CREATION_FORCED,
+  //     InstallStageTracker::InstallCreationStage::
+  //         NOTIFIED_FROM_MANAGEMENT_INITIAL_CREATION_NOT_FORCED);
   providers_.push_back(
       std::make_unique<StandardManagementPolicyProvider>(this, profile_.get()));
   providers_.push_back(
@@ -272,9 +272,9 @@ bool ExtensionManagement::IsAllowedManifestType(
     const std::string& extension_id) const {
   // If a managed theme has been set for the current profile, theme extension
   // installations are not allowed.
-  if (manifest_type == Manifest::Type::TYPE_THEME &&
-      ThemeServiceFactory::GetForProfile(profile_)->UsingPolicyTheme())
-    return false;
+  // if (manifest_type == Manifest::Type::TYPE_THEME &&
+  //     ThemeServiceFactory::GetForProfile(profile_)->UsingPolicyTheme())
+  //   return false;
 
   if (!global_settings_->allowed_types.has_value())
     return true;
@@ -644,16 +644,16 @@ void ExtensionManagement::Refresh() {
   if (dict_pref) {
     // Parse new extension management preference.
 
-    bool defer_load_settings = base::FeatureList::IsEnabled(
-        features::kExtensionDeferredIndividualSettings);
+    // bool defer_load_settings = base::FeatureList::IsEnabled(
+    //     features::kExtensionDeferredIndividualSettings);
     std::unordered_set<std::string> installed_extensions;
-    if (defer_load_settings) {
-      auto* extension_prefs = ExtensionPrefs::Get(profile_);
-      auto extensions_info = extension_prefs->GetInstalledExtensionsInfo();
-      for (const auto& extension_info : extensions_info) {
-        installed_extensions.insert(extension_info.extension_id);
-      }
-    }
+    // if (defer_load_settings) {
+    //   auto* extension_prefs = ExtensionPrefs::Get(profile_);
+    //   auto extensions_info = extension_prefs->GetInstalledExtensionsInfo();
+    //   for (const auto& extension_info : extensions_info) {
+    //     installed_extensions.insert(extension_info.extension_id);
+    //   }
+    // }
 
     for (auto iter : *dict_pref) {
       if (iter.first == schema_constants::kWildcard)
@@ -687,32 +687,32 @@ void ExtensionManagement::Refresh() {
             continue;
           }
 
-          if (defer_load_settings) {
-            auto should_defer = [&extension_id, &installed_extensions](
-                                    const base::Value::Dict& dict,
-                                    const SettingsIdMap* settings_by_id) {
-              // If in legacy force list, don't defer since already have an
-              // entry. This ensures that the entry in these settings matches
-              // the entry in the forcelist. Also don't defer if the extension
-              // is installed.
-              if (base::Contains(*settings_by_id, extension_id) ||
-                  base::Contains(installed_extensions, extension_id)) {
-                return false;
-              }
-              auto* install_mode =
-                  dict.FindString(schema_constants::kInstallationMode);
-              if (!install_mode)
-                return true;
-              // Don't defer if the extension needs to be installed.
-              return *install_mode != schema_constants::kForceInstalled &&
-                     *install_mode != schema_constants::kNormalInstalled;
-            };
+          // if (defer_load_settings) {
+          //   auto should_defer = [&extension_id, &installed_extensions](
+          //                           const base::Value::Dict& dict,
+          //                           const SettingsIdMap* settings_by_id) {
+          //     // If in legacy force list, don't defer since already have an
+          //     // entry. This ensures that the entry in these settings matches
+          //     // the entry in the forcelist. Also don't defer if the extension
+          //     // is installed.
+          //     if (base::Contains(*settings_by_id, extension_id) ||
+          //         base::Contains(installed_extensions, extension_id)) {
+          //       return false;
+          //     }
+          //     auto* install_mode =
+          //         dict.FindString(schema_constants::kInstallationMode);
+          //     if (!install_mode)
+          //       return true;
+          //     // Don't defer if the extension needs to be installed.
+          //     return *install_mode != schema_constants::kForceInstalled &&
+          //            *install_mode != schema_constants::kNormalInstalled;
+          //   };
 
-            if (should_defer(*subdict, &settings_by_id_)) {
-              deferred_ids_.insert(extension_id);
-              continue;
-            }
-          }
+          //   if (should_defer(*subdict, &settings_by_id_)) {
+          //     deferred_ids_.insert(extension_id);
+          //     continue;
+          //   }
+          // }
 
           internal::IndividualSettings* by_id = AccessById(extension_id);
           const bool included_in_forcelist =
@@ -726,9 +726,9 @@ void ExtensionManagement::Refresh() {
           if (included_in_forcelist &&
               by_id->installation_mode !=
                   InstallationMode::INSTALLATION_FORCED) {
-            InstallStageTracker::Get(profile_)->ReportFailure(
-                extension_id,
-                InstallStageTracker::FailureReason::OVERRIDDEN_BY_SETTINGS);
+            // InstallStageTracker::Get(profile_)->ReportFailure(
+            //     extension_id,
+            //     InstallStageTracker::FailureReason::OVERRIDDEN_BY_SETTINGS);
           }
         }
       }
@@ -743,9 +743,9 @@ bool ExtensionManagement::ParseById(const std::string& extension_id,
     return true;
 
   settings_by_id_.erase(extension_id);
-  InstallStageTracker::Get(profile_)->ReportFailure(
-      extension_id,
-      InstallStageTracker::FailureReason::MALFORMED_EXTENSION_SETTINGS);
+  // InstallStageTracker::Get(profile_)->ReportFailure(
+  //     extension_id,
+  //     InstallStageTracker::FailureReason::MALFORMED_EXTENSION_SETTINGS);
   SYSLOG(WARNING) << "Malformed Extension Management settings for "
                   << extension_id << ".";
   return false;
@@ -834,14 +834,15 @@ void ExtensionManagement::OnExtensionPrefChanged() {
 }
 
 void ExtensionManagement::NotifyExtensionManagementPrefChanged() {
-  ReportExtensionManagementInstallCreationStage(
-      InstallStageTracker::InstallCreationStage::NOTIFIED_FROM_MANAGEMENT,
-      InstallStageTracker::InstallCreationStage::
-          NOTIFIED_FROM_MANAGEMENT_NOT_FORCED);
+  // ReportExtensionManagementInstallCreationStage(
+  //     InstallStageTracker::InstallCreationStage::NOTIFIED_FROM_MANAGEMENT,
+  //     InstallStageTracker::InstallCreationStage::
+  //         NOTIFIED_FROM_MANAGEMENT_NOT_FORCED);
   for (auto& observer : observer_list_)
     observer.OnExtensionManagementSettingsChanged();
 }
 
+#if 0
 void ExtensionManagement::ReportExtensionManagementInstallCreationStage(
     InstallStageTracker::InstallCreationStage forced_stage,
     InstallStageTracker::InstallCreationStage other_stage) {
@@ -857,7 +858,7 @@ void ExtensionManagement::ReportExtensionManagementInstallCreationStage(
     }
   }
 }
-
+#endif 
 base::Value::Dict ExtensionManagement::GetInstallListByMode(
     InstallationMode installation_mode) const {
   // This is only meaningful if we 've loaded the extensions for the given
@@ -868,8 +869,8 @@ base::Value::Dict ExtensionManagement::GetInstallListByMode(
   base::Value::Dict extension_dict;
   for (const auto& [id, settings] : settings_by_id_) {
     if (settings->installation_mode == installation_mode) {
-      ExternalPolicyLoader::AddExtension(extension_dict, id,
-                                         settings->update_url);
+      // ExternalPolicyLoader::AddExtension(extension_dict, id,
+      //                                    settings->update_url);
     }
   }
   return extension_dict;
@@ -880,35 +881,35 @@ void ExtensionManagement::UpdateForcedExtensions(
   if (!extension_dict)
     return;
 
-  InstallStageTracker* install_stage_tracker =
-      InstallStageTracker::Get(profile_);
+  // InstallStageTracker* install_stage_tracker =
+  //     InstallStageTracker::Get(profile_);
   for (auto it : *extension_dict) {
     if (!crx_file::id_util::IdIsValid(it.first)) {
-      install_stage_tracker->ReportFailure(
-          it.first, InstallStageTracker::FailureReason::INVALID_ID);
+      // install_stage_tracker->ReportFailure(
+      //     it.first, InstallStageTracker::FailureReason::INVALID_ID);
       continue;
     }
     const base::Value::Dict* dict_value = it.second.GetIfDict();
     if (!dict_value) {
-      install_stage_tracker->ReportFailure(
-          it.first, InstallStageTracker::FailureReason::NO_UPDATE_URL);
+      // install_stage_tracker->ReportFailure(
+      //     it.first, InstallStageTracker::FailureReason::NO_UPDATE_URL);
       continue;
     }
-    const std::string* update_url =
-        dict_value->FindString(ExternalProviderImpl::kExternalUpdateUrl);
-    if (!update_url) {
-      install_stage_tracker->ReportFailure(
-          it.first, InstallStageTracker::FailureReason::NO_UPDATE_URL);
-      continue;
-    }
+    // const std::string* update_url =
+    //     dict_value->FindString(ExternalProviderImpl::kExternalUpdateUrl);
+    // if (!update_url) {
+    //   // install_stage_tracker->ReportFailure(
+    //   //     it.first, InstallStageTracker::FailureReason::NO_UPDATE_URL);
+    //   continue;
+    // }
     internal::IndividualSettings* by_id = AccessById(it.first);
     by_id->installation_mode = INSTALLATION_FORCED;
-    by_id->update_url = *update_url;
-    install_stage_tracker->ReportInstallationStage(
-        it.first, InstallStageTracker::Stage::CREATED);
-    install_stage_tracker->ReportInstallCreationStage(
-        it.first,
-        InstallStageTracker::InstallCreationStage::CREATION_INITIATED);
+    // by_id->update_url = *update_url;
+    // install_stage_tracker->ReportInstallationStage(
+    //     it.first, InstallStageTracker::Stage::CREATED);
+    // install_stage_tracker->ReportInstallCreationStage(
+    //     it.first,
+    //     InstallStageTracker::InstallCreationStage::CREATION_INITIATED);
   }
 }
 
@@ -956,7 +957,7 @@ ExtensionManagementFactory::ExtensionManagementFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
-  DependsOn(InstallStageTrackerFactory::GetInstance());
+  // DependsOn(InstallStageTrackerFactory::GetInstance());
 }
 
 ExtensionManagementFactory::~ExtensionManagementFactory() {}

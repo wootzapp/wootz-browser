@@ -1089,14 +1089,14 @@ bool ProfileImpl::AllowsBrowserWindows() const {
 
 ExtensionSpecialStoragePolicy* ProfileImpl::GetExtensionSpecialStoragePolicy() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (!extension_special_storage_policy_.get()) {
-    TRACE_EVENT0("browser", "ProfileImpl::GetExtensionSpecialStoragePolicy");
-    extension_special_storage_policy_ =
-        base::MakeRefCounted<ExtensionSpecialStoragePolicy>(
-            CookieSettingsFactory::GetForProfile(this).get());
-  }
-  return extension_special_storage_policy_.get();
-#else
+//   if (!extension_special_storage_policy_.get()) {
+//     TRACE_EVENT0("browser", "ProfileImpl::GetExtensionSpecialStoragePolicy");
+//     extension_special_storage_policy_ =
+//         base::MakeRefCounted<ExtensionSpecialStoragePolicy>(
+//             CookieSettingsFactory::GetForProfile(this).get());
+//   }
+//   return extension_special_storage_policy_.get();
+// #else
   return NULL;
 #endif
 }
@@ -1335,7 +1335,8 @@ storage::SpecialStoragePolicy* ProfileImpl::GetSpecialStoragePolicy() {
 content::PlatformNotificationService*
 ProfileImpl::GetPlatformNotificationService() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  return PlatformNotificationServiceFactory::GetForProfile(this);
+  // return PlatformNotificationServiceFactory::GetForProfile(this);
+  return nullptr;
 }
 
 content::PushMessagingService* ProfileImpl::GetPushMessagingService() {
@@ -1381,7 +1382,8 @@ content::BackgroundSyncController* ProfileImpl::GetBackgroundSyncController() {
 }
 
 content::ContentIndexProvider* ProfileImpl::GetContentIndexProvider() {
-  return ContentIndexProviderFactory::GetForProfile(this);
+  // return ContentIndexProviderFactory::GetForProfile(this);
+  return nullptr;
 }
 
 content::FederatedIdentityApiPermissionContextDelegate*

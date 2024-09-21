@@ -19,20 +19,20 @@ static base::LazyInstance<scoped_refptr<StorageDeviceList>>::DestructorAtExit
 // https://code.google.com/p/chromium/issues/detail?id=284898
 
 void RemovableStorageProvider::GetAllDevices(DeviceListReadyCallback callback) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (g_test_device_list.Get().get() != nullptr) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(callback), g_test_device_list.Get()));
-    return;
-  }
-  // We need to do some file i/o to get the device block size
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
-       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&RemovableStorageProvider::PopulateDeviceList),
-      std::move(callback));
+  // DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  // if (g_test_device_list.Get().get() != nullptr) {
+  //   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  //       FROM_HERE,
+  //       base::BindOnce(std::move(callback), g_test_device_list.Get()));
+  //   return;
+  // }
+  // // We need to do some file i/o to get the device block size
+  // base::ThreadPool::PostTaskAndReplyWithResult(
+  //     FROM_HERE,
+  //     {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+  //      base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+  //     base::BindOnce(&RemovableStorageProvider::PopulateDeviceList),
+  //     std::move(callback));
 }
 
 // static

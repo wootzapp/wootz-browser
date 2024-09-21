@@ -549,9 +549,9 @@ ChromeBrowserMainExtraPartsProfiles::~ChromeBrowserMainExtraPartsProfiles() =
 // TODO(crbug.com/40256109): Check how to simplify the approach of registering
 // every factory in this function.
 //
-// static
+// 
 void ChromeBrowserMainExtraPartsProfiles::
-    EnsureBrowserContextKeyedServiceFactoriesBuilt() {
+    EnsureBrowserContextKeyedServiceFactoriesBuilt(bool full_init) {
   // ---------------------------------------------------------------------------
   // Redirect to those lists for factories that are part of those modules.
   // Module specific registration functions:
@@ -559,10 +559,12 @@ void ChromeBrowserMainExtraPartsProfiles::
   ash::EnsureBrowserContextKeyedServiceFactoriesBuilt();
 #endif
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
-  chrome_apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
-  chrome_apps::api::EnsureBrowserContextKeyedServiceFactoriesBuilt();
-  chrome_extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+  if (full_init) {
+    apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+    // chrome_apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+    // chrome_apps::api::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+    chrome_extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
+  }
 #if BUILDFLAG(IS_CHROMEOS)
   chromeos::EnsureBrowserContextKeyedServiceFactoriesBuilt();
   chromeos_extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
@@ -582,7 +584,8 @@ void ChromeBrowserMainExtraPartsProfiles::
   AccountInvestigatorFactory::GetInstance();
   AccountPasswordStoreFactory::GetInstance();
   AccountReconcilorFactory::GetInstance();
-  AdaptiveQuietNotificationPermissionUiEnabler::Factory::GetInstance();
+if (full_init)
+    AdaptiveQuietNotificationPermissionUiEnabler::Factory::GetInstance();
 #if BUILDFLAG(IS_ANDROID)
   AndroidSessionDurationsServiceFactory::GetInstance();
 #endif
@@ -595,6 +598,7 @@ void ChromeBrowserMainExtraPartsProfiles::
 #if !BUILDFLAG(IS_ANDROID)
   apps::AppServiceProxyFactory::GetInstance();
 #endif
+
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   apps::deduplication::AppDeduplicationServiceFactory::GetInstance();
   apps::StandaloneBrowserExtensionAppsFactoryForApp::GetInstance();
@@ -615,7 +619,8 @@ void ChromeBrowserMainExtraPartsProfiles::
     ash::language_packs::LanguagePackFontServiceFactory::GetInstance();
   }
 #endif
-  AutocompleteClassifierFactory::GetInstance();
+  if (full_init)
+    AutocompleteClassifierFactory::GetInstance();
   AutocompleteControllerEmitter::EnsureFactoryBuilt();
 #if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
   AutocompleteScoringModelServiceFactory::GetInstance();
@@ -694,7 +699,8 @@ void ChromeBrowserMainExtraPartsProfiles::
 #if !BUILDFLAG(IS_ANDROID)
   chrome_colors::ChromeColorsFactory::GetInstance();
 #endif
-  ChromeBrowsingDataLifetimeManagerFactory::GetInstance();
+  if (full_init)
+    ChromeBrowsingDataLifetimeManagerFactory::GetInstance();
   ChromeBrowsingDataRemoverDelegateFactory::GetInstance();
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID) || \
     BUILDFLAG(IS_CHROMEOS)
@@ -862,8 +868,10 @@ void ChromeBrowserMainExtraPartsProfiles::
 #endif
   HistoryClustersServiceFactory::EnsureFactoryBuilt();
   HistoryEmbeddingsServiceFactory::GetInstance();
-  HistoryServiceFactory::GetInstance();
-  HistoryUiFaviconRequestHandlerFactory::GetInstance();
+  if (full_init) {
+    HistoryServiceFactory::GetInstance();
+    HistoryUiFaviconRequestHandlerFactory::GetInstance();
+  }
   HostContentSettingsMapFactory::GetInstance();
   HttpsEngagementServiceFactory::GetInstance();
   HttpsFirstModeServiceFactory::GetInstance();
@@ -923,7 +931,8 @@ void ChromeBrowserMainExtraPartsProfiles::
   }
 #endif
   if (MediaEngagementService::IsEnabled()) {
-    MediaEngagementServiceFactory::GetInstance();
+    if (full_init)
+      MediaEngagementServiceFactory::GetInstance();
   }
 #if !BUILDFLAG(IS_ANDROID)
   MediaFileSystemRegistry::GetFactoryInstance();
@@ -958,7 +967,8 @@ void ChromeBrowserMainExtraPartsProfiles::
   NotificationPermissionsReviewServiceFactory::GetInstance();
 #endif
   NotificationsEngagementServiceFactory::GetInstance();
-  NotifierStateTrackerFactory::GetInstance();
+  if (full_init)
+    NotifierStateTrackerFactory::GetInstance();
 #if BUILDFLAG(USE_NSS_CERTS)
   NssServiceFactory::GetInstance();
 #endif
@@ -1061,14 +1071,16 @@ void ChromeBrowserMainExtraPartsProfiles::
   }
 #endif  // BUILDFLAG(BUILD_WITH_TFLITE_LIB)
   PredictionServiceFactory::GetInstance();
-  predictors::AutocompleteActionPredictorFactory::GetInstance();
-  predictors::LoadingPredictorFactory::GetInstance();
-  predictors::PredictorDatabaseFactory::GetInstance();
-  PrefMetricsService::Factory::GetInstance();
-  PrefsTabHelper::GetServiceInstance();
-  prerender::NoStatePrefetchLinkManagerFactory::GetInstance();
-  prerender::NoStatePrefetchManagerFactory::GetInstance();
-  PrimaryAccountPolicyManagerFactory::GetInstance();
+  if (full_init) {
+    predictors::AutocompleteActionPredictorFactory::GetInstance();
+    predictors::LoadingPredictorFactory::GetInstance();
+    predictors::PredictorDatabaseFactory::GetInstance();
+    PrefMetricsService::Factory::GetInstance();
+    PrefsTabHelper::GetServiceInstance();
+    prerender::NoStatePrefetchLinkManagerFactory::GetInstance();
+    prerender::NoStatePrefetchManagerFactory::GetInstance();
+    PrimaryAccountPolicyManagerFactory::GetInstance();
+  }
 #if !BUILDFLAG(IS_ANDROID)
   PrivateNetworkDevicePermissionContextFactory::GetInstance();
 #endif
@@ -1179,7 +1191,8 @@ void ChromeBrowserMainExtraPartsProfiles::
 #if !BUILDFLAG(IS_ANDROID)
   sharing_hub::SharingHubServiceFactory::GetInstance();
 #endif
-  SharingServiceFactory::GetInstance();
+  if (full_init)
+    SharingServiceFactory::GetInstance();
   ShortcutsBackendFactory::GetInstance();
 #if BUILDFLAG(IS_ANDROID)
   SigninManagerAndroidFactory::GetInstance();
@@ -1190,7 +1203,8 @@ void ChromeBrowserMainExtraPartsProfiles::
   SigninMetricsServiceFactory::GetInstance();
   SigninProfileAttributesUpdaterFactory::GetInstance();
   if (site_engagement::SiteEngagementService::IsEnabled()) {
-    site_engagement::SiteEngagementServiceFactory::GetInstance();
+    if (full_init)
+      site_engagement::SiteEngagementServiceFactory::GetInstance();
   }
 #if BUILDFLAG(IS_CHROMEOS)
   SmartCardPermissionContextFactory::GetInstance();
@@ -1211,7 +1225,8 @@ void ChromeBrowserMainExtraPartsProfiles::
 #endif
   SubresourceFilterProfileContextFactory::GetInstance();
   SupervisedUserMetricsServiceFactory::GetInstance();
-  SupervisedUserServiceFactory::GetInstance();
+  if (full_init)
+    SupervisedUserServiceFactory::GetInstance();
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   sync_file_system::SyncFileSystemServiceFactory::GetInstance();
 #endif
@@ -1230,9 +1245,10 @@ void ChromeBrowserMainExtraPartsProfiles::
   thin_webview::android::ChromeThinWebViewInitializer::Initialize();
 #endif
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  ToolbarActionsModelFactory::GetInstance();
+  // ToolbarActionsModelFactory::GetInstance();
 #endif
-  TopSitesFactory::GetInstance();
+  if (full_init)
+    TopSitesFactory::GetInstance();
   tpcd::experiment::EligibilityServiceFactory::GetInstance();
   tpcd::trial::TpcdTrialServiceFactory::GetInstance();
   tpcd::trial::TopLevelTrialServiceFactory::GetInstance();
@@ -1273,9 +1289,9 @@ void ChromeBrowserMainExtraPartsProfiles::
   visited_url_ranking::VisitedURLRankingServiceFactory::GetInstance();
 #endif
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  web_app::IsolatedWebAppReaderRegistryFactory::GetInstance();
-  web_app::WebAppMetricsFactory::GetInstance();
-  web_app::WebAppProviderFactory::GetInstance();
+  // web_app::IsolatedWebAppReaderRegistryFactory::GetInstance();
+  // web_app::WebAppMetricsFactory::GetInstance();
+  // web_app::WebAppProviderFactory::GetInstance();
 #endif
 #if BUILDFLAG(IS_ANDROID)
   WebApkInstallServiceFactory::GetInstance();
