@@ -9314,17 +9314,17 @@ const FeatureEntry kFeatureEntries[] = {
      flag_descriptions::kExtensionsMenuAccessControlDescription, kOsDesktop,
      FEATURE_VALUE_TYPE(extensions_features::kExtensionsMenuAccessControl)},
 
-    {"iph-extensions-menu-feature",
-     flag_descriptions::kIPHExtensionsMenuFeatureName,
-     flag_descriptions::kIPHExtensionsMenuFeatureDescription, kOsDesktop,
-     FEATURE_VALUE_TYPE(feature_engagement::kIPHExtensionsMenuFeature)},
+    // {"iph-extensions-menu-feature",
+    //  flag_descriptions::kIPHExtensionsMenuFeatureName,
+    //  flag_descriptions::kIPHExtensionsMenuFeatureDescription, kOsDesktop,
+    //  FEATURE_VALUE_TYPE(feature_engagement::kIPHExtensionsMenuFeature)},
 
-    {"iph-extensions-request-access-button-feature",
-     flag_descriptions::kIPHExtensionsRequestAccessButtonFeatureName,
-     flag_descriptions::kIPHExtensionsRequestAccessButtonFeatureDescription,
-     kOsDesktop,
-     FEATURE_VALUE_TYPE(
-         feature_engagement::kIPHExtensionsRequestAccessButtonFeature)},
+    // {"iph-extensions-request-access-button-feature",
+    //  flag_descriptions::kIPHExtensionsRequestAccessButtonFeatureName,
+    //  flag_descriptions::kIPHExtensionsRequestAccessButtonFeatureDescription,
+    //  kOsDesktop,
+    //  FEATURE_VALUE_TYPE(
+    //      feature_engagement::kIPHExtensionsRequestAccessButtonFeature)},
 
 #if BUILDFLAG(IS_CHROMEOS)
     {"extension-web-file-handlers",

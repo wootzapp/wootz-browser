@@ -1255,7 +1255,7 @@ void ChromeBrowserMainParts::PreProfileInit() {
 
   media::AudioManager::SetGlobalAppName(
       l10n_util::GetStringUTF8(IDS_SHORT_PRODUCT_NAME));
-
+  LOG(ERROR) << "pre profile init";
   for (auto& chrome_extra_part : chrome_extra_parts_)
     chrome_extra_part->PreProfileInit();
 
@@ -1286,7 +1286,7 @@ void ChromeBrowserMainParts::PreProfileInit() {
 #endif  // BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  SetChromeAppModalDialogManagerDelegate();
+  // SetChromeAppModalDialogManagerDelegate();
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   media_router::ChromeMediaRouterFactory::DoPlatformInit();
@@ -1452,6 +1452,7 @@ void ChromeBrowserMainParts::PostBrowserStart() {
 }
 
 int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
+  LOG(ERROR) << "premainmessage";
   TRACE_EVENT0("startup", "ChromeBrowserMainParts::PreMainMessageLoopRunImpl");
 
   SCOPED_UMA_HISTOGRAM_LONG_TIMER("Startup.PreMainMessageLoopRunImplLongTime");

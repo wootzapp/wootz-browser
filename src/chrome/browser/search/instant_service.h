@@ -31,10 +31,10 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#error "Instant is only used on desktop";
+// #error "Instant is only used on desktop";
 #endif
 
-class InstantServiceObserver;
+// class InstantServiceObserver;
 class Profile;
 struct CollectionImage;
 struct InstantMostVisitedInfo;
@@ -72,8 +72,8 @@ class InstantService : public KeyedService,
   bool IsInstantProcess(int process_id) const;
 
   // Adds/Removes InstantService observers.
-  virtual void AddObserver(InstantServiceObserver* observer);
-  void RemoveObserver(InstantServiceObserver* observer);
+  // virtual void AddObserver(InstantServiceObserver* observer);
+  // void RemoveObserver(InstantServiceObserver* observer);
 
   // Determine if this chrome-search: request is coming from an Instant render
   // process.
@@ -164,7 +164,7 @@ class InstantService : public KeyedService,
   // Theme-related data for NTP overlay to adopt themes.
   std::unique_ptr<NtpTheme> theme_;
 
-  base::ObserverList<InstantServiceObserver>::Unchecked observers_;
+  // base::ObserverList<InstantServiceObserver>::Unchecked observers_;
 
   // Data source for NTP tiles (aka Most Visited tiles). May be null.
   std::unique_ptr<ntp_tiles::MostVisitedSites> most_visited_sites_;

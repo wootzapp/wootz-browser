@@ -14,6 +14,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <typeinfo>
 
 #include "base/allocator/allocator_check.h"
 #include "base/allocator/partition_alloc_support.h"
@@ -1113,7 +1114,7 @@ int NO_STACK_PROTECTOR ContentMainRunnerImpl::Run() {
       base::allocator::PartitionAllocSupport::Get()
           ->ReconfigureAfterFeatureListInit(process_type);
     }
-
+LOG(ERROR) << "process run";
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     // If dynamic Mojo Core is being used, ensure that it's loaded very early in
     // the child/zygote process, before any sandbox is initialized. The library
@@ -1184,16 +1185,16 @@ int ContentMainRunnerImpl::RunBrowser(MainFunctionParams main_params,
     if (delegate_->ShouldInitializeMojo(invoked_in_browser)) {
       InitializeMojoCore();
     }
-
+LOG(ERROR) << "browser run 1";
     // Create and start the ThreadPool early to allow the rest of the startup
     // code to use the thread_pool.h API.
     const bool has_thread_pool =
         GetContentClient()->browser()->CreateThreadPool("Browser");
-
+LOG(ERROR) << "browser run 2";
     std::optional<int> pre_browser_main_exit_code = delegate_->PreBrowserMain();
     if (pre_browser_main_exit_code.has_value())
       return pre_browser_main_exit_code.value();
-
+LOG(ERROR) << "browser run 3";
 #if BUILDFLAG(IS_WIN)
     if (l10n_util::GetLocaleOverrides().empty()) {
       // Override the configured locale with the user's preferred UI language.
@@ -1208,22 +1209,26 @@ int ContentMainRunnerImpl::RunBrowser(MainFunctionParams main_params,
     // and binds the MessageLoopForUI on the main thread (but it's only labeled
     // as BrowserThread::UI in BrowserMainLoop::CreateMainMessageLoop).
     BrowserTaskExecutor::Create();
-
+LOG(ERROR) << "browser run 4";
     auto* provider = delegate_->CreateVariationsIdsProvider();
     if (!provider) {
       variations::VariationsIdsProvider::Create(
           variations::VariationsIdsProvider::Mode::kUseSignedInState);
     }
-
+LOG(ERROR) << "browser run 5" << "delegate_ is of type: " << typeid(*delegate_).name() ;
     std::optional<int> post_early_initialization_exit_code =
         delegate_->PostEarlyInitialization(invoked_in_browser);
-    if (post_early_initialization_exit_code.has_value())
+    if (post_early_initialization_exit_code.has_value()) {
+      LOG(ERROR) << "browser run 6" << post_early_initialization_exit_code.value();
       return post_early_initialization_exit_code.value();
+    }
+
 
     // The hang watcher needs to be started once the feature list is available
     // but before the IO thread is started.
     if (base::HangWatcher::IsEnabled()) {
       base::HangWatcher::CreateHangWatcherInstance();
+LOG(ERROR) << "browser run 7";
 
       // Register the main thread to the HangWatcher and never unregister it. It
       // is safe to keep this scope up to the end of the process since the

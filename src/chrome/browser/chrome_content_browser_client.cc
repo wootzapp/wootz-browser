@@ -547,8 +547,6 @@
 #include "chrome/browser/metrics/usage_scenario/chrome_responsiveness_calculator_delegate.h"
 #include "chrome/browser/new_tab_page/new_tab_page_util.h"
 #include "chrome/browser/page_info/about_this_site_side_panel_throttle.h"
-#include "chrome/browser/search/instant_service.h"
-#include "chrome/browser/search/instant_service_factory.h"
 #include "chrome/browser/serial/chrome_serial_delegate.h"
 #include "chrome/browser/task_manager/task_manager_interface.h"
 #include "chrome/browser/ui/browser.h"
@@ -1285,7 +1283,7 @@ void MaybeAddThrottles(
 
 // Returns whether |web_contents| is within a hosted app.
 bool IsInHostedApp(WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   Browser* browser = chrome::FindBrowserWithTab(web_contents);
   return web_app::AppBrowserController::IsWebApp(browser);
 #else
@@ -1688,8 +1686,8 @@ ChromeContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
   if (startup_data_.HasBuiltProfilePrefService())
     add_profiles_extra_parts = false;
 #endif
-  if (add_profiles_extra_parts)
-    chrome::AddProfilesExtraParts(main_parts.get());
+  // if (add_profiles_extra_parts)
+  //   chrome::AddProfilesExtraParts(main_parts.get());
 
     // Construct additional browser parts. Stages are called in the order in
     // which they are added.
@@ -1804,23 +1802,23 @@ ChromeContentBrowserClient::GetStoragePartitionConfigForSite(
   // In general, those use cases aren't considered part of the user's normal
   // browsing activity.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (site.SchemeIs(extensions::kExtensionScheme)) {
-    // The host in an extension site URL is the extension_id.
-    CHECK(site.has_host());
-    return extensions::util::GetStoragePartitionConfigForExtensionId(
-        site.host(), browser_context);
-  }
+  // if (site.SchemeIs(extensions::kExtensionScheme)) {
+  //   // The host in an extension site URL is the extension_id.
+  //   CHECK(site.has_host());
+  //   return extensions::util::GetStoragePartitionConfigForExtensionId(
+  //       site.host(), browser_context);
+  // }
 
-  if (content::SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
-          browser_context, site)) {
-    CHECK(site.SchemeIs(chrome::kIsolatedAppScheme));
-    ASSIGN_OR_RETURN(const auto iwa_url_info,
-                     web_app::IsolatedWebAppUrlInfo::Create(site), [&](auto) {
-                       LOG(ERROR) << "Invalid isolated-app URL: " << site;
-                       return default_storage_partition_config;
-                     });
-    return iwa_url_info.storage_partition_config(browser_context);
-  }
+  // if (content::SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
+  //         browser_context, site)) {
+  //   CHECK(site.SchemeIs(chrome::kIsolatedAppScheme));
+  //   ASSIGN_OR_RETURN(const auto iwa_url_info,
+  //                    web_app::IsolatedWebAppUrlInfo::Create(site), [&](auto) {
+  //                      LOG(ERROR) << "Invalid isolated-app URL: " << site;
+  //                      return default_storage_partition_config;
+  //                    });
+  //   return iwa_url_info.storage_partition_config(browser_context);
+  // }
 #endif
 
   return default_storage_partition_config;
@@ -6167,62 +6165,62 @@ void AddChromeSchemeFactories(
     content::WebContents* web_contents,
     const extensions::Extension* extension,
     ChromeContentBrowserClient::NonNetworkURLLoaderFactoryMap* factories) {
-  Profile* profile =
-      Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  InstantService* instant_service =
-      InstantServiceFactory::GetForProfile(profile);
-  // The test below matches when a remote 3P NTP is loaded. The effective
-  // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
-  // public api and to embed most-visited tiles
-  // (chrome-search://most-visited/title.html).
-  //
-  // InstantService might be null for some irregular profiles, e.g. the System
-  // Profile.
-  if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
-    factories->emplace(
-        chrome::kChromeSearchScheme,
-        content::CreateWebUIURLLoaderFactory(
-            frame_host, chrome::kChromeSearchScheme,
-            /*allowed_webui_hosts=*/base::flat_set<std::string>()));
-  }
+  // Profile* profile =
+  //     Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  // InstantService* instant_service =
+  //     InstantServiceFactory::GetForProfile(profile);
+  // // The test below matches when a remote 3P NTP is loaded. The effective
+  // // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
+  // // public api and to embed most-visited tiles
+  // // (chrome-search://most-visited/title.html).
+  // //
+  // // InstantService might be null for some irregular profiles, e.g. the System
+  // // Profile.
+  // if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
+  //   factories->emplace(
+  //       chrome::kChromeSearchScheme,
+  //       content::CreateWebUIURLLoaderFactory(
+  //           frame_host, chrome::kChromeSearchScheme,
+  //           /*allowed_webui_hosts=*/base::flat_set<std::string>()));
+  // }
 
-  extensions::ChromeExtensionWebContentsObserver* web_observer =
-      extensions::ChromeExtensionWebContentsObserver::FromWebContents(
-          web_contents);
+  // extensions::ChromeExtensionWebContentsObserver* web_observer =
+  //     extensions::ChromeExtensionWebContentsObserver::FromWebContents(
+  //         web_contents);
 
-  // There is nothing to do if no ChromeExtensionWebContentsObserver is attached
-  // to the |web_contents| or no enabled extension exists.
-  if (!web_observer || !extension)
-    return;
+  // // There is nothing to do if no ChromeExtensionWebContentsObserver is attached
+  // // to the |web_contents| or no enabled extension exists.
+  // if (!web_observer || !extension)
+  //   return;
 
-  std::vector<std::string> allowed_webui_hosts;
-  // Support for chrome:// scheme if appropriate.
-  if ((extension->is_extension() || extension->is_platform_app()) &&
-      Manifest::IsComponentLocation(extension->location())) {
-    // Components of chrome that are implemented as extensions or platform apps
-    // are allowed to use chrome://resources/ and chrome://theme/ URLs.
-    allowed_webui_hosts.emplace_back(content::kChromeUIResourcesHost);
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIThemeHost);
-    // For testing purposes chrome://webui-test/ is also allowed.
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIWebUITestHost);
-  }
-  if (extension->is_extension() || extension->is_legacy_packaged_app() ||
-      (extension->is_platform_app() &&
-       Manifest::IsComponentLocation(extension->location()))) {
-    // Extensions, legacy packaged apps, and component platform apps are allowed
-    // to use chrome://favicon/, chrome://extension-icon/ and chrome://app-icon
-    // URLs. Hosted apps are not allowed because they are served via web servers
-    // (and are generally never given access to Chrome APIs).
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIExtensionIconHost);
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIFaviconHost);
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIAppIconHost);
-  }
-  if (!allowed_webui_hosts.empty()) {
-    factories->emplace(content::kChromeUIScheme,
-                       content::CreateWebUIURLLoaderFactory(
-                           frame_host, content::kChromeUIScheme,
-                           std::move(allowed_webui_hosts)));
-  }
+  // std::vector<std::string> allowed_webui_hosts;
+  // // Support for chrome:// scheme if appropriate.
+  // if ((extension->is_extension() || extension->is_platform_app()) &&
+  //     Manifest::IsComponentLocation(extension->location())) {
+  //   // Components of chrome that are implemented as extensions or platform apps
+  //   // are allowed to use chrome://resources/ and chrome://theme/ URLs.
+  //   allowed_webui_hosts.emplace_back(content::kChromeUIResourcesHost);
+  //   allowed_webui_hosts.emplace_back(chrome::kChromeUIThemeHost);
+  //   // For testing purposes chrome://webui-test/ is also allowed.
+  //   // allowed_webui_hosts.emplace_back(chrome::kChromeUIWebUITestHost);
+  // }
+  // if (extension->is_extension() || extension->is_legacy_packaged_app() ||
+  //     (extension->is_platform_app() &&
+  //      Manifest::IsComponentLocation(extension->location()))) {
+  //   // Extensions, legacy packaged apps, and component platform apps are allowed
+  //   // to use chrome://favicon/, chrome://extension-icon/ and chrome://app-icon
+  //   // URLs. Hosted apps are not allowed because they are served via web servers
+  //   // (and are generally never given access to Chrome APIs).
+  //   allowed_webui_hosts.emplace_back(chrome::kChromeUIExtensionIconHost);
+  //   allowed_webui_hosts.emplace_back(chrome::kChromeUIFaviconHost);
+  //   allowed_webui_hosts.emplace_back(chrome::kChromeUIAppIconHost);
+  // }
+  // if (!allowed_webui_hosts.empty()) {
+  //   factories->emplace(content::kChromeUIScheme,
+  //                      content::CreateWebUIURLLoaderFactory(
+  //                          frame_host, content::kChromeUIScheme,
+  //                          std::move(allowed_webui_hosts)));
+  // }
 }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 }  // namespace
@@ -6625,8 +6623,8 @@ void ChromeContentBrowserClient::ConfigureNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     cert_verifier::mojom::CertVerifierCreationParams*
         cert_verifier_creation_params) {
-  ProfileNetworkContextService* service =
-      ProfileNetworkContextServiceFactory::GetForContext(context);
+  ProfileNetworkContextService* service = nullptr;
+      // ProfileNetworkContextServiceFactory::GetForContext(context);
   if (service) {
     service->ConfigureNetworkContextParams(in_memory, relative_partition_path,
                                            network_context_params,

@@ -53,12 +53,13 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
         content::DownloadItemUtils::GetWebContents(
             const_cast<DownloadItem*>(&download_item));
     if (!web_contents) {
-      Browser* browser = chrome::FindLastActiveWithProfile(profile);
-      if (!browser) {
-        browser = Browser::Create(
-            Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
-      }
-      web_contents = browser->tab_strip_model()->GetActiveWebContents();
+      // Browser* browser = chrome::FindLastActiveWithProfile(profile);
+      // if (!browser) {
+      //   browser = Browser::Create(
+      //       Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
+      // }
+      // web_contents = browser->tab_strip_model()->GetActiveWebContents();
+      return nullptr;
     }
     return std::make_unique<ExtensionInstallPrompt>(web_contents);
   }
@@ -90,7 +91,8 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
       extensions::CrxInstaller::Create(
           service,
           CreateExtensionInstallPrompt(profile, download_item),
-          WebstoreInstaller::GetAssociatedApproval(download_item)));
+          nullptr)); // oots exts patch
+          // WebstoreInstaller::GetAssociatedApproval(download_item)));
 
   installer->set_error_on_unsupported_requirements(true);
   installer->set_delete_source(true);

@@ -77,14 +77,14 @@
 #endif
 
 namespace chrome_extensions {
-
+// wootz patched
 void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::ActivityLogAPI::GetFactoryInstance();
   extensions::AutofillPrivateEventRouterFactory::GetInstance();
   extensions::BluetoothLowEnergyAPI::GetFactoryInstance();
   extensions::BookmarksAPI::GetFactoryInstance();
-  extensions::BookmarkManagerPrivateAPI::GetFactoryInstance();
-  extensions::BrailleDisplayPrivateAPI::GetFactoryInstance();
+  // extensions::BookmarkManagerPrivateAPI::GetFactoryInstance();
+  // extensions::BrailleDisplayPrivateAPI::GetFactoryInstance();
   extensions::CommandService::GetFactoryInstance();
   extensions::CookiesAPI::GetFactoryInstance();
   extensions::DeveloperPrivateAPI::GetFactoryInstance();
@@ -121,19 +121,19 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
 #if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(USE_CUPS)
   extensions::PrintingAPIHandler::GetFactoryInstance();
 #endif
-  extensions::ProcessesAPI::GetFactoryInstance();
+  // extensions::ProcessesAPI::GetFactoryInstance();
   extensions::ReadingListEventRouter::GetFactoryInstance();
   extensions::SafeBrowsingPrivateEventRouterFactory::GetInstance();
-  extensions::SessionsAPI::GetFactoryInstance();
+  // extensions::SessionsAPI::GetFactoryInstance();
   extensions::SettingsPrivateEventRouterFactory::GetInstance();
-  extensions::SettingsOverridesAPI::GetFactoryInstance();
-  extensions::SidePanelService::GetFactoryInstance();
+  // extensions::SettingsOverridesAPI::GetFactoryInstance();
+  // extensions::SidePanelService::GetFactoryInstance();
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   extensions::SystemIndicatorManagerFactory::GetInstance();
 #endif
-  extensions::TabGroupsEventRouterFactory::GetInstance();
-  extensions::TabCaptureRegistry::GetFactoryInstance();
-  extensions::TabsWindowsAPI::GetFactoryInstance();
+  // extensions::TabGroupsEventRouterFactory::GetInstance();
+  // extensions::TabCaptureRegistry::GetFactoryInstance();
+  // extensions::TabsWindowsAPI::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   extensions::TerminalPrivateAPI::GetFactoryInstance();
 #endif
@@ -142,8 +142,8 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::VerifyTrustAPI::GetFactoryInstance();
 #endif
   extensions::WebAuthenticationProxyAPI::GetFactoryInstance();
-  extensions::WebNavigationAPI::GetFactoryInstance();
-  extensions::WebrtcAudioPrivateEventService::GetFactoryInstance();
+  // extensions::WebNavigationAPI::GetFactoryInstance();
+  // extensions::WebrtcAudioPrivateEventService::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS)
   extensions::WMDesksPrivateEventsAPI::GetFactoryInstance();
 #endif

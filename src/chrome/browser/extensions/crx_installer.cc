@@ -1059,9 +1059,9 @@ void CrxInstaller::ReportInstallationStage(InstallationStage stage) {
   // We do not want to report in case of other extensions.
   if (expected_id_.empty())
     return;
-  InstallStageTracker* install_stage_tracker =
-      InstallStageTracker::Get(profile_);
-  install_stage_tracker->ReportCRXInstallationStage(expected_id_, stage);
+  // InstallStageTracker* install_stage_tracker =
+  //     InstallStageTracker::Get(profile_);
+  // install_stage_tracker->ReportCRXInstallationStage(expected_id_, stage);
 }
 
 void CrxInstaller::NotifyCrxInstallBegin() {
@@ -1077,34 +1077,34 @@ void CrxInstaller::NotifyCrxInstallComplete(
   ReportInstallationStage(InstallationStage::kComplete);
   const ExtensionId extension_id =
       expected_id_.empty() && extension() ? extension()->id() : expected_id_;
-  InstallStageTracker* install_stage_tracker =
-      InstallStageTracker::Get(profile_);
-  install_stage_tracker->ReportInstallationStage(
-      extension_id, InstallStageTracker::Stage::COMPLETE);
+  // InstallStageTracker* install_stage_tracker =
+  //     InstallStageTracker::Get(profile_);
+  // install_stage_tracker->ReportInstallationStage(
+  //     extension_id, InstallStageTracker::Stage::COMPLETE);
   const bool success = !error.has_value();
 
   if (extension()) {
-    install_stage_tracker->ReportExtensionType(extension_id,
-                                               extension()->GetType());
+    // install_stage_tracker->ReportExtensionType(extension_id,
+    //                                            extension()->GetType());
   }
 
   if (!success && (!expected_id_.empty() || extension())) {
     switch (error->type()) {
       case CrxInstallErrorType::DECLINED:
-        install_stage_tracker->ReportCrxInstallError(
-            extension_id,
-            InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_DECLINED,
-            error->detail());
+        // install_stage_tracker->ReportCrxInstallError(
+        //     extension_id,
+        //     InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_DECLINED,
+        //     error->detail());
         break;
       case CrxInstallErrorType::SANDBOXED_UNPACKER_FAILURE:
-        install_stage_tracker->ReportSandboxedUnpackerFailureReason(
-            extension_id, error.value());
+        // install_stage_tracker->ReportSandboxedUnpackerFailureReason(
+        //     extension_id, error.value());
         break;
       case CrxInstallErrorType::OTHER:
-        install_stage_tracker->ReportCrxInstallError(
-            extension_id,
-            InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_OTHER,
-            error->detail());
+        // install_stage_tracker->ReportCrxInstallError(
+        //     extension_id,
+        //     InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_OTHER,
+        //     error->detail());
         break;
       case CrxInstallErrorType::NONE:
         NOTREACHED_IN_MIGRATION();
@@ -1167,29 +1167,29 @@ void CrxInstaller::CheckUpdateFromSettingsPage() {
 }
 
 void CrxInstaller::ConfirmReEnable() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  // DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  ExtensionService* service = service_weak_.get();
-  if (!service || service->browser_terminating())
-    return;
+  // ExtensionService* service = service_weak_.get();
+  // if (!service || service->browser_terminating())
+  //   return;
 
-  if (!update_from_settings_page_)
-    return;
+  // if (!update_from_settings_page_)
+  //   return;
 
-  ExtensionPrefs* prefs = ExtensionPrefs::Get(service->profile());
-  if (!prefs->DidExtensionEscalatePermissions(extension()->id()))
-    return;
+  // ExtensionPrefs* prefs = ExtensionPrefs::Get(service->profile());
+  // if (!prefs->DidExtensionEscalatePermissions(extension()->id()))
+  //   return;
 
-  if (client_) {
-    AddRef();  // Balanced in OnInstallPromptDone().
-    ExtensionInstallPrompt::PromptType type =
-        ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
-            service->profile(), extension());
-    client_->ShowDialog(
-        base::BindOnce(&CrxInstaller::OnInstallPromptDone, this), extension(),
-        nullptr, std::make_unique<ExtensionInstallPrompt::Prompt>(type),
-        ExtensionInstallPrompt::GetDefaultShowDialogCallback());
-  }
+  // if (client_) {
+  //   AddRef();  // Balanced in OnInstallPromptDone().
+  //   ExtensionInstallPrompt::PromptType type =
+  //       ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
+  //           service->profile(), extension());
+  //   client_->ShowDialog(
+  //       base::BindOnce(&CrxInstaller::OnInstallPromptDone, this), extension(),
+  //       nullptr, std::make_unique<ExtensionInstallPrompt::Prompt>(type),
+  //       ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  // }
 }
 
 base::SequencedTaskRunner* CrxInstaller::GetUnpackerTaskRunner() {

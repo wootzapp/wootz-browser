@@ -103,15 +103,16 @@ std::unique_ptr<NativeMessageHost> NativeMessageHost::Create(
     const std::string& native_host_name,
     bool allow_user_level,
     std::string* error_message) {
-  return NativeMessageProcessHost::CreateWithLauncher(
-      source_extension_id, native_host_name,
-      NativeProcessLauncher::CreateDefault(
-          allow_user_level, native_view,
-          GetProfilePathIfEnabled(Profile::FromBrowserContext(browser_context),
-                                  source_extension_id, native_host_name),
-          /* require_native_initiated_connections = */ false,
-          /* connect_id = */ "", /* error_arg = */ "",
-          Profile::FromBrowserContext(browser_context)));
+  return nullptr;
+  // return NativeMessageProcessHost::CreateWithLauncher(
+  //     source_extension_id, native_host_name,
+  //     NativeProcessLauncher::CreateDefault(
+  //         allow_user_level, native_view,
+  //         GetProfilePathIfEnabled(Profile::FromBrowserContext(browser_context),
+  //                                 source_extension_id, native_host_name),
+  //         /* require_native_initiated_connections = */ false,
+  //         /* connect_id = */ "", /* error_arg = */ "",
+  //         Profile::FromBrowserContext(browser_context)));
 }
 
 // static

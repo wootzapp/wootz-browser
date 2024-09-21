@@ -120,9 +120,9 @@ void ExtensionListPolicyHandler::ApplyList(base::Value::List filtered_list,
 
 // ExtensionInstallForceListPolicyHandler implementation -----------------------
 
-ExtensionInstallForceListPolicyHandler::ExtensionInstallForceListPolicyHandler()
-    : policy::TypeCheckingPolicyHandler(policy::key::kExtensionInstallForcelist,
-                                        base::Value::Type::LIST) {}
+// ExtensionInstallForceListPolicyHandler::ExtensionInstallForceListPolicyHandler()
+//     : policy::TypeCheckingPolicyHandler(policy::key::kExtensionInstallForcelist,
+//                                         base::Value::Type::LIST) {}
 
 bool ExtensionInstallForceListPolicyHandler::CheckPolicySettings(
     const policy::PolicyMap& policies,
@@ -209,8 +209,8 @@ bool ExtensionInstallForceListPolicyHandler::ParseList(
     }
 
     if (extension_dict) {
-      ExternalPolicyLoader::AddExtension(*extension_dict, extension_id,
-                                         update_url);
+      // ExternalPolicyLoader::AddExtension(*extension_dict, extension_id,
+      //                                    update_url);
     }
   }
 
@@ -254,10 +254,10 @@ ExtensionInstallForceListPolicyHandler::GetPolicyDict(
 
 // ExtensionInstallBlockListPolicyHandler implementation ----------------------
 
-ExtensionInstallBlockListPolicyHandler::ExtensionInstallBlockListPolicyHandler()
-    : list_handler_(policy::key::kExtensionInstallBlocklist,
-                    pref_names::kInstallDenyList,
-                    /*allow_wildcards*/ true) {}
+// ExtensionInstallBlockListPolicyHandler::ExtensionInstallBlockListPolicyHandler()
+//     : list_handler_(policy::key::kExtensionInstallBlocklist,
+//                     pref_names::kInstallDenyList,
+//                     /*allow_wildcards*/ true) {}
 
 ExtensionInstallBlockListPolicyHandler::
     ~ExtensionInstallBlockListPolicyHandler() = default;
@@ -350,12 +350,12 @@ void ExtensionURLPatternListPolicyHandler::ApplyPolicySettings(
 
 // ExtensionSettingsPolicyHandler implementation  ------------------------------
 
-ExtensionSettingsPolicyHandler::ExtensionSettingsPolicyHandler(
-    const policy::Schema& chrome_schema)
-    : policy::SchemaValidatingPolicyHandler(
-          policy::key::kExtensionSettings,
-          chrome_schema.GetKnownProperty(policy::key::kExtensionSettings),
-          policy::SCHEMA_ALLOW_UNKNOWN) {}
+// ExtensionSettingsPolicyHandler::ExtensionSettingsPolicyHandler(
+//     const policy::Schema& chrome_schema)
+//     : policy::SchemaValidatingPolicyHandler(
+//           policy::key::kExtensionSettings,
+//           chrome_schema.GetKnownProperty(policy::key::kExtensionSettings),
+//           policy::SCHEMA_ALLOW_UNKNOWN) {}
 
 ExtensionSettingsPolicyHandler::~ExtensionSettingsPolicyHandler() = default;
 

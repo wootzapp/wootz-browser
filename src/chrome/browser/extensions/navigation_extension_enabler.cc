@@ -74,12 +74,12 @@ void NavigationExtensionEnabler::PromptToEnableExtensionIfNecessary(
   ExtensionInstallPrompt::PromptType type =
       ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
           web_contents()->GetBrowserContext(), extension);
-  extension_install_prompt_->ShowDialog(
-      base::BindRepeating(&NavigationExtensionEnabler::OnInstallPromptDone,
-                          weak_factory_.GetWeakPtr()),
-      extension, nullptr,
-      std::make_unique<ExtensionInstallPrompt::Prompt>(type),
-      ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  // extension_install_prompt_->ShowDialog(
+  //     base::BindRepeating(&NavigationExtensionEnabler::OnInstallPromptDone,
+  //                         weak_factory_.GetWeakPtr()),
+  //     extension, nullptr,
+  //     std::make_unique<ExtensionInstallPrompt::Prompt>(type),
+  //     ExtensionInstallPrompt::GetDefaultShowDialogCallback());
 }
 
 void NavigationExtensionEnabler::OnInstallPromptDone(

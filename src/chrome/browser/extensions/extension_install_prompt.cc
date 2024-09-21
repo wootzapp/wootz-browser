@@ -435,7 +435,8 @@ ExtensionInstallPrompt::ExtensionInstallPrompt(content::WebContents* contents)
                    ? Profile::FromBrowserContext(contents->GetBrowserContext())
                    : nullptr),
       extension_(nullptr),
-      install_ui_(extensions::CreateExtensionInstallUI(profile_)),
+      // install_ui_(extensions::CreateExtensionInstallUI(profile_)),
+      install_ui_(nullptr),
       show_params_(new ExtensionInstallPromptShowParams(contents)),
       did_call_show_dialog_(false) {}
 
@@ -443,7 +444,8 @@ ExtensionInstallPrompt::ExtensionInstallPrompt(Profile* profile,
                                                gfx::NativeWindow native_window)
     : profile_(profile),
       extension_(nullptr),
-      install_ui_(extensions::CreateExtensionInstallUI(profile)),
+      // install_ui_(extensions::CreateExtensionInstallUI(profile)),
+      install_ui_(nullptr),
       show_params_(
           new ExtensionInstallPromptShowParams(profile, native_window)),
       did_call_show_dialog_(false) {}
@@ -563,49 +565,49 @@ void ExtensionInstallPrompt::LoadImageIfNeeded() {
 }
 
 void ExtensionInstallPrompt::ShowConfirmation() {
-  std::unique_ptr<const PermissionSet> permissions_to_display;
+  // std::unique_ptr<const PermissionSet> permissions_to_display;
 
-  if (custom_permissions_.get()) {
-    permissions_to_display = custom_permissions_->Clone();
-  } else if (extension_) {
-    // For delegated installs, all optional permissions are pre-approved by the
-    // person who triggers the install, so add them to the list.
-    bool include_optional_permissions =
-        prompt_->type() == DELEGATED_PERMISSIONS_PROMPT;
-    permissions_to_display =
-        extensions::util::GetInstallPromptPermissionSetForExtension(
-            extension_.get(), profile_, include_optional_permissions);
-  }
+  // if (custom_permissions_.get()) {
+  //   permissions_to_display = custom_permissions_->Clone();
+  // } else if (extension_) {
+  //   // For delegated installs, all optional permissions are pre-approved by the
+  //   // person who triggers the install, so add them to the list.
+  //   bool include_optional_permissions =
+  //       prompt_->type() == DELEGATED_PERMISSIONS_PROMPT;
+  //   permissions_to_display =
+  //       extensions::util::GetInstallPromptPermissionSetForExtension(
+  //           extension_.get(), profile_, include_optional_permissions);
+  // }
 
-  prompt_->set_extension(extension_.get());
-  if (permissions_to_display) {
-    prompt_->AddPermissionSet(*permissions_to_display);
-  }
+  // prompt_->set_extension(extension_.get());
+  // if (permissions_to_display) {
+  //   prompt_->AddPermissionSet(*permissions_to_display);
+  // }
 
-  prompt_->set_icon(gfx::Image::CreateFrom1xBitmap(icon_));
+  // prompt_->set_icon(gfx::Image::CreateFrom1xBitmap(icon_));
 
-  if (show_params_->WasParentDestroyed()) {
-    std::move(done_callback_).Run(DoneCallbackPayload(Result::ABORTED));
-    return;
-  }
+  // if (show_params_->WasParentDestroyed()) {
+  //   std::move(done_callback_).Run(DoneCallbackPayload(Result::ABORTED));
+  //   return;
+  // }
 
-  g_last_prompt_type_for_tests = prompt_->type();
-  did_call_show_dialog_ = true;
+  // g_last_prompt_type_for_tests = prompt_->type();
+  // did_call_show_dialog_ = true;
 
-  // Notify observers.
-  prompt_->OnDialogOpened();
+  // // Notify observers.
+  // prompt_->OnDialogOpened();
 
-  // If true, auto confirm is enabled and already handled the result.
-  if (AutoConfirmPromptIfEnabled())
-    return;
+  // // If true, auto confirm is enabled and already handled the result.
+  // if (AutoConfirmPromptIfEnabled())
+  //   return;
 
-  if (show_dialog_callback_.is_null())
-    show_dialog_callback_ = GetDefaultShowDialogCallback();
-  // TODO(crbug.com/40625151): Use OnceCallback and eliminate the need for
-  // a callback on the stack.
-  auto cb = std::move(done_callback_);
-  std::move(show_dialog_callback_)
-      .Run(std::move(show_params_), std::move(cb), std::move(prompt_));
+  // if (show_dialog_callback_.is_null())
+  //   show_dialog_callback_ = GetDefaultShowDialogCallback();
+  // // TODO(crbug.com/40625151): Use OnceCallback and eliminate the need for
+  // // a callback on the stack.
+  // auto cb = std::move(done_callback_);
+  // std::move(show_dialog_callback_)
+  //     .Run(std::move(show_params_), std::move(cb), std::move(prompt_));
 }
 
 bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {

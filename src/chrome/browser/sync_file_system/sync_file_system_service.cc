@@ -107,8 +107,9 @@ void DidHandleLoadEvent(
 }
 
 std::string SyncFileStatusToString(SyncFileStatus sync_file_status) {
-  return chrome_apps::api::sync_file_system::ToString(
-      chrome_apps::api::SyncFileStatusToExtensionEnum(sync_file_status));
+  // return chrome_apps::api::sync_file_system::ToString(
+  //     chrome_apps::api::SyncFileStatusToExtensionEnum(sync_file_status));
+  return std::string();
 }
 
 // We need this indirection because WeakPtr can only be bound to methods

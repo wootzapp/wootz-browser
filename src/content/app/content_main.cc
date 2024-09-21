@@ -329,6 +329,7 @@ RunContentProcess(ContentMainParams params,
 
   if (IsSubprocess())
     CommonSubprocessInit();
+
   exit_code = content_main_runner->Run();
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)

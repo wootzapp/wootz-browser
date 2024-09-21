@@ -459,9 +459,9 @@ class ExtensionService : public ExtensionServiceInterface,
     return external_install_manager_.get();
   }
 
-  ForceInstalledTracker* force_installed_tracker() {
-    return &force_installed_tracker_;
-  }
+  // ForceInstalledTracker* force_installed_tracker() {
+  //   return &force_installed_tracker_;
+  // }
 
   ExtensionAllowlist* allowlist() { return &allowlist_; }
 
@@ -776,10 +776,10 @@ class ExtensionService : public ExtensionServiceInterface,
   ExtensionRegistrar extension_registrar_;
 
   // Tracker of enterprise policy forced installation.
-  ForceInstalledTracker force_installed_tracker_;
+  // ForceInstalledTracker force_installed_tracker_;
 
   // Reports force-installed extension metrics to UMA.
-  ForceInstalledMetrics force_installed_metrics_;
+  // ForceInstalledMetrics force_installed_metrics_;
 
   // Schedules downloads/reinstalls of the corrupted extensions.
   CorruptedExtensionReinstaller corrupted_extension_reinstaller_;

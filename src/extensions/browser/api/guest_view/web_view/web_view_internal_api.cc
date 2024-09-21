@@ -520,31 +520,31 @@ const GURL& WebViewInternalExecuteCodeFunction::GetWebViewSrc() const {
 bool WebViewInternalExecuteCodeFunction::LoadFileForEmbedder(
     const std::string& file_src,
     LoadFileCallback callback) {
-  WebViewGuest* guest =
-      WebViewGuest::FromInstanceID(source_process_id(), guest_instance_id_);
-  if (!guest || host_id().type == mojom::HostID::HostType::kExtensions) {
-    return false;
-  }
+  // WebViewGuest* guest =
+  //     WebViewGuest::FromInstanceID(source_process_id(), guest_instance_id_);
+  // if (!guest || host_id().type == mojom::HostID::HostType::kExtensions) {
+  //   return false;
+  // }
 
-  GURL owner_base_url(guest->GetOwnerSiteURL().GetWithEmptyPath());
-  GURL file_url(owner_base_url.Resolve(file_src));
+  // GURL owner_base_url(guest->GetOwnerSiteURL().GetWithEmptyPath());
+  // GURL file_url(owner_base_url.Resolve(file_src));
 
-  switch (host_id().type) {
-    case mojom::HostID::HostType::kExtensions:
-      NOTREACHED_IN_MIGRATION();
-      return false;
-    case mojom::HostID::HostType::kControlledFrameEmbedder:
-      url_fetcher_ = std::make_unique<ControlledFrameEmbedderURLFetcher>(
-          source_process_id(), render_frame_host()->GetRoutingID(), file_url,
-          std::move(callback));
-      break;
-    case mojom::HostID::HostType::kWebUi:
-      url_fetcher_ = std::make_unique<WebUIURLFetcher>(
-          source_process_id(), render_frame_host()->GetRoutingID(), file_url,
-          std::move(callback));
-      break;
-  }
-  url_fetcher_->Start();
+  // switch (host_id().type) {
+  //   case mojom::HostID::HostType::kExtensions:
+  //     NOTREACHED_IN_MIGRATION();
+  //     return false;
+  //   case mojom::HostID::HostType::kControlledFrameEmbedder:
+  //     url_fetcher_ = std::make_unique<ControlledFrameEmbedderURLFetcher>(
+  //         source_process_id(), render_frame_host()->GetRoutingID(), file_url,
+  //         std::move(callback));
+  //     break;
+  //   case mojom::HostID::HostType::kWebUi:
+  //     url_fetcher_ = std::make_unique<WebUIURLFetcher>(
+  //         source_process_id(), render_frame_host()->GetRoutingID(), file_url,
+  //         std::move(callback));
+  //     break;
+  // }
+  // url_fetcher_->Start();
 
   return true;
 }
