@@ -87,14 +87,15 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
         HubToolbarView hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
         
-        float borderRadius = 80f;
-        hubToolbarView.setClipToOutline(true);
-        hubToolbarView.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
-            }
-        });
+        // This is causing crash whenever you click on Tabswitcher on a native incognito new tab page
+        // float borderRadius = 80f;
+        // hubToolbarView.setClipToOutline(true);
+        // hubToolbarView.setOutlineProvider(new ViewOutlineProvider() {
+        //     @Override
+        //     public void getOutline(View view, Outline outline) {
+        //         outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
+        //     }
+        // });
 
         mHubToolbarCoordinator =
                 new HubToolbarCoordinator(hubToolbarView, paneManager, menuButtonCoordinator);
