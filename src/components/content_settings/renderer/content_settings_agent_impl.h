@@ -97,7 +97,7 @@ class ContentSettingsAgentImpl
     return allow_running_insecure_content_;
   }
 
-  blink::WebSecurityOrigin GetEphemeralStorageOriginSync();
+  // blink::WebSecurityOrigin GetEphemeralStorageOriginSync();
 
   void SetContentSettingsManager(
       mojo::Remote<mojom::ContentSettingsManager> manager) {

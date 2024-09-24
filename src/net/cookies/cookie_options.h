@@ -4,18 +4,25 @@
 
 // Brought to you by number 42.
 
+#ifndef WOOTZ_NET_COOKIES_COOKIE_OPTIONS_H_
+#define WOOTZ_NET_COOKIES_COOKIE_OPTIONS_H_
+
+#include <optional>
+
+#include "net/cookies/site_for_cookies.h"
+#include "url/gurl.h"
+#include "url/origin.h"
+
+#define CookieOptions CookieOptions_ChromiumImpl
+
 #ifndef NET_COOKIES_COOKIE_OPTIONS_H_
 #define NET_COOKIES_COOKIE_OPTIONS_H_
 
 #include <ostream>
 #include <string>
-#include <optional>
 
 #include "base/check_op.h"
 #include "net/base/net_export.h"
-#include "net/cookies/site_for_cookies.h"
-#include "url/gurl.h"
-#include "url/origin.h"
 
 namespace net {
 
@@ -268,28 +275,6 @@ class NET_EXPORT CookieOptions {
   void unset_return_excluded_cookies() { return_excluded_cookies_ = false; }
   bool return_excluded_cookies() const { return return_excluded_cookies_; }
 
-  const net::SiteForCookies& site_for_cookies() const {
-    return site_for_cookies_;
-  }
-  void set_site_for_cookies(const net::SiteForCookies& site_for_cookies) {
-    site_for_cookies_ = site_for_cookies;
-  }
-
-  const std::optional<url::Origin>& top_frame_origin() const {
-    return top_frame_origin_;
-  }
-  void set_top_frame_origin(
-      const std::optional<url::Origin>& top_frame_origin) {
-    top_frame_origin_ = top_frame_origin;
-  }
-
-  bool should_use_ephemeral_storage() const {
-    return should_use_ephemeral_storage_;
-  }
-  void set_should_use_ephemeral_storage(bool should_use_ephemeral_storage) {
-    should_use_ephemeral_storage_ = should_use_ephemeral_storage;
-  }
-
   // Convenience method for where you need a CookieOptions that will
   // work for getting/setting all types of cookies, including HttpOnly and
   // SameSite cookies. Also specifies not to update the access time, because
@@ -305,9 +290,7 @@ class NET_EXPORT CookieOptions {
   SameSiteCookieContext same_site_cookie_context_;
   bool update_access_time_ = true;
   bool return_excluded_cookies_ = false;
-  net::SiteForCookies site_for_cookies_;
-  std::optional<url::Origin> top_frame_origin_;
-  bool should_use_ephemeral_storage_ = false;
+
 };
 
 NET_EXPORT bool operator==(
@@ -317,13 +300,6 @@ NET_EXPORT bool operator!=(
     const CookieOptions::SameSiteCookieContext::ContextMetadata& lhs,
     const CookieOptions::SameSiteCookieContext::ContextMetadata& rhs);
 
-// Fills ephemeral storage-specific parameters.
-void NET_EXPORT
-FillEphemeralStorageParams(const GURL& url,
-                           const SiteForCookies& site_for_cookies,
-                           const std::optional<url::Origin>& top_frame_origin,
-                           const CookieAccessDelegate* cookie_access_delegate,
-                           CookieOptions* cookie_options);
 
 // Allows gtest to print more helpful error messages instead of printing hex.
 // (No need to null-check `os` because we can assume gtest will properly pass a
@@ -362,3 +338,62 @@ inline void PrintTo(const CookieOptions::SameSiteCookieContext& sscc,
 }  // namespace net
 
 #endif  // NET_COOKIES_COOKIE_OPTIONS_H_
+
+#undef CookieOptions
+
+namespace net {
+
+class CookieAccessDelegate;
+
+class NET_EXPORT CookieOptions : public CookieOptions_ChromiumImpl {
+ public:
+  CookieOptions();
+  CookieOptions(const CookieOptions&);
+  CookieOptions(CookieOptions&&);
+  ~CookieOptions();
+
+  CookieOptions& operator=(const CookieOptions&);
+  CookieOptions& operator=(CookieOptions&&);
+
+  CookieOptions(const CookieOptions_ChromiumImpl&);  // NOLINT
+  CookieOptions(CookieOptions_ChromiumImpl&&);       // NOLINT
+
+  const net::SiteForCookies& site_for_cookies() const {
+    return site_for_cookies_;
+  }
+  void set_site_for_cookies(const net::SiteForCookies& site_for_cookies) {
+    site_for_cookies_ = site_for_cookies;
+  }
+
+  const std::optional<url::Origin>& top_frame_origin() const {
+    return top_frame_origin_;
+  }
+  void set_top_frame_origin(
+      const std::optional<url::Origin>& top_frame_origin) {
+    top_frame_origin_ = top_frame_origin;
+  }
+
+  bool should_use_ephemeral_storage() const {
+    return should_use_ephemeral_storage_;
+  }
+  void set_should_use_ephemeral_storage(bool should_use_ephemeral_storage) {
+    should_use_ephemeral_storage_ = should_use_ephemeral_storage;
+  }
+
+ private:
+  net::SiteForCookies site_for_cookies_;
+  std::optional<url::Origin> top_frame_origin_;
+  bool should_use_ephemeral_storage_ = false;
+};
+
+// Fills ephemeral storage-specific parameters.
+void NET_EXPORT
+FillEphemeralStorageParams(const GURL& url,
+                           const SiteForCookies& site_for_cookies,
+                           const std::optional<url::Origin>& top_frame_origin,
+                           const CookieAccessDelegate* cookie_access_delegate,
+                           CookieOptions* cookie_options);
+
+}  // namespace net
+
+#endif  // WOOTZ_NET_COOKIES_COOKIE_OPTIONS_H_

@@ -217,9 +217,21 @@ class CookieSettings
       const GURL& url,
       const net::SiteForCookies& site_for_cookies) const override;
 
+  bool ShouldUseEphemeralStorage(
+      const url::Origin& origin, const net::SiteForCookies& site_for_cookies,
+      const std::optional<url::Origin>& top_frame_origin,
+      url::Origin& storage_origin);
+
+  private:
+        /* Ephemeral storage domain to non_opaque->opaque origins map. */
+        using EphemeralStorageOrigins =
+            base::flat_map<std::string, base::flat_map<url::Origin, url::Origin>>;
+        EphemeralStorageOrigins ephemeral_storage_origins_ GUARDED_BY(lock_);
+
   // Detaches the |CookieSettings| from |PrefService|. This methods needs to be
   // called before destroying the service. Afterwards, only const methods can be
   // called.
+  public:
   void ShutdownOnUIThread() override;
 
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

@@ -49,6 +49,12 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CookieAccessDelegateImpl
 
   // net::CookieAccessDelegate implementation:
   bool ShouldTreatUrlAsTrustworthy(const GURL& url) const override;
+
+  bool NotUsed() const;
+  bool ShouldUseEphemeralStorage(
+      const GURL& url, const net::SiteForCookies& site_for_cookies,
+      const std::optional<url::Origin>& top_frame_origin) const override;
+
   net::CookieAccessSemantics GetAccessSemantics(
       const net::CanonicalCookie& cookie) const override;
   bool ShouldIgnoreSameSiteRestrictions(

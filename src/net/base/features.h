@@ -52,7 +52,8 @@ NET_EXPORT extern const base::FeatureParam<int>
 NET_EXPORT BASE_DECLARE_FEATURE(kWootzFirstPartyEphemeralStorage);    
 NET_EXPORT extern const base::FeatureParam<int>
     kWootzForgetFirstPartyStorageStartupCleanupDelayInSeconds;
-
+NET_EXPORT extern const base::FeatureParam<bool>
+    kWootzForgetFirstPartyStorageByDefault;
 // Enables querying HTTPS DNS records that will affect results from HostResolver
 // and may be used to affect connection behavior. Whether or not those results
 // are used (e.g. to connect via ECH) may be controlled by separate features.

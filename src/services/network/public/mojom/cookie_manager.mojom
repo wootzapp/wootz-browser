@@ -11,6 +11,8 @@ import "sandbox/policy/mojom/context.mojom";
 import "services/network/public/mojom/cookie_partition_key.mojom";
 import "services/network/public/mojom/first_party_sets.mojom";
 import "services/network/public/mojom/schemeful_site.mojom";
+import "services/network/public/mojom/site_for_cookies.mojom";
+import "url/mojom/origin.mojom";
 import "url/mojom/url.mojom";
 
 // Parameters for constructing a cookie manager.
@@ -178,6 +180,11 @@ struct CookieOptions {
   CookieSameSiteContext same_site_cookie_context;
   bool update_access_time = true;
   bool return_excluded_cookies = false;
+
+  SiteForCookies site_for_cookies;
+  url.mojom.Origin? top_frame_origin;
+  bool should_use_ephemeral_storage = false;
+
 };
 
 // See net/cookies/canonical_cookie.{h,cc} for documentation.
@@ -318,6 +325,8 @@ struct CookieDeletionFilter {
 
   // Delete cookies with a particular name.
   string? cookie_name;
+  
+  string? ephemeral_storage_domain;
 
   // Delete cookies from a particular host.
   string? host_name;
@@ -440,15 +449,6 @@ interface CookieManager {
   // TODO(rdsmith): Describe the performance implications of using this method.
   // The comments in CookieMonster::AddCallbackForCookie look pretty scary.
 
-  struct CookieDeletionFilter {
-    string? ephemeral_storage_domain;
-  };  
-
-  struct CookieOptions {
-    SiteForCookies site_for_cookies;
-    url.mojom.Origin? top_frame_origin;
-    bool should_use_ephemeral_storage = false;
-  };
   AddCookieChangeListener(
       url.mojom.Url url,
       string? name,

@@ -2545,7 +2545,7 @@ void MigrateObsoleteProfilePrefs(PrefService* profile_prefs,
   // Check MigrateDeprecatedAutofillPrefs() to see if this is safe to remove.
   autofill::prefs::MigrateDeprecatedAutofillPrefs(profile_prefs);
 
-  wootz_wallet::MigrateObsoleteProfilePrefs(registry);
+  wootz_wallet::MigrateObsoleteProfilePrefs(profile_prefs);
 
   // Added 3/2020.
   // TODO(crbug.com/40122991): Remove this once the privacy settings redesign

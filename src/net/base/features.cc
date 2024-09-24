@@ -186,6 +186,10 @@ BASE_FEATURE(kWootzForgetFirstPartyStorage,
              "WootzForgetFirstPartyStorage",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+const base::FeatureParam<bool> kWootzForgetFirstPartyStorageByDefault = {
+    &kWootzForgetFirstPartyStorage, "WootzForgetFirstPartyStorageByDefault",
+    false};
+    
 BASE_FEATURE(kLimitOpenUDPSockets,
              "LimitOpenUDPSockets",
              base::FEATURE_ENABLED_BY_DEFAULT);

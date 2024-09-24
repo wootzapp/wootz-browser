@@ -760,6 +760,9 @@ CHAR_LIMIT guidelines:
     <message name="IDS_ACTIVATE_ERC20" desc="A button to activate an ERC20 token">
       Activate <ph name="TOKEN">%1$s<ex>BAT</ex></ph>
     </message>
+    <message name="IDS_STATUS" desc="Brave VPN settings section text">
+      Status
+    </message>
     <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE" desc="Wootz wallet function type">
       FUNCTION TYPE: <ph name="FTYPE">%1$s<ex>ERC20Transfer</ex></ph>
     </message>

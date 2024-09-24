@@ -58,7 +58,8 @@ class CONTENT_EXPORT BrowsingDataFilterBuilder {
     // Second option: StorageKeys are matched on origin only in all contexts.
     // For deletion that means that the origin is deleted in both 1P and 3P
     // contexts, but anything embedded on it is left untouched.
-    kOriginInAllContexts
+    kOriginInAllContexts,
+    kThirdPartiesOnly
   };
 
   // Constructs a filter with the given |mode|: delete or preserve.

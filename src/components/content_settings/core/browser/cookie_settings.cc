@@ -33,13 +33,14 @@
 #include "components/privacy_sandbox/tracking_protection_settings.h"
 #include "components/tpcd/metadata/browser/manager.h"
 #include "extensions/buildflags/buildflags.h"
+#include "net/base/features.h"
 #include "net/base/schemeful_site.h"
+#include "net/base/url_util.h"
 #include "net/cookies/cookie_setting_override.h"
 #include "net/cookies/cookie_util.h"
 #include "net/cookies/site_for_cookies.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-
 namespace content_settings {
 
 CookieSettings::CookieSettings(
@@ -169,6 +170,44 @@ void CookieSettings::SetTemporaryCookieGrantForHeuristic(
         url, first_party_url, ContentSettingsType::TPCD_HEURISTICS_GRANTS,
         CONTENT_SETTING_ALLOW, constraints);
   }
+}
+
+bool CookieSettings::ShouldUseEphemeralStorage(
+    const url::Origin& origin,
+    const net::SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin,
+    url::Origin& storage_origin) {
+  const bool should_use = CookieSettingsBase::ShouldUseEphemeralStorage(
+      origin.GetURL(), site_for_cookies, top_frame_origin);
+  if (!should_use) {
+    return false;
+  }
+  DCHECK(top_frame_origin);
+  const std::string ephemeral_storage_domain =
+      net::URLToEphemeralStorageDomain(top_frame_origin->GetURL());
+
+  base::AutoLock auto_lock(lock_);
+  auto ephemeral_storage_origins_it =
+      ephemeral_storage_origins_.find(ephemeral_storage_domain);
+  if (ephemeral_storage_origins_it != ephemeral_storage_origins_.end()) {
+    const auto& storage_origins = ephemeral_storage_origins_it->second;
+    auto storage_origin_it = storage_origins.find(origin);
+    if (storage_origin_it != storage_origins.end()) {
+      storage_origin = storage_origin_it->second;
+      return true;
+    }
+  } else {
+    ephemeral_storage_origins_it =
+        ephemeral_storage_origins_
+            .emplace(ephemeral_storage_domain,
+                     EphemeralStorageOrigins::mapped_type())
+            .first;
+  }
+
+  url::Origin opaque_origin = origin.DeriveNewOpaqueOrigin();
+  ephemeral_storage_origins_it->second[origin] = opaque_origin;
+  storage_origin = std::move(opaque_origin);
+  return true;
 }
 
 void CookieSettings::SetCookieSettingForUserBypass(

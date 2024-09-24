@@ -79,6 +79,11 @@ BASE_FEATURE(kPermissionPredictionsV2,
              "PermissionPredictionsV2",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+// Enables the option of an automatic permission expiration time.
+BASE_FEATURE(kPermissionLifetime,
+             "PermissionLifetime",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+    
 // Controls whether to trigger showing a HaTS survey, with the given
 // `probability` and `trigger_id`. The `probability` parameter is defined and
 // handled by the HatsService itself. If the parameter

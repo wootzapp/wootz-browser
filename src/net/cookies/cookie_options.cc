@@ -3,9 +3,13 @@
 // found in the LICENSE file.
 
 // Brought to you by number 42.
+#include <optional>
+
+#include "net/cookies/cookie_access_delegate.h"
+
+#define CookieOptions CookieOptions_ChromiumImpl
 
 #include "net/cookies/cookie_options.h"
-#include "net/cookies/cookie_access_delegate.h"
 #include <tuple>
 
 #include "net/cookies/cookie_util.h"
@@ -48,24 +52,6 @@ void CookieOptions::SameSiteCookieContext::SetContextTypesForTesting(
   schemeful_context_ = schemeful_context_type;
 }
 
-void FillEphemeralStorageParams(
-    const GURL& url,
-    const SiteForCookies& site_for_cookies,
-    const std::optional<url::Origin>& top_frame_origin,
-    const CookieAccessDelegate* cookie_access_delegate,
-    CookieOptions* cookie_options) {
-  DCHECK(cookie_options);
-  if (!cookie_access_delegate) {
-    return;
-  }
-  cookie_options->set_should_use_ephemeral_storage(
-      cookie_access_delegate->ShouldUseEphemeralStorage(url, site_for_cookies,
-                                                        top_frame_origin));
-  if (cookie_options->should_use_ephemeral_storage()) {
-    cookie_options->set_site_for_cookies(site_for_cookies);
-    cookie_options->set_top_frame_origin(top_frame_origin);
-  }
-}
 
 bool CookieOptions::SameSiteCookieContext::CompleteEquivalenceForTesting(
     const SameSiteCookieContext& other) const {
@@ -119,6 +105,44 @@ CookieOptions CookieOptions::MakeAllInclusive() {
   options.set_same_site_cookie_context(SameSiteCookieContext::MakeInclusive());
   options.set_do_not_update_access_time();
   return options;
+}
+
+}  // namespace net
+
+
+#undef CookieOptions
+
+namespace net {
+
+CookieOptions::CookieOptions() = default;
+CookieOptions::CookieOptions(const CookieOptions&) = default;
+CookieOptions::CookieOptions(CookieOptions&&) = default;
+CookieOptions::~CookieOptions() = default;
+CookieOptions& CookieOptions::operator=(const CookieOptions&) = default;
+CookieOptions& CookieOptions::operator=(CookieOptions&&) = default;
+
+CookieOptions::CookieOptions(const CookieOptions_ChromiumImpl& rhs)
+    : CookieOptions_ChromiumImpl(rhs) {}
+CookieOptions::CookieOptions(CookieOptions_ChromiumImpl&& rhs)
+    : CookieOptions_ChromiumImpl(std::move(rhs)) {}
+
+void FillEphemeralStorageParams(
+    const GURL& url,
+    const SiteForCookies& site_for_cookies,
+    const std::optional<url::Origin>& top_frame_origin,
+    const CookieAccessDelegate* cookie_access_delegate,
+    CookieOptions* cookie_options) {
+  DCHECK(cookie_options);
+  if (!cookie_access_delegate) {
+    return;
+  }
+  cookie_options->set_should_use_ephemeral_storage(
+      cookie_access_delegate->ShouldUseEphemeralStorage(url, site_for_cookies,
+                                                        top_frame_origin));
+  if (cookie_options->should_use_ephemeral_storage()) {
+    cookie_options->set_site_for_cookies(site_for_cookies);
+    cookie_options->set_top_frame_origin(top_frame_origin);
+  }
 }
 
 }  // namespace net

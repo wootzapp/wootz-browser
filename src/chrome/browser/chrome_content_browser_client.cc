@@ -189,6 +189,7 @@
 #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
 #include "chrome/browser/ui/webui/log_web_ui_url.h"
 #include "chrome/browser/ui/webui/top_chrome/webui_url_utils.h"
+#include "chrome/browser/ui/webui/wootz_wallet/android/android_wallet_page_ui.h"
 #include "chrome/browser/universal_web_contents_observers.h"
 #include "chrome/browser/usb/chrome_usb_delegate.h"
 #include "chrome/browser/vr/vr_tab_helper.h"
@@ -220,6 +221,7 @@
 #include "components/blocked_content/popup_blocker.h"
 #include "components/browsing_topics/browsing_topics_service.h"
 #include "components/captive_portal/core/buildflags.h"
+#include "components/constants/webui_url_constants.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -344,6 +346,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_view_delegate.h"
+#include "content/public/browser/web_ui_controller_interface_binder.h"
 #include "content/public/browser/web_ui_url_loader_factory.h"
 #include "content/public/browser/webui_config_map.h"
 #include "content/public/common/content_descriptors.h"
@@ -846,7 +849,7 @@ bool HandleURLReverseOverrideRewrite(GURL* url,
 }
 
 bool HandleURLRewrite(GURL* url, content::BrowserContext* browser_context) {
-  if (BraveContentBrowserClient::HandleURLOverrideRewrite(url,
+  if (ChromeContentBrowserClient::HandleURLOverrideRewrite(url,
                                                           browser_context)) {
     return true;
   }
@@ -1953,7 +1956,7 @@ void ChromeContentBrowserClient::SetBrowserStartupIsCompleteForTesting() {
   AfterStartupTaskUtils::SetBrowserStartupIsCompleteForTesting();
 }
 
-bool WootzContentBrowserClient::HandleURLOverrideRewrite(
+bool ChromeContentBrowserClient::HandleURLOverrideRewrite(
     GURL* url,
     content::BrowserContext* browser_context) {
   // Some of these rewrites are for WebUI pages with URL that has moved.
@@ -1967,15 +1970,15 @@ bool WootzContentBrowserClient::HandleURLOverrideRewrite(
     return false;
   }
 
-  // brave://sync => brave://settings/braveSync
-  if (url->host() == chrome::kChromeUISyncHost) {
-    GURL::Replacements replacements;
-    replacements.SetSchemeStr(content::kChromeUIScheme);
-    replacements.SetHostStr(chrome::kChromeUISettingsHost);
-    replacements.SetPathStr(kWootzSyncPath);
-    *url = url->ReplaceComponents(replacements);
-    return true;
-  }
+  // // brave://sync => brave://settings/braveSync
+  // if (url->host() == chrome::kChromeUISyncHost) {
+  //   GURL::Replacements replacements;
+  //   replacements.SetSchemeStr(content::kChromeUIScheme);
+  //   replacements.SetHostStr(chrome::kChromeUISettingsHost);
+  //   replacements.SetPathStr(kWootzSyncPath);
+  //   *url = url->ReplaceComponents(replacements);
+  //   return true;
+  // }
 
 #if !BUILDFLAG(IS_ANDROID)
   // brave://adblock => brave://settings/shields/filters
@@ -1995,27 +1998,27 @@ bool WootzContentBrowserClient::HandleURLOverrideRewrite(
     return true;
   }
 
-#if BUILDFLAG(ETHEREUM_REMOTE_CLIENT_ENABLED) && BUILDFLAG(ENABLE_EXTENSIONS)
-  auto* prefs = user_prefs::UserPrefs::Get(browser_context);
-  brave_wallet::mojom::DefaultWallet default_wallet =
-      brave_wallet::GetDefaultEthereumWallet(prefs);
-  if (!brave_wallet::IsNativeWalletEnabled() ||
-      default_wallet == brave_wallet::mojom::DefaultWallet::CryptoWallets) {
-    // If the Crypto Wallets extension is loaded, then it replaces the WebUI
-    auto* service =
-        EthereumRemoteClientServiceFactory::GetForContext(browser_context);
-    if (service->IsCryptoWalletsReady() &&
-        url->SchemeIs(content::kChromeUIScheme) &&
-        url->host() == kEthereumRemoteClientHost) {
-      auto* registry = extensions::ExtensionRegistry::Get(browser_context);
-      if (registry && registry->ready_extensions().GetByID(
-                          kEthereumRemoteClientExtensionId)) {
-        *url = GURL(kEthereumRemoteClientBaseUrl);
-        return true;
-      }
-    }
-  }
-#endif
+// #if BUILDFLAG(ETHEREUM_REMOTE_CLIENT_ENABLED) && BUILDFLAG(ENABLE_EXTENSIONS)
+//   auto* prefs = user_prefs::UserPrefs::Get(browser_context);
+//   wootz_wallet::mojom::DefaultWallet default_wallet =
+//       wootz_wallet::GetDefaultEthereumWallet(prefs);
+//   if (!wootz_wallet::IsNativeWalletEnabled() ||
+//       default_wallet == wootz_wallet::mojom::DefaultWallet::CryptoWallets) {
+//     // If the Crypto Wallets extension is loaded, then it replaces the WebUI
+//     auto* service =
+//         EthereumRemoteClientServiceFactory::GetForContext(browser_context);
+//     if (service->IsCryptoWalletsReady() &&
+//         url->SchemeIs(content::kChromeUIScheme) &&
+//         url->host() == kEthereumRemoteClientHost) {
+//       auto* registry = extensions::ExtensionRegistry::Get(browser_context);
+//       if (registry && registry->ready_extensions().GetByID(
+//                           kEthereumRemoteClientExtensionId)) {
+//         *url = GURL(kEthereumRemoteClientBaseUrl);
+//         return true;
+//       }
+//     }
+//   }
+// #endif
 
   return false;
 }

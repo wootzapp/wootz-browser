@@ -29,16 +29,16 @@ inline constexpr char kChromeNewTabJS[] = "wootz_new_tab.js";
 inline constexpr char kChromeNewsInternalsHost[] = "news-internals";
 inline constexpr char kChromeUIAdblockURL[] = "chrome://adblock/";
 inline constexpr char kChromeUIWebcompatReporterURL[] = "chrome://webcompat/";
-inline constexpr char kChromeUIWalletURL[] = "wootzapp://wallet/";
-inline constexpr char kChromeUIWalletOnboardingURL[] =
+inline constexpr char kWootzUIWalletURL[] = "wootzapp://wallet/";
+inline constexpr char kWootzUIWalletOnboardingURL[] =
     "wootzapp://wallet/crypto/onboarding";
-inline constexpr char kChromeUIWalletAccountCreationURL[] =
+inline constexpr char kWootzUIWalletAccountCreationURL[] =
     "wootzapp://wallet/crypto/accounts/add-account/create/";
-inline constexpr char kChromeUIWalletPanelURL[] =
+inline constexpr char kWootzUIWalletPanelURL[] =
     "wootzapp://wallet-panel.top-chrome/";
 inline constexpr char kWalletPanelHost[] = "wallet-panel.top-chrome";
 
-inline constexpr char kChromeUIWalletPageURL[] = "wootzapp://wallet/";
+inline constexpr char kWootzUIWalletPageURL[] = "wootzapp://wallet/";
 inline constexpr char kWalletPageHost[] = "wallet";
 inline constexpr char kExtensionSettingsURL[] = "wootzapp://settings/extensions";
 inline constexpr char kWalletSettingsURL[] = "wootzapp://settings/wallet";

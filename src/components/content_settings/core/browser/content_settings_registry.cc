@@ -16,6 +16,8 @@
 #include "components/content_settings/core/browser/website_settings_registry.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/features.h"
+#include "components/content_settings/core/common/content_settings.mojom.h"
+#include "net/base/features.h"
 
 namespace content_settings {
 

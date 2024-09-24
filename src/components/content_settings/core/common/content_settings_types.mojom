@@ -434,5 +434,6 @@ enum ContentSettingsType {
   // BLOCK: Protections enabled. This is the default state.
   // ALLOW: Protections disabled.
   TRACKING_PROTECTION,
+  WOOTZ_REMEMBER_1P_STORAGE,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/settings/enums.xml:SafetyHubPermissionType)

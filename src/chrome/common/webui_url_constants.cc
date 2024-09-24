@@ -162,15 +162,15 @@ const char kChromeUINewTabPageThirdPartyHost[] = "new-tab-page-third-party";
 const char kChromeUINewTabPageThirdPartyURL[] =
     "wootzapp://new-tab-page-third-party/";
 
-const char kChromeUIWalletURL[] = "wootzapp://wallet/";
-const char kChromeUIWalletOnboardingURL[] =
+const char kWootzUIWalletURL[] = "wootzapp://wallet/";
+const char kWootzUIWalletOnboardingURL[] =
     "wootzapp://wallet/crypto/onboarding";
-const char kChromeUIWalletAccountCreationURL[] =
+const char kWootzUIWalletAccountCreationURL[] =
     "wootzapp://wallet/crypto/accounts/add-account/create/";
-const char kChromeUIWalletPanelURL[] =
+const char kWootzUIWalletPanelURL[] =
     "wootzapp://wallet-panel.top-chrome/";
 const char kWalletPanelHost[] = "wallet-panel.top-chrome";
-const char kChromeUIWalletPageURL[] = "wootzapp://wallet/";
+const char kWootzUIWalletPageURL[] = "wootzapp://wallet/";
 const char kWalletPageHost[] = "wallet";
 const char kExtensionSettingsURL[] = "wootzapp://settings/extensions";
 const char kWalletSettingsURL[] = "wootzapp://settings/wallet";

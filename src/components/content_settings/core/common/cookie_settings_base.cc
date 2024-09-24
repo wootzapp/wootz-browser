@@ -50,6 +50,23 @@ bool IsAllowedByCORS(const net::CookieSettingOverrides& overrides,
          net::SchemefulSite(request_url) == net::SchemefulSite(first_party_url);
 }
 
+bool IsFirstPartyAccessAllowed(const GURL& first_party_url,
+                               const CookieSettingsBase* const cookie_settings,
+                               net::CookieSettingOverrides overrides) {
+  ContentSetting setting = cookie_settings->GetCookieSetting(
+      // first_party_url, net::SiteForCookies::FromUrl(first_party_url), 
+      first_party_url, first_party_url, 
+      overrides, nullptr);
+  return cookie_settings->IsAllowed(setting);
+}
+
+bool IsSessionOnlyExplicit(const CookieSettingsBase::CookieSettingWithMetadata&
+                               setting_with_metadata) {
+  return setting_with_metadata.cookie_setting() ==
+             CONTENT_SETTING_SESSION_ONLY &&
+         setting_with_metadata.is_explicit_setting();
+}
+
 constexpr StorageAccessResult GetStorageAccessResult(
     ThirdPartyCookieAllowMechanism mechanism) {
   switch (mechanism) {
@@ -183,8 +200,11 @@ bool CookieSettingsBase::ShouldUseEphemeralStorage(
   if (base::FeatureList::IsEnabled(
           net::features::kWootzFirstPartyEphemeralStorage)) {
     first_party_setting = GetCookieSettingInternal(
-        first_party_url, net::SiteForCookies::FromUrl(first_party_url),
-        first_party_url, net::CookieSettingOverrides(), nullptr);
+        // first_party_url, net::SiteForCookies::FromUrl(first_party_url),
+        first_party_url,first_party_url,
+        IsThirdPartyRequest(url,
+                                 net::SiteForCookies::FromUrl(first_party_url)),
+        net::CookieSettingOverrides(), nullptr);
     if (IsSessionOnlyExplicit(*first_party_setting)) {
       return true;
     }

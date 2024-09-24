@@ -58,6 +58,11 @@ bool MatchesStorageKey(const std::set<url::Origin>& origins,
         storage_key.origin() == origin) {
       return is_delete_list;
     }
+    if (match_mode == OriginMatchingMode::kThirdPartiesOnly &&
+        storage_key.IsThirdPartyContext() &&
+        storage_key.MatchesOriginForTrustedStorageDeletion(origin)) {
+      return is_delete_list;
+    }
   }
 
   switch (match_mode) {
@@ -81,6 +86,17 @@ bool MatchesStorageKey(const std::set<url::Origin>& origins,
       return is_delete_list ==
              base::Contains(registerable_domains, registerable_domain);
     }
+
+    case OriginMatchingMode::kThirdPartiesOnly: {                              
+      return is_delete_list ==                                                 
+             base::ranges::any_of(
+                 registerable_domains, [&](const std::string& domain) {
+                   return storage_key
+                        .IsThirdPartyContext() && storage_key
+                        .MatchesRegistrableDomainForTrustedStorageDeletion(domain);
+                 });
+      }
+
   }
 
   return !is_delete_list;

@@ -30,6 +30,7 @@
 #include "url/url_canon_internal.h"
 #include "url/url_canon_ip.h"
 #include "url/url_constants.h"
+#include "url/origin.h"
 #include "url/url_util.h"
 
 namespace net {

@@ -2,6 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifndef WOOTZ_SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
+#define WOOTZ_SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
+
+#include <optional>
+
+#include "net/cookies/canonical_cookie.h"
+#include "net/cookies/cookie_access_result.h"
+#include "net/cookies/cookie_change_dispatcher.h"
+#include "net/cookies/cookie_options.h"
+#include "net/cookies/cookie_partition_key_collection.h"
+#include "services/network/public/mojom/cookie_manager.mojom.h"
+
+#define CookieOptions CookieOptions_ChromiumImpl
+
 #ifndef SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
 #define SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
 
@@ -36,26 +50,6 @@ struct EnumTraits<network::mojom::CookiePriority, net::CookiePriority> {
   static network::mojom::CookiePriority ToMojom(net::CookiePriority input);
   static bool FromMojom(network::mojom::CookiePriority input,
                         net::CookiePriority* output);
-};
-
-template <>
-struct StructTraits<network::mojom::CookieOptionsDataView, net::CookieOptions>
-    : public StructTraits<network::mojom::CookieOptionsDataView,
-                          net::CookieOptions_ChromiumImpl> {
-  static const net::SiteForCookies& site_for_cookies(
-      const net::CookieOptions& o) {
-    return o.site_for_cookies();
-  }
-  static const std::optional<url::Origin>& top_frame_origin(
-      const net::CookieOptions& o) {
-    return o.top_frame_origin();
-  }
-  static bool should_use_ephemeral_storage(const net::CookieOptions& o) {
-    return o.should_use_ephemeral_storage();
-  }
-
-  static bool Read(network::mojom::CookieOptionsDataView mojo_options,
-                   net::CookieOptions* cookie_options);
 };
 
 template <>
@@ -405,3 +399,31 @@ struct StructTraits<network::mojom::CookieChangeInfoDataView,
 }  // namespace mojo
 
 #endif  // SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
+
+#undef CookieOptions
+
+namespace mojo {
+
+template <>
+struct StructTraits<network::mojom::CookieOptionsDataView, net::CookieOptions>
+    : public StructTraits<network::mojom::CookieOptionsDataView,
+                          net::CookieOptions_ChromiumImpl> {
+  static const net::SiteForCookies& site_for_cookies(
+      const net::CookieOptions& o) {
+    return o.site_for_cookies();
+  }
+  static const std::optional<url::Origin>& top_frame_origin(
+      const net::CookieOptions& o) {
+    return o.top_frame_origin();
+  }
+  static bool should_use_ephemeral_storage(const net::CookieOptions& o) {
+    return o.should_use_ephemeral_storage();
+  }
+
+  static bool Read(network::mojom::CookieOptionsDataView mojo_options,
+                   net::CookieOptions* cookie_options);
+};
+
+}  // namespace mojo
+
+#endif  // WOOTZ_SERVICES_NETWORK_PUBLIC_CPP_COOKIE_MANAGER_MOJOM_TRAITS_H_
