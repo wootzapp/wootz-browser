@@ -23,7 +23,7 @@ import android.view.Gravity;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import org.chromium.base.Callback;
 import org.chromium.base.IntentUtils;
-import org.chromium.base.Log;
+// import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -62,6 +62,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.rlz.RevenueStats;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
+import org.chromium.chrome.browser.searchwidget.SearchActivity.TerminationReason;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabBuilder;
@@ -84,10 +85,18 @@ import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.url.GURL;
+// import org.w3c.dom.css.Rect;
+import android.graphics.Rect;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import org.chromium.chrome.browser.compositor.CompositorViewHolder;
+import org.chromium.chrome.browser.omnibox.OmniboxSuggestionsDropdownEmbedderImpl;
+import android.view.ViewTreeObserver;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.ViewCompat;
+import android.util.Log;
 
 /** Queries the user's default search engine and shows autocomplete suggestions. */
 public class SearchActivity extends AsyncInitializationActivity
@@ -239,6 +248,8 @@ public class SearchActivity extends AsyncInitializationActivity
     private final LocationBarEmbedderUiOverrides mLocationBarUiOverrides =
             new LocationBarEmbedderUiOverrides();
     private UmaActivityObserver mUmaActivityObserver;
+    private CompositorViewHolder mCompositorViewHolder;
+    private OmniboxSuggestionsDropdownEmbedderImpl mOmniboxDropdownEmbedderImpl;
 
     public SearchActivity() {
         mUmaActivityObserver = new UmaActivityObserver(this);
@@ -380,11 +391,14 @@ public class SearchActivity extends AsyncInitializationActivity
                         /* OmniboxSuggestionsDropdownScrollListener= */ null,
                         /* tabModelSelectorSupplier= */ null,
                         mLocationBarUiOverrides,
-                        null);
+                        null,
+                        mCompositorViewHolder
+                        );
         mLocationBarCoordinator.setUrlBarFocusable(true);
         mLocationBarCoordinator.setShouldShowMicButtonWhenUnfocused(true);
         mLocationBarCoordinator.getOmniboxStub().addUrlFocusChangeListener(this);
-
+        mOmniboxDropdownEmbedderImpl = mLocationBarCoordinator.getOmniboxDropdownEmbedder();
+        setupKeyboardVisibilityListener();
         // Kick off everything needed for the user to type into the box.
         handleNewIntent(getIntent(), false);
 
@@ -573,6 +587,7 @@ public class SearchActivity extends AsyncInitializationActivity
         super.onNewIntent(intent);
         setIntent(intent);
         handleNewIntent(intent, true);
+        recalculateOmniboxAlignment();
     }
 
     @Override
@@ -609,6 +624,84 @@ public class SearchActivity extends AsyncInitializationActivity
                         : ActivityType.TABBED,
                 null,
                 getWindowAndroid());
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        recalculateOmniboxAlignment();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        updateWhitePatchVisibility(false);
+        recalculateOmniboxAlignment();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        recalculateOmniboxAlignment();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        updateWhitePatchVisibility(false);
+        recalculateOmniboxAlignment();
+    }
+
+    private void recalculateOmniboxAlignment() {
+        if (mOmniboxDropdownEmbedderImpl != null) {
+            Log.d("Omni", "recalculateOmniboxAlignment from SearchActivity");
+            mOmniboxDropdownEmbedderImpl.recalculateOmniboxAlignment();
+        }
+    }
+
+    private void onKeyboardVisibilityChanged(boolean isVisible) {
+        if (mOmniboxDropdownEmbedderImpl != null) {
+            mOmniboxDropdownEmbedderImpl.recalculateOmniboxAlignment();
+        }
+    }
+
+    private void setupKeyboardVisibilityListener() {
+        final View contentView = findViewById(android.R.id.content);
+        contentView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            private boolean wasKeyboardOpen = false;
+
+            @Override
+            public void onGlobalLayout() {
+                WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(contentView);
+                if (insets == null) return;
+
+                int imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+                int navigationBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+
+                // The actual keyboard height is the IME height minus the navigation bar height
+                int keypadHeight = Math.max(0, imeHeight - navigationBarHeight);
+
+                Log.d("Omni", "keypadHeight = " + keypadHeight);
+
+                boolean isKeyboardOpen = keypadHeight > 0;
+                if (isKeyboardOpen != wasKeyboardOpen) {
+                    wasKeyboardOpen = isKeyboardOpen;
+                    updateWhitePatchVisibility(isKeyboardOpen);
+                    recalculateOmniboxAlignment();
+                }
+            }
+        });
+    }
+
+    private void updateWhitePatchVisibility(boolean isKeyboardVisible) {
+        if (mOmniboxDropdownEmbedderImpl != null) {
+            mOmniboxDropdownEmbedderImpl.setWhitePatchVisible(isKeyboardVisible);
+        }
+    }
+
+    private void onSearchCompleted() {
+        updateWhitePatchVisibility(false);
+        recalculateOmniboxAlignment();
     }
 
     /** Mark that the UMA session has ended. */
@@ -672,6 +765,7 @@ public class SearchActivity extends AsyncInitializationActivity
         }
 
         finish(TerminationReason.NAVIGATION);
+        // onSearchCompleted();
         return true;
     }
 

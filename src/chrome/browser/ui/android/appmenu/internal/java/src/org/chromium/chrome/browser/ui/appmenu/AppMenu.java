@@ -75,8 +75,8 @@ import androidx.core.widget.NestedScrollView;
 import android.widget.LinearLayout;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import android.view.MotionEvent;
-// import android.view.Window;
-// import android.view.WindowManager;
+import android.view.Window;
+import android.view.WindowManager;
 import android.graphics.Outline;
 import android.view.ViewOutlineProvider;
 import android.os.Build;
@@ -227,11 +227,11 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         // Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
 
-        // // this code removes the dark scrim behind the menu
-        // Window window = dialog.getWindow();
-        // if (window != null) {
-        //     window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        // } 
+        // this code removes the dark scrim behind the menu
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        } 
 
         mBehavior = BottomSheetBehavior.from((View) view.getParent());
         mBehavior.setSkipCollapsed(true);

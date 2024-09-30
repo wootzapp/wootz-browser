@@ -5,7 +5,7 @@ import {
   TEST_ACCOUNT_A,
   TEST_ACCOUNT_B,
 } from "../../../../test/src/test-wallets.js";
-import { ADDRESS_ZERO } from "../../../constants/addresses.js";
+import { ZERO_ADDRESS } from "../../../constants/addresses.js";
 import {
   type ThirdwebContract,
   getContract,
@@ -34,7 +34,10 @@ describe.runIf(process.env.TW_SECRET_KEY)("Account Permissions", () => {
       chain: ANVIL_CHAIN,
       client: TEST_CLIENT,
       contractId: "AccountFactory",
-      constructorParams: [TEST_ACCOUNT_A.address, ENTRYPOINT_ADDRESS_v0_6],
+      constructorParams: {
+        defaultAdmin: TEST_ACCOUNT_A.address,
+        entrypoint: ENTRYPOINT_ADDRESS_v0_6,
+      },
     });
     const transaction = createAccount({
       contract: accountFactoryContract,
@@ -124,7 +127,7 @@ describe.runIf(process.env.TW_SECRET_KEY)("Account Permissions", () => {
     expect(logs[0]?.args.authorizingSigner).toBe(TEST_ACCOUNT_B.address);
     expect(logs[0]?.args.targetSigner).toBe(TEST_ACCOUNT_A.address);
     expect(logs[0]?.args.permissions.approvedTargets).toStrictEqual([
-      ADDRESS_ZERO,
+      ZERO_ADDRESS,
     ]);
   });
 });
