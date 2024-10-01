@@ -380,6 +380,7 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
                         ? Integer.MAX_VALUE
                         : (contentView.getMeasuredHeight() - mKeyboardHeight);
         int height = Math.min(windowSpace, Integer.MAX_VALUE/*contentSpace*/) - top;
+        int offset = -25; // decrease this value to fix the omnibox jumping up issue
         Log.d("Omnibox", "windowSpace: " + windowSpace + 
         " contentSpace: " + contentSpace + 
         " height: " + height + 
@@ -388,7 +389,7 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
         " contentViewHeight: " + (contentView != null ? contentView.getMeasuredHeight() : "null"));
 
         if(mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView) || (mKeyboardHeight > 0)){
-            if(windowSpace - mKeyboardHeight - contentSpace < 2){
+            if(windowSpace - mKeyboardHeight - contentSpace < offset){
                 ViewCompat.setPaddingRelative(contentView, 0, 0, 0, mKeyboardHeight);
             }
             else{
