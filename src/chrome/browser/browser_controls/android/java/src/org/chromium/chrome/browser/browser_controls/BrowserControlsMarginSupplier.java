@@ -8,7 +8,7 @@ import android.graphics.Rect;
 
 import org.chromium.base.supplier.DestroyableObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 /**
  * An implementation of {@link DestroyableObservableSupplier} that monitors changes to browser
  * controls and updates a Rect indicating top/bottom margins for Views that should be inset by the
@@ -58,7 +58,7 @@ public class BrowserControlsMarginSupplier extends ObservableSupplierImpl<Rect>
         int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
                         - mBrowserControlsStateProvider.getBottomControlOffset();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             bottomMargin += topMargin;
             topMargin = 0;
         }

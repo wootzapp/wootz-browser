@@ -12,7 +12,7 @@ found in the LICENSE file.
     <dimen name="menu_negative_vertical_offset_not_top_anchored">44dp</dimen>
 
     <!-- Menu button dragging related dimensions -->
-    <dimen name="auto_scroll_full_velocity">500dp</dimen>
+    <!-- <dimen name="auto_scroll_full_velocity">500dp</dimen> -->
 
     <!-- Menu chip dimensions -->
     <dimen name="menu_chip_highlight_extension">4dp</dimen>

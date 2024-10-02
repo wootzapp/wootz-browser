@@ -16,7 +16,7 @@ import org.chromium.components.browser_ui.widget.scrim.ScrimProperties;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.util.ColorUtils;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 /** Handles showing and hiding a scrim when url bar focus changes. */
 public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
     /** The params used to control how the scrim behaves when shown for the omnibox. */
@@ -60,7 +60,7 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
         mContext = context;
 
         int topMargin = tabStripHeightSupplier.get() == null ? 0 : tabStripHeightSupplier.get();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             // since the top bar is at the bottom, we need to cover the whole page
             topMargin = 0;
         }

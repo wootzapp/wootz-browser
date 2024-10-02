@@ -1558,22 +1558,12 @@ Your Google account may have other forms of browsing history like searches and a
       <message name="IDS_TRACKING_PROTECTION_SUMMARY" desc="Tracking Protection preference item summary.">
         Manage third-party cookies and tracking protections
       </message>
-      <message name="IDS_RELAUNCH" desc="Relaunch message">
-      relauch
-      </message>
-      <message name="IDS_UI_RELAUNCH_NOTICE" desc="Summary for relaunch message">
-      UI relauch notice
-      </message>
+
       <!-- IP protection -->
       <message name="IDS_IP_PROTECTION_TITLE" desc="IP Protection preference item title." translateable="false">
         Hide your IP address
       </message>
-      <message name="IDS_MOVE_TOOLBAR_BOTTOM_TITLE" desc="Title of the preference that allows the user to move toolbar on bottom.">
-          Move toolbar to bottom
-      </message>
-      <message name="IDS_DISABLE_TOOLBAR_SWIPE_UP" desc="Summary of the preference that allows the user to disable toolbar swipeup.">
-          Disable toolbar swipe up
-      </message>
+
       <!-- Safety check -->
       <message name="IDS_PREFS_SAFETY_CHECK" desc="Title of the Safety check element in settings, allowing the user to check multiple areas of browser safety. [CHAR_LIMIT=32]">
         Safety check
@@ -2067,164 +2057,6 @@ Your Google account may have other forms of browsing history like searches and a
       <message name="IDS_AUTO_OPEN_PDF_ENABLED_WITH_APP_DESCRIPTION" desc="Description for preference that allows another app to automatically open a pdf after download completion if the download is triggered by an external app.">
         Downloaded PDFs automatically open with <ph name="APP_NAME">%1$s<ex>Drive PDF Viewer</ex></ph>
       </message>
-
-      <!-- Wootz Wallet -->
-          <message name="IDS_REJECT" desc="Wootz crypto wallet button reject">
-      Reject
-    </message>
-    <message name="IDS_APPROVE" desc="Wootz crypto wallet button approve">
-      Approve
-    </message>
-    <message name="IDS_GAS_FEE" desc="Wootz crypto wallet gas fee information">
-      Gas Fee
-    </message>
-    <message name="IDS_TOTAL" desc="Wootz crypto wallet total amount for a transaction">
-      Total
-    </message>
-    <message name="IDS_AMOUNT_PLUS_GAS" desc="Wootz crypto wallet total amount plus gas cost for a transaction">
-      Amount + Gas
-    </message>
-    <message name="IDS_WOOTZ_WALLET_CONFIRM_TRANSACTION_AMOUNT_FEE" desc="Confirm transaction panel total fee label">
-      Amount + fee
-    </message>
-    <message name="IDS_TRANSACTION" desc="Wootz crypto wallet transaction title">
-      Transaction
-    </message>
-    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS" desc="Wootz crypto wallet transaction setting to change nonce">
-      Advanced Settings
-    </message>
-    <message name="IDS_WOOTZ_WALLET_NONCE_LABEL" desc="Wootz crypto wallet nonce label">
-      Nonce
-    </message>
-    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS_NONCE_HINT" desc="Wootz crypto wallet advance setting custom nonce hint">
-      Enter custom nonce value
-    </message>
-    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS_SAVE" desc="Wootz crypto wallet advance setting save/set nonce value action button">
-      Save
-    </message>
-    <message name="IDS_WOOTZ_WALLET_TX_PROPOGATION_WARNING" desc="Trnsaction warning regarding low gas or invalid nonce etc.">
-      Transaction may not be propagated to the network if custom nonce value is non-sequential or has other errors.
-    </message>
-    <message name="IDS_TRANSACTION_DETAILS" desc="Wootz crypto wallet transaction details section">
-      Details
-    </message>
-    <!-- <message name="IDS_APPS" desc="Wootz crypto wallet section Apps">
-      Apps
-    </message> -->
-    <message name="IDS_CRYPTO_WALLET_FROM_TO" desc="From address -> to address" translateable="false">
-      <ph name="FROM_NAME">%1$s<ex>Account1</ex></ph>\n <ph name="FROM_ADDRESS">%2$s<ex>0xabcd...</ex></ph> <ph name="SEPARATOR">%3$s<ex>-></ex></ph>\n<ph name="TO">%4$s<ex>0xabcd...</ex></ph>
-    </message>
-    <message name="IDS_CRYPTO_WALLET_AMOUNT_ASSET" desc="Amount Asset" translateable="false">
-      <ph name="AMOUNT">%1$s<ex>0.0001</ex></ph> <ph name="ASSET">%2$s<ex>ETH</ex></ph>
-    </message>
-    <message name="IDS_CRYPTO_WALLET_AMOUNT_FIAT" desc="$amount_fiat" translateable="false">
-      $<ph name="AMOUNT">%1$s<ex>3.08</ex></ph>
-    </message>
-    <message name="IDS_CRYPTO_WALLET_GAS_FEE_AMOUNT" desc="Gas fee ETH" translateable="false">
-      <ph name="AMOUNT">%1$s<ex>0.0000015</ex></ph> <ph name="CHAIN_ASSET">%2$s<ex>ETH</ex></ph>
-    </message>
-    <message name="IDS_CRYPTO_WALLET_TOTAL_AMOUNT" desc="amount asset + amount gas fee" translateable="false">
-      <ph name="AMOUNT">%1$s<ex>0.0015</ex></ph> <ph name="ASSET">%2$s<ex>ETH</ex></ph> + <ph name="GAS_FEE">%3$s<ex>0.00000015</ex></ph> <ph name="CHAIN_ASSET">%4$s<ex>ETH</ex></ph>
-    </message>
-    <message name="IDS_GAS_PRICE" desc="Wootz crypto wallet gas limit edit box">
-      Gas Price (Gwei)
-    </message>
-    <message name="IDS_GAS_LIMIT" desc="Wootz crypto wallet gas limit edit box">
-      Gas Limit
-    </message>
-    <message name="IDS_DISABLE_SHARING_HUB" desc="Menu item for disabling sharing hub.">
-      Disable Sharing Hub
-    </message>
-    <message name="IDS_EDIT" desc="Wootz wallet accounts text">
-      Edit
-    </message>
-    <message name="IDS_UPDATE" desc="Wootz wallet accounts text">
-      Update
-    </message>
-    <message name="IDS_ACCOUNT_UPDATE_FAILED" desc="Wootz Wallet account update error text">
-      Account update failed.
-    </message>
-    <message name="IDS_ACCOUNT_NAME_EMPTY_ERROR" desc="Wootz Wallet empty account error text">
-      Account name can't be empty.
-    </message>
-    <message name="IDS_INCORRECT_PASSWORD_ERROR" desc="Wootz Wallet incorrect password error text">
-      Incorrect password
-    </message>
-    <message name="IDS_CHOOSE_A_FILE" desc="Wootz wallet accounts text">
-      Choose a file
-    </message>
-    <message name="IDS_ACTIVATE_ERC20" desc="A button to activate an ERC20 token">
-      Activate <ph name="TOKEN">%1$s<ex>BAT</ex></ph>
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE" desc="Wootz wallet function type">
-      FUNCTION TYPE: <ph name="FTYPE">%1$s<ex>ERC20Transfer</ex></ph>
-    </message>
-    <message name="IDS_WALLET_DETAILS_NO_DATA" desc="Wootz wallet no data to show">
-      No data
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_OTHER" desc="Wootz wallet function type other">
-      Other
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC20TRANSFER" desc="Wootz wallet function type ERC20Transfer" translateable="false">
-      ERC20 Transfer
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC721TRANSFER" desc="Wootz wallet function type ERC721Transfer" translateable="false">
-      ERC721 Transfer
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC20APPROVE" desc="Wootz wallet function type ERC20Approve" translateable="false">
-      ERC20 Approve
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_SYSTEM_TRANSFER" desc="Wootz wallet function type SOLANA_SYSTEM_TRANSFER" translateable="false">
-      Solana System Transfer
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SPL_TOKEN_TRANSFER" desc="Wootz wallet function type SPL_TOKEN_TRANSFER" translateable="false">
-      SPL Token Transfer
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_SPL_TOKEN_TRANSFER_WITH_ASSOCIATED_TOKEN_ACCOUNT_CREATION" desc="Wootz wallet function type SOLANA_SPL_TOKEN_TRANSFER_WITH_ASSOCIATED_TOKEN_ACCOUNT_CREATION" translateable="false">
-      Solana SPL Token Transfer with Associated Token Account Creation
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_DAPP_SIGN_AND_SEND" desc="Wootz wallet function type SOLANA_DAPP_SIGN_AND_SEND_TRANSACTION" translateable="false">
-      Solana Dapp Sign And Send Transaction
-    </message>
-    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_DAPP_SIGN" desc="Title for solana dapp sign transaction function type">
-      Solana Dapp Sign Transaction
-    </message>
-    <message name="IDS_WALLET_TX_INFO_SENT" desc="Wootz wallet sent assets tx history">
-      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> sent <ph name="CRYPTO_VALUE">%2$s<ex>0.0444</ex></ph> <ph name="ASSET">%3$s<ex>ETH</ex></ph> ($<ph name="FIAT_VALUE">%4$s<ex>10.00</ex></ph>) - <ph name="DATE">%5$s<ex>2021-11-12 08:38pm</ex></ph>
-    </message>
-    <message name="IDS_WALLET_TX_INFO_SENT_ERC721" desc="Wootz wallet sent erc721 assets tx history">
-      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> sent <ph name="ASSET">%2$s<ex>CK</ex></ph> #<ph name="ASSET_ID">%3$s<ex>1</ex></ph> - <ph name="DATE">%4$s<ex>2021-11-12 08:38pm</ex></ph>
-    </message>
-    <message name="IDS_WALLET_TX_INFO_APPROVED" desc="Wootz wallet approved assets tx history">
-      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> approved <ph name="ASSET">%2$s<ex>BAT</ex></ph> - <ph name="DATE">%3$s<ex>2021-11-12 08:38pm</ex></ph>
-    </message>
-    <message name="IDS_WALLET_TX_INFO_APPROVED_UNLIMITED" desc="Wootz wallet approved unlimited assets tx history">
-      Approved Unlimited <ph name="ASSET">%1$s<ex>ETH</ex></ph> - <ph name="PROXY">%2$s<ex>0x Exchange Proxy</ex></ph>
-    </message>
-    <message name="IDS_WALLET_TX_INFO_SWAP" desc="Wootz wallet swap assets tx history">
-      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> swap - <ph name="DATE">%2$s<ex>2021-11-12 08:38pm</ex></ph>
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_UNAPPROVED" desc="Wootz wallet tx status is unapproved">
-      Unapproved
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_APPROVED" desc="Wootz wallet tx status is approved">
-      Approved
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_REJECTED" desc="Wootz wallet tx status is rejected">
-      Rejected
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_SUBMITTED" desc="Wootz wallet tx status is submitted">
-      Submitted
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_CONFIRMED" desc="Wootz wallet tx status is confirmed">
-      Confirmed
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_SIGNED" desc="Wootz wallet tx status is signed">
-      Signed
-    </message>
-    <message name="IDS_WALLET_TX_STATUS_ERROR" desc="Wootz wallet tx status is error">
-      Error
-    </message>
 
       <!-- About WootzApp preferences -->
       <message name="IDS_PREFS_ABOUT_WOOTZAPP" desc="Title for the About WootzApp page. [CHAR_LIMIT=32]">
@@ -4117,6 +3949,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
         Desktop site
       </message>
+      <!-- <message name="IDS_MENU_REQUEST_BACK_TO_ANDROID" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
+        Mobile Site
+      </message> -->
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE_ON" desc="Accessibility description for when Request Desktop Site is enabled.">
         Turn off Request desktop site
       </message>
@@ -4605,6 +4440,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_REFRESH" desc="Content description for the refresh page button.">
         Reload this page
+      </message>
+      <message name="IDS_CONTENT_DESCRIPTION_GRID_ITEM" desc="Content description for ImageView in grid_layout_item.xml">
+        Grid Item
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_STOP_LOADING" desc="Content description for the stop loading page button.">
         Stop page loading

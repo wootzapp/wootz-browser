@@ -17,7 +17,7 @@ import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.components.browser_ui.widget.ViewResourceFrameLayout;
 import org.chromium.ui.resources.ResourceManager;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 import java.util.List;
 
 /**
@@ -118,9 +118,10 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
         // The composited shadow should be visible if the Android toolbar's isn't.
-        boolean isShadowVisible = mBottomView.getVisibility() != View.VISIBLE;
+        // boolean isShadowVisible = mBottomView.getVisibility() != View.VISIBLE;
+        boolean isShadowVisible = false;
         float offsetPy = viewport.height() + mCurrentYOffsetPx;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             // fix the offset of the fake bottom controls, used only for animations
             offsetPy -= (mBottomView.getHeight() - mCurrentYOffsetPx + mTopControlsMinHeightOffset);
         }
