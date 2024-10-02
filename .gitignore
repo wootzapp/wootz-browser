@@ -4,3 +4,4 @@
 .gclient_previous_sync_commits
 .gcs_entries
 .cipd/
+src/chrome/browser/resources/rewards/node_modules
