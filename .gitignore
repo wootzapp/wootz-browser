@@ -4,4 +4,4 @@
 .gclient_previous_sync_commits
 .gcs_entries
 .cipd/
-node_modules
+**/node_modules
