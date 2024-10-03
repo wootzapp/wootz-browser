@@ -133,8 +133,8 @@ FastCheckoutClientImpl::FastCheckoutClientImpl(
           autofill_client_,
           fetcher_,
           personal_data_helper_.get())),
-      accessibility_service_(
-          std::make_unique<FastCheckoutAccessibilityServiceImpl>()),
+      // accessibility_service_(
+      //     std::make_unique<FastCheckoutAccessibilityServiceImpl>()),
       keyboard_suppressor_(
           client,
           base::BindRepeating([](autofill::AutofillManager& manager) {
@@ -606,24 +606,24 @@ void FastCheckoutClientImpl::A11yAnnounce(
     bool is_credit_card_form) {
   if (is_credit_card_form) {
     if (autofill::CreditCard* credit_card = GetSelectedCreditCard()) {
-      accessibility_service_->Announce(l10n_util::GetStringFUTF16(
-          IDS_FAST_CHECKOUT_A11Y_CREDIT_CARD_FORM_FILLED,
-          credit_card->HasNonEmptyValidNickname()
-              ? credit_card->nickname()
-              : credit_card->NetworkAndLastFourDigits()));
+      // accessibility_service_->Announce(l10n_util::GetStringFUTF16(
+      //     IDS_FAST_CHECKOUT_A11Y_CREDIT_CARD_FORM_FILLED,
+      //     credit_card->HasNonEmptyValidNickname()
+      //         ? credit_card->nickname()
+      //         : credit_card->NetworkAndLastFourDigits()));
     }
     return;
   }
 
   if (ContainsEmailFormWithSignature(autofill_manager_->form_structures(),
                                      form_signature)) {
-    accessibility_service_->Announce(
-        l10n_util::GetStringUTF16(IDS_FAST_CHECKOUT_A11Y_EMAIL_FILLED));
+    // accessibility_service_->Announce(
+    //     l10n_util::GetStringUTF16(IDS_FAST_CHECKOUT_A11Y_EMAIL_FILLED));
   } else if (autofill::AutofillProfile* autofill_profile =
                  GetSelectedAutofillProfile()) {
-    accessibility_service_->Announce(l10n_util::GetStringFUTF16(
-        IDS_FAST_CHECKOUT_A11Y_ADDRESS_FORM_FILLED,
-        base::UTF8ToUTF16(autofill_profile->profile_label())));
+    // accessibility_service_->Announce(l10n_util::GetStringFUTF16(
+    //     IDS_FAST_CHECKOUT_A11Y_ADDRESS_FORM_FILLED,
+    //     base::UTF8ToUTF16(autofill_profile->profile_label())));
   }
 }
 

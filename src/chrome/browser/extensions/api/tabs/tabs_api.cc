@@ -1459,53 +1459,54 @@ ExtensionFunction::ResponseAction TabsHighlightFunction::Run() {
       tabs::Highlight::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  // Get the window id from the params; default to current window if omitted.
-  int window_id = params->highlight_info.window_id.value_or(
-      extension_misc::kCurrentWindowId);
+  // // Get the window id from the params; default to current window if omitted.
+  // int window_id = params->highlight_info.window_id.value_or(
+  //     extension_misc::kCurrentWindowId);
 
-  Browser* browser = nullptr;
-  std::string error;
-  if (!GetBrowserFromWindowID(this, window_id, &browser, &error))
-    return RespondNow(Error(std::move(error)));
+  // Browser* browser = nullptr;
+  // std::string error;
+  // if (!GetBrowserFromWindowID(this, window_id, &browser, &error))
+  //   return RespondNow(Error(std::move(error)));
 
-  // Don't let the extension update the tab if the user is dragging tabs.
-  TabStripModel* tabstrip = ExtensionTabUtil::GetEditableTabStripModel(browser);
-  if (!tabstrip)
-    return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
-  ui::ListSelectionModel selection;
-  std::optional<size_t> active_index;
+  // // Don't let the extension update the tab if the user is dragging tabs.
+  // TabStripModel* tabstrip = ExtensionTabUtil::GetEditableTabStripModel(browser);
+  // if (!tabstrip)
+  //   return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
+  // ui::ListSelectionModel selection;
+  // std::optional<size_t> active_index;
 
-  if (params->highlight_info.tabs.as_integers) {
-    std::vector<int>& tab_indices = *params->highlight_info.tabs.as_integers;
-    // Create a new selection model as we read the list of tab indices.
-    for (int tab_index : tab_indices) {
-      if (!HighlightTab(tabstrip, &selection, &active_index, tab_index,
-                        &error)) {
-        return RespondNow(Error(std::move(error)));
-      }
-    }
-  } else {
-    EXTENSION_FUNCTION_VALIDATE(params->highlight_info.tabs.as_integer);
-    if (!HighlightTab(tabstrip, &selection, &active_index,
-                      *params->highlight_info.tabs.as_integer, &error)) {
-      return RespondNow(Error(std::move(error)));
-    }
-  }
+  // if (params->highlight_info.tabs.as_integers) {
+  //   std::vector<int>& tab_indices = *params->highlight_info.tabs.as_integers;
+  //   // Create a new selection model as we read the list of tab indices.
+  //   for (int tab_index : tab_indices) {
+  //     if (!HighlightTab(tabstrip, &selection, &active_index, tab_index,
+  //                       &error)) {
+  //       return RespondNow(Error(std::move(error)));
+  //     }
+  //   }
+  // } else {
+  //   EXTENSION_FUNCTION_VALIDATE(params->highlight_info.tabs.as_integer);
+  //   if (!HighlightTab(tabstrip, &selection, &active_index,
+  //                     *params->highlight_info.tabs.as_integer, &error)) {
+  //     return RespondNow(Error(std::move(error)));
+  //   }
+  // }
 
-  // Make sure they actually specified tabs to select.
-  if (selection.empty())
-    return RespondNow(Error(tabs_constants::kNoHighlightedTabError));
+  // // Make sure they actually specified tabs to select.
+  // if (selection.empty())
+  //   return RespondNow(Error(tabs_constants::kNoHighlightedTabError));
 
-  selection.set_active(active_index);
-  TabStripModel* tab_strip_model =
-      ExtensionTabUtil::GetEditableTabStripModel(browser);
-  if (!tab_strip_model)
-    return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
-  tab_strip_model->SetSelectionFromModel(std::move(selection));
-  return RespondNow(
-      WithArguments(ExtensionTabUtil::CreateWindowValueForExtension(
-          *browser, extension(), ExtensionTabUtil::kPopulateTabs,
-          source_context_type())));
+  // selection.set_active(active_index);
+  // TabStripModel* tab_strip_model =
+  //     ExtensionTabUtil::GetEditableTabStripModel(browser);
+  // if (!tab_strip_model)
+  //   return RespondNow(Error(tabs_constants::kTabStripNotEditableError));
+  // tab_strip_model->SetSelectionFromModel(std::move(selection));
+  // return RespondNow(
+  //     WithArguments(ExtensionTabUtil::CreateWindowValueForExtension(
+  //         *browser, extension(), ExtensionTabUtil::kPopulateTabs,
+  //         source_context_type())));
+  return RespondNow(Error("not implemented"));
 }
 
 bool TabsHighlightFunction::HighlightTab(TabStripModel* tabstrip,
@@ -1708,7 +1709,7 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
 
   // return RespondNow(GetResult());
 
-  return RespondNow(Error(std::move("not implemented")));
+  return RespondNow(Error("not implemented"));
 }
 
 bool TabsUpdateFunction::UpdateURL(const std::string& url_string,

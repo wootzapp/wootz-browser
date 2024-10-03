@@ -92,7 +92,7 @@ scoped_refptr<CrxInstaller> CrxInstaller::Create(
     ExtensionService* frontend,
     std::unique_ptr<ExtensionInstallPrompt> client) {
   return new CrxInstaller(frontend->AsExtensionServiceWeakPtr(),
-                          std::move(client), nullptr);
+                          std::move(client), nullptr); 
 }
 
 // static
@@ -1059,9 +1059,9 @@ void CrxInstaller::ReportInstallationStage(InstallationStage stage) {
   // We do not want to report in case of other extensions.
   if (expected_id_.empty())
     return;
-  // InstallStageTracker* install_stage_tracker =
-  //     InstallStageTracker::Get(profile_);
-  // install_stage_tracker->ReportCRXInstallationStage(expected_id_, stage);
+  InstallStageTracker* install_stage_tracker =
+      InstallStageTracker::Get(profile_);
+  install_stage_tracker->ReportCRXInstallationStage(expected_id_, stage);
 }
 
 void CrxInstaller::NotifyCrxInstallBegin() {
@@ -1077,39 +1077,41 @@ void CrxInstaller::NotifyCrxInstallComplete(
   ReportInstallationStage(InstallationStage::kComplete);
   const ExtensionId extension_id =
       expected_id_.empty() && extension() ? extension()->id() : expected_id_;
-  // InstallStageTracker* install_stage_tracker =
-  //     InstallStageTracker::Get(profile_);
-  // install_stage_tracker->ReportInstallationStage(
-  //     extension_id, InstallStageTracker::Stage::COMPLETE);
+  InstallStageTracker* install_stage_tracker =
+      InstallStageTracker::Get(profile_);
+  install_stage_tracker->ReportInstallationStage(
+      extension_id, InstallStageTracker::Stage::COMPLETE);
   const bool success = !error.has_value();
 
   if (extension()) {
-    // install_stage_tracker->ReportExtensionType(extension_id,
-    //                                            extension()->GetType());
+    install_stage_tracker->ReportExtensionType(extension_id,
+                                               extension()->GetType());
   }
 
   if (!success && (!expected_id_.empty() || extension())) {
     switch (error->type()) {
       case CrxInstallErrorType::DECLINED:
-        // install_stage_tracker->ReportCrxInstallError(
-        //     extension_id,
-        //     InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_DECLINED,
-        //     error->detail());
+        install_stage_tracker->ReportCrxInstallError(
+            extension_id,
+            InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_DECLINED,
+            error->detail());
         break;
       case CrxInstallErrorType::SANDBOXED_UNPACKER_FAILURE:
-        // install_stage_tracker->ReportSandboxedUnpackerFailureReason(
-        //     extension_id, error.value());
+        install_stage_tracker->ReportSandboxedUnpackerFailureReason(
+            extension_id, error.value());
         break;
       case CrxInstallErrorType::OTHER:
-        // install_stage_tracker->ReportCrxInstallError(
-        //     extension_id,
-        //     InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_OTHER,
-        //     error->detail());
+        install_stage_tracker->ReportCrxInstallError(
+            extension_id,
+            InstallStageTracker::FailureReason::CRX_INSTALL_ERROR_OTHER,
+            error->detail());
         break;
       case CrxInstallErrorType::NONE:
         NOTREACHED_IN_MIGRATION();
         break;
     }
+
+    LOG(ERROR) << "CRXX ID " << extension_id;
   }
 
   InstallTrackerFactory::GetForBrowserContext(profile())->OnFinishCrxInstall(

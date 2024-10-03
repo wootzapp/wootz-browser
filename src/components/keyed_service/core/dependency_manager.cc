@@ -46,7 +46,7 @@ void DependencyManager::AddComponent(KeyedServiceBaseFactory* component) {
          "Ensure.*KeyedServiceFactoriesBuilt().";
 #endif  // DCHECK_IS_ON()
 
-  if (disallow_factory_registration_) {
+  if (false && disallow_factory_registration_) {
     SCOPED_CRASH_KEY_STRING32("KeyedServiceFactories", "factory_name",
                               component->name());
     base::debug::DumpWithoutCrashing();

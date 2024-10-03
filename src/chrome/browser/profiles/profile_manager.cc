@@ -1191,7 +1191,7 @@ void ProfileManager::InitProfileUserPrefs(Profile* profile) {
       supervised_user_id = entry->GetSupervisedUserId();
     } else {
       avatar_index = profiles::GetPlaceholderAvatarIndex();
-#if !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_CHROMEOS_ASH) && BUILDFLAG(IS_ANDROID)
       profile_name =
           base::UTF16ToUTF8(storage.ChooseNameForNewProfile(avatar_index));
 #else

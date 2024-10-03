@@ -1089,14 +1089,14 @@ bool ProfileImpl::AllowsBrowserWindows() const {
 
 ExtensionSpecialStoragePolicy* ProfileImpl::GetExtensionSpecialStoragePolicy() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-//   if (!extension_special_storage_policy_.get()) {
-//     TRACE_EVENT0("browser", "ProfileImpl::GetExtensionSpecialStoragePolicy");
-//     extension_special_storage_policy_ =
-//         base::MakeRefCounted<ExtensionSpecialStoragePolicy>(
-//             CookieSettingsFactory::GetForProfile(this).get());
-//   }
-//   return extension_special_storage_policy_.get();
-// #else
+  if (!extension_special_storage_policy_.get()) {
+    TRACE_EVENT0("browser", "ProfileImpl::GetExtensionSpecialStoragePolicy");
+    extension_special_storage_policy_ =
+        base::MakeRefCounted<ExtensionSpecialStoragePolicy>(
+            CookieSettingsFactory::GetForProfile(this).get());
+  }
+  return extension_special_storage_policy_.get();
+#else
   return NULL;
 #endif
 }

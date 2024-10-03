@@ -522,6 +522,8 @@
 #include "chrome/browser/enterprise/data_controls/reporting_service.h"
 #endif
 
+#include <chrome/browser/ui/prefs/pref_watcher.h>
+
 namespace chrome {
 
 void AddProfilesExtraParts(ChromeBrowserMainParts* main_parts) {
@@ -1081,6 +1083,7 @@ if (full_init)
     prerender::NoStatePrefetchManagerFactory::GetInstance();
     PrimaryAccountPolicyManagerFactory::GetInstance();
   }
+  PrefWatcherFactory::GetInstance();
 #if !BUILDFLAG(IS_ANDROID)
   PrivateNetworkDevicePermissionContextFactory::GetInstance();
 #endif
@@ -1223,10 +1226,11 @@ if (full_init)
 #if !BUILDFLAG(IS_ANDROID)
   StorageNotificationServiceFactory::GetInstance();
 #endif
-  SubresourceFilterProfileContextFactory::GetInstance();
-  SupervisedUserMetricsServiceFactory::GetInstance();
-  if (full_init)
+  // if (full_init) {
+    SubresourceFilterProfileContextFactory::GetInstance();
+    SupervisedUserMetricsServiceFactory::GetInstance();
     SupervisedUserServiceFactory::GetInstance();
+  // }
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   sync_file_system::SyncFileSystemServiceFactory::GetInstance();
 #endif
@@ -1247,8 +1251,8 @@ if (full_init)
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // ToolbarActionsModelFactory::GetInstance();
 #endif
-  if (full_init)
-    TopSitesFactory::GetInstance();
+  // if (full_init)
+  TopSitesFactory::GetInstance();
   tpcd::experiment::EligibilityServiceFactory::GetInstance();
   tpcd::trial::TpcdTrialServiceFactory::GetInstance();
   tpcd::trial::TopLevelTrialServiceFactory::GetInstance();

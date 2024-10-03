@@ -94,11 +94,11 @@ const char kChromeUIAccessCodeCastHost[] = "access-code-cast";
 const char kChromeUIAccessCodeCastURL[] = "chrome://access-code-cast/";
 const char kChromeUIDataSharingInternalsHost[] = "data-sharing-internals";
 const char kChromeUIExtensionIconHost[] = "extension-icon";
-const char kChromeUIExtensionIconURL[] = "chrome://extension-icon/";
+const char kChromeUIExtensionIconURL[] = "wootzapp://extension-icon/";
 const char kChromeUIExtensionsHost[] = "extensions";
 const char kChromeUIExtensionsInternalsHost[] = "extensions-internals";
-const char kChromeUIExtensionsInternalsURL[] = "chrome://extensions-internals";
-const char kChromeUIExtensionsURL[] = "chrome://extensions/";
+const char kChromeUIExtensionsInternalsURL[] = "wootzapp://extensions-internals";
+const char kChromeUIExtensionsURL[] = "wootzapp://extensions/";
 const char kChromeUIFamilyLinkUserInternalsHost[] =
     "family-link-user-internals";
 const char kChromeUIFaviconHost[] = "favicon";
