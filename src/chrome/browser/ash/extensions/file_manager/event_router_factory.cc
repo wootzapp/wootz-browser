@@ -43,8 +43,9 @@ EventRouterFactory::EventRouterFactory()
               .Build()) {
   DependsOn(drive::DriveIntegrationServiceFactory::GetInstance());
   DependsOn(extensions::EventRouterFactory::GetInstance());
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(VolumeManagerFactory::GetInstance());
   DependsOn(arc::ArcIntentHelperBridge::GetFactory());
   DependsOn(apps::AppServiceProxyFactory::GetInstance());

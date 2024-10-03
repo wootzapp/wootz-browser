@@ -48,8 +48,9 @@ template <>
 struct BrowserContextFactoryDependencies<WebAuthenticationProxyAPI> {
   static void DeclareFactoryDependencies(
       BrowserContextKeyedAPIFactory<WebAuthenticationProxyAPI>* factory) {
-    factory->DependsOn(
-        ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+    if (extensions::ExtensionsBrowserClient::Get())
+        factory->DependsOn(
+            ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
     factory->DependsOn(EventRouterFactory::GetInstance());
   }
 };

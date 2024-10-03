@@ -4117,6 +4117,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
         Desktop site
       </message>
+      <!-- <message name="IDS_MENU_REQUEST_BACK_TO_ANDROID" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
+        Mobile Site
+      </message> -->
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE_ON" desc="Accessibility description for when Request Desktop Site is enabled.">
         Turn off Request desktop site
       </message>
@@ -4605,6 +4608,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_REFRESH" desc="Content description for the refresh page button.">
         Reload this page
+      </message>
+      <message name="IDS_CONTENT_DESCRIPTION_GRID_ITEM" desc="Content description for ImageView in grid_layout_item.xml">
+        Grid Item
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_STOP_LOADING" desc="Content description for the stop loading page button.">
         Stop page loading

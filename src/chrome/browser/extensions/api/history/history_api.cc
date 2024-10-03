@@ -199,7 +199,8 @@ template <>
 void BrowserContextKeyedAPIFactory<HistoryAPI>::DeclareFactoryDependencies() {
   DependsOn(ActivityLog::GetFactoryInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 void HistoryAPI::OnListenerAdded(const EventListenerInfo& details) {

@@ -1215,7 +1215,7 @@ LOG(ERROR) << "browser run 4";
       variations::VariationsIdsProvider::Create(
           variations::VariationsIdsProvider::Mode::kUseSignedInState);
     }
-LOG(ERROR) << "browser run 5" << "delegate_ is of type: " << typeid(*delegate_).name() ;
+// LOG(ERROR) << "browser run 5" << "delegate_ is of type: " << typeid(*delegate_).name() ;
     std::optional<int> post_early_initialization_exit_code =
         delegate_->PostEarlyInitialization(invoked_in_browser);
     if (post_early_initialization_exit_code.has_value()) {

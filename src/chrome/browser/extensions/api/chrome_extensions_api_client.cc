@@ -407,16 +407,14 @@ ChromeExtensionsAPIClient::CreateVirtualKeyboardDelegate(
 
 ManagementAPIDelegate* ChromeExtensionsAPIClient::CreateManagementAPIDelegate()
     const {
-  // return new ChromeManagementAPIDelegate;
-  return nullptr;
+  return new ChromeManagementAPIDelegate;
 }
 
 std::unique_ptr<SupervisedUserExtensionsDelegate>
 ChromeExtensionsAPIClient::CreateSupervisedUserExtensionsDelegate(
     content::BrowserContext* browser_context) const {
-  // return std::make_unique<SupervisedUserExtensionsDelegateImpl>(
-  //     browser_context);
-  return nullptr;
+  return std::make_unique<SupervisedUserExtensionsDelegateImpl>(
+      browser_context);
 }
 
 std::unique_ptr<DisplayInfoProvider>

@@ -1021,6 +1021,23 @@ static_library("ui") {
       "global_error/global_error_service_factory.h",
       "app_icon_loader.cc",
       "app_icon_loader.h",
+
+      "webui/extension_control_handler.cc",
+      "webui/extension_control_handler.h",
+      "webui/extensions/extensions_hats_handler.cc",
+      "webui/extensions/extensions_hats_handler.h",
+      "webui/extensions/extensions_internals_source.cc",
+      "webui/extensions/extensions_internals_source.h",
+      "webui/extensions/extensions_ui.cc",
+      "webui/extensions/extensions_ui.h",
+      "webui/managed_ui_handler.cc",
+      "webui/managed_ui_handler.h",
+      "webui/page_not_available_for_guest/page_not_available_for_guest_ui.cc",
+      "webui/page_not_available_for_guest/page_not_available_for_guest_ui.h",
+      "webui/plural_string_handler.cc",
+      "webui/plural_string_handler.h",
+      "webui/favicon_source.cc",
+      "webui/favicon_source.h",
     ]
     if (enable_feed_v2) {
       sources += [

@@ -45,8 +45,9 @@ NoStatePrefetchManagerFactory::NoStatePrefetchManagerFactory()
               .WithGuest(ProfileSelection::kOwnInstance)
               .Build()) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   // NoStatePrefetchService has an indirect dependency on the
   // RulesRegistryService through extensions::TabHelper::WebContentsDestroyed.
   DependsOn(extensions::RulesRegistryService::GetFactoryInstance());

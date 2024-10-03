@@ -22,7 +22,6 @@ import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import android.view.Gravity;
 import androidx.activity.BackEventCompat;
 import androidx.annotation.NonNull;
@@ -198,8 +197,9 @@ import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
-
+import android.util.Log;
 import java.util.List;
+import org.chromium.base.ContextUtils;
 
 /**
  * Contains logic for managing the toolbar visual component. This class manages the interactions
@@ -302,7 +302,7 @@ public class ToolbarManager
     private Runnable mMenuStateObserver;
     private UpdateMenuItemHelper mUpdateMenuItemHelper;
     private Runnable mStartSurfaceMenuStateObserver;
-
+    private @Nullable Runnable mShowMyBottomSheet;
     private boolean mShouldUpdateToolbarPrimaryColor = true;
     private int mCurrentThemeColor;
 
@@ -601,8 +601,11 @@ public class ToolbarManager
             @Nullable ObservableSupplier<Integer> overviewColorSupplier,
             @Nullable View baseChromeLayout,
             ObservableSupplier<ReadAloudController> readAloudControllerSupplier,
-            @Nullable DesktopWindowStateProvider desktopWindowStateProvider) {
+            @Nullable DesktopWindowStateProvider desktopWindowStateProvider,
+            @Nullable Runnable showMyBottomSheet
+            ) {
         TraceEvent.begin("ToolbarManager.ToolbarManager");
+        
         mActivity = activity;
         mWindowAndroid = windowAndroid;
         mCompositorViewHolder = compositorViewHolder;
@@ -634,7 +637,7 @@ public class ToolbarManager
         mEphemeralTabCoordinatorSupplier = ephemeralTabCoordinatorSupplier;
         mUserEducationHelper = new UserEducationHelper(mActivity, profileSupplier, mHandler);
         mDesktopWindowStateProvider = desktopWindowStateProvider;
-
+        mShowMyBottomSheet = showMyBottomSheet;
         ToolbarLayout toolbarLayout = mActivity.findViewById(R.id.toolbar);
         NewTabPageDelegate ntpDelegate = createNewTabPageDelegate(toolbarLayout);
         mLocationBarModel =
@@ -658,7 +661,7 @@ public class ToolbarManager
                         });
         mControlContainer = controlContainer;
         mToolbarHairline = mControlContainer.findViewById(R.id.toolbar_hairline);
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             ViewGroup.MarginLayoutParams layoutParamsCC =
                 ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
                 layoutParamsCC.bottomMargin = mToolbarHairline.getHeight();
@@ -756,11 +759,14 @@ public class ToolbarManager
                     if (mUpdateMenuItemHelper == null) return null;
                     return mUpdateMenuItemHelper.getUiState().buttonState;
                 };
-        Runnable onMenuButtonClicked =
-                () -> {
-                    if (mUpdateMenuItemHelper == null) return;
-                    mUpdateMenuItemHelper.onMenuButtonClicked();
-                };
+        Runnable onMenuButtonClicked = mShowMyBottomSheet;
+                // () -> {
+                //     // if (mUpdateMenuItemHelper == null) return;
+                //     if(mShowMyBottomSheet == null) return;
+                //     Log.d("touched","Message from toolbarmanger " + ContextUtils.getApplicationContext().getClass().toString());
+                //     // mUpdateMenuItemHelper.onMenuButtonClicked();
+                //     mShowMyBottomSheet.run();
+                // };
 
         mMenuButtonCoordinator =
                 new MenuButtonCoordinator(
@@ -911,7 +917,9 @@ public class ToolbarManager
                             scrollListener,
                             tabModelSelectorSupplier,
                             new LocationBarEmbedderUiOverrides(),
-                            baseChromeLayout);
+                            baseChromeLayout,
+                            mCompositorViewHolder
+                            );
             toolbarLayout.setLocationBarCoordinator(locationBarCoordinator);
             toolbarLayout.setBrowserControlsVisibilityDelegate(mControlsVisibilityDelegate);
             mLocationBar = locationBarCoordinator;
@@ -1382,7 +1390,6 @@ public class ToolbarManager
     public void setTabSwitcherFullScreenView(ViewGroup containerView) {
         ViewStub toolbarStub =
                 containerView.findViewById(R.id.fullscreen_tab_switcher_toolbar_stub);
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
         if(true){
             // the top tab switcher toolbar is docked at the bottom
             FrameLayout.LayoutParams params =
@@ -1683,7 +1690,7 @@ public class ToolbarManager
 
     private void MoveBottomBarOverTopBar() {
         if (mBottomRoot != null &&
-                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                true) {
         // if(true){
             // move up the container view of the ui
             // below there is the toolbar
@@ -2289,8 +2296,9 @@ public class ToolbarManager
      */
     private int getToolbarExtraYOffset() {
         int toolbarHairlineHeight = mToolbarHairline.getHeight();
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+
             toolbarHairlineHeight = 0;
+            
         final int controlContainerHeight = mControlContainer.getHeight();
 
         // Offset can't be calculated if control container height isn't known yet.
@@ -2698,7 +2706,6 @@ public class ToolbarManager
     private void setControlContainerTopMargin(int margin) {
         final ViewGroup.MarginLayoutParams layoutParams =
                 ((ViewGroup.MarginLayoutParams) mControlContainer.getLayoutParams());
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
         if(true){
             if (layoutParams.bottomMargin == margin) {
                 return;

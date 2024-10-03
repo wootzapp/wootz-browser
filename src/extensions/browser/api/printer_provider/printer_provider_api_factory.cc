@@ -35,7 +35,8 @@ PrinterProviderAPIFactory::PrinterProviderAPIFactory()
     : BrowserContextKeyedServiceFactory(
           "PrinterProviderAPI",
           BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(PrinterProviderInternalAPI::GetFactoryInstance());
   DependsOn(ExtensionRegistryFactory::GetInstance());
 }

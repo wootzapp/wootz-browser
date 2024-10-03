@@ -31,7 +31,8 @@ NetworkingPrivateEventRouterFactory::NetworkingPrivateEventRouterFactory()
     : BrowserContextKeyedServiceFactory(
           "NetworkingPrivateEventRouter",
           BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(NetworkingPrivateDelegateFactory::GetInstance());
 }
 

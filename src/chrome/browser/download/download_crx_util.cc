@@ -103,24 +103,24 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
   return installer;
 }
 
-bool IsExtensionDownload(const DownloadItem& download_item) {
-  if (download_item.GetTargetDisposition() ==
-      DownloadItem::TARGET_DISPOSITION_PROMPT)
-    return false;
+// bool IsExtensionDownload(const DownloadItem& download_item) {
+//   if (download_item.GetTargetDisposition() ==
+//       DownloadItem::TARGET_DISPOSITION_PROMPT)
+//     return false;
 
-  if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
-      extensions::UserScript::IsURLUserScript(download_item.GetURL(),
-                                              download_item.GetMimeType())) {
-    return true;
-  } else {
-    return false;
-  }
-}
+//   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
+//       extensions::UserScript::IsURLUserScript(download_item.GetURL(),
+//                                               download_item.GetMimeType())) {
+//     return true;
+//   } else {
+//     return false;
+//   }
+// }
 
-bool IsTrustedExtensionDownload(Profile* profile, const DownloadItem& item) {
-  return IsExtensionDownload(item) &&
-         OffStoreInstallAllowedByPrefs(profile, item);
-}
+// bool IsTrustedExtensionDownload(Profile* profile, const DownloadItem& item) {
+//   return IsExtensionDownload(item) &&
+//          OffStoreInstallAllowedByPrefs(profile, item);
+// }
 
 std::unique_ptr<base::AutoReset<bool>> OverrideOffstoreInstallAllowedForTesting(
     bool allowed) {

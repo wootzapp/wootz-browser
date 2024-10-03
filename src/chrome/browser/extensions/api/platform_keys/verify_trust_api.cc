@@ -89,7 +89,8 @@ VerifyTrustAPI::GetFactoryInstance() {
 template <>
 void BrowserContextKeyedAPIFactory<
     VerifyTrustAPI>::DeclareFactoryDependencies() {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(ExtensionRegistryFactory::GetInstance());
 }
 

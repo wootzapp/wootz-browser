@@ -46,13 +46,13 @@ public class StaticTabSceneLayer extends SceneLayer {
         }
 
         float x = model.get(LayoutTab.RENDER_X) * LayoutTab.sDpToPx;
+        float y =
+                model.get(LayoutTab.CONTENT_OFFSET)
+                        + model.get(LayoutTab.RENDER_Y) * LayoutTab.sDpToPx;
+        
         // the page content window never moves, it is fixed at the top
-        float y = model.get(LayoutTab.CONTENT_OFFSET)
-        + model.get(LayoutTab.RENDER_Y) * LayoutTab.sDpToPx;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-            // the page content window never moves, it is fixed at the top
-            y = 0;
-        }
+        y = 0;
+
         // Check isActiveLayout to prevent pushing a TAB_ID for a static layer that may already be
         // invalidated by the next layout.
         StaticTabSceneLayerJni.get()

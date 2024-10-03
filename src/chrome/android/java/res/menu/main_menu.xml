@@ -23,11 +23,6 @@ found in the LICENSE file.
                 android:title="@string/accessibility_menu_bookmark"
                 android:titleCondensed="@string/menu_bookmark"
                 android:icon="@drawable/star_outline_24dp"/>
-
-
-              
-
-
               <item android:id="@+id/offline_page_id"
                 android:title="@string/download_page"
                 android:titleCondensed="@string/menu_download"
@@ -42,8 +37,6 @@ found in the LICENSE file.
                 android:icon="@drawable/btn_reload_stop"/>
             </menu>
         </item>
-    
-      
         <item android:id="@+id/update_menu_id"
             android:title="@string/menu_update"
             android:icon="@drawable/menu_update" />

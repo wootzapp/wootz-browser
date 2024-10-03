@@ -17,7 +17,6 @@
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/vector2d_f.h"
-#include "cc/base/features.h"
 
 namespace cc {
 namespace {
@@ -488,10 +487,7 @@ gfx::Vector2dF BrowserControlsOffsetManager::ScrollBy(
   // do not eat scroll offsets if the flag is on, since the content view
   // top offsets are not changed. It is necessary to synchronize the scroll
   // with the offset of the user's movement
-  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom))
-    return pending_delta;
-
-  return pending_delta - applied_delta;
+  return pending_delta;
 }
 
 void BrowserControlsOffsetManager::ScrollEnd() {

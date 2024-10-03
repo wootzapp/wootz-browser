@@ -915,13 +915,13 @@ ChromeWebUIControllerFactory::~ChromeWebUIControllerFactory() = default;
 base::RefCountedMemory* ChromeWebUIControllerFactory::GetFaviconResourceBytes(
     const GURL& page_url,
     ui::ResourceScaleFactor scale_factor) const {
-#if !BUILDFLAG(IS_ANDROID)
+// #if !BUILDFLAG(IS_ANDROID)
   // The extension scheme is handled in GetFaviconForURL.
   if (page_url.SchemeIs(extensions::kExtensionScheme)) {
-    NOTREACHED_IN_MIGRATION();
+    // NOTREACHED_IN_MIGRATION();
     return nullptr;
   }
-#endif
+// #endif
 
   if (!content::HasWebUIScheme(page_url))
     return nullptr;
