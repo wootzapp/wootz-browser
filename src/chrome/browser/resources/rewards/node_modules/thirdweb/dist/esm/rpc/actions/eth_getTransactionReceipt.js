@@ -1,0 +1,29 @@
+import { formatTransactionReceipt, } from "viem";
+/**
+ * Retrieves the transaction receipt for a given transaction hash.
+ * Throws an error if the receipt is not found.
+ * @param request - The EIP1193 request function.
+ * @param params - The parameters for retrieving the transaction receipt.
+ * @returns A promise that resolves to the transaction receipt.
+ * @throws An error if the transaction receipt is not found.
+ * @rpc
+ * @example
+ * ```ts
+ * import { getRpcClient, eth_getTransactionReceipt } from "thirdweb/rpc";
+ * const rpcRequest = getRpcClient({ client, chain });
+ * const transactionReceipt = await eth_getTransactionReceipt(rpcRequest, {
+ *  hash: "0x...",
+ * });
+ * ```
+ */
+export async function eth_getTransactionReceipt(request, params) {
+    const receipt = await request({
+        method: "eth_getTransactionReceipt",
+        params: [params.hash],
+    });
+    if (!receipt) {
+        throw new Error("Transaction receipt not found.");
+    }
+    return formatTransactionReceipt(receipt);
+}
+//# sourceMappingURL=eth_getTransactionReceipt.js.map

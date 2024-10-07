@@ -1,0 +1,1 @@
+{"version":3,"file":"isERC1155.js","sourceRoot":"","sources":["../../../../../src/extensions/erc1155/read/isERC1155.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,iBAAiB,EAAE,MAAM,8DAA8D,CAAC;AAEjG;;;;;;;;;;GAUG;AACH,MAAM,UAAU,SAAS,CAAC,OAA+B;IACvD,OAAO,iBAAiB,CAAC;QACvB,QAAQ,EAAE,OAAO,CAAC,QAAQ;QAC1B,WAAW,EAAE,YAAY;KAC1B,CAAC,CAAC;AACL,CAAC"}

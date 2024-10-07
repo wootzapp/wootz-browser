@@ -1,0 +1,1 @@
+{"version":3,"file":"memoryStore.d.ts","sourceRoot":"","sources":["../../src/memoryStore.ts"],"names":[],"mappings":"AAEA,8BAAsB,WAAW;IAC/B,MAAM,CAAC,GAAG,CAAC,CAAC,GAAG,OAAO,EAAE,GAAG,EAAE,MAAM;IAInC,MAAM,CAAC,GAAG,CAAC,GAAG,EAAE,MAAM,EAAE,KAAK,EAAE,OAAO;IAItC,MAAM,CAAC,MAAM,CAAC,GAAG,EAAE,MAAM;CAG1B"}

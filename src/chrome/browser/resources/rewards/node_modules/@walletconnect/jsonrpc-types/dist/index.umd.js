@@ -1,0 +1,2 @@
+(function(e,n){typeof exports=="object"&&typeof module<"u"?n(exports):typeof define=="function"&&define.amd?define(["exports"],n):(e=typeof globalThis<"u"?globalThis:e||self,n(e["@walletconnect/jsonrpc-types"]={}))})(this,function(e){"use strict";class n{}class t extends n{constructor(i){super()}}class o extends n{constructor(){super()}}class c extends o{constructor(i){super()}}e.IBaseJsonRpcProvider=o,e.IEvents=n,e.IJsonRpcConnection=t,e.IJsonRpcProvider=c,Object.defineProperty(e,"__esModule",{value:!0})});
+//# sourceMappingURL=index.umd.js.map

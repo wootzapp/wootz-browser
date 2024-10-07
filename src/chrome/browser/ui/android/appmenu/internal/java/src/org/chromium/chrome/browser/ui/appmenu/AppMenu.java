@@ -309,7 +309,7 @@ class AppMenu implements OnItemClickListener, OnKeyListener, AppMenuClickHandler
                 visibleDisplayFrame,
                 sizingPadding,
                 footerHeight,
-                headerHeight,Math.abs(mTempLocation[1] - visibleDisplayFrame.bottom));
+                headerHeight,
                 anchorView,
                 groupDividerResourceId,
                 anchorViewOffset);

@@ -1,0 +1,1 @@
+{"version":3,"file":"eth_blockNumber.js","sourceRoot":"","sources":["../../../../src/rpc/actions/eth_blockNumber.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,WAAW,EAAE,MAAM,6BAA6B,CAAC;AAE1D;;;;;;;;;;;GAWG;AACH,MAAM,CAAC,KAAK,UAAU,eAAe,CACnC,OAAyC;IAEzC,MAAM,cAAc,GAAG,MAAM,OAAO,CAAC;QACnC,MAAM,EAAE,iBAAiB;KAC1B,CAAC,CAAC;IACH,OAAO,WAAW,CAAC,cAAc,CAAC,CAAC;AACrC,CAAC"}
