@@ -44,6 +44,19 @@ import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ContextUtils;
+import org.chromium.components.embedder_support.view.ContentView;
+import org.chromium.components.thinwebview.ThinWebView;
+import org.chromium.components.thinwebview.ThinWebViewConstraints;
+import org.chromium.components.thinwebview.ThinWebViewFactory;
+import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.content_public.browser.WebContents;
+import org.chromium.chrome.browser.content.WebContentsFactory;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.base.version_info.VersionInfo;
+import org.chromium.ui.base.IntentRequestTracker;
+import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -60,6 +73,8 @@ import org.chromium.ui.modelutil.ModelListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.widget.Toast;
 import android.widget.BaseAdapter;
+
+import java.beans.Visibility;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -222,10 +237,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         // return dialog;
 
         BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
-        View view = createContentView();
+        View view = createContentView(true);
         dialog.setContentView(view);
 
-        // Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
+        Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
 
         // this code removes the dark scrim behind the menu
         Window window = dialog.getWindow();
@@ -284,7 +299,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     //     });
     // }
 
-    private View createContentView() {
+    private View createContentView(boolean test) {
         // Context context = getContext();
         // View contentView = LayoutInflater.from(context).inflate(R.layout.app_menu_bottom_sheet_layout, null);
         // mGridView = contentView.findViewById(R.id.app_menu_grid);
@@ -363,23 +378,34 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         );
         gridViewWrapper.setLayoutParams(wrapperParams);
         
-        mGridView = new GridView(getContext());
-        mGridView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
-        mGridView.setNumColumns(3); // Adjust as needed
-        mGridAdapter = new GridAdapter(getContext(), mModelList);
-        mGridView.setAdapter(mGridAdapter);
-        mGridView.setOnItemClickListener(this);
-        
-        // Disable GridView scrolling
-        mGridView.setNestedScrollingEnabled(true);
-        
-        // Add GridView to the wrapper
-        gridViewWrapper.addView(mGridView);
-        
-        // Add the wrapper to the scrollView
-        scrollView.addView(gridViewWrapper);
+        // if (!test) {
+        //     mGridView = new GridView(getContext());
+        //     mGridView.setLayoutParams(new ViewGroup.LayoutParams(
+        //             ViewGroup.LayoutParams.MATCH_PARENT,
+        //             ViewGroup.LayoutParams.WRAP_CONTENT));
+        //     mGridView.setNumColumns(3); // Adjust as needed
+        //     mGridAdapter = new GridAdapter(getContext(), mModelList);
+        //     mGridView.setAdapter(mGridAdapter);
+        //     mGridView.setOnItemClickListener(this);
+            
+        //     // Disable GridView scrolling
+        //     mGridView.setNestedScrollingEnabled(true);
+            
+        //     // Add GridView to the wrapper
+        //     gridViewWrapper.addView(mGridView);
+            
+        //     // Add the wrapper to the scrollView
+        //     scrollView.addView(gridViewWrapper);
+        // } else {
+        //     Profile profile = ProfileManager.getLastUsedRegularProfile();
+        //     WebContents webContents = WebContentsFactory.createWebContents(profile, true, true);
+        //     ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
+    
+        //     gridViewWrapper.addView(contentView);
+    
+        //     webContents.getNavigationController().loadUrl(
+        //             new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/src/pages/popup/index.html"));
+        // }
         
         return scrollView;  
 
@@ -420,6 +446,55 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
 // In the code below we are setting the margin respective to parent i think
 
+    private View createWebView() {
+        NestedScrollView scrollView = new NestedScrollView(getContext());
+        scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        
+        // Create a FrameLayout to wrap the GridView
+        FrameLayout viewWrapper = new FrameLayout(getContext());
+        FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        
+        // Set margins for the wrapper (adjust these values as needed)
+        int margin = dpToPx(32); // Convert 16dp to pixels
+        wrapperParams.setMargins(
+            0,
+            -margin, 
+            0, 
+            margin
+        );
+        viewWrapper.setLayoutParams(wrapperParams);
+
+        Profile profile = ProfileManager.getLastUsedRegularProfile();
+        WebContents webContents = WebContentsFactory.createWebContents(profile, true, false);
+        ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
+        webContents.setDelegates(
+            VersionInfo.getProductVersion(),
+            ViewAndroidDelegate.createBasicDelegate(contentView),
+            contentView,
+            mHandler.getWindowAndroid(),
+            WebContents.createDefaultInternalsHolder());
+
+        Log.d(TAG, "contentview " + contentView.toString());
+        // viewWrapper.addView(contentView);
+
+        IntentRequestTracker intentRequestTracker = mHandler.getWindowAndroid().getIntentRequestTracker();
+        ThinWebView thinWebView = ThinWebViewFactory.create(
+            getContext(), new ThinWebViewConstraints(), intentRequestTracker);
+        thinWebView.attachWebContents(webContents, contentView, null);
+
+        webContents.getNavigationController().loadUrl(
+                new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/index.html"));
+        
+        // scrollView.addView(viewWrapper);
+        // return scrollView;
+        // return contentView;
+        return thinWebView.getView();
+    }
+
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
@@ -449,6 +524,15 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             });
         }
         parent.setLayoutParams(layoutParams);
+
+        View gridView = parent.findViewById(R.id.app_menu_grid);
+        gridView.setVisibility(View.GONE);
+
+        LinearLayout webView = (LinearLayout) parent.findViewById(R.id.web_view);
+        webView.setVisibility(View.VISIBLE);
+
+        webView.addView(createWebView());
+
 
         // Set up bottom sheet callback to maintain bottom margin when expanded
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(parent);
