@@ -25,6 +25,15 @@
             android:horizontalSpacing="8dp"
             android:stretchMode="columnWidth"
             android:gravity="center" />
+        
+        <LinearLayout
+            android:id="@+id/web_view"
+            android:layout_width="match_parent"
+            android:layout_height="500dp"
+            android:orientation="vertical"
+            android:layout_gravity="top"
+            android:background="#FF0000"
+            android:visibility="invisible" />
 
         <FrameLayout
             android:id="@+id/app_menu_footer"
