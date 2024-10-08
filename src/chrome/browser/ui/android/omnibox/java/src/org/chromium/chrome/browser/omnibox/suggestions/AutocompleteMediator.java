@@ -18,7 +18,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.Px;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 import org.chromium.base.ActivityState;
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
@@ -1161,8 +1161,7 @@ class AutocompleteMediator
     @Override
     public void onSuggestionDropdownScroll() {
         mSuggestionsListScrolled = true;
-       if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-        // if(!true)
+       if (false) {
             mDelegate.setKeyboardVisibility(false, false);
         }
     }

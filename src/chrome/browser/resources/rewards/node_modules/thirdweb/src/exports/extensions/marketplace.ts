@@ -9,6 +9,7 @@ export { totalListings } from "../../extensions/marketplace/__generated__/IDirec
 export {
   getListing,
   type GetListingParams,
+  isGetListingSupported,
 } from "../../extensions/marketplace/direct-listings/read/getListing.js";
 export {
   getAllListings,
@@ -35,6 +36,7 @@ export {
 export {
   createListing,
   type CreateListingParams,
+  isCreateListingSupported,
 } from "../../extensions/marketplace/direct-listings/write/createListing.js";
 export {
   updateListing,
@@ -42,11 +44,13 @@ export {
 } from "../../extensions/marketplace/direct-listings/write/updateListing.js";
 export {
   cancelListing,
+  isCancelListingSupported,
   type CancelListingParams,
 } from "../../extensions/marketplace/__generated__/IDirectListings/write/cancelListing.js";
 export {
   buyFromListing,
   type BuyFromListingParams,
+  isBuyFromListingSupported,
 } from "../../extensions/marketplace/direct-listings/write/buyFromListing.js";
 export {
   approveBuyerForListing,
@@ -94,6 +98,7 @@ export { totalAuctions } from "../../extensions/marketplace/__generated__/IEngli
 export {
   getAuction,
   type GetAuctionParams,
+  isGetAuctionSupported,
 } from "../../extensions/marketplace/english-auctions/read/getAuction.js";
 export {
   getAllAuctions,
@@ -106,6 +111,7 @@ export {
 export {
   getWinningBid,
   type GetWinningBidParams,
+  isGetWinningBidSupported,
 } from "../../extensions/marketplace/english-auctions/read/getWinningBid.js";
 export {
   isNewWinningBid,
@@ -116,15 +122,18 @@ export {
 export {
   createAuction,
   type CreateAuctionParams,
+  isCreateAuctionSupported,
 } from "../../extensions/marketplace/english-auctions/write/createAuction.js";
 export {
   bidInAuction,
   type BidInAuctionParams,
+  isBidInAuctionSupported,
 } from "../../extensions/marketplace/english-auctions/write/bidInAuction.js";
 export {
-  cancelAuction,
   type CancelAuctionParams,
-} from "../../extensions/marketplace/__generated__/IEnglishAuctions/write/cancelAuction.js";
+  cancelAuction,
+  isCancelAuctionSupported,
+} from "../../extensions/marketplace/english-auctions/write/cancelAuction.js";
 export {
   buyoutAuction,
   type BuyoutAuctionParams,

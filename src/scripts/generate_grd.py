@@ -16,12 +16,16 @@ DEMO_PAGE_DIST_DIR = os.path.join(SRC_DIR, 'chrome', 'browser', 'resources',
                                        'demo_page', 'dist')
 
 WOOTZ_TSX_DIST_DIR = os.path.join(SRC_DIR, 'chrome', 'browser', 'resources',
-                                       'wootz_tsx', 'dist')                                       
+                                       'wootz_tsx', 'dist')            
+
+REWARDS_DIST_DIR = os.path.join(SRC_DIR, 'chrome', 'browser', 'resources',
+                                       'rewards', 'dist')                                       
 
 # Dictionary to map feature name with their directory path.
 FEATURE_DIR_PATH_MAP = {
     'demo_page': DEMO_PAGE_DIST_DIR,
     'wootz_tsx_page': WOOTZ_TSX_DIST_DIR,
+    'rewards_page': REWARDS_DIST_DIR,
 }
 
 FILE_PATH_LISTS = []
@@ -36,6 +40,8 @@ def get_files_lists(module_name, relative_path):
             curr_path = str(path).replace(DEMO_PAGE_DIST_DIR + os.path.sep, '')
         if module_name == 'wootz_tsx_page':
             curr_path = str(path).replace(WOOTZ_TSX_DIST_DIR + os.path.sep, '')
+        if module_name == 'rewards_page':
+            curr_path = str(path).replace(REWARDS_DIST_DIR + os.path.sep, '')
         # Condition to exclude  .grd and .gn files
         if(curr_path.endswith('.grd') or curr_path.endswith('.gn')):
             continue
@@ -112,6 +118,8 @@ def main():
         grd_dir_path = DEMO_PAGE_DIST_DIR
     if args.module_name == 'wootz_tsx_page':
         grd_dir_path = WOOTZ_TSX_DIST_DIR    
+    if args.module_name == 'rewards_page':
+        grd_dir_path = REWARDS_DIST_DIR    
     
     with open(os.path.join(grd_dir_path, args.output + '.grd'), 'w') as grd_file:
         grd_file.write(grd_file_content(args.module_name))

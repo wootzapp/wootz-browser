@@ -104,7 +104,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.text.EmptyTextWatcher;
 import org.chromium.ui.util.ColorUtils;
 import org.chromium.url.GURL;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 import java.util.List;
 
 /** The mediator implements the logic to interact with the surfaces and caller. */
@@ -985,7 +985,6 @@ class StartSurfaceMediator
     }
 
     private void setTopMargin(int topMargin) {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
             topMargin = 0;
         mPropertyModel.set(TOP_MARGIN, topMargin);
     }

@@ -1558,22 +1558,12 @@ Your Google account may have other forms of browsing history like searches and a
       <message name="IDS_TRACKING_PROTECTION_SUMMARY" desc="Tracking Protection preference item summary.">
         Manage third-party cookies and tracking protections
       </message>
-      <message name="IDS_RELAUNCH" desc="Relaunch message">
-      relauch
-      </message>
-      <message name="IDS_UI_RELAUNCH_NOTICE" desc="Summary for relaunch message">
-      UI relauch notice
-      </message>
+
       <!-- IP protection -->
       <message name="IDS_IP_PROTECTION_TITLE" desc="IP Protection preference item title." translateable="false">
         Hide your IP address
       </message>
-      <message name="IDS_MOVE_TOOLBAR_BOTTOM_TITLE" desc="Title of the preference that allows the user to move toolbar on bottom.">
-          Move toolbar to bottom
-      </message>
-      <message name="IDS_DISABLE_TOOLBAR_SWIPE_UP" desc="Summary of the preference that allows the user to disable toolbar swipeup.">
-          Disable toolbar swipe up
-      </message>
+
       <!-- Safety check -->
       <message name="IDS_PREFS_SAFETY_CHECK" desc="Title of the Safety check element in settings, allowing the user to check multiple areas of browser safety. [CHAR_LIMIT=32]">
         Safety check
@@ -3959,6 +3949,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
         Desktop site
       </message>
+      <!-- <message name="IDS_MENU_REQUEST_BACK_TO_ANDROID" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
+        Mobile Site
+      </message> -->
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE_ON" desc="Accessibility description for when Request Desktop Site is enabled.">
         Turn off Request desktop site
       </message>
@@ -4447,6 +4440,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_REFRESH" desc="Content description for the refresh page button.">
         Reload this page
+      </message>
+      <message name="IDS_CONTENT_DESCRIPTION_GRID_ITEM" desc="Content description for ImageView in grid_layout_item.xml">
+        Grid Item
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_STOP_LOADING" desc="Content description for the stop loading page button.">
         Stop page loading

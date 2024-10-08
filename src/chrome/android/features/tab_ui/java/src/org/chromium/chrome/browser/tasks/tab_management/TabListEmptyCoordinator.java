@@ -14,7 +14,6 @@ import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 /**
  * Empty coordinator that is responsible for showing an empty state view in tab switcher when we are
  * in no tab state.
@@ -128,12 +127,9 @@ class TabListEmptyCoordinator {
             FrameLayout.LayoutParams emptyViewParams =
                     (FrameLayout.LayoutParams) mEmptyView.getLayoutParams();
             int toolbarHeightPx = mBrowserControlsStateProvider.getTopControlsHeight();
-            // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-            if(true){
-                emptyViewParams.bottomMargin = toolbarHeightPx;
-            } else {
-                emptyViewParams.topMargin = toolbarHeightPx;
-            }
+            
+            emptyViewParams.bottomMargin = toolbarHeightPx;
+            
             mEmptyView.setLayoutParams(emptyViewParams);
         }
         setEmptyViewVisibility(View.GONE);

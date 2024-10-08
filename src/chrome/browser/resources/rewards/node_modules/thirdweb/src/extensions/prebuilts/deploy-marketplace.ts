@@ -33,10 +33,11 @@ export type MarketplaceContractParams = {
   trustedForwarders?: string[];
 };
 
-export type DeployMarketplaceContractOptions =
-  Prettify<ClientAndChainAndAccount> & {
+export type DeployMarketplaceContractOptions = Prettify<
+  ClientAndChainAndAccount & {
     params: MarketplaceContractParams;
-  };
+  }
+>;
 
 /**
  * TODO not quite ready for public consumption yet
@@ -51,14 +52,13 @@ export async function deployMarketplaceContract(
     client,
     account,
     contractId: "WETH9",
-    constructorParams: [],
   });
   const direct = await getOrDeployInfraForPublishedContract({
     chain,
     client,
     account,
     contractId: "DirectListingsLogic",
-    constructorParams: [WETH.address],
+    constructorParams: { _nativeTokenWrapper: WETH.address },
   });
 
   const english = await getOrDeployInfraForPublishedContract({
@@ -66,7 +66,7 @@ export async function deployMarketplaceContract(
     client,
     account,
     contractId: "EnglishAuctionsLogic",
-    constructorParams: [WETH.address],
+    constructorParams: { _nativeTokenWrapper: WETH.address },
   });
 
   const offers = await getOrDeployInfraForPublishedContract({
@@ -74,7 +74,6 @@ export async function deployMarketplaceContract(
     client,
     account,
     contractId: "OffersLogic",
-    constructorParams: [],
   });
 
   const [directFunctions, englishFunctions, offersFunctions] =
@@ -96,8 +95,8 @@ export async function deployMarketplaceContract(
       client,
       account,
       contractId: "MarketplaceV3",
-      constructorParams: [
-        {
+      constructorParams: {
+        _marketplaceV3Params: {
           extensions: [
             {
               metadata: {
@@ -126,8 +125,8 @@ export async function deployMarketplaceContract(
           ],
           royaltyEngineAddress: getRoyaltyEngineV1ByChainId(chain.id),
           nativeTokenWrapper: WETH.address,
-        },
-      ] as MarketplaceConstructorParams,
+        } as MarketplaceConstructorParams[number],
+      },
     });
 
   const initializeTransaction = await getInitializeTransaction({
