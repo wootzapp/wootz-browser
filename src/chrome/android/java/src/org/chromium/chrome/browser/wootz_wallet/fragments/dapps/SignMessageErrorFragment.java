@@ -17,7 +17,7 @@ import android.widget.TextView;
 import org.chromium.base.Log;
 import org.chromium.wootz_wallet.mojom.SignMessageError;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 
 /**
@@ -37,10 +37,10 @@ public class SignMessageErrorFragment extends BaseDAppsBottomSheetDialogFragment
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }

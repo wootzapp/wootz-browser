@@ -20,6 +20,7 @@ import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.base.ContextUtils;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 /**
  * The Java component of what is basically a CC Layer that manages drawing the Tab Strip (which is
  * composed of {@link StripLayoutTab}s) to the screen.  This object keeps the layers up to date and
@@ -94,7 +95,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
             int topControlsHeight) {
         if (mNativePtr == 0) return;
         boolean visible = yOffset > -layoutHelper.getHeight();
-        if (true) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(ContextUtils.getApplicationContext())) {
                 // the list of open tabs is moved down, above the top
                 // toolbar which is also below.

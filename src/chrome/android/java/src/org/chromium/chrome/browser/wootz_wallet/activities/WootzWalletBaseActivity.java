@@ -6,6 +6,7 @@
 package org.chromium.chrome.browser.wootz_wallet.activities;
 
 import android.view.MenuItem;
+import org.chromium.base.Log;
 
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.wootz_wallet.mojom.AssetRatioService;
@@ -51,6 +52,9 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         if (mKeyringService == null) {
             return;
         }
+        // Log.e(DEBUG, "InitWootzWalletService ANKITIVANANKIT");
+
+
         mKeyringService.notifyUserInteraction();
     }
 
@@ -90,8 +94,8 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         InitTxService();
         InitEthTxManagerProxy();
         InitSolanaTxManagerProxy();
-        InitAssetRatioService();
-        InitWootzWalletP3A();
+        // InitAssetRatioService();
+        // InitWootzWalletP3A();
         InitWootzWalletService();
     }
 
@@ -99,7 +103,7 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         if (mTxService != null) {
             return;
         }
-
+        
         mTxService = WootzWalletServiceFactory.getInstance().getTxService(this);
         mTxServiceObserver = new TxServiceObserverImpl(this);
         mTxService.addObserver(mTxServiceObserver);
@@ -168,7 +172,7 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         if (mWootzWalletService != null) {
             return;
         }
-
+        Log.e("WOOTZAPP", "InitWootzWalletService ANKITIVANANKIT");
         mWootzWalletService = WootzWalletServiceFactory.getInstance().getWootzWalletService(this);
     }
 
@@ -227,8 +231,8 @@ public abstract class WootzWalletBaseActivity extends AsyncInitializationActivit
         InitTxService();
         InitEthTxManagerProxy();
         InitSolanaTxManagerProxy();
-        InitAssetRatioService();
-        InitWootzWalletP3A();
+        // InitAssetRatioService();
+        // InitWootzWalletP3A();
         InitWootzWalletService();
     }
 

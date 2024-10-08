@@ -8,7 +8,7 @@
 
 #include <limits>
 #include <utility>
-
+#include "cc/base/features.h"
 #include "base/android/build_info.h"
 #include "base/android/callback_android.h"
 #include "base/android/jni_string.h"
@@ -854,7 +854,7 @@ void RenderWidgetHostViewAndroid::OnRenderFrameMetadataChangedBeforeActivation(
   // factor. Thus, |top_content_offset| in CSS pixels is also in DIPs.
   float top_content_offset =
       metadata.top_controls_height * metadata.top_controls_shown_ratio;
-  if (true)
+  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom))
     top_content_offset = 0;
   float top_shown_pix = top_content_offset;
 

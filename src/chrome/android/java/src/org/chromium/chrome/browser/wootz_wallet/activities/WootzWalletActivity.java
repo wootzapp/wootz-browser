@@ -18,9 +18,11 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
+import java.util.Arrays;
+
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.KeyringModel;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
@@ -98,14 +100,20 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mRestartRestoreAction = intent.getBooleanExtra(RESTART_WALLET_ACTIVITY_RESTORE, false);
             mBackupWallet = intent.getBooleanExtra(SHOW_WALLET_ACTIVITY_BACKUP, false);
         }
-        try {
-            mWalletModel = WootzActivity.getWootzActivity().getWalletModel();
+        
+        Log.e("WOTZAPP ANKITIVAN", "getChromeActivity ANKITIVAN");
+   
+        // try {
+        mWalletModel = ChromeActivity.mActivity.get().getWalletModel();
 
-            // Update network model to use default network.
+
+        Log.e("WOOTZAPP ANKITIVAN", "getChromeActivity1 ANKITIVAN1 "+ mWalletModel);
+              
+            // // Update network model to use default network.
             getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
-            Log.e(TAG, "triggerLayoutInflation", e);
-        }
+        // } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+        //     Log.e(TAG, "triggerLayoutInflation", e);
+        // }
 
         mCryptoOnboardingLayout = findViewById(R.id.wootz_onboarding_layout);
         mCryptoWalletOnboardingViewPager = findViewById(R.id.wootz_wallet_onboarding_viewpager);
@@ -142,6 +150,10 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
 
     @Override
     public void finishNativeInitialization() {
+
+        String accountName = "ETHEREUM JANGID";
+String privateKey = "61dbc3bdcf01a305a6da072e063677ef6d653ce43862edf29578ef03eda2e295";
+
         super.finishNativeInitialization();
         mWalletOnboardingPagerAdapter =
                 new WalletOnboardingPagerAdapter(
@@ -154,6 +166,35 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
             mCryptoWalletOnboardingViewPager.setCurrentItem(0);
             addRemoveSecureFlag(true);
         } else if (mKeyringService != null) {
+            mKeyringService.createWallet("asdfasdf", recoveryPhrase -> {});
+            mKeyringService.unlock("asdfasdf",result ->{});
+            mKeyringService.getAllAccounts(accounts ->
+                        Arrays.stream(accounts.accounts).forEach(acc ->
+                            mKeyringService.removeAccount(acc.accountId,
+                        "asdfasdf", succ -> {})
+                        )
+            );
+            mKeyringService.addAccount(60,0,"123", accountInfo ->
+                        mKeyringService.setSelectedAccount(accountInfo.accountId, success -> {})) ;
+
+            mKeyringService.importAccount(accountName, privateKey, 60, accountInfo -> {
+                if (accountInfo != null) {
+                    Log.d("WootzWalletActivity", "Successfully imported account: " + accountInfo.address + " JANGID");
+                    
+                    // Set as selected account
+                    mKeyringService.setSelectedAccount(accountInfo.accountId, success -> {
+                        if (success) {
+                            Log.d("WootzWalletActivity", "Set imported account as selected JANGID");
+                        } else {
+                            Log.e("WootzWalletActivity", "Failed to set imported account as selected JANGID");
+                        }
+                    });
+                } else {
+                    Log.e("WootzWalletActivity", "Failed to import account JANGID");
+                }
+            });
+
+
             mKeyringService.isLocked(
                     isLocked -> {
                         if (isLocked) {
@@ -164,7 +205,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
                         } else if (mBackupWallet) {
                             showBackupSequence();
                         } else {
-                            showMainLayout();
+                            showMainLayout(false);
                         }
                     });
         }
@@ -186,11 +227,11 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
         };
     }
 
-    private void showMainLayout() {
+    private void showMainLayout(final boolean forceNewTab) {
         addRemoveSecureFlag(false);
 
         mCryptoOnboardingLayout.setVisibility(View.GONE);
-        WalletUtils.openWebWallet();
+        WalletUtils.openWebWallet(forceNewTab);
     }
 
     private void addRemoveSecureFlag(final boolean add) {
@@ -227,17 +268,18 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     }
 
     @Override
-    public void showWallet() {
+    public void showWallet(final boolean forceNewTab) {
         if (mIsFromDapps) {
             finish();
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
-                activity.showWalletPanel(true);
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
+                getNetworkModel().updateMode(NetworkModel.Mode.WALLET_MODE);
+                // activity.showWalletPanel(true);
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "onboardingCompleted", e);
             }
         } else {
-            showMainLayout();
+            showMainLayout(forceNewTab);
         }
     }
 
@@ -275,10 +317,13 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     }
 
     public NetworkModel getNetworkModel() {
+        Log.e("WOOTZAPP ANKIANKITIVAN", "NetworkModel: " + mWalletModel.getNetworkModel());
+
         return mWalletModel.getNetworkModel();
     }
 
     public KeyringModel getKeyringModel() {
+        Log.e("WOOTZAPP ANKIANKITIVAN", "getKeyringModel: " + mWalletModel.getKeyringModel());
         return mWalletModel.getKeyringModel();
     }
 }

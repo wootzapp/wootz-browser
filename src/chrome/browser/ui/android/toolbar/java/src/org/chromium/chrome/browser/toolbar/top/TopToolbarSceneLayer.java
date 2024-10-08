@@ -14,6 +14,7 @@ import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar.Drawing
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.ResourceManager;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /** A SceneLayer to render the top toolbar. This is the "view" piece of the top toolbar overlay. */
 @JNINamespace("android")
@@ -39,30 +40,30 @@ class TopToolbarSceneLayer extends SceneOverlayLayer {
     /** Push all information about the texture to native at once. */
     private void pushProperties(PropertyModel model) {
         if (mResourceManagerSupplier.get() == null) return;
-        // float offsetY = model.get(TopToolbarOverlayProperties.CONTENT_OFFSET);
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-        //     // fix the offset of the fake top controls, used only for animations
-        //     offsetY = model.get(TopToolbarOverlayProperties.VIEWPORT_HEIGHT) -
-        //               model.get(TopToolbarOverlayProperties.TOOLBAR_HEIGHT) -
-        //               offsetY;
-        // }
+        float offsetY = model.get(TopToolbarOverlayProperties.CONTENT_OFFSET);
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // fix the offset of the fake top controls, used only for animations
+            offsetY = model.get(TopToolbarOverlayProperties.VIEWPORT_HEIGHT) -
+                      model.get(TopToolbarOverlayProperties.TOOLBAR_HEIGHT) -
+                      offsetY;
+        }
         DrawingInfo progressInfo = model.get(TopToolbarOverlayProperties.PROGRESS_BAR_INFO);
         if (progressInfo == null) return;
 
-        // TopToolbarSceneLayerJni.get()
-        //         .updateProgressBar(
-        //                 mNativePtr,
-        //                 TopToolbarSceneLayer.this,
-        //                 progressInfo.progressBarRect.left,
-        //                 progressInfo.progressBarRect.top,
-        //                 progressInfo.progressBarRect.width(),
-        //                 progressInfo.progressBarRect.height(),
-        //                 progressInfo.progressBarColor,
-        //                 progressInfo.progressBarBackgroundRect.left,
-        //                 progressInfo.progressBarBackgroundRect.top,
-        //                 progressInfo.progressBarBackgroundRect.width(),
-        //                 progressInfo.progressBarBackgroundRect.height(),
-        //                 progressInfo.progressBarBackgroundColor);
+        TopToolbarSceneLayerJni.get()
+                .updateProgressBar(
+                        mNativePtr,
+                        TopToolbarSceneLayer.this,
+                        progressInfo.progressBarRect.left,
+                        progressInfo.progressBarRect.top,
+                        progressInfo.progressBarRect.width(),
+                        progressInfo.progressBarRect.height(),
+                        progressInfo.progressBarColor,
+                        progressInfo.progressBarBackgroundRect.left,
+                        progressInfo.progressBarBackgroundRect.top,
+                        progressInfo.progressBarBackgroundRect.width(),
+                        progressInfo.progressBarBackgroundRect.height(),
+                        progressInfo.progressBarBackgroundColor);
     }
 
     @Override

@@ -15,7 +15,7 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/android/resources/nine_patch_resource.h"
 #include "ui/android/resources/resource_manager.h"
-
+#include "cc/base/features.h"
 namespace android {
 
 // static
@@ -113,9 +113,14 @@ void ToolbarLayer::PushResource(int toolbar_resource_id,
     debug_layer_->RemoveFromParent();
 
   // Position the toolbar at the bottom of the space available for top controls.
-  layer_->SetPosition(
-      gfx::PointF(x_offset, content_offset + layer_->bounds().height()));
-
+  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom)) {
+    layer_->SetPosition(
+        gfx::PointF(x_offset, content_offset + layer_->bounds().height()));
+  } else {
+    layer_->SetPosition(
+        gfx::PointF(x_offset, content_offset - layer_->bounds().height()));
+  }
+ 
 }
 
 int ToolbarLayer::GetIndexOfLayer(scoped_refptr<cc::slim::Layer> layer) {

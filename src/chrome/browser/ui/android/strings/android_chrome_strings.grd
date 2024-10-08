@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- android_chrome_strings.grd contains strings for WootzApp for Android.
+<!-- android_chrome_strings.grd contains strings for Chrome for Android.
 
 FAQ:
   - How do I add, change, or remove a string?
@@ -9,7 +9,7 @@ FAQ:
       Yes, indeed. Just add your string before the branch point and
       make the description good.
   - Tell me more, please?
-      Ok: http://www.WootzApp.org/developers/design-documents/ui-localization
+      Ok: http://www.chrome.org/developers/design-documents/ui-localization
 
 CHAR_LIMIT guidelines:
   Certain strings need character limits to prevent a long translation from breaking the UI.
@@ -217,6 +217,150 @@ CHAR_LIMIT guidelines:
         Advanced
       </message>
 
+
+
+      <message name="IDS_WOOTZ_WALLET_ACCOUNT_SELECTOR_ACTIVITY_TITLE" desc="Account Selector activity toolbar title">
+        Change Connected Account
+      </message>
+
+
+      <message name="IDS_WOOTZ_CANCEL" desc="Set default browser modal button text">
+        Cancel
+      </message>
+
+      <message name="IDS_FRAGMENT_ADD_TOKEN_TITLE" desc="Add token dialog title.">
+        Add suggested token
+      </message>
+
+      <message name="IDS_FRAGMENT_ADD_TOKEN_DESCRIPTION" desc="Add token dialog description.">
+        Would you like to import this token?
+      </message>
+
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_NEW_ACCOUNT" desc="Site Permissions new account button.">
+        New account
+      </message>
+
+      <message name="IDS_FRAGMENT_SIGN_MESSAGE_DESCRIPTION" desc="Sign message dialog description.">
+        Your signature is being requested
+      </message>
+      
+      <message name="IDS_CLOSE_TEXT" desc="Declare geo success modal action text">
+        Close
+      </message>
+
+      <message name="IDS_WOOTZ_WALLET_TITLE" desc="Declare geo success modal action text">
+        Wootz Wallet
+      </message>
+      
+
+      <message name="IDS_WOOTZ_ETHEREUM_NETWORKS" desc="Text Ethereum networks label.">
+        Ethereum networks
+      </message>
+      <message name="IDS_WOOTZ_FILECOIN_NETWORKS" desc="Text Filecoin networks label.">
+        Filecoin networks
+      </message>
+      <message name="IDS_WOOTZ_SOLANA_NETWORKS" desc="Text Solana networks label.">
+        Solana networks
+      </message>
+      <message name="IDS_WOOTZ_BITCOIN_NETWORKS" desc="Text Bitcoin networks label.">
+        Bitcoin networks
+      </message>
+
+      <message name="IDS_SETTINGS_EXIT" desc="Text for Settings exit.">
+        Settings exit
+      </message>
+
+      <message name="IDS_TIME_LONG_MINS" desc="Use an unabbreviated word for minute(s). [ICU Syntax]">
+        {MINUTES, plural, =1 {# minute} other {# minutes}}
+      </message>
+
+      <message name="IDS_SETTINGS_ENABLE_NFT_DISCOVERY_LABEL" desc="The label for enabling NFT discovery">
+        Enable NFT discovery
+      </message>
+
+      <message name="IDS_WOOTZ_WALLET_SHOW_WEB3_NOTIFICATIONS" desc="Wootz wallet show web3 notifications preference title text">
+        Display Web3 notifications
+      </message>
+
+      <message name="IDS_SKIP" desc="Text for skip button in onboarding">
+        Skip
+      </message>
+
+      <message name="IDS_MARKET_PRICE_TEXT" desc="Market price text title as heading of an asset">
+        Market Price
+      </message>
+
+      <message name="IDS_STATUS" desc="Brave VPN settings section text">
+        Status
+      </message>
+      
+      <message name="IDS_SETTINGS_ETHEREUM_TITLE" desc="Title for Ethereum section in site settings" translateable="false">
+        Ethereum
+      </message>
+
+      <message name="IDS_SETTINGS_SOLANA_TITLE" desc="Title for Solana section in site settings" translateable="false">
+        Solana
+      </message>
+
+      <message name="IDS_DATE_TEXT" desc="Date text as heading">
+        Date
+      </message>
+
+      <message name="IDS_DAPPS_MENU_LOCK_WALLET" desc="Menu item Lock Wallet on DApps Panel">
+        Lock Wallet
+      </message>
+
+      <message name="IDS_DAPPS_MENU_CONNECTED_SITES" desc="Menu item Connected site on DApps Panel">
+        Connected sites
+      </message>
+      <message name="IDS_DAPPS_MENU_SETTINGS" desc="Menu item settings on DApps Panel">
+        Settings
+      </message>
+
+      <message name="IDS_DAPPS_MENU_VIEW_ON_BLOCK_EXPLORER" desc="Menu item view on block explorer on DApps Panel">
+        View on block explorer
+      </message>
+  
+      <message name="IDS_TEXT_HAS_BEEN_COPIED" desc="Copy to clipboard toast text.">
+        Your text has been copied to the clipboard.
+      </message>
+      
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_CONNECT" desc="Site Permissions connect account button title.">
+        Connect
+      </message>
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_SWITCH" desc="Site Permissions switch account button title.">
+        Switch
+      </message>
+
+      <message name="IDS_FRAGMENT_CONNECT_ACCOUNT_DISCONNECT" desc="Site Permissions disconnect account button title.">
+        Disconnect
+      </message>
+
+      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID" desc="Wootz wallet networks pref add network field name">
+        The id of new chain
+      </message> -->
+      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_ERROR" desc="Wootz wallet networks pref add network field name error msg">
+        Invalid format, the chain ID is a positive number
+      </message>
+      <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_HINT" desc="Wootz wallet networks pref add network field hint">
+        A positive decimal number
+      </message> -->
+
+      <!-- <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME" desc="Wootz wallet networks pref add network field name">
+        The name of new chain
+      </message>
+      <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME_HINT" desc="Wootz wallet networks pref add network field hint">
+        Enter chain name
+      </message> -->
+
+
+      <!-- <message name="IDS__WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME" desc="Brave wallet networks pref add network field name">
+        Chain's currency name
+      </message>
+      <message name="IDS__WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME_HINT" desc="Brave wallet networks pref add network field hint">
+        Enter currency name
+      </message> -->
+
       <!-- TODO(b/326574743): Revisit string and mark it as translateable.-->
       <message name="IDS_ACCOUNT_ADVANCED_HEADER" desc="Heading of a section with settings related to the user's Google Account and data. [CHAR_LIMIT=32]" translateable="false">
         Control your data &amp; account
@@ -353,6 +497,1036 @@ CHAR_LIMIT guidelines:
       <message name="IDS_ALLOW_WOOTZAPP_SIGNIN_SUMMARY" desc="Summary for a checkbox in Google services that controls sign-in and sync prompts.">
         Shows prompts to sign in to WootzApp
       </message>
+      <!-- <message name="IDS_ONBOARDING_SE_TEXT" desc="Onboarding SE title text">
+        Some search engines protect your privacy better than others when you search the web.
+      </message> -->
+      <!-- <message name="IDS_NOT_NOW" desc="Set default browser modal button text">
+        Not now
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_APP_LINKS_LABEL" desc="App Links setting label">
+        Allow app links to open in apps outside of Wootz
+      </message> -->
+      <message name="IDS_SETTINGS_DEFAULT_ETHEREUM_WALLET_LABEL" desc="Default Ethereum wallet label">
+        Default Ethereum wallet
+      </message>
+      <message name="IDS_SETTINGS_DEFAULT_SOLANA_WALLET_LABEL" desc="Default Solana wallet label">
+        Default Solana wallet
+      </message>
+      <message name="IDS_SETTINGS_DEFAULT_WALLET_OPTION_1" desc="None as default wallet">
+        None
+      </message>
+      <message name="IDS_SETTINGS_DEFAULT_WALLET_OPTION_2" desc="Wootz Wallet as default wallet">
+        Wootz Wallet
+      </message>
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_LABEL" desc="WebRTC policy setting label">
+        WebRTC IP handling policy
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT" desc="Select value">
+        Default
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_AND_PRIVATE_INTERFACES" desc="Select value">
+        Default public and private interfaces
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DEFAULT_PUBLIC_INTERFACE_ONLY" desc="Select value">
+        Default public interface only
+      </message> -->
+      <!-- <message name="IDS_SETTINGS_WEBRTC_POLICY_DISABLE_NON_PROXIED_UDP" desc="Select value">
+        Disable non-proxied UDP
+      </message> -->
+      <!-- <message name="IDS_SEND_WITH_CUSTODIAN" desc="Text for send with Custodian">
+        Send with <ph name="CUSTODIAN">%1$s</ph>
+      </message> -->
+    <message name="IDS_SEND" desc="Wootz Wallet send button text">
+      Send
+    </message>
+    <message name="IDS_SWAP" desc="Wootz Wallet swap button text">
+      Swap
+    </message>
+    <message name="IDS_DEFI_SECURE_STORAGE" desc="Wootz Wallet onboarding text">
+      Browser native.\nSelf-custody.\nAnd multi-chain.
+    </message>
+    <message name="IDS_DEFI_SECURE_STORAGE_TEXT" desc="Wootz Wallet onboarding text">
+      Take control of your crypto and NFTs. Wootz Wallet supports Ethereum, EVM chains, Solana, Filecoin, and more.
+    </message>
+    <message name="IDS_SETUP_CRYPTO" desc="Wootz Wallet onboarding new wallet title">
+      Need a new wallet?
+    </message>
+    <message name="IDS_SETUP_CRYPTO_DESCRIPTION" desc="Wootz Wallet onboarding new wallet description">
+      Get started with Wootz Wallet within minutes
+    </message>
+    <message name="IDS_BACKUP_YOUR_WALLET" desc="Wootz Wallet onboarding text">
+      Backup your wallet now!
+    </message>
+    <message name="IDS_BACKUP_YOUR_WALLET_TEXT" desc="Wootz Wallet onboarding text">
+      In the next step you’ll see a 12-word recovery phrase, which you can use to recover your primary crypto accounts. Save it someplace safe. Your recovery phrase is the only way to regain account access in case of forgotten password, lost or stolen device, or you want to switch wallets.
+    </message>
+    <message name="IDS_CONTINUE_TEXT" desc="Wootz Wallet onboarding text">
+      Continue
+    </message>
+    <message name="IDS_MESSAGE" desc="Wootz wallet message title text">
+      Message
+    </message>
+    <message name="IDS_BACKUP_WALLET_CHECKBOX_TEXT" desc="Wootz Wallet onboarding text">
+      I understand that if I lose my recovery phrase, I won’t be able to access my crypto wallet.
+    </message>
+    <message name="IDS_WALLET_ACCEPT_ITEMS" desc="Wootz Wallet creation subtitle">
+      We require that you acknowledge the items below
+    </message>
+    <message name="IDS_CHOOSE_BLOCKCHAINS" desc="Wootz Wallet supported networks subtitle">
+      Choose which blockchains to use in your wallet.
+    </message>
+    <message name="IDS_UNDERSTAND_SELF_CUSTODY" desc="Wootz Wallet self-custody explaination text">
+      I understand this is a self-custody wallet, and that I alone am responsible for any associated funds, assets, or accounts, and for taking appropriate action to secure, protect and backup my wallet. I understand that Wootz cannot access my wallet or reverse transactions on my behalf, and that my recovery phrase is the ONLY way to regain access in the event of a lost password, stolen device, or similar circumstance.
+    </message>
+    <message name="IDS_ACCEPT_TERMS_OF_USE" desc="Wootz Wallet terms of use text">
+      I have read and agree to the <ph name="CLICK_START">%1$s</ph>Terms of Use<ph name="CLICK_END">%2$s</ph>.
+    </message>
+    <message name="IDS_YOUR_RECOVERY_PHRASE" desc="Wootz Wallet onboarding text">
+      Your recovery phrase
+    </message>
+    <message name="IDS_YOUR_RECOVERY_PHRASE_TEXT" desc="Wootz Wallet onboarding text">
+      Write down or copy these words in the exact order shown below, and save them somewhere safe. Your recovery phrase is the only way to regain account access in case of forgotten password, lost or stolen device, or you want to switch wallets.
+    </message>
+    <message name="IDS_YOUR_RECOVERY_PHRASE_WARNING_TEXT" desc="Wootz Wallet onboarding text">
+      WARNING: Never share your recovery phrase. Anyone with this phrase can take your assets forever.
+    </message>
+    <message name="IDS_RECOVERY_PHRASE_CHECKBOX_TEXT" desc="Wootz Wallet onboarding text">
+      I have backed up my phrase somewhere safe.
+    </message>
+    <message name="IDS_WALLET_COPY" desc="Wootz Wallet onboarding bottom menu text">
+      Copy
+    </message>
+    <message name="IDS_ENTER_PASSWORD" desc="Wootz wallet password hint text">
+      Enter Password
+    </message>
+    <message name="IDS_RETYPE_PASSWORD" desc="Wootz wallet password hint text">
+      Verify password
+    </message>
+    <message name="IDS_RETYPE_PASSWORD_ERROR" desc="Wootz Wallet password error text">
+      Verified password did not match
+    </message>
+    <message name="IDS_CREATING_WALLET_ONBOARDING_TEXT" desc="Text displayed along with a spinner during Wootz Wallet creation or restoring.">
+      Creating your wallet…
+    </message>
+    <message name="IDS_CREATING_WALLET_SUBTITLE_TEXT" desc="Text displayed along with a spinner during Wootz Wallet creation or restoring.">
+      It may take a few seconds…
+    </message>
+    <message name="IDS_NEW_ACCOUNT_PREFIX" desc="Wootz Wallet new account default name prefix">
+      <ph name="ACCOUNT_NAME">%1$s<ex>Ethereum</ex></ph> Account <ph name="ACCOUNT_NUMBER">%2$s<ex>2</ex></ph>
+    </message>
+    <message name="IDS_ADD_ACCOUNT" desc="Wootz Wallet account dialog button text">
+      Add account
+    </message>
+    <message name="IDS_UPDATE_ACCOUNT" desc="Wootz Wallet account dialog button text">
+      Update account
+    </message>
+    <message name="IDS_RECOVERY_PHRASE_ITEM_TEXT" desc="Wootz Wallet onboarding text">
+      <ph name="NUMBER">%1$s</ph>. <ph name="RECOVERY_PHRASE">%2$s</ph>
+    </message>
+    <message name="IDS_ENABLE_FINGERPRINT_UNLOCK" desc="Wootz Wallet onboarding text">
+      Enable fingerprint unlock?
+    </message>
+    <message name="IDS_ENABLE_FINGERPRINT_TEXT" desc="Wootz Wallet onboarding text">
+      Enable biometrics to quickly unlock your wallet without entering your password.
+    </message>
+    <message name="IDS_FINGERPRINT_UNLOCK" desc="Wootz Wallet fingerprint unlock">
+      Fingerprint unlock
+    </message>
+    <message name="IDS_USE_FINGERPRINT_TEXT" desc="Wootz Wallet fingerprint unlock">
+      Use biometrics to quickly unlock your wallet without entering your password.
+    </message>
+        <message name="IDS_WALLET_EDIT_GAS_TITLE" desc="Wootz wallet edit gas dialog title">
+      Edit gas
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_TITLE" desc="Wootz wallet max priority fee dialog title">
+      Max Priority Fee
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_MSG" desc="Wootz wallet msg that appears on max priority fee dialog">
+      While not a guarantee, miners will likely prioritize your transaction if you pay a higher fee.
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_LOW" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Low
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_OPTIMAL" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Optimal
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_HIGH" desc="Wootz wallet msg that appears on max priority fee dialog">
+      High
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_FEE_CUSTOM" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Custom
+    </message>
+    <message name="IDS_WALLET_MAXIMUM_FEE" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Maximum fee: ~$<ph name="FIAT_VALUE">%1$s<ex>140.20</ex></ph> (<ph name="ASSET_VALUE">%2$s<ex>0.000025</ex></ph> ETH)
+    </message>
+    <message name="IDS_WALLET_CURRENT_BASE_FEE" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Current base fee: <ph name="ASSET_VALUE">%1$s<ex>150</ex></ph> Gwei
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_GAS_AMOUNT_LIMIT" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Gas amount limit
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_PER_GAS_TIP_LIMIT" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Per-gas tip limit (Gwei)
+    </message>
+    <message name="IDS_WALLET_MAX_PRIORITY_PER_GAS_PRICE_LIMIT" desc="Wootz wallet msg that appears on max priority fee dialog">
+      Per-gas price limit (Gwei)
+    </message>
+    <message name="IDS_WALLET_FAILED_TO_IMPORT_ACCOUNT" desc="Wootz wallet msg that appears when we couldn't import an account">
+      Failed to import account, please try again.
+    </message>
+    <message name="IDS_WALLET_ADD_CUSTOM_ASSET_DECIMALS" desc="Add custom asset dialog Decimals of precision field">
+      Decimals of precision
+    </message>
+        <message name="IDS_REJECT" desc="Wootz crypto wallet button reject">
+      Reject
+    </message>
+    <message name="IDS_APPROVE" desc="Wootz crypto wallet button approve">
+      Approve
+    </message>
+    <message name="IDS_GAS_FEE" desc="Wootz crypto wallet gas fee information">
+      Gas Fee
+    </message>
+    <message name="IDS_TOTAL" desc="Wootz crypto wallet total amount for a transaction">
+      Total
+    </message>
+    <message name="IDS_AMOUNT_PLUS_GAS" desc="Wootz crypto wallet total amount plus gas cost for a transaction">
+      Amount + Gas
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CONFIRM_TRANSACTION_AMOUNT_FEE" desc="Confirm transaction panel total fee label">
+      Amount + fee
+    </message>
+    <message name="IDS_TRANSACTION" desc="Wootz crypto wallet transaction title">
+      Transaction
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS" desc="Wootz crypto wallet transaction setting to change nonce">
+      Advanced Settings
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NONCE_LABEL" desc="Wootz crypto wallet nonce label">
+      Nonce
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS_NONCE_HINT" desc="Wootz crypto wallet advance setting custom nonce hint">
+      Enter custom nonce value
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADVANCED_SETTINGS_SAVE" desc="Wootz crypto wallet advance setting save/set nonce value action button">
+      Save
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_PROPOGATION_WARNING" desc="Trnsaction warning regarding low gas or invalid nonce etc.">
+      Transaction may not be propagated to the network if custom nonce value is non-sequential or has other errors.
+    </message>
+    <message name="IDS_TRANSACTION_DETAILS" desc="Wootz crypto wallet transaction details section">
+      Details
+    </message>
+    <!-- <message name="IDS_APPS" desc="Wootz crypto wallet section Apps">
+      Apps
+    </message> -->
+    <message name="IDS_WOOTZ_WALLET_FROM_TO" desc="From address -> to address" translateable="false">
+      <ph name="FROM_NAME">%1$s<ex>Account1</ex></ph>\n <ph name="FROM_ADDRESS">%2$s<ex>0xabcd...</ex></ph> <ph name="SEPARATOR">%3$s<ex>-></ex></ph>\n<ph name="TO">%4$s<ex>0xabcd...</ex></ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_AMOUNT_ASSET" desc="Amount Asset" translateable="false">
+      <ph name="AMOUNT">%1$s<ex>0.0001</ex></ph> <ph name="ASSET">%2$s<ex>ETH</ex></ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_AMOUNT_FIAT" desc="$amount_fiat" translateable="false">
+      $<ph name="AMOUNT">%1$s<ex>3.08</ex></ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_GAS_FEE_AMOUNT" desc="Gas fee ETH" translateable="false">
+      <ph name="AMOUNT">%1$s<ex>0.0000015</ex></ph> <ph name="CHAIN_ASSET">%2$s<ex>ETH</ex></ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TOTAL_AMOUNT" desc="amount asset + amount gas fee" translateable="false">
+      <ph name="AMOUNT">%1$s<ex>0.0015</ex></ph> <ph name="ASSET">%2$s<ex>ETH</ex></ph> + <ph name="GAS_FEE">%3$s<ex>0.00000015</ex></ph> <ph name="CHAIN_ASSET">%4$s<ex>ETH</ex></ph>
+    </message>
+    <message name="IDS_GAS_PRICE" desc="Wootz crypto wallet gas limit edit box">
+      Gas Price (Gwei)
+    </message>
+    <message name="IDS_GAS_LIMIT" desc="Wootz crypto wallet gas limit edit box">
+      Gas Limit
+    </message>
+    <!-- <message name="IDS_DISABLE_SHARING_HUB" desc="Menu item for disabling sharing hub.">
+      Disable Sharing Hub
+    </message> -->
+    <message name="IDS_EDIT" desc="Wootz wallet accounts text">
+      Edit
+    </message>
+    <message name="IDS_UPDATE" desc="Wootz wallet accounts text">
+      Update
+    </message>
+    <message name="IDS_ACCOUNT_UPDATE_FAILED" desc="Wootz Wallet account update error text">
+      Account update failed.
+    </message>
+    <message name="IDS_ACCOUNT_NAME_EMPTY_ERROR" desc="Wootz Wallet empty account error text">
+      Account name can't be empty.
+    </message>
+    <message name="IDS_INCORRECT_PASSWORD_ERROR" desc="Wootz Wallet incorrect password error text">
+      Incorrect password
+    </message>
+    <message name="IDS_CHOOSE_A_FILE" desc="Wootz wallet accounts text">
+      Choose a file
+    </message>
+    <message name="IDS_ACTIVATE_ERC20" desc="A button to activate an ERC20 token">
+      Activate <ph name="TOKEN">%1$s<ex>BAT</ex></ph>
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE" desc="Wootz wallet function type">
+      FUNCTION TYPE: <ph name="FTYPE">%1$s<ex>ERC20Transfer</ex></ph>
+    </message>
+    <message name="IDS_WALLET_DETAILS_NO_DATA" desc="Wootz wallet no data to show">
+      No data
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_OTHER" desc="Wootz wallet function type other">
+      Other
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC20TRANSFER" desc="Wootz wallet function type ERC20Transfer" translateable="false">
+      ERC20 Transfer
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC721TRANSFER" desc="Wootz wallet function type ERC721Transfer" translateable="false">
+      ERC721 Transfer
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_ERC20APPROVE" desc="Wootz wallet function type ERC20Approve" translateable="false">
+      ERC20 Approve
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_SYSTEM_TRANSFER" desc="Wootz wallet function type SOLANA_SYSTEM_TRANSFER" translateable="false">
+      Solana System Transfer
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SPL_TOKEN_TRANSFER" desc="Wootz wallet function type SPL_TOKEN_TRANSFER" translateable="false">
+      SPL Token Transfer
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_SPL_TOKEN_TRANSFER_WITH_ASSOCIATED_TOKEN_ACCOUNT_CREATION" desc="Wootz wallet function type SOLANA_SPL_TOKEN_TRANSFER_WITH_ASSOCIATED_TOKEN_ACCOUNT_CREATION" translateable="false">
+      Solana SPL Token Transfer with Associated Token Account Creation
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_DAPP_SIGN_AND_SEND" desc="Wootz wallet function type SOLANA_DAPP_SIGN_AND_SEND_TRANSACTION" translateable="false">
+      Solana Dapp Sign And Send Transaction
+    </message>
+    <message name="IDS_WALLET_DETAILS_FUNCTION_TYPE_SOLANA_DAPP_SIGN" desc="Title for solana dapp sign transaction function type">
+      Solana Dapp Sign Transaction
+    </message>
+    <message name="IDS_WALLET_TX_INFO_SENT" desc="Wootz wallet sent assets tx history">
+      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> sent <ph name="WOOTZ_VALUE">%2$s<ex>0.0444</ex></ph> <ph name="ASSET">%3$s<ex>ETH</ex></ph> ($<ph name="FIAT_VALUE">%4$s<ex>10.00</ex></ph>) - <ph name="DATE">%5$s<ex>2021-11-12 08:38pm</ex></ph>
+    </message>
+    <message name="IDS_WALLET_TX_INFO_SENT_ERC721" desc="Wootz wallet sent erc721 assets tx history">
+      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> sent <ph name="ASSET">%2$s<ex>CK</ex></ph> #<ph name="ASSET_ID">%3$s<ex>1</ex></ph> - <ph name="DATE">%4$s<ex>2021-11-12 08:38pm</ex></ph>
+    </message>
+    <message name="IDS_WALLET_TX_INFO_APPROVED" desc="Wootz wallet approved assets tx history">
+      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> approved <ph name="ASSET">%2$s<ex>BAT</ex></ph> - <ph name="DATE">%3$s<ex>2021-11-12 08:38pm</ex></ph>
+    </message>
+    <message name="IDS_WALLET_TX_INFO_APPROVED_UNLIMITED" desc="Wootz wallet approved unlimited assets tx history">
+      Approved Unlimited <ph name="ASSET">%1$s<ex>ETH</ex></ph> - <ph name="PROXY">%2$s<ex>0x Exchange Proxy</ex></ph>
+    </message>
+    <message name="IDS_WALLET_TX_INFO_SWAP" desc="Wootz wallet swap assets tx history">
+      <ph name="ACCOUNT_NAME">%1$s<ex>Account1</ex></ph> swap - <ph name="DATE">%2$s<ex>2021-11-12 08:38pm</ex></ph>
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_UNAPPROVED" desc="Wootz wallet tx status is unapproved">
+      Unapproved
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_APPROVED" desc="Wootz wallet tx status is approved">
+      Approved
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_REJECTED" desc="Wootz wallet tx status is rejected">
+      Rejected
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_SUBMITTED" desc="Wootz wallet tx status is submitted">
+      Submitted
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_CONFIRMED" desc="Wootz wallet tx status is confirmed">
+      Confirmed
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_SIGNED" desc="Wootz wallet tx status is signed">
+      Signed
+    </message>
+    <message name="IDS_WALLET_TX_STATUS_ERROR" desc="Wootz wallet tx status is error">
+      Error
+    </message>
+        <message name="IDS_WOOTZ_WALLET_NETWORKS_TITLE" desc="Wootz wallet networks pref title text">
+      Networks
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NETWORKS_SUMMARY" desc="Wootz wallet networks pref summary text">
+      Wallet networks customization
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK" desc="Wootz wallet networks pref add network button text">
+      Add network
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID" desc="Wootz wallet networks pref add network field name">
+      The id of new chain
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_ERROR" desc="Wootz wallet networks pref add network field name error msg">
+      Invalid format, the chain ID is a positive number
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_ID_HINT" desc="Wootz wallet networks pref add network field hint">
+      A positive decimal number
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME" desc="Wootz wallet networks pref add network field name">
+      The name of new chain
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_NAME_HINT" desc="Wootz wallet networks pref add network field hint">
+      Enter chain name
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_EMPTY_ERROR" desc="Wootz wallet networks pref add network field name error msg">
+      The field cannot be empty
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME" desc="Wootz wallet networks pref add network field name">
+      Chain's currency name
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_NAME_HINT" desc="Wootz wallet networks pref add network field hint">
+      Enter currency name
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_SYMBOL" desc="Wootz wallet networks pref add network field name">
+      Chain's currency symbol
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_SYMBOL_HINT" desc="Wootz wallet networks pref add network field hint">
+      Enter currency symbol
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_DECIMALS" desc="Wootz wallet networks pref add network field name">
+      Chain's currency decimals
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_DECIMALS_ERROR" desc="Wootz wallet networks pref add network field error">
+      Invalid format, the currency decimals is a positive number
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_CHAIN_CURRENCY_DECIMALS_HINT" desc="Wootz wallet networks pref add network field hint">
+      Enter currency decimals
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_RPC_URLS" desc="Wootz wallet networks pref add network field name" translateable="false">
+      RPC URL
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_ICON_URLS" desc="Wootz wallet networks pref add network field name">
+      Icon URL
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_BLOCK_EXPLORER_URLS" desc="Wootz wallet networks pref add network field name">
+      Block explorer URL
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_URLS_HINT" desc="Wootz wallet networks pref add network field hint">
+      Enter URL
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_URLS_ERROR" desc="Wootz wallet networks pref add network field error">
+      Invalid address
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_ADD" desc="Wootz wallet networks pref add network add button">
+      Add
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_SET_AS_ACTIVE" desc="Wootz wallet networks pref add network set as active message">
+      Set as active
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADD_NETWORK_SUBMIT" desc="Wootz wallet networks pref add network submit button">
+      Submit
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SELECT_NETWORK_TITLE" desc="Wootz wallet network selection title">
+      Select Network
+    </message>
+    <!-- <message name="IDS_ACCESSIBILITY_NEW_TAB_PAGE" desc="Accessibility text to read aloud when the user focuses the new tab view.">
+      New tab
+    </message>
+    <message name="IDS_ACCESSIBILITY_TOOLBAR_BTN_WOOTZ_WALLET" desc="Content description for the button that allows an access to Wootz Wallet.">
+      Access Wootz Wallet
+    </message> -->
+    <message name="IDS_DAPP_WALLET_PANEL_CONNECTIVITY_STATUS" desc="Wootz wallet Dapp wallet connectivity status">
+      Connect
+    </message>
+    <message name="IDS_DAPP_WALLET_PANEL_DISCONNECT_STATUS" desc="Wootz wallet Dapp wallet disconnect status">
+      Disconnected
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SITE_PERMISSIONS_TRUST" desc="Site Permissions panel trust account for connected site">
+      Trust
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SITE_PERMISSIONS_REVOKE" desc="Site Permissions panel revoke account for connected site">
+      Revoke
+    </message>
+    <message name="IDS_DAPP_WALLET_PANEL_CONNECTIVITY_STATUS_CONNECTED" desc="Wootz wallet Dapp wallet connectivity status">
+      Connected
+    </message>
+    <message name="IDS_ACCESSIBILITY_WALLET_DAPP_PANEL_ACCOUNT" desc="Content description for account image on Wootz wallet Dapp wallet panel">
+      User account
+    </message>
+    <message name="IDS_ACCESSIBILITY_WALLET_DAPP_PANEL_ACCOUNT_ANCHOR" desc="Content description for anchor account image on Wootz wallet Dapp wallet panel">
+      Switch account
+    </message>
+    <message name="IDS_ACCESSIBILITY_WALLET_DAPP_PANEL_MENU" desc="Content description for menu options on Wootz wallet Dapp wallet panel">
+      Menu
+    </message>
+    <message name="IDS_ACCESSIBILITY_WALLET_DAPP_PANEL_EXPAND" desc="Content description for expand panel action on Wootz wallet Dapp wallet panel">
+      Expand
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_MESSAGE_POSITIVE_BUTTON_ACTION" desc="Wootz wallet Dapp sign farment positive action text">
+      Sign
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_IN_MESSAGE_POSITIVE_BUTTON_ACTION" desc="Wootz wallet Dapp sign in farment positive action text">
+      Sign in
+    </message>
+    <message name="IDS_PERMISSIONS_CONNECT_WOOTZ_WALLET_TITLE" desc="Title text for a request to connect a wallet.">
+      Connect With Wootz Wallet
+    </message>
+    <message name="IDS_PERMISSIONS_CONNECT_WOOTZ_WALLET_SUB_TITLE" desc="Sub title text for a request to connect a wallet.">
+      Select account(s)
+    </message>
+    <message name="IDS_PERMISSIONS_CONNECT_WOOTZ_WALLET_WARNING_TITLE" desc="Title text for a request to connect a wallet for a warning section.">
+      Only connect with sites you trust.
+    </message>
+    <message name="IDS_PERMISSIONS_CONNECT_WOOTZ_WALLET_CONNECT_BUTTON_TEXT" desc="Connect button text for Wootz wallet permission dialog.">
+      Connect
+    </message>
+    <message name="IDS_PERMISSIONS_CONNECT_WOOTZ_WALLET_BACK_BUTTON_TEXT" desc="Back button text for Wootz wallet permission dialog.">
+      Back
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_CHANGE_NETWORK_TITLE" desc="Change network panel title">
+      Allow this site to switch the network?
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_CHANGE_NETWORK_DESCRIPTION" desc="Change network panel description">
+      This will switch the network to a previously added network.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_CHANGE_NETWORK_BUTTON" desc="Change network panel button">
+      Switch network
+    </message>
+    <message name="IDS_WOOTZ_WALLET_DAPPS_CONNECTION_REQUEST_MSG" desc="A message shown to user when a DApp site request to connect with Wootz wallet">
+    This page wants to interact with Wootz Wallet
+    </message>
+    <message name="IDS_WALLET_FEATURED" desc="Header for featured networks">
+      Featured
+    </message>
+    <message name="IDS_WALLET_POPULAR" desc="Header for popular networks">
+      Popular
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NETWORK_SELECTION_ERROR" desc="Network activity toolbar title">
+      Unable to set network to <ph name="NETWORK_NAME">'%1$s'</ph>
+    </message>
+    <message name="IDS_ADDRESS_HAS_BEEN_COPIED" desc="Copy to clipboard toast text.">
+        Public address has been copied to the clipboard.
+    </message>
+     <message name="IDS_WOOTZ_WALLET_QUEUE_REJECT_ALL" desc="Confirm Transaction Queue Reject All Transactions">
+      Reject <ph name="TRANSACTION_LENGTH"><ex>4</ex>%1$s</ph> transactions
+    </message>
+    <message name="IDS_WALLET_SITE_PERMISSIONS" desc="Site Permissions dialog title.">
+      Site permissions
+    </message>
+    <message name="IDS_WALLET_ACCOUNTS_CONNECTED" desc="Site Permissions number of accounts connected.">
+      <ph name="VALUE">%1$s<ex>2</ex></ph> accounts connected
+    </message>
+        <message name="IDS_WOOTZ_WALLET_PROVIDE_ENCRYPTION_KEY_TITLE" desc="Provide encryption key title message dialog description.">
+      A DApp is requesting your public encryption key
+    </message>
+    <message name="IDS_WOOTZ_WALLET_PROVIDE_ENCRYPTION_KEY_DESCRIPTION" desc="Provide Encryption Key Panel Details">
+      <ph name="URL">%1$s</ph> is requesting your wallet's public encryption key. If you consent to providing this key, the site will be able to compose encrypted messages to you.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_PROVIDE_ENCRYPTION_KEY_BUTTON" desc="Provide encryption key panel provide button">
+      Provide
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_ADD_NETWORK_NAME" desc="Add network panel name label">
+      Network name
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_ADD_NETWORK_URL" desc="Add network panel url label">
+      Network URL
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CHAIN_ID" desc="Title for wallet chain id label">
+      Chain ID
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_ADD_NETWORK_CURRENCY_SYMBOL" desc="Add network panel symbol label">
+      Currency symbol
+    </message>
+    <message name="IDS_NETWORK_TEXT" desc="Network text as heading">
+      Network
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_ADD_NETWORK_DESCRIPTION" desc="Add network panel description">
+      This will allow this network to be used within Wootz Wallet. <ph name="CLICK_START">%1$s</ph>Learn more<ph name="CLICK_END">%2$s</ph>.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_ADD_NETWORK_HEADING" desc="Add network panel title">
+      Allow this site to add a network?
+    </message>
+    <message name="IDS_WOOTZ_WALLET_READ_ENCRYPTED_MESSAGE_TITLE" desc="Read encrypted message panel title">
+      This DApp would like to read this message to complete your request.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_READ_ENCRYPTED_MESSAGE_DECRYPT_BUTTON" desc="Read encrypted message panel decrypt button">
+      Decrypt message
+    </message>
+    <message name="IDS_WOOTZ_WALLET_READ_ENCRYPTED_MESSAGE_BUTTON" desc="Read encrypted message panel allow button">
+      Allow
+    </message>
+        <message name="IDS_WOOTZ_WALLET_CREATE_ACCOUNT_ETHEREUM_DESCRIPTION" desc="Add account modal create account Ethereum description">
+      Supports EVM compatible assets on the Ethereum blockchain (ERC-20, ERC-721, ERC-1551, ERC-1155)
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CREATE_ACCOUNT_SOLANA_DESCRIPTION" desc="Add account modal create account Solana description">
+      Supports SPL compatible assets on the Solana blockchain
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CREATE_ACCOUNT_FILECOIN_DESCRIPTION" desc="Add account modal create account Filecoin description">
+      Store FIL asset
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CREATE_ACCOUNT_DESCRIPTION" desc="Create Account Tab Description">
+      You don’t yet have a <ph name="ACCOUNT_TYPE"><ex>Solana</ex>%1$s</ph> account. Create one now?
+    </message>
+    <message name="IDS_WOOTZ_ACTION_YES" desc="Action text for general positive actions">
+      Yes
+    </message>
+    <message name="IDS_WOOTZ_ACTION_NO" desc="Action text for general negative actions">
+      No
+    </message>
+    <message name="IDS_WALLET_ETH_NAME" desc="Name of ETH cointype" translateable="false">
+      Ethereum
+    </message>
+    <message name="IDS_WALLET_SOL_NAME" desc="Name of SOL cointype" translateable="false">
+      Solana
+    </message>
+    <message name="IDS_WALLET_FIL_NAME" desc="Name of FIL cointype" translateable="false">
+      Filecoin
+    </message>
+    <message name="IDS_WALLET_FILECOIN_MAINNET" desc="Name of Filecoin Mainnet" translateable="false">
+      Filecoin Mainnet
+    </message>
+    <message name="IDS_WALLET_FILECOIN_TESTNET" desc="Name of Filecoin Testnet" translateable="false">
+      Filecoin Testnet
+    </message>
+        <message name="IDS_WALLET_NON_ASCII_CHARACTERS" desc="A warning about Non-ASCII characters detected in a message">
+      NON-ASCII characters detected!
+    </message>
+    <message name="IDS_WALLET_NON_ASCII_CHARACTERS_ORIGINAL" desc="A title to view an original message if Unicode characters detected">
+      View original message
+    </message>
+    <message name="IDS_WALLET_NON_ASCII_CHARACTERS_ASCII" desc="A title to view an ASCII message if Unicode characters detected">
+      View message in ASCII encoding
+    </message>
+    <message name="IDS_WALLET_SIGN_MESSAGE_DETAILS_MESSAGE_SECTION" desc="A message section template of sign message details" translateable="false">
+      <ph name="BEGIN_BOLD">&lt;b&gt;</ph>Message:<ph name="END_BOLD">&lt;/b&gt;</ph><ph name="BREAK">&lt;br&gt;</ph><ph name="ESCAPED_MESSAGE_TEXT">%1$s</ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ORIGIN" desc="Title for hyperlink Origin Label">
+      Origin
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ADDRESS" desc="Title for account Address Label">
+      Address
+    </message>
+    <message name="IDS_WOOTZ_WALLET_STATEMENT" desc="Title for Statement Label">
+      Statement
+    </message>
+    <message name="IDS_WOOTZ_WALLET_URI" desc="Title for URI Label">
+      URI
+    </message>
+    <message name="IDS_WOOTZ_WALLET_VERSION" desc="Title for Version Label">
+      Version
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NONCE" desc="Title for Nonce Label">
+      Nonce
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ISSUED_AT" desc="Title for Issued at Label">
+      Issued at
+    </message>
+    <message name="IDS_WOOTZ_WALLET_EXPIRATION_TIME" desc="Title for Expiration time Label">
+      Expiration time
+    </message>
+    <message name="IDS_WALLET_SIGN_MESSAGE_DETAILS_DOMAIN_SECTION" desc="A domain section template of sign message details" translateable="false">
+      <ph name="BEGIN_BOLD">&lt;b&gt;</ph>Domain:<ph name="END_BOLD">&lt;/b&gt;</ph><ph name="BREAK">&lt;br&gt;</ph><ph name="ESCAPED_DOMAIN_TEXT">%1$s</ph><ph name="BREAK">&lt;br&gt;</ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SECURITY_RISK_DETECTED" desc="Sign in with Wootz Wallet Error Security risk">
+      Security risk detected
+    </message>
+    <!-- <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TITLE" desc="wallet generation disabled error title">
+      Wootz Rewards not available
+    </message> -->
+    <!-- <message name="IDS_WALLET_GENERATION_DISABLED_ERROR_TEXT" desc="wallet generation disabled error text">
+      New signups for Wootz Rewards are currently disabled in your region. However, you can always try again later. <ph name="LEARN_MORE">%1$s</ph>
+    </message> -->
+    <message name="IDS_WOOTZ_WALLET_NETWORK_FILTER_PRIMARY" desc="Network filter title for primary networks">
+      Primary Networks
+    </message>
+     <message name="IDS_SETTINGS_ENABLE_NFT_DISCOVERY_DESC" desc="The description for enabling NFT discovery">
+      Automatically add NFTs you own to the Wallet using third party APIs. <ph name="BEGIN_LINK_1">&lt;LINK_1&gt;</ph>Learn more.<ph name="END_LINK_1">&lt;/LINK_1&gt;</ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_ADDRESS_LOOKUP_TABLE_ACCOUNT" desc="Label for Solana Address Lookup Table Account section">
+      Address Lookup Table Account:
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_ADDRESS_LOOKUP_TABLE_INDEX" desc="Label for Solana Address Lookup Table Index section">
+      Address Lookup Table Index:
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SELECT_ALL" desc="Action title for select all button">
+      Select all
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_IN_WITH_WOOTZ_WALLET" desc="Sign in with Wootz Wallet Title">
+      Sign in with Wootz Wallet
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_IN_WITH_WOOTZ_WALLET_MESSAGE" desc="Sign in with Wootz Wallet Message">
+      You are signing into <ph name="ORIGIN">%1$s<ex>login.xyz</ex></ph>. Wootz wallet will share your wallet address with <ph name="ORIGIN">%1$s<ex>login.xyz</ex></ph>.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SEE_DETAILS" desc="See details button title">
+      See details
+    </message>
+    <message name="IDS_RESOURCES" desc="Label for resources action button to view url etc.">
+      Resources
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NOT_BEFORE" desc="Sign in with Wootz Wallet Not before Label">
+      Not before
+    </message>
+    <message name="IDS_WOOTZ_WALLET_REQUEST_ID" desc="Sign in with Wootz Wallet Request ID label">
+      Request ID
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NETWORK_FILTER_SECONDARY" desc="Network filter title for secondary networks">
+      Secondary Networks
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NETWORK_FILTER_TEST" desc="Network filter title for test networks">
+      Test Networks
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALLOW_SPEND_TRANSACTION_FEE" desc="Allow spend panel transaction fee label">
+      Transaction fee
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_MAX_RETRIES" desc="Name of Solana instruction 'programID' param">
+      Max Retries:
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_PREFLIGHT_COMMITMENT" desc="Name of Solana instruction 'programID' param">
+      Preflight Commitment:
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_SKIP_PREFLIGHT" desc="Name of Solana instruction 'programID' param">
+      Skip Preflight:
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CONFIRM_TRANSACTION_ACCOUNT_CREATION_FEE" desc="Confirm transaction panel account creation fee warning">
+          The associated token account does not exist yet. A small amount of SOL will be spent to create and fund it. <ph name="CLICK_START">%1$s</ph>Learn more<ph name="CLICK_END">%2$s</ph>
+    </message>
+    <message name="IDS_BACKUP_WALLET_PASSWORD" desc="Wootz Wallet prompt to enter a password">
+      Enter your Wootz Wallet password
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_WARNING" desc="Sign panel warning message">
+      Note that Wootz can't verify what will happen if you sign. A signature could authorize nearly any operation in your account or on your behalf, including (but not limited to) giving total control of your account and crypto assets to the site making the request. Only sign if you're sure you want to take this action, and trust the requesting site.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SIGN_WARNING_TITLE" desc="Sign panel risk title">
+      Sign at your own risk
+    </message>
+    <message name="IDS_WOOTZ_WALLET_NEXT" desc="Text for next action">
+      Next
+    </message>
+    <message name="IDS_WOOTZ_WALLET_QUEUE_OF" desc="Confirm transaction queue of">
+      <ph name="CURRENT"><ex>1</ex>%1$d</ph> of <ph name="SIZE"><ex>3</ex>%2$d</ph>
+    </message>
+    <message name="IDS_WOOTZ_WALLET_APPROVE_TRANSACTION" desc="Title message when dApp transaction approval is requested">
+      Approve transaction
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_SYSTEM_PROGRAM" desc="Name of Solana System program">
+      System Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_FINGERPRINT_UNLOCK_TITLE" desc="Title for Fingerprint unlock onboarding screen">
+      Unlock Wootz Wallet with biometric authentication
+    </message>
+    <message name="IDS_WOOTZ_WALLET_FINGERPRINT_UNLOCK_CONTENT" desc="Content for Fingerprint unlock onboarding screen">
+      Would you like to use biometric authentication to unlock your Wootz Wallet?
+    </message>
+    <message name="IDS_WOOTZ_WALLET_USE_FINGERPRINT_UNLOCK" desc="Text of Fingerprint unlock onboarding button">
+      Use Fingerprint Unlock
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SKIP" desc="Text to skip something">
+      Skip this for now
+    </message>
+    <message name="IDS_WOOTZ_WALLET_GO_TO_PORTFOLIO" desc="Text to navigate to portfolio section">
+      Go to my portfolio
+    </message>
+    <message name="IDS_WOOTZ_WALLET_ALL_SET" desc="Text to communicate the Wallet is correctly set">
+      You’re all set!
+    </message>
+    <message name="IDS_WOOTZ_WALLET_READY_TO_USE" desc="Text to communicate the Wallet is ready to use">
+      Your Wootz Wallet is ready to use
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_CONFIG_PROGRAM" desc="Name of Solana Config program">
+      Config Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_STAKE_PROGRAM" desc="Name of Solana Stake program">
+      Stake Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_VOTE_PROGRAM" desc="Name of Solana Vote program">
+      Vote Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_BP_FLOADER" desc="Name of Solana BPF loader">
+      BPF Loader
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_ED25519_PROGRAM" desc="Name of Solana Ed25519 program">
+      Ed25519 Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_TOKEN_PROGRAM" desc="Name of Solana token program">
+      Token Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SOLANA_SECP256K1_PROGRAM" desc="Name of Solana Secp256k1 program">
+      Secp256k1 Program
+    </message>
+    <message name="IDS_WOOTZ_WALLET_DATA_TEXT" desc="Data title text">
+      Data
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_PROGAM_ID" desc="Program id title text for transactions">
+      Program ID
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_CREATE_ACCOUNT" desc="Transaction subtype of create account">
+     Create account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_ASSIGN" desc="Transaction subtype of assign">
+      Assign
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_TRANSFER" desc="Transaction subtype of transfer">
+      Transfer
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_CREATE_ACCOUNT_WITH_SEED" desc="Transaction subtype of create account with seed">
+      Create account with seed
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_ADVANCE_NONCE_ACCOUNT" desc="Transaction subtype of advance nonce account">
+      Advance nonce account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_WITHDRAW_NONCE_ACCOUNT" desc="Transaction subtype of withdraw nonce account">
+      Withdraw nonce account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_NONCE_ACCOUNT" desc="Transaction subtype of initialize nonce account">
+      Initialize nonce account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_AUTHORIZE_NONCE_ACCOUNT" desc="Transaction subtype of authorize nonce account">
+      Authorize nonce account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_ALLOCATE" desc="Transaction subtype of allocate">
+      Allocate
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_ALLOCATE_WITH_SEED" desc="Transaction subtype of allocate with seed">
+      Allocate with seed
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_ASSIGN_WITH_SEED" desc="Transaction subtype of assign with seed">
+      Assign with seed
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_TRANSFER_WITH_SEED" desc="Transaction subtype of transfer with seed">
+      Transfer with seed
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_UPGRADE_NONCE_ACCOUNT" desc="Transaction subtype of upgrade nonce account">
+      Upgrade nonce account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_MINT" desc="Transaction subtype of initialize mint">
+      Initialize mint
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_ACCOUNT" desc="Transaction subtype of initialize account">
+      Initialize account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_MULTISIG" desc="Transaction subtype of initialize multisig">
+      Initialize multisig
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_APPROVE" desc="Transaction subtype of approve">
+      Approve
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_REVOKE" desc="Transaction subtype of revoke">
+      Revoke
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_SET_AUTHORITY" desc="Transaction subtype of set authority">
+      Set authority
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_MINT_TO" desc="Transaction subtype of mint to">
+      Mint to
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_BURN" desc="Transaction subtype of burn">
+      Burn
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_CLOSE_ACCOUNT" desc="Transaction subtype of close account">
+      Close account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_FREEZE_ACCOUNT" desc="Transaction subtype of freeze account">
+      Freeze account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_THAW_ACCOUNT" desc="Transaction subtype of thaw account">
+      Thaw account
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_TRANSFER_CHECKED" desc="Transaction subtype of transfer checked">
+      Transfer checked
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_APPROVE_CHECKED" desc="Transaction subtype of approve checked">
+      Approve checked
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_MINT_TO_CHECKED" desc="Transaction subtype of mint to checked">
+      Mint to checked
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_BURN_CHECKED" desc="Transaction subtype of burn checked">
+      Burn checked
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_ACCOUNT2" desc="Transaction subtype of initialize account2">
+      Initialize account 2
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_SYNC_NATIVE" desc="Transaction subtype of sync native">
+      Sync native
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_ACCOUNT3" desc="Transaction subtype of initialize account3">
+      Initialize account 3
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_MULTISIG2" desc="Transaction subtype of initialize multisig2">
+      Initialize multisig 2
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TX_INITIALIZE_MINT2" desc="Transaction subtype of initialize mint2">
+      Initialize mint 2
+    </message>
+    <message name="IDS_WOOTZ_WALLET_UNKNOWN" desc="Transaction subtype of Unknown">
+      Unknown
+    </message>
+    <!-- <message name="IDS_MENU_WOOTZ_WALLET" desc="Wootz Wallet menu item text">
+      Wallet
+    </message> -->
+    <message name="IDS_RESTORE_CRYPTO_TEXT" desc="Wootz Wallet onboarding text">
+      Enter your recovery phrase to restore your Wootz Wallet crypto account.
+    </message>
+    <message name="IDS_RESTORE_CRYPTO_ACCOUNT" desc="Wootz Wallet onboarding text">
+      Restore crypto account
+    </message>
+    <message name="IDS_SHOW_RECOVERY_PHRASE" desc="Wootz Wallet onboarding text">
+      Show recovery phrase
+    </message>
+    <message name="IDS_ENTER_RECOVERY_PHRASE" desc="Wootz Wallet onboarding text">
+      Enter your recovery phrase
+    </message>
+    <message name="IDS_ACCESSIBILITY_RESTORE_WALLET_COPY_IMAGE" desc="Wootz Wallet onboarding past image accessibility text">
+      Paste
+    </message>
+    <message name="IDS_RESTORE_WALLET_NEW_PASSWORD_PHRASE" desc="Wootz Wallet onboarding past image accessibility text">
+      New Password
+    </message>
+    <message name="IDS_RESTORE_LEGACY_WALLET_RECOVERY_PHRASE" desc="Wootz Wallet onboarding past image accessibility text">
+      Import from legacy Wootz crypto wallets?
+    </message>
+    <message name="IDS_VERIFY_RECOVERY_PHRASE" desc="Wootz Wallet onboarding text">
+      Verify recovery phrase
+    </message>
+    <message name="IDS_VERIFY_RECOVERY_PHRASE_TEXT" desc="Wootz Wallet onboarding text">
+      Select the words in your recovery phrase in their correct order.
+    </message>
+    <message name="IDS_VERIFY" desc="Wootz Wallet onboarding text">
+      Verify
+    </message>
+    <message name="IDS_RESTORE" desc="Wootz Wallet restore text">
+      Restore
+    </message>
+    <message name="IDS_ALREADY_HAVE_A_WALLET" desc="Wootz Wallet onboarding restore title">
+      Already have a wallet?
+    </message>
+    <message name="IDS_BEFORE_WE_BEGIN" desc="Wootz Wallet term of use screen title">
+      Before we begin
+    </message>
+    <message name="IDS_SUPPORTED_NETWORKS" desc="Wootz Wallet supported networks screen title">
+      Supported networks
+    </message>
+    <message name="IDS_ADD_NETWORKS" desc="Wootz Wallet add networks text">
+      You can add networks anytime in Settings.
+    </message>
+    <message name="IDS_SEARCH_NETWORKS" desc="Wootz Wallet search networks text">
+      Search networks
+    </message>
+    <message name="IDS_SHOW_TESTNETS" desc="Wootz Wallet show testnets button">
+      Show testnets
+    </message>
+    <message name="IDS_CONTINUE_WITH_NETWORKS" desc="Continue with selected networks">
+      Continue with <ph name="NUMBER">%1$s</ph> networks
+    </message>
+    <message name="IDS_CREATE_PASSWORD" desc="Wootz Wallet password creation description">
+      Create a password
+    </message>
+    <message name="IDS_CREATE_PASSWORD_SUBTITLE" desc="Wootz Wallet password creation screen subtitle">
+      You'll use this password to access your wallet.
+    </message>
+    <message name="IDS_WALLET_PASSWORD" desc="Wallet password creation screen title">
+      Enter new password
+    </message>
+    <message name="IDS_WALLET_RETYPE_PASSWORD" desc="Wallet password creation screen subtitle">
+      Re-enter password
+    </message>
+    <message name="IDS_WALLET_PASSWORD_MINIMUM_LENGTH" desc="Wallet password minimum lenght">
+      Password must be at least 8 characters.
+    </message>
+    <message name="IDS_WALLET_PASSWORD_DOES_NOT_MATCH" desc="Wallet password not matching error">
+      Password doesn’t match.
+    </message>
+    <message name="IDS_WALLET_PASSWORD_STRONG" desc="Wallet password lenght strong strength">
+      Strong
+    </message>
+    <message name="IDS_WALLET_PASSWORD_WEAK" desc="Wallet password length weak strength">
+      Weak
+    </message>
+    <message name="IDS_WALLET_PASSWORD_MEDIUM" desc="Wallet password length medium strength">
+      Medium
+    </message>
+    <message name="IDS_WALLET_PASSWORD_MATCH" desc="Wallet password match message">
+      Match!
+    </message>
+    <message name="IDS_ALREADY_HAVE_A_WALLET_DESCRIPTION" desc="Wootz Wallet onboarding restore description">
+      Import your existing wallet
+    </message>
+    <message name="IDS_UNLOCK" desc="Wootz Wallet onboarding text">
+      Unlock
+    </message>
+    <message name="IDS_PASSWORD" desc="Wootz Wallet onboarding text">
+      Password
+    </message>
+    <message name="IDS_ENTER_YOUR_PASSWORD" desc="Wootz Wallet onboarding password hint">
+      Enter your password
+    </message>
+    <message name="IDS_ACCESSIBILITY_BIOMETRIC_UNLOCK" desc="Wootz Wallet onboarding biometric image accessibility text">
+      Biometric unlock
+    </message>
+    <message name="IDS_UNLOCK_WALLET_TITLE" desc="Wootz Wallet onboarding text">
+      Unlock Wallet
+    </message>
+    <message name="IDS_UNLOCK_WALLET_SUBTITLE" desc="Wootz Wallet onboarding subtitle">
+      Enter password to unlock wallet
+    </message>
+    <message name="IDS_PASSWORD_TEXT" desc="Wootz Wallet onboarding text">
+      Passwords must be at least 8 characters.
+    </message>
+    <!-- <message name="IDS_WOOTZ_SAFE_BROWSING_NO_PROTECTION_SUMMARY" desc="Summary for Safe Browsing no protection mode.">
+      Does not protect you against dangerous websites, downloads, and extensions.
+    </message> -->
+    <message name="IDS_PHRASES_DID_NOT_MATCH" desc="Wootz Wallet text">
+      Phrases did not match. Please try again.
+    </message>
+    <message name="IDS_ACCOUNT_RECOVERY_FAILED" desc="Wootz Wallet text">
+      Account recovery failed. Please try again.
+    </message>
+    <message name="IDS_MAINNET" desc="Wootz Wallet network selection button text(network name)" translateable="false">
+      Ethereum Mainnet
+    </message>
+    <message name="IDS_ACCOUNTS" desc="Wootz Wallet section text">
+      Accounts
+    </message>
+    <!-- Stats -->
+    <!-- <message name="IDS_WOOTZ_STATS_USAGE_PING_TITLE" desc="Description that shows in settings for toggling stats usage pings">
+      Automatically send daily usage ping to Wootz
+    </message> -->
+    <!-- <message name="IDS_WOOTZ_STATS_USAGE_PING_SUMMARY" desc="Description that shows under main toggle setting for usage pings">
+      This private ping lets Wootz estimate active users.
+    </message> -->
+    <message name="IDS_ACCOUNT_NAME" desc="Wootz wallet accounts text">
+      Account Name
+    </message>
+    <message name="IDS_ACCOUNT_NAME_TEXT" desc="Wootz wallet accounts text">
+      You can create a secondary account by importing your private key.
+    </message>
+    <message name="IDS_IMPORT_ACCOUNT_TEXT" desc="Wootz wallet accounts text">
+      Enter, paste, or import your private key string file or JSON.
+    </message>
+    <message name="IDS_IMPORT_TEXT" desc="Wootz wallet accounts text">
+      Import...
+    </message>
+    <message name="IDS_DETAILS" desc="Wootz wallet accounts text">
+      Details
+    </message>
+    <message name="IDS_WOOTZ_UI_WOOTZ_WALLET" desc="Title for Wootz Wallet Settings. [CHAR-LIMIT=27]">
+      Wootz Wallet
+    </message>
+    <message name="IDS_WOOTZ_UI_SETTINGS" desc="Settings button text">
+      Settings
+    </message>
+    <message name="IDS_WOOTZ_WALLET_TOOLBAR_LOCK" desc="Title for wootz wallet toolbar lock option.">
+      Lock
+    </message>
+    <message name="IDS_WOOTZ_WALLET_HELP_CENTER" desc="Title for help center link">
+      Help center
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SETTINGS_AUTOLOCK_OPTION" desc="Title for wootz wallet automatically lock.">
+      Automatically lock Wootz Wallet
+    </message>
+    <message name="IDS_WOOTZ_WALLET_SETTINGS_AUTOLOCK_HOW_MANY_MINUTES" desc="Wootz wallet autolock dialog text">
+      The number of minutes to wait until the Wootz Wallet is automatically locked
+    </message>
+    <message name="IDS_WOOTZ_WALLET_RESET_SETTINGS_OPTION" desc="Title for preference to reset Wootz Wallet.">
+      Reset and clear wallet data
+    </message>
+    <message name="IDS_WOOTZ_WALLET_RESET_SETTINGS_CONFIRMATION" desc="Confirmation for Wootz Wallet reset.">
+      Are you sure you want to reset your Wootz Wallet? If your wallet is not backed up, resetting will cause you to lose all account data (including any associated funds). Type "<ph name="CONFIRMATION_PHRASE">%1$s<ex>Yes</ex></ph>" to confirm.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_RESET_SETTINGS_CONFIRMATION_PHRASE" desc="The phrase users should type to reset Wootz Wallet">
+      Yes
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CLEAR_TX_AND_NONCE_SETTING_TITLE" desc="The title of a button that will reset transaction and nonce information. As in to erase the users transaction history and reset nonce value starting from 0x0">
+      Clear transaction &amp; nonce info
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CLEAR_TX_AND_NONCE_SETTING_DESC" desc="The footer message below the button to reset transaction and nonce">
+      Clearing transactions may be useful for developers or when clearing state on a local server
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CLEAR_TX_AND_NONCE_DIALOG_CONFIRMATION" desc="Confirmation dialog description for transaction and nonce reset.">
+      Are you sure you want to reset transaction and nonce information? This option is mostly used by developers running a local test server. Type "<ph name="CONFIRMATION_PHRASE">%1$s<ex>Yes</ex></ph>" to confirm.
+    </message>
+    <message name="IDS_WOOTZ_WALLET_CONFIRM_TEXT" desc="Text for Wootz Wallet confirm button text.">
+      Confirm
+    </message>
       <message name="IDS_IMPROVE_SEARCH_SUGGESTIONS_TITLE" desc="Title for a checkbox in Settings that controls URL and search autocompletion and informs the user about the data shared by this feature.">
         Improve search suggestions
       </message>
@@ -1558,12 +2732,22 @@ Your Google account may have other forms of browsing history like searches and a
       <message name="IDS_TRACKING_PROTECTION_SUMMARY" desc="Tracking Protection preference item summary.">
         Manage third-party cookies and tracking protections
       </message>
-
+      <message name="IDS_RELAUNCH" desc="Relaunch message">
+      relauch
+      </message>
+      <message name="IDS_UI_RELAUNCH_NOTICE" desc="Summary for relaunch message">
+      UI relauch notice
+      </message>
       <!-- IP protection -->
       <message name="IDS_IP_PROTECTION_TITLE" desc="IP Protection preference item title." translateable="false">
         Hide your IP address
       </message>
-
+      <message name="IDS_MOVE_TOOLBAR_BOTTOM_TITLE" desc="Title of the preference that allows the user to move toolbar on bottom.">
+          Move toolbar to bottom
+      </message>
+      <message name="IDS_DISABLE_TOOLBAR_SWIPE_UP" desc="Summary of the preference that allows the user to disable toolbar swipeup.">
+          Disable toolbar swipe up
+      </message>
       <!-- Safety check -->
       <message name="IDS_PREFS_SAFETY_CHECK" desc="Title of the Safety check element in settings, allowing the user to check multiple areas of browser safety. [CHAR_LIMIT=32]">
         Safety check
@@ -2057,7 +3241,6 @@ Your Google account may have other forms of browsing history like searches and a
       <message name="IDS_AUTO_OPEN_PDF_ENABLED_WITH_APP_DESCRIPTION" desc="Description for preference that allows another app to automatically open a pdf after download completion if the download is triggered by an external app.">
         Downloaded PDFs automatically open with <ph name="APP_NAME">%1$s<ex>Drive PDF Viewer</ex></ph>
       </message>
-
       <!-- About WootzApp preferences -->
       <message name="IDS_PREFS_ABOUT_WOOTZAPP" desc="Title for the About WootzApp page. [CHAR_LIMIT=32]">
         About WootzApp
@@ -3949,9 +5132,6 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
         Desktop site
       </message>
-      <!-- <message name="IDS_MENU_REQUEST_BACK_TO_ANDROID" desc="Menu item in WootzApp's overflow/options menu. By default, when a user navigates to a web page, WootzApp shows the mobile site, that is, the version of the site designed for mobile phones. If this menu item is selected, however, WootzApp will try to load the 'desktop' site instead, i.e. the site designed for desktop computers or laptop computers, which have larger screens. [CHAR_LIMIT=24]">
-        Mobile Site
-      </message> -->
       <message name="IDS_MENU_REQUEST_DESKTOP_SITE_ON" desc="Accessibility description for when Request Desktop Site is enabled.">
         Turn off Request desktop site
       </message>
@@ -4440,9 +5620,6 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_REFRESH" desc="Content description for the refresh page button.">
         Reload this page
-      </message>
-      <message name="IDS_CONTENT_DESCRIPTION_GRID_ITEM" desc="Content description for ImageView in grid_layout_item.xml">
-        Grid Item
       </message>
       <message name="IDS_ACCESSIBILITY_BTN_STOP_LOADING" desc="Content description for the stop loading page button.">
         Stop page loading

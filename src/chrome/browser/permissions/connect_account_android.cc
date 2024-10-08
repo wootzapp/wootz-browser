@@ -1,4 +1,4 @@
-/* Copyright (c) 2023 The Brave Authors. All rights reserved.
+/* Copyright (c) 2023 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -6,10 +6,10 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
-#include "chrome/build/android/jni_headers/ConnectAccountFragment_jni.h"
-#include "chrome/components/wootz_wallet/browser/permission_utils.h"
-#include "chrome/components/wootz_wallet/common/wootz_wallet.mojom-shared.h"
-#include "chrome/components/permissions/contexts/wootz_wallet_permission_context.h"
+#include "chrome/android/chrome_jni_headers/ConnectAccountFragment_jni.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom-shared.h"
+#include "components/permissions/contexts/wootz_wallet_permission_context.h"
 #include "content/public/browser/web_contents.h"
 
 #include "base/functional/callback.h"
@@ -74,13 +74,13 @@ static void JNI_ConnectAccountFragment_ConnectAccount(
     return;
   }
 
-  if (permissions::BraveWalletPermissionContext::HasRequestsInProgress(
+  if (permissions::WootzWalletPermissionContext::HasRequestsInProgress(
           rfh, *request_type)) {
     PlainCallConnectAccountCallback(env, java_callback, false);
     return;
   }
 
-  permissions::BraveWalletPermissionContext::RequestPermissions(
+  permissions::WootzWalletPermissionContext::RequestPermissions(
       *permission, rfh, {account_address},
       base::BindOnce(
           [](JNIEnv* env,

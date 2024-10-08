@@ -26,6 +26,7 @@ import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /**
  * The native recent tabs page. Lists recently closed tabs, open windows and tabs from the user's
@@ -99,9 +100,9 @@ public class RecentTabsPage
 
         mView.addOnAttachStateChangeListener(this);
 
-        // if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity) ||
-        //         true) {
-        if(true){
+        if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity) ||
+                ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if(true){
             mBrowserControlsStateProvider = browserControlsStateProvider;
             mBrowserControlsStateProvider.addObserver(this);
             onBottomControlsHeightChanged(
@@ -114,22 +115,23 @@ public class RecentTabsPage
         mTabStripHeightSupplier = tabStripHeightSupplier;
         mView.setPadding(0, mTabStripHeightSupplier.get(), 0, 0);
         if (ToolbarFeatures.isDynamicTopChromeEnabled()) {
-            if (true) {
-                mView.setPadding(
-                        mView.getPaddingLeft(),
-                        0,
-                        mView.getPaddingRight(),
-                        mView.getPaddingBottom());
-            } else {
-                mTabStripHeightChangeCallback =
-                        newHeight ->
-                                mView.setPadding(
-                                        mView.getPaddingLeft(),
-                                        newHeight,
-                                        mView.getPaddingRight(),
-                                        mView.getPaddingBottom());
-                mTabStripHeightSupplier.addObserver(mTabStripHeightChangeCallback);
-            }
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if(true){
+            mView.setPadding(
+                    mView.getPaddingLeft(),
+                    0,
+                    mView.getPaddingRight(),
+                    mView.getPaddingBottom());
+        } else {
+            mTabStripHeightChangeCallback =
+                    newHeight ->
+                            mView.setPadding(
+                                    mView.getPaddingLeft(),
+                                    newHeight,
+                                    mView.getPaddingRight(),
+                                    mView.getPaddingBottom());
+            mTabStripHeightSupplier.addObserver(mTabStripHeightChangeCallback);
+        }
         }
 
         onUpdated();
@@ -326,15 +328,18 @@ public class RecentTabsPage
 
         // If the content offset is different from the margin, we use translationY to position the
         // view in line with the content offset.
-
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        // if(true){
             topMargin = 0;
             recentTabsRoot.setTranslationY(0);
-
+        } else {
+            recentTabsRoot.setTranslationY(contentOffset - topMargin);
+        }
 
         int bottomMargin = mBrowserControlsStateProvider.getBottomControlsHeight();
-       
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
-
+        }
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
             layoutParams.bottomMargin = bottomMargin;

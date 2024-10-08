@@ -6,7 +6,7 @@ import android.widget.LinearLayout;
 import android.view.Gravity;
 import android.view.View;
 
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 public class ReversedLinearLayout extends LinearLayout {
     private boolean mReversedLayout;
@@ -27,7 +27,7 @@ public class ReversedLinearLayout extends LinearLayout {
 	}
 
     private void setReversedLayout() {
-        mReversedLayout = true;
+        mReversedLayout = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
         if (mReversedLayout)
             setGravity(Gravity.START | Gravity.BOTTOM);
     }

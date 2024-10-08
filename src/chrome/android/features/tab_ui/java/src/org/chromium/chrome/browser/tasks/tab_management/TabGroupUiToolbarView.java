@@ -34,6 +34,7 @@ import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.widget.ChromeImageView;
 import org.chromium.ui.util.ColorUtils;
 import org.chromium.chrome.browser.theme.ThemeUtils;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /**
  * Represents a generic toolbar used in the bottom strip/grid component. {@link
@@ -177,7 +178,8 @@ public class TabGroupUiToolbarView extends FrameLayout {
         mFadingEdgeEnd.setColorFilter(color, PorterDuff.Mode.SRC_IN);
     }
     void setPrimaryColorAndApplyTint(int color) {
-        if (false)
+        if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+        // if(false)
             return;
 
         // change the background color of the bottom bar if the top toolbar is below

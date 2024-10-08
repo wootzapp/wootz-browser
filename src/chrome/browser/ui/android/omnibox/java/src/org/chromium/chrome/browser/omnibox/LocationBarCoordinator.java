@@ -64,6 +64,7 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+
 /**
  * The public API of the location bar component. Location bar responsibilities are:
  *
@@ -77,7 +78,7 @@ import java.util.function.BooleanSupplier;
  */
 public class LocationBarCoordinator
         implements LocationBar, NativeInitObserver, AutocompleteDelegate {
-    private OmniboxSuggestionsDropdownEmbedderImpl mOmniboxDropdownEmbedderImpl;
+    private final OmniboxSuggestionsDropdownEmbedderImpl mOmniboxDropdownEmbedderImpl;
 
     /** Identifies coordinators with methods specific to a device type. */
     public interface SubCoordinator {
@@ -184,9 +185,7 @@ public class LocationBarCoordinator
                             omniboxSuggestionsDropdownScrollListener,
             @Nullable ObservableSupplier<TabModelSelector> tabModelSelectorSupplier,
             LocationBarEmbedderUiOverrides uiOverrides,
-            @Nullable View baseChromeLayout,
-            @Nullable View compositorViewHolder
-            ) {
+            @Nullable View baseChromeLayout) {
         mLocationBarLayout = (LocationBarLayout) locationBarLayout;
         mWindowDelegate = windowDelegate;
         mWindowAndroid = windowAndroid;
@@ -202,8 +201,7 @@ public class LocationBarCoordinator
                         autocompleteAnchorView,
                         mLocationBarLayout,
                         uiOverrides.isForcedPhoneStyleOmnibox(),
-                        baseChromeLayout,
-                        compositorViewHolder);
+                        baseChromeLayout);
 
         mUrlBar = mLocationBarLayout.findViewById(R.id.url_bar);
         // TODO(crbug.com/40733049): Inject LocaleManager instance to LocationBarCoordinator instead
@@ -487,10 +485,6 @@ public class LocationBarCoordinator
         return mUrlCoordinator.getUrlBarData();
     }
 
-    public OmniboxSuggestionsDropdownEmbedderImpl getOmniboxDropdownEmbedder() {
-        return mOmniboxDropdownEmbedderImpl;
-    }
-    
     @Override
     public void addOmniboxSuggestionsDropdownScrollListener(
             OmniboxSuggestionsDropdownScrollListener listener) {

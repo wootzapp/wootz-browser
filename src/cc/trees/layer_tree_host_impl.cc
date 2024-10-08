@@ -4338,26 +4338,24 @@ bool LayerTreeHostImpl::AnimateBrowserControls(base::TimeTicks time) {
 
   if (scroll_delta.IsZero())
     return false;
-  // if (true)
-  //   return false;
-  
-  
+  if (base::FeatureList::IsEnabled(::features::kMoveTopToolbarToBottom))
+    return false;
   // This counter-scrolls the page to keep the appearance of the page content
   // being fixed while the browser controls animate.
-        viewport().ScrollBy(scroll_delta,
-                            /*viewport_point=*/gfx::Point(),
-                            /*is_wheel_scroll=*/false,
-                            /*affect_browser_controls=*/false,
-                            /*scroll_outer_viewport=*/true);
+  viewport().ScrollBy(scroll_delta,
+                      /*viewport_point=*/gfx::Point(),
+                      /*is_wheel_scroll=*/false,
+                      /*affect_browser_controls=*/false,
+                      /*scroll_outer_viewport=*/true);
 
-        // If the viewport has scroll snap styling, we may need to snap after
-        // scrolling it. Browser controls animations may happen after scrollend, so
-        // it is too late for InputHandler to do the snapping.
-        viewport().SnapIfNeeded();
+  // If the viewport has scroll snap styling, we may need to snap after
+  // scrolling it. Browser controls animations may happen after scrollend, so
+  // it is too late for InputHandler to do the snapping.
+  viewport().SnapIfNeeded();
 
-        client_->SetNeedsCommitOnImplThread();
-        client_->RenewTreePriority();
-        return true;
+  client_->SetNeedsCommitOnImplThread();
+  client_->RenewTreePriority();
+  return true;
 }
 
 bool LayerTreeHostImpl::AnimateScrollbars(base::TimeTicks monotonic_time) {

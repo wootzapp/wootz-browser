@@ -10,7 +10,7 @@ import android.security.keystore.KeyProperties;
 import android.text.TextUtils;
 import android.util.Base64;
 
-import org.chromium.base.WootzPreferenceKeys;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 
 import java.io.IOException;
@@ -24,13 +24,13 @@ import java.security.NoSuchProviderException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 
-import javax.wootz.BadPaddingException;
-import javax.wootz.Cipher;
-import javax.wootz.IllegalBlockSizeException;
-import javax.wootz.KeyGenerator;
-import javax.wootz.NoSuchPaddingException;
-import javax.wootz.SecretKey;
-import javax.wootz.spec.GCMParameterSpec;
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 
 public class KeystoreHelper {
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
@@ -43,7 +43,7 @@ public class KeystoreHelper {
         }
 
         ChromeSharedPreferences.getInstance()
-                .writeBoolean(WootzPreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET, true);
+                .writeBoolean(ChromePreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET, true);
     }
 
     private static boolean encryptText(String text) {
@@ -83,15 +83,15 @@ public class KeystoreHelper {
         String encryptedBase64 = Base64.encodeToString(encrypted, Base64.DEFAULT);
 
         ChromeSharedPreferences.getInstance()
-                .writeString(WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV, ivBase64);
+                .writeString(ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV, ivBase64);
         ChromeSharedPreferences.getInstance()
                 .writeString(
-                        WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED, encryptedBase64);
+                        ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED, encryptedBase64);
     }
 
     public static boolean shouldUseBiometricToUnlock() {
         return ChromeSharedPreferences.getInstance()
-                .readBoolean(WootzPreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET, false);
+                .readBoolean(ChromePreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET, false);
     }
 
     public static String decryptText()
@@ -107,10 +107,10 @@ public class KeystoreHelper {
                     IllegalBlockSizeException {
         String ivBase64 =
                 ChromeSharedPreferences.getInstance()
-                        .readString(WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV, "");
+                        .readString(ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV, "");
         String encryptedBase64 =
                 ChromeSharedPreferences.getInstance()
-                        .readString(WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED, "");
+                        .readString(ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED, "");
         if (TextUtils.isEmpty(ivBase64) || TextUtils.isEmpty(encryptedBase64)) {
             return "";
         }
@@ -131,10 +131,10 @@ public class KeystoreHelper {
 
     public static void resetBiometric() {
         ChromeSharedPreferences.getInstance()
-                .removeKey(WootzPreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET);
+                .removeKey(ChromePreferenceKeys.WOOTZ_USE_BIOMETRICS_FOR_WALLET);
         ChromeSharedPreferences.getInstance()
-                .removeKey(WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED);
+                .removeKey(ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED);
         ChromeSharedPreferences.getInstance()
-                .removeKey(WootzPreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV);
+                .removeKey(ChromePreferenceKeys.WOOTZ_BIOMETRICS_FOR_WALLET_IV);
     }
 }

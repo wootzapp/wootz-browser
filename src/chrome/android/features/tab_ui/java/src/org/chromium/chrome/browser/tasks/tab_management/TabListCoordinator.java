@@ -480,7 +480,8 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
-                if (actionOnRelatedTabs && true) {
+                if (actionOnRelatedTabs && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                // if(true){
                     gridLayoutManager =
                         new GridLayoutManagerDockBottom(context, GRID_LAYOUT_SPAN_COUNT_COMPACT);
                     ((GridLayoutManagerDockBottom)gridLayoutManager)

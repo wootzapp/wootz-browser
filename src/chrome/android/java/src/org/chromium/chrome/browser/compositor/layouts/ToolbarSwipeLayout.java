@@ -35,6 +35,7 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.interpolators.Interpolators;
 import org.chromium.ui.resources.ResourceManager;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -442,7 +443,8 @@ public class ToolbarSwipeLayout extends Layout {
                 mLeftToolbarOverlay.setXOffset(leftX * dpToPx);
             }
             mLeftTab.setX(leftX);
-            if (true) {
+            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if(true){
                 mLeftTab.setY(0);
             } else {
                 mLeftTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);
@@ -459,7 +461,8 @@ public class ToolbarSwipeLayout extends Layout {
                 mRightToolbarOverlay.setXOffset(rightX * dpToPx);
             }
             mRightTab.setX(rightX);
-            if(true){
+            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            // if(true){
                 mRightTab.setY(0);
             } else {
                 mRightTab.setY(mBrowserControlsStateProvider.getContentOffset() / dpToPx);

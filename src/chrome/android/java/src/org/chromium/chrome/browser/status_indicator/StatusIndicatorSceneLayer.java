@@ -16,7 +16,7 @@ import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.resources.ResourceManager;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.util.List;
 
 /**
@@ -79,7 +79,7 @@ class StatusIndicatorSceneLayer extends SceneOverlayLayer implements SceneOverla
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
         int offset = mBrowserControlsStateProvider.getTopControlsMinHeightOffset();
-        if (true) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             offset = (int)viewport.bottom - offset;
         }
         StatusIndicatorSceneLayerJni.get()

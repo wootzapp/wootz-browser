@@ -155,7 +155,6 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import android.util.Log;
 
 /** A {@link RootUiCoordinator} variant that controls tabbed-mode specific UI. */
 public class TabbedRootUiCoordinator extends RootUiCoordinator {
@@ -197,8 +196,6 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
     private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
     private @Nullable AppHeaderCoordinator mAppHeaderCoordinator;
     private Destroyable mTabGroupCreationDialogManager;
-    private View mSheetContainer;
-    private View mBottomSheetView;
 
     // Activity tab observer that updates the current tab used by various UI components.
     private class RootUiTabObserver extends ActivityTabTabObserver {
@@ -339,8 +336,7 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
             @Nullable Bundle savedInstanceState,
             @Nullable MultiInstanceManager multiInstanceManager,
             @Nullable ObservableSupplier<Integer> overviewColorSupplier,
-            @Nullable View baseChromeLayout,
-            @Nullable Runnable logAction) {
+            @Nullable View baseChromeLayout) {
         super(
                 activity,
                 onOmniboxFocusChangedListener,
@@ -385,9 +381,7 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
                 backPressManager,
                 savedInstanceState,
                 overviewColorSupplier,
-                baseChromeLayout,
-                logAction
-                );
+                baseChromeLayout);
         mControlContainerHeightResource = controlContainerHeightResource;
         mInsetObserverViewSupplier = insetObserverViewSupplier;
         mBackButtonShouldCloseTabFn = backButtonShouldCloseTabFn;

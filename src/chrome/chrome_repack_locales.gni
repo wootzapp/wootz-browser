@@ -24,6 +24,9 @@ template("chrome_repack_locales") {
 
     # Each input pak file should also have a deps line.
     source_patterns = [
+      
+      "${root_gen_dir}/components/wootz_components_strings_", # Jai
+
       "${root_gen_dir}/chrome/generated_resources_",
       "${root_gen_dir}/chrome/locale_settings_",
       "${root_gen_dir}/chrome/platform_locale_settings_",
@@ -45,6 +48,9 @@ template("chrome_repack_locales") {
       deps = []
     }
     deps += [
+
+      "//components/resources:strings", # Jai
+
       "//chrome/app:branded_strings",
       "//chrome/app:generated_resources",
       "//chrome/app/resources:locale_settings",

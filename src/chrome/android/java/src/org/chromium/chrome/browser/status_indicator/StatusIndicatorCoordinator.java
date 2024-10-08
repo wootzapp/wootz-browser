@@ -12,6 +12,7 @@ import android.view.ViewStub;
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import android.view.Gravity;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
@@ -190,7 +191,7 @@ public class StatusIndicatorCoordinator {
     private void initialize() {
         final ViewStub stub = mActivity.findViewById(R.id.status_indicator_stub);
         final ViewResourceFrameLayout root = (ViewResourceFrameLayout) stub.inflate();
-        if (true) {
+        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
             // status messages (such as the offline indicator) are docked at the bottom
             CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)root.getLayoutParams();
             layoutParams.gravity = Gravity.START | Gravity.BOTTOM;

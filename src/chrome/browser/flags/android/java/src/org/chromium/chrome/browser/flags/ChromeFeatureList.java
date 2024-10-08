@@ -353,6 +353,10 @@ public abstract class ChromeFeatureList {
             "NavBarColorMatchesTabBackground";
     public static final String NEW_TAB_SEARCH_ENGINE_URL_ANDROID = "NewTabSearchEngineUrlAndroid";
     public static final String NOTIFICATION_ONE_TAP_UNSUBSCRIBE = "NotificationOneTapUnsubscribe";
+    public static final String DISABLE_TOOLBAR_SWIPE_UP =
+            "DisableToolbarSwipeUp";
+    public static final String MOVE_TOP_TOOLBAR_TO_BOTTOM =
+            "MoveTopToolbarToBottom";
     public static final String NOTIFICATION_PERMISSION_VARIANT = "NotificationPermissionVariant";
     public static final String NOTIFICATION_PERMISSION_BOTTOM_SHEET =
             "NotificationPermissionBottomSheet";
@@ -616,6 +620,10 @@ public abstract class ChromeFeatureList {
             newCachedFlag(PRICE_INSIGHTS, false);
     public static final CachedFlag sPrivacyGuideAndroid3 =
             newCachedFlag(PRIVACY_GUIDE_ANDROID_3, false);
+    public static final CachedFlag sDisableToolbarSwipeUp =
+            newCachedFlag(DISABLE_TOOLBAR_SWIPE_UP, false);
+    public static final CachedFlag sMoveTopToolbarToBottom =
+            newCachedFlag(MOVE_TOP_TOOLBAR_TO_BOTTOM, false);
     public static final CachedFlag sPrivacyGuidePreloadAndroid =
             newCachedFlag(PRIVACY_GUIDE_PRELOAD_ANDROID, false);
     public static final CachedFlag sOptimizationGuidePushNotifications =
@@ -742,6 +750,8 @@ public abstract class ChromeFeatureList {
                     sPrivacyGuideAndroid3,
                     sPrivacyGuidePreloadAndroid,
                     sOptimizationGuidePushNotifications,
+                    sMoveTopToolbarToBottom,
+                    sDisableToolbarSwipeUp,
                     sPaintPreviewDemo,
                     sPrefetchBrowserInitiatedTriggers,
                     sQueryTiles,

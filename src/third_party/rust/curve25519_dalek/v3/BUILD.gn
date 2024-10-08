@@ -1,0 +1,103 @@
+# Copyright (c) 2024 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "curve25519_dalek"
+  epoch = "3"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/curve_models/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/fiat_u32/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/fiat_u32/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/fiat_u64/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/fiat_u64/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/pippenger.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/precomputed_straus.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/straus.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/variable_base.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/scalar_mul/vartime_double_base.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u32/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u32/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u32/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u32/scalar.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u64/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u64/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u64/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/serial/u64/scalar.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/avx2/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/avx2/edwards.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/avx2/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/avx2/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/ifma/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/ifma/edwards.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/ifma/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/ifma/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/pippenger.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/precomputed_straus.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/straus.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/variable_base.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/backend/vector/scalar_mul/vartime_double_base.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/constants.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/edwards.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/macros.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/montgomery.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/prelude.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/ristretto.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/scalar.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/traits.rs",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/window.rs",
+  ]
+  inputs = [
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/../README.md",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/../docs/avx2-notes.md",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/../docs/ifma-notes.md",
+    "//third_party/rust/chromium_crates_io/vendor/curve25519-dalek-3.2.0/src/../docs/parallel-formulas.md",
+  ]
+
+  build_native_rust_unit_tests = false
+  edition = "2015"
+  cargo_pkg_version = "3.2.0"
+  cargo_pkg_authors = "Isis Lovecruft <isis@patternsinthevoid.net>, Henry de Valence <hdevalence@hdevalence.ca>"
+  cargo_pkg_name = "curve25519-dalek"
+  cargo_pkg_description = "A pure-Rust implementation of group operations on ristretto255 and Curve25519"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/byteorder/v1:lib",
+    "//third_party/rust/digest/v0_9:lib",
+    "//third_party/rust/rand_core/v0_5:lib",
+    "//third_party/rust/subtle/v2:lib",
+    "//third_party/rust/zeroize/v1:lib",
+  ]
+  features = [
+    "alloc",
+    "std",
+    "u64_backend",
+  ]
+  if (target_cpu == "x64") {
+    deps += [
+      "//third_party/rust/cpufeatures/v0_2:lib",
+      "//third_party/rust/curve25519_dalek_derive/v0_1:lib",
+    ]
+  }
+}

@@ -37,10 +37,10 @@ import org.chromium.wootz_wallet.mojom.SignDataUnion;
 import org.chromium.wootz_wallet.mojom.SignMessageRequest;
 import org.chromium.wootz_wallet.mojom.SiweMessage;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.DappsModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
-import org.chromium.chrome.browser.app.helpers.ImageLoader;
+// import org.chromium.chrome.browser.app.helpers.ImageLoader;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.adapters.TwoLineItemRecyclerViewAdapter;
 import org.chromium.chrome.browser.wootz_wallet.fragments.TwoLineItemBottomSheetFragment;
@@ -92,11 +92,11 @@ public class SiweMessageFragment extends WalletBottomSheetDialogFragment {
         mTabTitles = new ArrayList<>();
         mTabTitles.add(getString(R.string.details));
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
             mDappsModel = mWalletModel.getDappsModel();
             registerKeyringObserver(mWalletModel.getKeyringModel());
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
     }
@@ -158,8 +158,8 @@ public class SiweMessageFragment extends WalletBottomSheetDialogFragment {
             }
             updateDetails(mCurrentSignMessageRequest.chainId, mCurrentSignMessageRequest.accountId);
             updateNetwork(mCurrentSignMessageRequest.chainId);
-            updateFavIcon(mCurrentSignMessageRequest.originInfo,
-                    mCurrentSignMessageRequest.accountId.address);
+            // updateFavIcon(mCurrentSignMessageRequest.originInfo,
+            //         mCurrentSignMessageRequest.accountId.address);
         });
     }
 
@@ -226,18 +226,18 @@ public class SiweMessageFragment extends WalletBottomSheetDialogFragment {
                 .collect(Collectors.joining(System.getProperty(WalletConstants.LINE_SEPARATOR)));
     }
 
-    private void updateFavIcon(OriginInfo originInfo, String accountAddress) {
-        if (originInfo == null || !URLUtil.isValidUrl(originInfo.originSpec)) return;
-        ImageLoader.fetchFavIcon(
-                originInfo.originSpec, new WeakReference<>(getContext()), bitmap -> {
-                    if (bitmap != null) {
-                        mIvFav.setImageBitmap(bitmap);
-                    } else if (accountAddress != null) {
-                        Utils.setTextGeneratedBlockies(
-                                mExecutor, mHandler, mIvFav, accountAddress, true);
-                    }
-                });
-    }
+    // private void updateFavIcon(OriginInfo originInfo, String accountAddress) {
+    //     if (originInfo == null || !URLUtil.isValidUrl(originInfo.originSpec)) return;
+    //     ImageLoader.fetchFavIcon(
+    //             originInfo.originSpec, new WeakReference<>(getContext()), bitmap -> {
+    //                 if (bitmap != null) {
+    //                     mIvFav.setImageBitmap(bitmap);
+    //                 } else if (accountAddress != null) {
+    //                     Utils.setTextGeneratedBlockies(
+    //                             mExecutor, mHandler, mIvFav, accountAddress, true);
+    //                 }
+    //             });
+    // }
 
     private void updateNetwork(String chainId) {
         if (JavaUtils.anyNull(mWalletModel, chainId)) return;

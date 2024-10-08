@@ -1,0 +1,60 @@
+# Copyright (c) 2023 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//third_party/widevine/cdm/widevine.gni")
+
+wootz_components_permissions_sources = [
+  "//components/permissions/wootz_permission_manager.cc",
+  "//components/permissions/wootz_permission_manager.h",
+  "//components/permissions/contexts/wootz_google_sign_in_permission_context.cc",
+  "//components/permissions/contexts/wootz_google_sign_in_permission_context.h",
+  "//components/permissions/contexts/wootz_localhost_permission_context.cc",
+  "//components/permissions/contexts/wootz_localhost_permission_context.h",
+  "//components/permissions/contexts/wootz_wallet_permission_context.cc",
+  "//components/permissions/contexts/wootz_wallet_permission_context.h",
+  "//components/permissions/permission_expiration_key.cc",
+  "//components/permissions/permission_expiration_key.h",
+  "//components/permissions/permission_expirations.cc",
+  "//components/permissions/permission_expirations.h",
+  "//components/permissions/permission_lifetime_manager.cc",
+  "//components/permissions/permission_lifetime_manager.h",
+  "//components/permissions/permission_lifetime_options.cc",
+  "//components/permissions/permission_lifetime_options.h",
+  "//components/permissions/permission_lifetime_pref_names.h",
+  "//components/permissions/permission_lifetime_utils.cc",
+  "//components/permissions/permission_lifetime_utils.h",
+  "//components/permissions/permission_origin_lifetime_monitor.h",
+  "//components/permissions/permission_origins.cc",
+  "//components/permissions/permission_origins.h",
+]
+
+if (enable_widevine) {
+  wootz_components_permissions_sources += [
+    "//components/permissions/permission_widevine_utils.cc",
+    "//components/permissions/permission_widevine_utils.h",
+  ]
+}
+
+wootz_components_permissions_deps = [
+  "//base",
+  "//components/wootz_wallet/browser:permission_utils",
+  "//components/wootz_wallet/common:mojom",
+  "//components/constants:constants",
+  "//components/l10n/common",
+  "//components/resources:strings_grit",
+  "//components/content_settings/core/browser",
+  "//components/content_settings/core/common",
+  "//components/keyed_service/core",
+  "//components/pref_registry",
+  "//services/preferences/public/cpp",
+  "//third_party/blink/public/common",
+  "//ui/base",
+  "//url",
+]
+
+if (is_android) {
+  wootz_components_permissions_deps +=
+      [ "//components/permissions/android:jni_headers" ]
+}

@@ -15,7 +15,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
-
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.supplier.ObservableSupplier;
@@ -58,7 +58,6 @@ import org.chromium.ui.AsyncViewProvider;
 import org.chromium.ui.AsyncViewStub;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.ViewProvider;
-import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.LazyConstructionPropertyMcp;
@@ -229,19 +228,9 @@ public class AutocompleteCoordinator
                 OmniboxSuggestionsDropdown dropdown =
                         container.findViewById(R.id.omnibox_suggestions_dropdown);
 
-                // By DevJangid
-                // Add margin to the dropdown using ViewUtils
-                int leftMargin = ViewUtils.dpToPx(context, 16);
-                int rightMargin = ViewUtils.dpToPx(context, 16);
-                int bottomMargin = ViewUtils.dpToPx(context, 60); 
-                
-                ViewGroup.MarginLayoutParams layoutParams = (ViewGroup.MarginLayoutParams) dropdown.getLayoutParams();
-                layoutParams.setMargins(leftMargin, 0, rightMargin, bottomMargin); // Set desired margins (left, top, right, bottom)
-                dropdown.setLayoutParams(layoutParams);
-                                
                 dropdown.forcePhoneStyleOmnibox(forcePhoneStyleOmnibox);
                 dropdown.setAdapter(mAdapter);
-                if (true) {
+                if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
                     // make margins works
                     dropdown.getViewGroup().setClipToPadding(true);
                     container.bringToFront();

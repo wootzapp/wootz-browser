@@ -6,14 +6,14 @@
 package org.chromium.chrome.browser.wootz_wallet.listeners;
 
 /**
- * Interface implemented by {@link org.chromium.chrome.browser.app.WootzActivity} in charge of
+ * Interface implemented by {@link org.chromium.chrome.browser.app.ChromeActivity} in charge of
  * defining the navigation behavior for onboarding, biometric prompt, next page, and navigation
  * icons.
  */
 public interface OnNextPage {
     void incrementPages(int pages);
 
-    void showWallet();
+    void showWallet(final boolean forceNewTab);
 
     void gotoCreationPage();
 

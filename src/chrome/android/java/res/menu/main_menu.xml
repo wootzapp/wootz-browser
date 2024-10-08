@@ -23,6 +23,11 @@ found in the LICENSE file.
                 android:title="@string/accessibility_menu_bookmark"
                 android:titleCondensed="@string/menu_bookmark"
                 android:icon="@drawable/star_outline_24dp"/>
+
+
+              
+
+
               <item android:id="@+id/offline_page_id"
                 android:title="@string/download_page"
                 android:titleCondensed="@string/menu_download"
@@ -37,6 +42,8 @@ found in the LICENSE file.
                 android:icon="@drawable/btn_reload_stop"/>
             </menu>
         </item>
+    
+      
         <item android:id="@+id/update_menu_id"
             android:title="@string/menu_update"
             android:icon="@drawable/menu_update" />
@@ -57,6 +64,11 @@ found in the LICENSE file.
             android:icon="@drawable/ic_select_window" />
         <item android:id="@+id/divider_line_id"
             android:title="@null" />
+
+        <item android:id="@+id/wootz_wallet_id"
+            android:title="@string/wootz_wallet_title" />
+
+        
         <item android:id="@+id/open_history_menu_id"
             android:title="@string/menu_history"
             android:icon="@drawable/ic_history_googblue_24dp" />
