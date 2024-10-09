@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import { color } from '@wootz/leo/tokens/css/variables'
-import Icon from '@wootz/leo/react/icon'
+import { color } from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
 
 export const StateChangeText = styled.span<{ color?: string }>`
   color: ${(p) => p.color || color.text.secondary};

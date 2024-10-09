@@ -6,7 +6,7 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { initLocale } from 'wootz-ui'
+import { initLocale } from 'brave-ui'
 import { loadTimeData } from '../../common/loadTimeData'
 
 // css
@@ -18,9 +18,9 @@ import WootzCoreThemeProvider from '../../common/WootzCoreThemeProvider'
 import walletDarkTheme from '../theme/wallet-dark'
 import walletLightTheme from '../theme/wallet-light'
 
-// leo icons setup
-import { setIconBasePath } from '@wootz/leo/react/icon'
-setIconBasePath('chrome-untrusted://resources/wootz-icons')
+// // leo icons setup
+// import { setIconBasePath } from '@brave/leo/react/icon'
+// setIconBasePath('chrome-untrusted://resources/wootz-icons')
 
 // constants
 import {

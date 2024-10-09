@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { EntityId } from '@reduxjs/toolkit'
-import Dropdown from '@wootz/leo/react/dropdown'
+import Dropdown from '@brave/leo/react/dropdown'
 
 // Types
 import {

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-import ITheme from 'wootz-ui/theme/theme-interface'
+import ITheme from 'brave-ui/theme/theme-interface'
 import IThemeWallet from './wallet-theme'
-import defaultTheme from 'wootz-ui/theme/wootz-default'
-import colors from 'wootz-ui/theme/colors'
+import defaultTheme from 'brave-ui/theme/brave-default'
+import colors from 'brave-ui/theme/colors'
 
 const walletLightTheme: ITheme & IThemeWallet = {
   ...defaultTheme,

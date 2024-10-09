@@ -7,7 +7,7 @@ import * as React from 'react'
 import { useDispatch } from 'react-redux'
 import { Redirect, Route, Switch } from 'react-router-dom'
 
-import ProgressRing from '@wootz/leo/react/progressRing'
+import ProgressRing from '@brave/leo/react/progressRing'
 
 // utils
 import { getWalletLocationTitle } from '../utils/string-utils'

@@ -10,7 +10,6 @@ import("//tools/grit/repack.gni")
 
 repack("resources") {
   deps = [
-    "//components/wootz_wallet_ui/line_chart:line_chart_display_generated",
     "//components/wootz_wallet_ui/market:market_display_generated",
     "//components/wootz_wallet_ui/nft:nft_display_generated",
     "//components/wootz_wallet_ui/page:wootz_wallet_page_generated",
@@ -18,7 +17,6 @@ repack("resources") {
 
   sources = [
     "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_page_generated.pak",
-    "$root_gen_dir/components/line_chart_display/resources/line_chart_display_generated.pak",
     "$root_gen_dir/components/market_display/resources/market_display_generated.pak",
     "$root_gen_dir/components/nft_display/resources/nft_display_generated.pak",
   ]

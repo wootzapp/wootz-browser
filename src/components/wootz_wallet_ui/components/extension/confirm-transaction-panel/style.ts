@@ -3,9 +3,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import styled from 'styled-components'
-import { ArrowRightIcon, LoaderIcon } from 'wootz-ui/components/icons'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Icon from '@wootz/leo/react/icon'
+import { ArrowRightIcon, LoaderIcon } from 'brave-ui/components/icons'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
 
 import LinkIcon from '../../../assets/svg-icons/link-icon.svg'
 import { WarningBoxIcon } from '../shared-panel-styles'

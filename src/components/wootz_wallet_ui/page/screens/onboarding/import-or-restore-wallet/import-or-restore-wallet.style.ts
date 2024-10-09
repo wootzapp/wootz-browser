@@ -6,12 +6,12 @@
 import styled from 'styled-components'
 
 // assets
-import WootzWalletSvg from '../../../../assets/svg-icons/onboarding/wootz-wallet.svg'
-import WootzWalletSvgDark from '../../../../assets/svg-icons/onboarding/wootz-wallet-dark.svg'
+import WootzWalletSvg from '../../../../assets/svg-icons/onboarding/brave-wallet.svg'
+import WootzWalletSvgDark from '../../../../assets/svg-icons/onboarding/brave-wallet-dark.svg'
 import MMSvg from '../../../../assets/svg-icons/onboarding/import-from-metamask.svg'
 import MMSvgDark from '../../../../assets/svg-icons/onboarding/import-from-metamask-dark.svg'
-import LegacyWalletSvg from '../../../../assets/svg-icons/onboarding/reset-to-wootz-wallet.svg'
-import LegacyWalletSvgDark from '../../../../assets/svg-icons/onboarding/reset-to-wootz-wallet-dark.svg'
+import LegacyWalletSvg from '../../../../assets/svg-icons/onboarding/reset-to-brave-wallet.svg'
+import LegacyWalletSvgDark from '../../../../assets/svg-icons/onboarding/reset-to-brave-wallet-dark.svg'
 
 // styles
 import { WalletLink } from '../../../../components/shared/style'

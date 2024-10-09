@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import Alert from '@wootz/leo/react/alert'
+import Alert from '@brave/leo/react/alert'
 
 // Types
 import { WootzWallet } from '../../../constants/types'

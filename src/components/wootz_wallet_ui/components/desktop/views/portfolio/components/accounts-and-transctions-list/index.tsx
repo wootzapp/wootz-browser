@@ -11,9 +11,9 @@ import { useLocation } from 'react-router-dom'
 import {
   LOCAL_STORAGE_KEYS //
 } from '../../../../../../common/constants/local-storage-keys'
-import {
-  emptyRewardsInfo //
-} from '../../../../../../common/async/base-query-cache'
+// import {
+//   emptyRewardsInfo //
+// } from '../../../../../../common/async/base-query-cache'
 
 // Types
 import {
@@ -28,19 +28,14 @@ import { getLocale } from '../../../../../../../common/locale'
 import Amount from '../../../../../../utils/amount'
 import { getBalance } from '../../../../../../utils/balance-utils'
 import { computeFiatAmount } from '../../../../../../utils/pricing-utils'
-import { getIsRewardsToken } from '../../../../../../utils/rewards_utils'
+// import { getIsRewardsToken } from '../../../../../../utils/rewards_utils'
 
-// Options
-import { PortfolioAssetOptions } from '../../../../../../options/nav-options'
 
 // Components
 import {
   PortfolioTransactionItem //
 } from '../../../../portfolio_transaction_item/portfolio_transaction_item'
 import { PortfolioAccountItem } from '../../../../portfolio-account-item/index'
-import {
-  SegmentedControl //
-} from '../../../../../shared/segmented_control/segmented_control'
 import {
   SellAssetModal //
 } from '../../../../popup-modals/sell-asset-modal/sell-asset-modal'
@@ -53,7 +48,7 @@ import {
 import {
   useGetDefaultFiatCurrencyQuery,
   useGetNetworkQuery,
-  useGetRewardsInfoQuery,
+  // useGetRewardsInfoQuery,
   useGetSelectedChainQuery
 } from '../../../../../../common/slices/api.slice'
 import {
@@ -113,9 +108,9 @@ export const AccountsAndTransactionsList = ({
   const { data: selectedAssetNetwork } = useGetNetworkQuery(
     selectedAsset ?? skipToken
   )
-  const {
-    data: { balance: rewardsBalance, rewardsAccount } = emptyRewardsInfo
-  } = useGetRewardsInfoQuery()
+  // const {
+  //   data: { balance: rewardsBalance, rewardsAccount } = emptyRewardsInfo
+  // } = useGetRewardsInfoQuery()
 
   // hooks
   const {
@@ -131,9 +126,9 @@ export const AccountsAndTransactionsList = ({
   const [showSellModal, setShowSellModal] = React.useState<boolean>(false)
 
   // Memos & Computed
-  const isRewardsToken = getIsRewardsToken(selectedAsset)
+  // const isRewardsToken = getIsRewardsToken(selectedAsset)
 
-  const externalRewardsAccount = isRewardsToken ? rewardsAccount : undefined
+  // const externalRewardsAccount = isRewardsToken ? rewardsAccount : undefined
 
   const filteredAccountsByCoinType = React.useMemo(() => {
     if (!selectedAsset) {
@@ -148,9 +143,9 @@ export const AccountsAndTransactionsList = ({
     if (!selectedAsset) {
       return []
     }
-    if (isRewardsToken) {
-      return externalRewardsAccount ? [externalRewardsAccount] : []
-    }
+    // if (isRewardsToken) {
+    //   return externalRewardsAccount ? [externalRewardsAccount] : []
+    // }
     return filteredAccountsByCoinType
       .filter((account) =>
         new Amount(
@@ -174,9 +169,9 @@ export const AccountsAndTransactionsList = ({
       })
   }, [
     selectedAsset,
-    isRewardsToken,
+    // isRewardsToken,
     filteredAccountsByCoinType,
-    externalRewardsAccount,
+    // externalRewardsAccount,
     tokenBalancesRegistry,
     spotPriceRegistry
   ])
@@ -213,14 +208,14 @@ export const AccountsAndTransactionsList = ({
   ) {
     return (
       <>
-        {!isRewardsToken && (
+        {/* {!isRewardsToken && (
           <Row padding='24px 0px'>
             <SegmentedControl
               navOptions={PortfolioAssetOptions}
               width={384}
             />
           </Row>
-        )}
+        )} */}
         <Row
           width='100%'
           justifyContent='space-between'
@@ -296,14 +291,14 @@ export const AccountsAndTransactionsList = ({
     <>
       {selectedAsset && (
         <>
-          {!isRewardsToken && (
+          {/* {!isRewardsToken && (
             <Row padding='24px 0px'>
               <SegmentedControl
                 navOptions={PortfolioAssetOptions}
                 width={384}
               />
             </Row>
-          )}
+          )} */}
           {hash !== WalletRoutes.TransactionsHash && (
             <>
               {accountsList.length !== 0 ? (
@@ -322,7 +317,7 @@ export const AccountsAndTransactionsList = ({
                     >
                       {getLocale('wootzWalletAccounts')}
                     </Text>
-                    {!isRewardsToken && (
+                    {(
                       <Row
                         width='unset'
                         justifyContent='flex-end'
@@ -375,11 +370,7 @@ export const AccountsAndTransactionsList = ({
                       asset={selectedAsset}
                       account={account}
                       assetBalance={
-                        isRewardsToken && rewardsBalance
-                          ? new Amount(rewardsBalance)
-                              .multiplyByDecimals(selectedAsset.decimals)
-                              .format()
-                          : getBalance(
+                        getBalance(
                               account.accountId,
                               selectedAsset,
                               tokenBalancesRegistry

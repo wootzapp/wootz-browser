@@ -12,7 +12,7 @@ import { WootzWallet } from '../../../constants/types'
 import {
   LoadingSkeleton //
 } from '../../../components/shared/loading-skeleton/index'
-import { CoinType } from 'gen/wootz/components/wootz_wallet/common/wootz_wallet.mojom.m'
+import { CoinType } from 'gen/components/wootz_wallet/common/wootz_wallet.mojom.m'
 import { useAccountsQuery } from '../../../common/slices/api.slice.extra'
 
 const StyledWrapper = styled.div`

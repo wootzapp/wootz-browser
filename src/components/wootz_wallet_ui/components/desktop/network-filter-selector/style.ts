@@ -5,8 +5,8 @@
 
 import styled from 'styled-components'
 import { WalletButton } from '../../shared/style'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import { CaratStrongDownIcon } from 'wootz-ui/components/icons'
+import * as leo from '@brave/leo/tokens/css/variables'
+import { CaratStrongDownIcon } from 'brave-ui/components/icons'
 import CheckMark from '../../../assets/svg-icons/big-checkmark.svg'
 
 export const StyledWrapper = styled.div`

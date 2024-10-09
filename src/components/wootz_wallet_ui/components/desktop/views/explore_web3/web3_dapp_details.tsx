@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import * as React from 'react'
-import { DialogProps } from '@wootz/leo/react/dialog'
+import { DialogProps } from '@brave/leo/react/dialog'
 
 // Hooks
 import { useGetMainnetsQuery } from '../../../../common/slices/api.slice'

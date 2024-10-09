@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { BrowserRouter } from 'react-router-dom'
 
-import { initLocale } from 'wootz-ui'
+import { initLocale } from 'brave-ui'
 
 // style
 import walletDarkTheme from '../../../../theme/wallet-dark'
@@ -29,7 +29,7 @@ import {
 } from '../../../../../common/WootzCoreThemeProvider'
 import { DepositFundsScreen } from '../deposit-funds'
 
-import { setIconBasePath } from '@wootz/leo/react/icon'
+import { setIconBasePath } from '@brave/leo/react/icon'
 setIconBasePath('chrome://resources/wootz-icons')
 
 export function AndroidDepositApp() {

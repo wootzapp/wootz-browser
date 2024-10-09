@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { useLocation, useHistory } from 'react-router-dom'
-import Toggle from '@wootz/leo/react/toggle'
+import Toggle from '@brave/leo/react/toggle'
 
 // Selectors
 import { UISelectors } from '../../../common/selectors'

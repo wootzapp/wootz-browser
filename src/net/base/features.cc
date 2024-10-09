@@ -186,6 +186,11 @@ BASE_FEATURE(kWootzForgetFirstPartyStorage,
              "WootzForgetFirstPartyStorage",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+const base::FeatureParam<int>
+    kWootzForgetFirstPartyStorageStartupCleanupDelayInSeconds = {
+        &kWootzForgetFirstPartyStorage,
+        "WootzForgetFirstPartyStorageStartupCleanupDelayInSeconds", 5};
+        
 const base::FeatureParam<bool> kWootzForgetFirstPartyStorageByDefault = {
     &kWootzForgetFirstPartyStorage, "WootzForgetFirstPartyStorageByDefault",
     false};

@@ -12,7 +12,7 @@ import { WootzWallet, AccountPageTabs } from '../../../../constants/types'
 import {
   querySubscriptionOptions60s //
 } from '../../../../common/slices/constants'
-import { emptyRewardsInfo } from '../../../../common/async/base-query-cache'
+// import { emptyRewardsInfo } from '../../../../common/async/base-query-cache'
 
 // utils
 import { getLocale } from '../../../../../common/locale'
@@ -43,7 +43,6 @@ import {
   useGetDefaultFiatCurrencyQuery,
   useGetVisibleNetworksQuery,
   useGetTokenSpotPricesQuery,
-  useGetRewardsInfoQuery,
   useGetUserTokensRegistryQuery
 } from '../../../../common/slices/api.slice'
 import { useAccountsQuery } from '../../../../common/slices/api.slice.extra'
@@ -54,9 +53,7 @@ export const Accounts = () => {
 
   // queries
   const { accounts } = useAccountsQuery()
-  const {
-    data: { rewardsAccount: externalRewardsAccount } = emptyRewardsInfo
-  } = useGetRewardsInfoQuery()
+
   const { data: userTokensRegistry } = useGetUserTokensRegistryQuery()
 
   // methods
@@ -286,7 +283,7 @@ export const Accounts = () => {
         </>
       )}
 
-      {externalRewardsAccount && (
+      {(
         <>
           <Row
             padding='8px'
@@ -301,15 +298,6 @@ export const Accounts = () => {
             alignItems='flex-start'
             margin='0px 0px 24px 0px'
           >
-            <AccountListItem
-              key={externalRewardsAccount.accountId.uniqueKey}
-              onClick={onSelectAccount}
-              account={externalRewardsAccount}
-              tokenBalancesRegistry={tokenBalancesRegistry}
-              isLoadingBalances={isLoadingBalances}
-              spotPriceRegistry={spotPriceRegistry}
-              isLoadingSpotPrices={isLoadingSpotPrices}
-            />
           </AccountsListWrapper>
         </>
       )}

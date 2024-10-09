@@ -4,7 +4,7 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import Label from '@wootz/leo/react/label'
+import Label from '@brave/leo/react/label'
 import { PluralStringProxyImpl } from 'chrome://resources/js/plural_string_proxy.js'
 import usePromise from '$web-common/usePromise'
 

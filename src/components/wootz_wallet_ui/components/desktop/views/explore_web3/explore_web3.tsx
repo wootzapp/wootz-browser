@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { useHistory } from 'react-router'
-import ProgressRing from '@wootz/leo/react/progressRing'
+import ProgressRing from '@brave/leo/react/progressRing'
 
 // Types
 import { WootzWallet, WalletRoutes } from '../../../../constants/types'

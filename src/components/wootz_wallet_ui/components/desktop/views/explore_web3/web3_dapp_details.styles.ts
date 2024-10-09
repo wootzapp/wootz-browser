@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Dialog from '@wootz/leo/react/dialog'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Dialog from '@brave/leo/react/dialog'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 export const DappCategoryLabel = styled.div`
   display: inline-flex;

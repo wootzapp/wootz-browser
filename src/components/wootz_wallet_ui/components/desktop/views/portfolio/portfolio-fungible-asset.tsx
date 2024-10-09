@@ -17,7 +17,7 @@ import {
 } from '../../../../constants/types'
 
 // constants
-import { emptyRewardsInfo } from '../../../../common/async/base-query-cache'
+// import { emptyRewardsInfo } from '../../../../common/async/base-query-cache'
 import {
   LOCAL_STORAGE_KEYS //
 } from '../../../../common/constants/local-storage-keys'
@@ -41,7 +41,6 @@ import {
 } from '../../../../utils/asset-utils'
 import { getLocale } from '../../../../../common/locale'
 import { makeNetworkAsset } from '../../../../options/asset-options'
-import { isRewardsAssetId } from '../../../../utils/rewards_utils'
 import {
   makeDepositFundsRoute,
   makeFundWalletRoute
@@ -80,7 +79,6 @@ import {
   useGetTokenSpotPricesQuery,
   useGetPriceHistoryQuery,
   useGetDefaultFiatCurrencyQuery,
-  useGetRewardsInfoQuery,
   useGetUserTokensRegistryQuery,
   useUpdateUserAssetVisibleMutation
 } from '../../../../common/slices/api.slice'
@@ -133,7 +131,7 @@ export const PortfolioFungibleAsset = () => {
   const { assetId } = useParams<{
     assetId?: string
   }>()
-  const isRewardsToken = assetId ? isRewardsAssetId(assetId) : false
+
 
   // redux
   const dispatch = useDispatch()
@@ -148,18 +146,11 @@ export const PortfolioFungibleAsset = () => {
   const { data: userTokensRegistry, isLoading: isLoadingTokens } =
     useGetUserTokensRegistryQuery()
   const { data: defaultFiat = 'USD' } = useGetDefaultFiatCurrencyQuery()
-  const {
-    data: { rewardsToken } = emptyRewardsInfo,
-    isLoading: isLoadingRewards
-  } = useGetRewardsInfoQuery(isRewardsToken ? undefined : skipToken)
 
   // params
   const selectedAssetFromParams = React.useMemo(() => {
-    if (isRewardsToken) {
-      return rewardsToken
-    }
     return assetId ? userTokensRegistry?.entities[assetId] : undefined
-  }, [isRewardsToken, rewardsToken, assetId, userTokensRegistry])
+  }, [assetId, userTokensRegistry])
 
   // mutations
   const [updateUserAssetVisible] = useUpdateUserAssetVisibleMutation()
@@ -172,7 +163,7 @@ export const PortfolioFungibleAsset = () => {
   )
 
   const { data: transactionsByNetwork = [] } = useGetTransactionsQuery(
-    selectedAssetFromParams && !isRewardsToken
+    selectedAssetFromParams
       ? {
           accountId: null,
           chainId: selectedAssetFromParams.chainId,
@@ -225,7 +216,7 @@ export const PortfolioFungibleAsset = () => {
 
   // custom hooks
   const isAssetBuySupported =
-    useIsBuySupported(selectedAssetFromParams) && !isRewardsToken
+    useIsBuySupported(selectedAssetFromParams)
 
   // memos
   /**
@@ -342,8 +333,7 @@ export const PortfolioFungibleAsset = () => {
     [selectedAssetFromParams, fullAssetBalance]
   )
 
-  const isSelectedAssetDepositSupported =
-    !isRewardsToken && Boolean(selectedAssetFromParams)
+  const isSelectedAssetDepositSupported = Boolean(selectedAssetFromParams)
 
   const goBack = React.useCallback(() => {
     dispatch(WalletPageActions.updateNFTMetadata(undefined))
@@ -432,7 +422,7 @@ export const PortfolioFungibleAsset = () => {
   }, [])
 
   // asset not found
-  if (!selectedAssetFromParams && !isLoadingRewards && !isLoadingTokens) {
+  if (!selectedAssetFromParams && !isLoadingTokens) {
     return <Redirect to={WalletRoutes.PortfolioAssets} />
   }
 

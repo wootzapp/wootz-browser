@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Input from '@wootz/leo/react/input'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Input from '@brave/leo/react/input'
 
 // Shared Styles
 import { Column, Text } from '../../../../components/shared/style'

@@ -6,10 +6,10 @@
 import styled from 'styled-components'
 
 // Utils
-import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
+// import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
 
 // Types
-import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 export const AccountBox = styled.div<{
   orb?: string
@@ -35,10 +35,9 @@ export const AccountBox = styled.div<{
 `
 
 export const ExternalAccountBox = styled(AccountBox)<{
-  provider: ExternalWalletProvider | null
+  provider: null
 }>`
-  background-color: ${(p) =>
-    p.provider ? getRewardsProviderBackground(p.provider) : 'none'};
+  background-color: 'none'};
   background-image: unset;
   background-size: unset;
 `

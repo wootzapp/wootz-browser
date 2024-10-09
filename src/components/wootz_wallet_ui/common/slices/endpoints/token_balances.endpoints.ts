@@ -10,8 +10,7 @@ import { eachLimit } from 'async'
 import {
   WootzWallet,
   CoinTypes,
-  BitcoinBalances,
-  WalletStatus
+  BitcoinBalances
 } from '../../../constants/types'
 import { coinTypesMapping } from '../constants'
 
@@ -47,7 +46,7 @@ import {
   setPersistedPortfolioSpamTokenBalances,
   setPersistedPortfolioTokenBalances
 } from '../../../utils/local-storage-utils'
-import { getIsRewardsNetwork } from '../../../utils/rewards_utils'
+// import { getIsRewardsNetwork } from '../../../utils/rewards_utils'
 import {
   blockchainTokenEntityAdaptorInitialState //
 } from '../entities/blockchain-token.entity'
@@ -332,43 +331,43 @@ export const tokenBalancesEndpoints = ({
 
         const tokenBalancesRegistry = createEmptyTokenBalancesRegistry()
 
-        const includeRewardsBalance = arg.networks.some(getIsRewardsNetwork)
+        // const includeRewardsBalance = arg.networks.some(getIsRewardsNetwork)
 
-        if (includeRewardsBalance) {
-          const rewardsData =
-            cache.rewardsInfo || (await cache.getWootzRewardsInfo())
+        // if (includeRewardsBalance) {
+        //   const rewardsData =
+        //     cache.rewardsInfo || (await cache.getWootzRewardsInfo())
 
-          const {
-            balance: rewardsBalance,
-            provider: externalRewardsProvider,
-            rewardsToken,
-            status: rewardsStatus
-          } = rewardsData
+        //   const {
+        //     balance: rewardsBalance,
+        //     provider: externalRewardsProvider,
+        //     rewardsToken,
+        //     status: rewardsStatus
+        //   } = rewardsData
 
-          if (
-            rewardsStatus === WalletStatus.kConnected &&
-            rewardsToken &&
-            externalRewardsProvider &&
-            rewardsBalance
-          ) {
-            // add rewards info to balance registry
-            setBalance(
-              // TODO(apaymyshev): we need a better way to handle such fake
-              // account
-              {
-                accountId: { uniqueKey: externalRewardsProvider },
-                chainId: WootzWallet.MAINNET_CHAIN_ID,
-                contractAddress: rewardsToken.contractAddress,
-                balance: new Amount(rewardsBalance)
-                  .multiplyByDecimals(rewardsToken.decimals)
-                  .format(),
-                tokenBalancesRegistry,
-                coinType: WootzWallet.CoinType.ETH,
-                tokenId: ''
-              }
-            )
-          }
-        }
+        //   if (
+        //     rewardsStatus === WalletStatus.kConnected &&
+        //     rewardsToken &&
+        //     externalRewardsProvider &&
+        //     rewardsBalance
+        //   ) {
+        //     // add rewards info to balance registry
+        //     setBalance(
+        //       // TODO(apaymyshev): we need a better way to handle such fake
+        //       // account
+        //       {
+        //         accountId: { uniqueKey: externalRewardsProvider },
+        //         chainId: WootzWallet.MAINNET_CHAIN_ID,
+        //         contractAddress: rewardsToken.contractAddress,
+        //         balance: new Amount(rewardsBalance)
+        //           .multiplyByDecimals(rewardsToken.decimals)
+        //           .format(),
+        //         tokenBalancesRegistry,
+        //         coinType: WootzWallet.CoinType.ETH,
+        //         tokenId: ''
+        //       }
+        //     )
+        //   }
+        // }
 
         function onBalance(result: BalanceResult) {
           setBalance({

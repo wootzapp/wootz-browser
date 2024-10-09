@@ -5,11 +5,11 @@
 
 import * as React from 'react'
 import { useHistory } from 'react-router'
-import Button from '@wootz/leo/react/button'
-import Input from '@wootz/leo/react/input'
-import Icon from '@wootz/leo/react/icon'
-import Checkbox from '@wootz/leo/react/checkbox'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Button from '@brave/leo/react/button'
+import Input from '@brave/leo/react/input'
+import Icon from '@brave/leo/react/icon'
+import Checkbox from '@brave/leo/react/checkbox'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 // utils
 import { getLocale } from '../../../../../common/locale'

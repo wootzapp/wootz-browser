@@ -4,10 +4,10 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Button from '@wootz/leo/react/button'
-import Label from '@wootz/leo/react/label'
-import Icon from '@wootz/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Button from '@brave/leo/react/button'
+import Label from '@brave/leo/react/label'
+import Icon from '@brave/leo/react/icon'
 
 // styles
 import {

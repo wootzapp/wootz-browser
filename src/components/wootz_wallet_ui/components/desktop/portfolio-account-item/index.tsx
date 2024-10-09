@@ -21,16 +21,16 @@ import {
   getPriceIdForToken
 } from '../../../utils/pricing-utils'
 import { makeAccountRoute } from '../../../utils/routes-utils'
-import { getIsRewardsAccount } from '../../../utils/rewards_utils'
-import {
-  externalWalletProviderFromString //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import { getIsRewardsAccount } from '../../../utils/rewards_utils'
+// import {
+//   externalWalletProviderFromString //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 import { getLocale } from '../../../../common/locale'
 
 // Components
 import WithHideBalancePlaceholder from '../with-hide-balance-placeholder'
 import { PortfolioAccountMenu } from '../wallet-menus/portfolio-account-menu'
-import { RewardsMenu } from '../wallet-menus/rewards_menu'
+// import { RewardsMenu } from '../wallet-menus/rewards_menu'
 import { PopupModal } from '../popup-modals/index'
 import { DepositModal } from '../popup-modals/account-settings-modal/account-settings-modal'
 
@@ -55,7 +55,7 @@ import {
   AccountButton
 } from './style'
 import {
-  WootzRewardsIndicator,
+  // WootzRewardsIndicator,
   VerticalSpacer,
   Text,
   Row,
@@ -99,11 +99,9 @@ export const PortfolioAccountItem = (props: Props) => {
   const depositModalRef = React.useRef<HTMLDivElement>(null)
 
   // Memos & Computed
-  const isRewardsAccount = getIsRewardsAccount(account.accountId)
+  // const isRewardsAccount = getIsRewardsAccount(account.accountId)
 
-  const externalProvider = isRewardsAccount
-    ? externalWalletProviderFromString(account.accountId.uniqueKey)
-    : null
+  const externalProvider = null
 
   const formattedAssetBalance: string = React.useMemo(() => {
     return new Amount(assetBalance)
@@ -169,10 +167,9 @@ export const PortfolioAccountItem = (props: Props) => {
 
   return (
     <>
-      <StyledWrapper isRewardsAccount={isRewardsAccount}>
+      <StyledWrapper >
         <AccountButton
           onClick={onSelectAccount}
-          disabled={isRewardsAccount}
         >
           <Row width='unset'>
             <CreateAccountIcon
@@ -190,15 +187,12 @@ export const PortfolioAccountItem = (props: Props) => {
               >
                 {account.name}
               </Text>
-              {isRewardsAccount && (
+              {(
                 <>
                   <VerticalSpacer space='6px' />
-                  <WootzRewardsIndicator>
-                    {getLocale('wootzWalletWootzRewardsTitle')}
-                  </WootzRewardsIndicator>
                 </>
               )}
-              {account.address && !isRewardsAccount && (
+              {account.address && (
                 <Text
                   textSize='12px'
                   isBold={false}
@@ -245,9 +239,7 @@ export const PortfolioAccountItem = (props: Props) => {
           </AccountMenuButton>
           {showAccountMenu && (
             <>
-              {isRewardsAccount ? (
-                <RewardsMenu />
-              ) : (
+              {(
                 <PortfolioAccountMenu
                   onClickViewOnExplorer={
                     blockExplorerSupported

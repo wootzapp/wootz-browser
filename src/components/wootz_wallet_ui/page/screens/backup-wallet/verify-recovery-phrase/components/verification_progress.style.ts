@@ -4,8 +4,8 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Alert from '@wootz/leo/react/alert'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Alert from '@brave/leo/react/alert'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 export const Wrapper = styled.span`
   display: inline-flex;

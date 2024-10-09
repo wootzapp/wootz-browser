@@ -4,12 +4,12 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Icon from '@wootz/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
 
 // Assets
-import WootzLogoLight from '../../send/assets/wootz-logo-light.svg'
-import WootzLogoDark from '../../send/assets/wootz-logo-dark.svg'
+import WootzLogoLight from '../../send/assets/brave-logo-light.svg'
+import WootzLogoDark from '../../send/assets/brave-logo-dark.svg'
 
 // Shared Styles
 import { StyledDiv, StyledButton } from '../../send/shared.styles'

@@ -6,9 +6,9 @@
 import * as React from 'react'
 
 // Types
-import {
-  externalWalletProviderFromString //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import {
+//   externalWalletProviderFromString //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 // Constants
 import { WootzWallet, SupportedTestNetworks } from '../../../constants/types'
@@ -20,10 +20,10 @@ import {
   isValidIconExtension,
   isComponentInStorybook
 } from '../../../utils/string-utils'
-import {
-  getRewardsProviderIcon,
-  getIsRewardsNetwork
-} from '../../../utils/rewards_utils'
+// import {
+//   getRewardsProviderIcon,
+//   getIsRewardsNetwork
+// } from '../../../utils/rewards_utils'
 
 // Styled components
 import { IconWrapper, Placeholder, NetworkIcon, IconSize } from './style'
@@ -60,15 +60,11 @@ export const CreateNetworkIcon = ({ network, marginRight, size }: Props) => {
   }
 
   // Computed
-  const isRewardsNetwork = getIsRewardsNetwork(network)
 
-  const externalProvider = isRewardsNetwork
-    ? externalWalletProviderFromString(network.chainId)
-    : null
 
-  const networkLogo = isRewardsNetwork
-    ? getRewardsProviderIcon(externalProvider)
-    : getNetworkLogo(network.chainId, network.symbol)
+  const externalProvider = null
+
+  const networkLogo = getNetworkLogo(network.chainId, network.symbol)
 
   const isTestnet = SupportedTestNetworks.includes(network.chainId)
 

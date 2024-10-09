@@ -5,7 +5,7 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import LeoButton from '@wootz/leo/react/button'
+import LeoButton from '@brave/leo/react/button'
 
 // Options
 import { WootzWallet } from '../../../constants/types'
@@ -15,14 +15,14 @@ import Amount from '../../../utils/amount'
 import { getLocale } from '../../../../common/locale'
 import { unbiasedRandom } from '../../../utils/random-utils'
 import { checkIfTokenNeedsNetworkIcon } from '../../../utils/asset-utils'
-import {
-  getIsRewardsToken,
-  getNormalizedExternalRewardsNetwork,
-  getRewardsTokenDescription
-} from '../../../utils/rewards_utils'
-import {
-  externalWalletProviderFromString //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import {
+//   getIsRewardsToken,
+//   getNormalizedExternalRewardsNetwork,
+//   getRewardsTokenDescription
+// } from '../../../utils/rewards_utils'
+// import {
+//   externalWalletProviderFromString //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 // Hooks
 import {
@@ -43,7 +43,7 @@ import {
 } from '../with-hide-balance-placeholder/index'
 import { NftIcon } from '../../shared/nft-icon/nft-icon'
 import { AssetItemMenu } from '../wallet-menus/asset-item-menu'
-import { RewardsMenu } from '../wallet-menus/rewards_menu'
+// import { RewardsMenu } from '../wallet-menus/rewards_menu'
 import {
   BalanceDetailsModal //
 } from '../popup-modals/balance_details_modal/balance_details_modal'
@@ -153,16 +153,14 @@ export const PortfolioAssetItem = ({
 
   const isLoading = formattedAssetBalance === '' && !isNonFungibleToken
 
-  const isRewardsToken = getIsRewardsToken(token)
+  // const isRewardsToken = getIsRewardsToken(token)
 
-  const externalProvider = isRewardsToken
-    ? externalWalletProviderFromString(token.chainId)
-    : null
+  const externalProvider = 
+    // isRewardsToken
+    // ? externalWalletProviderFromString(token.chainId):
+    null
 
   const NetworkDescription = React.useMemo(() => {
-    if (isRewardsToken) {
-      return getRewardsTokenDescription(externalProvider)
-    }
 
     if (tokensNetwork && !isPanel) {
       return token.symbol !== ''
@@ -172,11 +170,9 @@ export const PortfolioAssetItem = ({
         : tokensNetwork.chainName
     }
     return token.symbol
-  }, [isRewardsToken, tokensNetwork, isPanel, token.symbol, externalProvider])
+  }, [tokensNetwork, isPanel, token.symbol, externalProvider])
 
-  const network = isRewardsToken
-    ? getNormalizedExternalRewardsNetwork(externalProvider)
-    : tokensNetwork
+  const network = tokensNetwork
 
   const hasPendingBalance = !new Amount(
     bitcoinBalances?.pendingBalance ?? '0'
@@ -315,9 +311,7 @@ export const PortfolioAssetItem = ({
               </AssetMenuButton>
               {showAssetMenu && (
                 <>
-                  {isRewardsToken ? (
-                    <RewardsMenu />
-                  ) : (
+                  {(
                     <AssetItemMenu
                       assetBalance={assetBalance}
                       asset={token}

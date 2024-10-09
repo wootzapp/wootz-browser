@@ -6,11 +6,11 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
-import { initLocale } from 'wootz-ui'
+import { initLocale } from 'brave-ui'
 import { BrowserRouter } from 'react-router-dom'
 
 // assets
-import faveiconUrl from '../assets/svg-icons/wootz-icon.svg'
+import faveiconUrl from '../assets/svg-icons/brave-icon.svg'
 
 // utils
 import { loadTimeData } from '../../common/loadTimeData'
@@ -31,7 +31,7 @@ import walletDarkTheme from '../theme/wallet-dark'
 import walletLightTheme from '../theme/wallet-light'
 import 'emptykit.css'
 
-import { setIconBasePath } from '@wootz/leo/react/icon'
+import { setIconBasePath } from '@brave/leo/react/icon'
 setIconBasePath('chrome://resources/wootz-icons')
 
 function App() {

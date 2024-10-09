@@ -7,12 +7,11 @@ import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/dist/query'
 
 // Constants
-import { emptyRewardsInfo } from '../../../../../common/async/base-query-cache'
+// import { emptyRewardsInfo } from '../../../../../common/async/base-query-cache'
 
 // Queries
 import {
-  useGetVisibleNetworksQuery,
-  useGetRewardsInfoQuery
+  useGetVisibleNetworksQuery
 } from '../../../../../common/slices/api.slice'
 
 // Types
@@ -54,8 +53,7 @@ export const FilterNetworksSection = ({
   const { data: visibleNetworks = [] } = useGetVisibleNetworksQuery(
     networksSubset ? skipToken : undefined
   )
-  const { data: { rewardsNetwork: providerNetwork } = emptyRewardsInfo } =
-    useGetRewardsInfoQuery(networksSubset ? skipToken : undefined)
+
   const networks = networksSubset || visibleNetworks
 
   // Memos
@@ -175,16 +173,6 @@ export const FilterNetworksSection = ({
         />
       )}
 
-      {/* Provider Networks */}
-      {providerNetwork && (
-        <NetworkCheckboxes
-          isNetworkFilteredOut={isNetworkFilteredOut}
-          onCheckNetwork={onCheckNetwork}
-          networks={[providerNetwork]}
-          title={getLocale('wootzWalletPlatforms')}
-          marginBottom={0}
-        />
-      )}
     </>
   )
 }

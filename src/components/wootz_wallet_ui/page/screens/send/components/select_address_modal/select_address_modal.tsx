@@ -5,8 +5,8 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import Icon from '@wootz/leo/react/icon'
-import ProgressRing from '@wootz/leo/react/progressRing'
+import Icon from '@brave/leo/react/icon'
+import ProgressRing from '@brave/leo/react/progressRing'
 
 // Types
 import {

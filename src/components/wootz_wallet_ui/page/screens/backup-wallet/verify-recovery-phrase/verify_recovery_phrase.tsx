@@ -6,7 +6,7 @@
 import * as React from 'react'
 import { useDispatch } from 'react-redux'
 import { useHistory, useLocation } from 'react-router'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 // utils
 import { getLocale } from '../../../../../common/locale'
@@ -29,7 +29,7 @@ import { WootzWallet, WalletRoutes } from '../../../../constants/types'
 import { WalletPageActions } from '../../../actions'
 
 // components
-import Button from '@wootz/leo/react/button'
+import Button from '@brave/leo/react/button'
 import {
   OnboardingContentLayout //
 } from '../../onboarding/components/onboarding_content_layout/content_layout'

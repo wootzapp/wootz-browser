@@ -5,8 +5,8 @@
 
 import * as React from 'react'
 import { skipToken } from '@reduxjs/toolkit/query/react'
-import Input, { InputEventDetail } from '@wootz/leo/react/input'
-import Alert from '@wootz/leo/react/alert'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
+import Alert from '@brave/leo/react/alert'
 
 // utils
 import { WootzWallet } from '../../../constants/types'
@@ -57,7 +57,7 @@ import {
 } from './add-custom-token-form-styles'
 import { Column, LeoSquaredButton, Row } from '../style'
 import { Skeleton } from '../loading-skeleton/styles'
-import Icon from '@wootz/leo/react/icon'
+import Icon from '@brave/leo/react/icon'
 import Tooltip from '../tooltip'
 
 const NftIconWithPlaceholder = withPlaceholderIcon(NftIcon, {

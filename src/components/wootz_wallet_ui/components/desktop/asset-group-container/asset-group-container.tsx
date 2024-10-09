@@ -17,7 +17,7 @@ import {
 
 // Utils
 import { reduceAddress } from '../../../utils/reduce-address'
-import { getLocale } from '../../../../common/locale'
+
 import {
   useLocalStorage,
   useSyncedLocalStorage
@@ -25,9 +25,9 @@ import {
 
 // Types
 import { WootzWallet } from '../../../constants/types'
-import {
-  ExternalWalletProvider //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import {
+//   ExternalWalletProvider //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 // Components
 import { CreateNetworkIcon } from '../../shared/create-network-icon/index'
@@ -42,19 +42,19 @@ import {
   CollapseButton,
   CollapseIcon,
   AccountDescriptionWrapper,
-  RewardsProviderContainer,
-  RewardsText
+  // RewardsProviderContainer,
+  // RewardsText
 } from './asset-group-container.style'
 import {
   Row,
   Column,
   Text,
   HorizontalSpace,
-  WootzRewardsIndicator
+  // WootzRewardsIndicator
 } from '../../shared/style'
 
 interface Props {
-  externalProvider?: ExternalWalletProvider | null
+  externalProvider?: null
   network?: WootzWallet.NetworkInfo | undefined
   account?: WootzWallet.AccountInfo | undefined
   isSkeleton?: boolean
@@ -87,13 +87,6 @@ export const AssetGroupContainer = (props: Props) => {
   const [collapsedNetworks, setCollapsedPortfolioNetworkKeys] = useLocalStorage<
     string[]
   >(LOCAL_STORAGE_KEYS.COLLAPSED_PORTFOLIO_NETWORK_KEYS, [])
-
-  // Memos & Computed
-  const externalRewardsDescription = network
-    ? network.chainName
-    : account
-    ? account.name
-    : ''
 
   const isCollapsed = React.useMemo(() => {
     if (network) {
@@ -178,19 +171,6 @@ export const AssetGroupContainer = (props: Props) => {
                 marginRight={16}
               />
             )}
-            <RewardsProviderContainer>
-              <RewardsText
-                textSize='14px'
-                isBold={true}
-                textColor='primary'
-                textAlign='left'
-              >
-                {externalRewardsDescription}
-              </RewardsText>
-              <WootzRewardsIndicator>
-                {getLocale('wootzWalletWootzRewardsTitle')}
-              </WootzRewardsIndicator>
-            </RewardsProviderContainer>
           </Row>
         )}
 

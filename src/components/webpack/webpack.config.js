@@ -4,13 +4,18 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 const path = require('path')
+const fs = require('fs')
 const webpack = require('webpack')
 const GenerateDepfilePlugin = require('./webpack-plugin-depfile')
 const { fallback, provideNodeGlobals } = require('./polyfill')
 const pathMap = require('./path-map')(process.env.ROOT_GEN_DIR)
 
-const tsConfigPath = path.join(process.env.ROOT_GEN_DIR, 'tsconfig-webpack.json')
+function LOG(message) {
+  fs.appendFile('/tmp/webpack.log', message + '\n', e => {})
+}
 
+const tsConfigPath = path.join(process.env.ROOT_GEN_DIR, 'tsconfig-webpack.json')
+LOG(tsConfigPath)
 /**
  * Maps a prefix to a corresponding path. We need this as Webpack5 dropped
  * support for scheme prefixes (like chrome://)
@@ -70,7 +75,8 @@ module.exports = async function (env, argv) {
   const output = {
     path: process.env.TARGET_GEN_DIR,
     filename: '[name].bundle.js',
-    chunkFilename: '[name].chunk.js'
+    chunkFilename: '[name].chunk.js',
+    publicPath: '/'
   }
   if (env.output_public_path) {
     output.publicPath = env.output_public_path

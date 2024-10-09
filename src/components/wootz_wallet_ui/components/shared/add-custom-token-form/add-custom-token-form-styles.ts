@@ -4,11 +4,11 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import ProgressRing from '@wootz/leo/react/progressRing'
+import * as leo from '@brave/leo/tokens/css/variables'
+import ProgressRing from '@brave/leo/react/progressRing'
 
 import { WalletButton, Row } from '../style'
-import { CaratStrongDownIcon } from 'wootz-ui/components/icons'
+import { CaratStrongDownIcon } from 'brave-ui/components/icons'
 import { layoutPanelWidth } from '../../desktop/wallet-page-wrapper/wallet-page-wrapper.style'
 
 // graphics

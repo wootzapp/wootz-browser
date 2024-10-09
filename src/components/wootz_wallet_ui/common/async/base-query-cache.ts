@@ -13,8 +13,8 @@ import {
   SupportedTestNetworks,
   SupportedOnRampNetworks,
   SupportedOffRampNetworks,
-  WootzRewardsInfo,
-  WalletStatus,
+//   WootzRewardsInfo,
+//   WalletStatus,
   NFTMetadataReturnType
 } from '../../constants/types'
 
@@ -52,13 +52,13 @@ import {
 } from '../../options/asset-options'
 import { isIpfs } from '../../utils/string-utils'
 import { getEnabledCoinTypes } from '../../utils/api-utils'
-import { getWootzRewardsProxy } from './wootz_rewards_api_proxy'
-import {
-  getRewardsBATToken,
-  getNormalizedExternalRewardsWallet,
-  getNormalizedExternalRewardsNetwork,
-  getRewardsProviderName
-} from '../../utils/rewards_utils'
+// import { getWootzRewardsProxy } from './wootz_rewards_api_proxy'
+// import {
+//   getRewardsBATToken,
+//   getNormalizedExternalRewardsWallet,
+//   getNormalizedExternalRewardsNetwork,
+//   getRewardsProviderName
+// } from '../../utils/rewards_utils'
 
 /**
  * A place to store & manage dependency data for other queries
@@ -73,7 +73,7 @@ export class BaseQueryCache {
   private _nftImageIpfsGateWayUrlRegistry: Record<string, string | null> = {}
   private _enabledCoinTypes: number[]
   private _nftMetadataRegistry: Record<string, NFTMetadataReturnType> = {}
-  public rewardsInfo: WootzRewardsInfo | undefined = undefined
+//   public rewardsInfo: WootzRewardsInfo | undefined = undefined
   public balanceScannerSupportedChains: string[] | undefined = undefined
   public spamNftsForAccountRegistry: Record<
     string, // accountUniqueId
@@ -460,39 +460,39 @@ export class BaseQueryCache {
     return this.spamNftsForAccountRegistry[accountId.uniqueKey]
   }
 
-  // Wootz Rewards
-  getWootzRewardsInfo = async () => {
-    if (!this.rewardsInfo) {
-      const isRewardsEnabled = await getWootzRewardsProxy().getRewardsEnabled()
+//   // Wootz Rewards
+//   getWootzRewardsInfo = async () => {
+//     if (!this.rewardsInfo) {
+//       const isRewardsEnabled = await getWootzRewardsProxy().getRewardsEnabled()
 
-      if (!isRewardsEnabled) {
-        this.rewardsInfo = emptyRewardsInfo
-        return this.rewardsInfo
-      }
-      const { provider, status, url } =
-        (await getWootzRewardsProxy().getExternalWallet()) || {}
+//       if (!isRewardsEnabled) {
+//         this.rewardsInfo = emptyRewardsInfo
+//         return this.rewardsInfo
+//       }
+//       const { provider, status, url } =
+//         (await getWootzRewardsProxy().getExternalWallet()) || {}
 
-      if (!provider || provider === 'solana') {
-        return emptyRewardsInfo
-      }
+//       if (!provider || provider === 'solana') {
+//         return emptyRewardsInfo
+//       }
 
-      const balance = await getWootzRewardsProxy().fetchBalance()
+//       const balance = await getWootzRewardsProxy().fetchBalance()
 
-      this.rewardsInfo = {
-        isRewardsEnabled: true,
-        balance,
-        provider,
-        status: status || WalletStatus.kNotConnected,
-        accountLink: url,
-        rewardsToken: getRewardsBATToken(provider),
-        rewardsAccount: getNormalizedExternalRewardsWallet(provider),
-        rewardsNetwork: getNormalizedExternalRewardsNetwork(provider),
-        providerName: getRewardsProviderName(provider)
-      }
-    }
+//       this.rewardsInfo = {
+//         isRewardsEnabled: true,
+//         balance,
+//         provider,
+//         status: status || WalletStatus.kNotConnected,
+//         accountLink: url,
+//         rewardsToken: getRewardsBATToken(provider),
+//         rewardsAccount: getNormalizedExternalRewardsWallet(provider),
+//         rewardsNetwork: getNormalizedExternalRewardsNetwork(provider),
+//         providerName: getRewardsProviderName(provider)
+//       }
+//     }
 
-    return this.rewardsInfo
-  }
+//     return this.rewardsInfo
+//   }
 }
 
 let cache = new BaseQueryCache()
@@ -766,14 +766,14 @@ export async function makeTokensRegistry({
 }
 
 // defaults
-export const emptyRewardsInfo: WootzRewardsInfo = {
-  isRewardsEnabled: false,
-  balance: undefined,
-  rewardsToken: undefined,
-  provider: undefined,
-  providerName: '',
-  status: WalletStatus.kNotConnected,
-  rewardsAccount: undefined,
-  rewardsNetwork: undefined,
-  accountLink: undefined
-} as const
+// export const emptyRewardsInfo: WootzRewardsInfo = {
+//   isRewardsEnabled: false,
+//   balance: undefined,
+//   rewardsToken: undefined,
+//   provider: undefined,
+//   providerName: '',
+//   status: WalletStatus.kNotConnected,
+//   rewardsAccount: undefined,
+//   rewardsNetwork: undefined,
+//   accountLink: undefined
+// } as const

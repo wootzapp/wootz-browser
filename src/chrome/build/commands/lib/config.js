@@ -19,7 +19,7 @@ if (process.platform === 'win32') {
   dirName = fs.realpathSync.native(dirName)
 }
 const rootDir = path.resolve(dirName, '..', '..', '..', '..', '..')
-const chromeCoreDir = path.join(rootDir, 'src', 'chrome')
+const chromeCoreDir = path.join(rootDir, 'src')
 
 var packageConfig = function (key, sourceDir = chromeCoreDir) {
   let packages = { config: {} }

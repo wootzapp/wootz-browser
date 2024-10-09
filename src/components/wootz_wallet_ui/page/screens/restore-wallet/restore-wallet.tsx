@@ -20,7 +20,7 @@ import { useSafeWalletSelector } from '../../../common/hooks/use-safe-selector'
 import { BackButton } from '../../../components/shared/back-button'
 import { PasswordInput } from '../../../components/shared/password-input'
 import { NavButton } from '../../../components/extension/buttons/nav-button/index'
-import { Checkbox } from 'wootz-ui'
+import { Checkbox } from 'brave-ui'
 
 // Styles
 import {

@@ -8,19 +8,19 @@
 import { FC } from 'react'
 import styled, { css, CSSProperties } from 'styled-components'
 import { Link } from 'react-router-dom'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Icon from '@wootz/leo/react/icon'
-import Button from '@wootz/leo/react/button'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
+import Button from '@brave/leo/react/button'
 
 // types
 import { WootzWallet, StringWithAutocomplete } from '../../constants/types'
-import IThemeProps from 'wootz-ui/theme/theme-interface'
+import IThemeProps from 'brave-ui/theme/theme-interface'
 
 // utils
 import { stripERC20TokenImageURL } from '../../utils/string-utils'
 
 // components
-import { LoaderIcon } from 'wootz-ui/components/icons'
+import { LoaderIcon } from 'brave-ui/components/icons'
 
 // images & icons
 import transparent40x40Image from '../../assets/png-icons/transparent40x40.png'
@@ -38,7 +38,7 @@ import WarningTriangleFilled from '../../assets/svg-icons/warning-triangle-fille
 export type ThemeColor = StringWithAutocomplete<keyof IThemeProps['color']>
 
 // graphics
-import WootzWalletWithCoins from '../../assets/svg-icons/onboarding/wootz-wallet-with-coins.svg'
+import WootzWalletWithCoins from '../../assets/svg-icons/onboarding/brave-wallet-with-coins.svg'
 import { makePaddingMixin } from '../../utils/style.utils'
 
 // re-export "send" styles

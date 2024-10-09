@@ -38,7 +38,7 @@ def generate_tsconfig(root_gen_dir, env=None):
 
     env["ROOT_GEN_DIR"] = root_gen_dir
 
-    dirname = os.path.abspath(os.path.join(__file__, '..', '..'))
+    dirname = os.path.abspath(os.path.join(__file__, '..', '..', '..'))
     with scoped_cwd(dirname):
         execute_stdout(args, env)
 

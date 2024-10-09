@@ -109,6 +109,8 @@
 #include "ui/web_dialogs/web_dialog_ui.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
+#include "components/constants/webui_url_constants.h"
+#include "chrome/browser/ui/webui/wootz_wallet/android/android_wallet_page_ui.h"
 
 #if BUILDFLAG(ENABLE_NACL)
 #include "chrome/browser/ui/webui/nacl_ui.h"
@@ -309,6 +311,11 @@ WebUIController* NewComponentUI(WebUI* web_ui, const GURL& url) {
   return new WEB_UI_CONTROLLER(web_ui, std::move(delegate));
 }
 
+template <>
+WebUIController* NewWebUI<AndroidWalletPageUI>(WebUI* web_ui, const GURL& url) {
+  return new AndroidWalletPageUI(web_ui, url);
+}
+
 #if !BUILDFLAG(IS_ANDROID)
 template <>
 WebUIController* NewWebUI<PageNotAvailableForGuestUI>(WebUI* web_ui,
@@ -447,6 +454,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<ThrottleUI>;
   if (url.host_piece() == chrome::kChromeUIRewardsHost)
     return &NewWebUI<RewardsUI>;
+  if (url.host_piece() == kWalletPageHost)
+    return &NewWebUI<AndroidWalletPageUI>;
   if (url.host_piece() == chrome::kChromeUINTPTilesInternalsHost)
     return &NewWebUI<NTPTilesInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIOmniboxHost)

@@ -4,11 +4,11 @@
 // You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import Input from '@wootz/leo/react/input'
-import Alert from '@wootz/leo/react/alert'
-import Button from '@wootz/leo/react/button'
-import Icon from '@wootz/leo/react/icon'
-import * as leo from '@wootz/leo/tokens/css/variables'
+import Input from '@brave/leo/react/input'
+import Alert from '@brave/leo/react/alert'
+import Button from '@brave/leo/react/button'
+import Icon from '@brave/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
 
 export const ErrorTextRow = styled.div<{
   hasError: boolean

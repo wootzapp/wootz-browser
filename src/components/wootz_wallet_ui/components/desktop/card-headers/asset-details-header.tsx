@@ -18,13 +18,13 @@ import {
   getTokenPriceFromRegistry
 } from '../../../utils/pricing-utils'
 import { WootzWallet } from '../../../constants/types'
-import {
-  getIsRewardsToken,
-  getRewardsTokenDescription
-} from '../../../utils/rewards_utils'
-import {
-  externalWalletProviderFromString //
-} from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import {
+//   getIsRewardsToken,
+//   getRewardsTokenDescription
+// } from '../../../utils/rewards_utils'
+// import {
+//   externalWalletProviderFromString //
+// } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 import { checkIfTokenNeedsNetworkIcon } from '../../../utils/asset-utils'
 
 // Queries
@@ -157,14 +157,10 @@ export const AssetDetailsHeader = (props: Props) => {
   )
 
   // computed
-  const isRewardsToken = getIsRewardsToken(selectedAsset)
+  // const isRewardsToken = getIsRewardsToken(selectedAsset)
 
   const networkDescription = isShowingMarketData
     ? selectedAsset?.symbol ?? ''
-    : isRewardsToken
-    ? getRewardsTokenDescription(
-        externalWalletProviderFromString(selectedAsset?.chainId ?? '')
-      )
     : getLocale('wootzWalletPortfolioAssetNetworkDescription')
         .replace('$1', selectedAsset?.symbol ?? '')
         .replace('$2', selectedAssetsNetwork?.chainName ?? '')
@@ -277,8 +273,7 @@ export const AssetDetailsHeader = (props: Props) => {
         </Column>
         {selectedAsset?.contractAddress &&
           !selectedAsset?.isErc721 &&
-          !selectedAsset.isNft &&
-          !isRewardsToken && (
+          !selectedAsset.isNft && (
             <>
               <HorizontalSpace space='16px' />
               <HorizontalDivider />

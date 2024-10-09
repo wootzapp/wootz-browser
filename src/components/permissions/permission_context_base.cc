@@ -709,7 +709,7 @@ void PermissionContextBase::NotifyObservers(
 #undef PermissionContextBase
 #undef CanBypassEmbeddingOriginCheck
 
-// #include "components/permissions/permission_lifetime_manager.h"
+#include "components/permissions/permission_lifetime_manager.h"
 
 namespace {
 
@@ -732,11 +732,11 @@ PermissionContextBase::PermissionContextBase(
 
 PermissionContextBase::~PermissionContextBase() = default;
 
-// void PermissionContextBase::SetPermissionLifetimeManagerFactory(
-//     const base::RepeatingCallback<
-//         PermissionLifetimeManager*(content::BrowserContext*)>& factory) {
-//   permission_lifetime_manager_factory_ = factory;
-// }
+void PermissionContextBase::SetPermissionLifetimeManagerFactory(
+    const base::RepeatingCallback<
+        PermissionLifetimeManager*(content::BrowserContext*)>& factory) {
+  permission_lifetime_manager_factory_ = factory;
+}
 
 void PermissionContextBase::PermissionDecided(const PermissionRequestID& id,
                                               const GURL& requesting_origin,
@@ -744,33 +744,33 @@ void PermissionContextBase::PermissionDecided(const PermissionRequestID& id,
                                               ContentSetting content_setting,
                                               bool is_one_time,
                                               bool is_final_decision) {
-  // if (permission_lifetime_manager_factory_) {
-  //   const auto request_it = pending_requests_.find(id.ToString());
-  //   if (request_it != pending_requests_.end()) {
-  //     const PermissionRequest* permission_request =
-  //         request_it->second.first.get();
-  //     DCHECK(permission_request);
-  //     if (auto* permission_lifetime_manager =
-  //             permission_lifetime_manager_factory_.Run(browser_context_)) {
-  //       permission_lifetime_manager->PermissionDecided(
-  //           *permission_request, requesting_origin, embedding_origin,
-  //           content_setting, is_one_time);
-  //     }
-  //   }
-  //   const auto group_request_it = pending_grouped_requests_.find(id.ToString());
-  //   if (group_request_it != pending_grouped_requests_.end()) {
-  //     for (const auto& request : group_request_it->second->Requests()) {
-  //       const PermissionRequest* permission_request = request.first.get();
-  //       DCHECK(permission_request);
-  //       if (auto* permission_lifetime_manager =
-  //               permission_lifetime_manager_factory_.Run(browser_context_)) {
-  //         permission_lifetime_manager->PermissionDecided(
-  //             *permission_request, requesting_origin, embedding_origin,
-  //             content_setting, is_one_time);
-  //       }
-  //     }
-  //   }
-  // }
+  if (permission_lifetime_manager_factory_) {
+    const auto request_it = pending_requests_.find(id.ToString());
+    if (request_it != pending_requests_.end()) {
+      const PermissionRequest* permission_request =
+          request_it->second.first.get();
+      DCHECK(permission_request);
+      if (auto* permission_lifetime_manager =
+              permission_lifetime_manager_factory_.Run(browser_context_)) {
+        permission_lifetime_manager->PermissionDecided(
+            *permission_request, requesting_origin, embedding_origin,
+            content_setting, is_one_time);
+      }
+    }
+    const auto group_request_it = pending_grouped_requests_.find(id.ToString());
+    if (group_request_it != pending_grouped_requests_.end()) {
+      for (const auto& request : group_request_it->second->Requests()) {
+        const PermissionRequest* permission_request = request.first.get();
+        DCHECK(permission_request);
+        if (auto* permission_lifetime_manager =
+                permission_lifetime_manager_factory_.Run(browser_context_)) {
+          permission_lifetime_manager->PermissionDecided(
+              *permission_request, requesting_origin, embedding_origin,
+              content_setting, is_one_time);
+        }
+      }
+    }
+  }
 
   if (!IsGroupedPermissionType(content_settings_type())) {
     PermissionContextBase_ChromiumImpl::PermissionDecided(

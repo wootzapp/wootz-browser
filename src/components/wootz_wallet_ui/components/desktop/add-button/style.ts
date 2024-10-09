@@ -5,7 +5,7 @@
 import styled from 'styled-components'
 import { WalletButton } from '../../shared/style'
 import icon from '../../../assets/svg-icons/plus-icon.svg'
-import { EditOIcon } from 'wootz-ui/components/icons'
+import { EditOIcon } from 'brave-ui/components/icons'
 interface StyleProps {
   buttonType: 'primary' | 'secondary'
 }

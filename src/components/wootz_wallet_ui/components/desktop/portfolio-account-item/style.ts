@@ -3,14 +3,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this file,
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 import styled from 'styled-components'
-import * as leo from '@wootz/leo/tokens/css/variables'
-import Icon from '@wootz/leo/react/icon'
+import * as leo from '@brave/leo/tokens/css/variables'
+import Icon from '@brave/leo/react/icon'
 import { WalletButton } from '../../shared/style'
 
 export const StyledWrapper = styled.div<{
-  isRewardsAccount: boolean
+  // isRewardsAccount: boolean
 }>`
-  cursor: ${(p) => (p.isRewardsAccount ? 'default' : 'pointer')};
+  cursor: ${(p) => ('pointer')};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -22,8 +22,7 @@ export const StyledWrapper = styled.div<{
   border-radius: 12px;
   transition: background-color 300ms ease-out;
   &:hover {
-    background-color: ${(p) =>
-      p.isRewardsAccount ? 'transparent' : leo.color.page.background};
+    background-color: ${leo.color.page.background};
   }
 `
 

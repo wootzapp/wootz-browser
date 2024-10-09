@@ -12,7 +12,7 @@ import { useDispatch } from 'react-redux'
 import { AccountsTabActions } from '../../../page/reducers/accounts-tab-reducer'
 
 // constants
-import { emptyRewardsInfo } from '../../../common/async/base-query-cache'
+// import { emptyRewardsInfo } from '../../../common/async/base-query-cache'
 
 // utils
 import { reduceAddress } from '../../../utils/reduce-address'
@@ -20,12 +20,11 @@ import { getAccountTypeDescription } from '../../../utils/account-utils'
 import { getBalance } from '../../../utils/balance-utils'
 import { computeFiatAmount } from '../../../utils/pricing-utils'
 import Amount from '../../../utils/amount'
-import {
-  getIsRewardsAccount,
-  getIsRewardsToken,
-  getRewardsTokenDescription
-} from '../../../utils/rewards_utils'
-import { getLocale } from '../../../../common/locale'
+// import {
+//   getIsRewardsAccount,
+//   getIsRewardsToken,
+//   getRewardsTokenDescription
+// } from '../../../utils/rewards_utils'
 import { getEntitiesListFromEntityState } from '../../../utils/entities.utils'
 
 // hooks
@@ -41,7 +40,7 @@ import {
 } from '../../../common/slices/entities/token-balance.entity'
 import {
   useGetDefaultFiatCurrencyQuery,
-  useGetRewardsInfoQuery,
+  // useGetRewardsInfoQuery,
   useGetUserTokensRegistryQuery
 } from '../../../common/slices/api.slice'
 
@@ -50,8 +49,7 @@ import {
   WootzWallet,
   AccountButtonOptionsObjectType,
   AccountModalTypes,
-  SpotPriceRegistry,
-  WalletStatus
+  SpotPriceRegistry
 } from '../../../constants/types'
 
 // options
@@ -61,13 +59,12 @@ import { AccountButtonOptions } from '../../../options/account-list-button-optio
 import {
   AccountActionsMenu //
 } from '../wallet-menus/account-actions-menu'
-import { RewardsMenu } from '../wallet-menus/rewards_menu'
+// import { RewardsMenu } from '../wallet-menus/rewards_menu'
 import {
   CreateAccountIcon //
 } from '../../shared/create-account-icon/create-account-icon'
 import { TokenIconsStack } from '../../shared/icon-stacks/token-icons-stack'
 import LoadingSkeleton from '../../shared/loading-skeleton'
-import { RewardsLogin } from '../rewards_login/rewards_login'
 
 // style
 import {
@@ -85,7 +82,7 @@ import {
 import {
   HorizontalSpace,
   Row,
-  WootzRewardsIndicator,
+  // WootzRewardsIndicator,
   VerticalSpacer,
   Text,
   Column
@@ -119,14 +116,6 @@ export const AccountListItem = ({
   const { data: defaultFiatCurrency = 'usd' } = useGetDefaultFiatCurrencyQuery()
   const { data: userTokensRegistry } = useGetUserTokensRegistryQuery()
 
-  const {
-    data: {
-      balance: rewardsBalance,
-      provider,
-      status: rewardsStatus,
-      rewardsToken
-    } = emptyRewardsInfo
-  } = useGetRewardsInfoQuery()
 
   // state
   const [showAccountMenu, setShowAccountMenu] = React.useState<boolean>(false)
@@ -180,17 +169,14 @@ export const AccountListItem = ({
   )
 
   // memos & computed
-  const isRewardsAccount = getIsRewardsAccount(account.accountId)
+  // const isRewardsAccount = getIsRewardsAccount(account.accountId)
 
-  const isDisconnectedRewardsAccount =
-    isRewardsAccount && rewardsStatus === WalletStatus.kLoggedOut
+  // const isDisconnectedRewardsAccount =
+  //   isRewardsAccount && rewardsStatus === WalletStatus.kLoggedOut
 
-  const externalProvider = isRewardsAccount ? provider : undefined
+  const externalProvider = undefined
 
   const accountsFungibleTokens = React.useMemo(() => {
-    if (isRewardsAccount && rewardsToken) {
-      return [rewardsToken]
-    }
 
     if (!userTokensRegistry) {
       return []
@@ -202,12 +188,9 @@ export const AccountListItem = ({
         account.accountId.coin
       ]
     )
-  }, [userTokensRegistry, account, isRewardsAccount, rewardsToken])
+  }, [userTokensRegistry, account])
 
   const tokensWithBalances = React.useMemo(() => {
-    if (isRewardsAccount && rewardsToken && rewardsBalance) {
-      return [rewardsToken]
-    }
     return accountsFungibleTokens.filter((token) =>
       new Amount(
         getBalance(account.accountId, token, tokenBalancesRegistry)
@@ -217,9 +200,6 @@ export const AccountListItem = ({
     accountsFungibleTokens,
     tokenBalancesRegistry,
     account,
-    isRewardsAccount,
-    rewardsToken,
-    rewardsBalance
   ])
 
   const accountsFiatValue = React.useMemo(() => {
@@ -245,13 +225,8 @@ export const AccountListItem = ({
     }
 
     const amounts = accountsFungibleTokens.map((asset) => {
-      const isRewardsToken = getIsRewardsToken(asset)
-      const balance =
-        isRewardsToken && rewardsBalance
-          ? new Amount(rewardsBalance)
-              .multiplyByDecimals(asset.decimals)
-              .format()
-          : getBalance(account.accountId, asset, tokenBalancesRegistry)
+
+      const balance = getBalance(account.accountId, asset, tokenBalancesRegistry)
       return computeFiatAmount({
         spotPriceRegistry,
         value: balance,
@@ -270,7 +245,6 @@ export const AccountListItem = ({
     accountsFungibleTokens,
     tokenBalancesRegistry,
     spotPriceRegistry,
-    rewardsBalance,
     isLoadingBalances,
     isLoadingSpotPrices
   ])
@@ -304,11 +278,10 @@ export const AccountListItem = ({
 
   // render
   return (
-    <StyledWrapper isRewardsAccount={isRewardsAccount}>
+    <StyledWrapper>
       <Row justifyContent='space-between'>
         <AccountButton
           onClick={onSelectAccount}
-          disabled={isRewardsAccount}
         >
           <NameAndIcon>
             <CreateAccountIcon
@@ -331,17 +304,15 @@ export const AccountListItem = ({
                   {account.name}
                 </Text>
                 <HorizontalSpace space='8px' />
-                {isRewardsAccount && (
+                {(
                   <>
                     <VerticalSpacer space='4px' />
-                    <WootzRewardsIndicator>
-                      {getLocale('wootzWalletWootzRewardsTitle')}
-                    </WootzRewardsIndicator>
+
                     <VerticalSpacer space='4px' />
                   </>
                 )}
               </AccountNameWrapper>
-              {account.address && !isRewardsAccount && (
+              {account.address && (
                 <Text
                   textSize='12px'
                   isBold={false}
@@ -352,14 +323,12 @@ export const AccountListItem = ({
                 </Text>
               )}
               <AccountDescription>
-                {isRewardsAccount
-                  ? getRewardsTokenDescription(externalProvider ?? null)
-                  : getAccountTypeDescription(account.accountId)}
+                {getAccountTypeDescription(account.accountId)}
               </AccountDescription>
             </Column>
           </NameAndIcon>
 
-          {!isDisconnectedRewardsAccount && (
+          {(
             <Row width='unset'>
               {!isPanel && !accountsFiatValue.isZero() ? (
                 tokensWithBalances.length ? (
@@ -397,7 +366,7 @@ export const AccountListItem = ({
           )}
         </AccountButton>
 
-        {!isDisconnectedRewardsAccount && (
+        {(
           <AccountMenuWrapper ref={accountMenuRef}>
             <AccountMenuButton
               onClick={() => setShowAccountMenu((prev) => !prev)}
@@ -406,9 +375,7 @@ export const AccountListItem = ({
             </AccountMenuButton>
             {showAccountMenu && (
               <>
-                {isRewardsAccount ? (
-                  <RewardsMenu />
-                ) : (
+                {(
                   <AccountActionsMenu
                     onClick={onClickButtonOption}
                     options={buttonOptions}
@@ -419,11 +386,6 @@ export const AccountListItem = ({
           </AccountMenuWrapper>
         )}
       </Row>
-      {isDisconnectedRewardsAccount && (
-        <Row padding='0px 0px 8px 8px'>
-          <RewardsLogin provider={provider} />
-        </Row>
-      )}
     </StyledWrapper>
   )
 }

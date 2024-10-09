@@ -8,7 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { Route, Switch, BrowserRouter } from 'react-router-dom'
 
-import { initLocale } from 'wootz-ui'
+import { initLocale } from 'brave-ui'
 
 // style
 import walletDarkTheme from '../../../../theme/wallet-dark'

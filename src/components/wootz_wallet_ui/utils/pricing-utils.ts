@@ -8,7 +8,6 @@ import { SKIP_PRICE_LOOKUP_COINGECKO_ID } from '../common/constants/magics'
 import {
   SpotPriceRegistry,
   WootzWallet,
-  externalWalletProviders,
   SupportedTestNetworks
 } from '../constants/types'
 
@@ -117,7 +116,7 @@ export const getPriceIdForToken = (
 
   const isEthereumNetwork = token.chainId === WootzWallet.MAINNET_CHAIN_ID
   if (
-    (isEthereumNetwork || externalWalletProviders.includes(token.chainId)) &&
+    (isEthereumNetwork) &&
     token.contractAddress
   ) {
     return token.contractAddress.toLowerCase()

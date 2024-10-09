@@ -6,8 +6,8 @@
 import styled from 'styled-components'
 
 // Utils
-import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
-import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
+// import { getRewardsProviderBackground } from '../../../utils/rewards_utils'
+// import { ExternalWalletProvider } from '../../../../wootz_rewards/resources/shared/lib/external_wallet'
 
 // Shared Styles
 import { AssetIconFactory, AssetIconProps } from '../style'
@@ -16,7 +16,7 @@ export const IconWrapper = styled.div<{
   marginRight: number
   isTestnet: boolean
   size?: string
-  externalProvider?: ExternalWalletProvider | null
+  externalProvider?: null
 }>`
   display: flex;
   align-items: center;
@@ -26,10 +26,7 @@ export const IconWrapper = styled.div<{
   height: ${(p) => (p.size ? p.size : '15px')};
   margin-right: ${(p) => `${p.marginRight}px`};
   filter: ${(p) => (p.isTestnet ? 'grayscale(100%)' : 'none')};
-  background-color: ${(p) =>
-    p.externalProvider
-      ? getRewardsProviderBackground(p.externalProvider)
-      : 'none'};
+  background-color: 'none'};
   border-radius: ${(p) => (p.externalProvider ? '100%' : 'none')};
   padding: ${(p) => (p.externalProvider ? '2px' : '0px')};
 `

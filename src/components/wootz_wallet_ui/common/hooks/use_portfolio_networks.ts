@@ -6,13 +6,13 @@
 import * as React from 'react'
 
 // constants
-import { emptyRewardsInfo } from '../async/base-query-cache'
-import { WalletStatus } from '../../constants/types'
+// import { emptyRewardsInfo } from '../async/base-query-cache'
+// import { WalletStatus } from '../../constants/types'
 import { LOCAL_STORAGE_KEYS } from '../constants/local-storage-keys'
 
 // hooks
 import {
-  useGetRewardsInfoQuery,
+  // useGetRewardsInfoQuery,
   useGetVisibleNetworksQuery
 } from '../slices/api.slice'
 import { useLocalStorage } from './use_local_storage'
@@ -33,22 +33,12 @@ export const usePortfolioVisibleNetworks = () => {
   // queries
   const { data: networks } = useGetVisibleNetworksQuery()
 
-  const {
-    data: {
-      status: rewardsStatus,
-      rewardsNetwork: externalRewardsNetwork
-    } = emptyRewardsInfo
-  } = useGetRewardsInfoQuery()
 
-  // Computed
-  const displayRewardsInPortfolio = rewardsStatus === WalletStatus.kConnected
 
   // Memos
   const networksList = React.useMemo(() => {
-    return displayRewardsInPortfolio && externalRewardsNetwork
-      ? [externalRewardsNetwork].concat(networks)
-      : networks
-  }, [displayRewardsInPortfolio, externalRewardsNetwork, networks])
+    return networks
+  }, [networks])
 
   const [visiblePortfolioNetworks, visiblePortfolioNetworkIds] =
     React.useMemo(() => {

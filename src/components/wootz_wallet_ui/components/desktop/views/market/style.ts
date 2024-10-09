@@ -4,7 +4,7 @@
 // you can obtain one at https://mozilla.org/MPL/2.0/.
 
 import styled from 'styled-components'
-import { LoaderIcon } from 'wootz-ui/components/icons'
+import { LoaderIcon } from 'brave-ui/components/icons'
 
 export interface StyleProps {
   alignment: 'right' | 'left'
