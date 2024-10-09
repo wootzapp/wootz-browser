@@ -124,7 +124,7 @@ if (is_fuchsia) {
 # TODO(crbug.com/40811643): Drop toolchain_has_rust and move the C++ parser into
 # components/nacl to just run in-process there. Don't compile base::JSONReader
 # on NaCL at all.
-build_rust_json_reader = toolchain_has_rust && enable_rust_json
+build_rust_json_reader = true
 
 # Rust to C++ type conversions. Also can not be enabled while NaCl depends on
 # //base.
@@ -4491,6 +4491,7 @@ if (is_android) {
       "android/java/src/org/chromium/base/BuildInfo.java",
       "android/java/src/org/chromium/base/BundleUtils.java",
       "android/java/src/org/chromium/base/Callback.java",
+      "android/java/src/org/chromium/base/Callbacks.java",
       "android/java/src/org/chromium/base/CallbackController.java",
       "android/java/src/org/chromium/base/CollectionUtil.java",
       "android/java/src/org/chromium/base/CommandLine.java",

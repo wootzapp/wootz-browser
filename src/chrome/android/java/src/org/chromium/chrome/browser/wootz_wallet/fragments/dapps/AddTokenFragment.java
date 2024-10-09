@@ -23,7 +23,7 @@ import org.chromium.wootz_wallet.mojom.AddSuggestTokenRequest;
 import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.wootz_wallet.mojom.OriginInfo;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
@@ -62,9 +62,9 @@ public class AddTokenFragment extends BaseDAppsFragment {
         mTokenName = view.findViewById(R.id.fragment_add_token_tv_token);
         mTokenAddress = view.findViewById(R.id.fragment_add_token_tv_address);
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate ", e);
         }
         initComponents(true);

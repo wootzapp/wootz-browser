@@ -5,7 +5,7 @@
 
 package org.chromium.chrome.browser.wootz_wallet.controller;
 
-import static org.chromium.chrome.browser.app.WootzActivity.Wootz_WALLET_HOST;
+import static org.chromium.chrome.browser.app.ChromeActivity.WOOTZ_WALLET_HOST;
 
 import android.content.Context;
 import android.content.DialogInterface;
@@ -23,7 +23,7 @@ import org.chromium.wootz_wallet.mojom.AssetRatioService;
 import org.chromium.wootz_wallet.mojom.WootzWalletService;
 import org.chromium.wootz_wallet.mojom.JsonRpcService;
 import org.chromium.wootz_wallet.mojom.KeyringService;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.modal.WootzWalletPanel;
@@ -31,7 +31,7 @@ import org.chromium.chrome.browser.wootz_wallet.modal.DAppsDialog;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
-import org.chromium.chrome.browser.toolbar.bottom.BottomToolbarConfiguration;
+// import org.chromium.chrome.browser.toolbar.bottom.BottomToolbarConfiguration;
 import org.chromium.chrome.browser.util.ConfigurationUtils;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.mojo.bindings.ConnectionErrorHandler;
@@ -61,7 +61,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     public DAppsWalletController(Context mContext, View mAnchorViewHost) {
         this.mContext = mContext;
         this.mAnchorViewHost = mAnchorViewHost;
-        this.mActivity = WootzActivity.getChromeTabbedActivity();
+        this.mActivity = ChromeActivity.getChromeTabbedActivity();
         WebContents webContents = null;
         mDefaultLifecycleObserver =
                 new DefaultLifecycleObserver() {
@@ -87,13 +87,13 @@ public class DAppsWalletController implements ConnectionErrorHandler {
                     DAppsWalletController.this.cleanUp();
                 };
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             webContents = activity.getCurrentWebContents();
 
             ObservableSupplier<BrowserControlsManager> managerSupplier =
                     activity.getBrowserControlsManagerSupplier();
             mFullscreenManager = managerSupplier.get().getFullscreenManager();
-        } catch (WootzActivity.WootzActivityNotFoundException | NullPointerException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException | NullPointerException e) {
             Log.e(TAG, "Constructor", e);
         }
 
@@ -113,7 +113,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     }
 
     public void showWalletPanel() {
-        initAssetRatioService();
+        // initAssetRatioService();
         initKeyringService();
         initJsonRpcService();
         initWootzWalletService();
@@ -137,7 +137,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
 
     private void createAndShowWalletPanel() {
         boolean showExpandButton =
-                mVisibleUrl != null && !mVisibleUrl.getHost().equals(Wootz_WALLET_HOST);
+                mVisibleUrl != null && !mVisibleUrl.getHost().equals(WOOTZ_WALLET_HOST);
         mWootzWalletPanel =
                 new WootzWalletPanel(
                         mAnchorViewHost, mDialogOrPanelDismissListener, showExpandButton);
@@ -152,7 +152,8 @@ public class DAppsWalletController implements ConnectionErrorHandler {
     private void showOnBoardingOrUnlock() {
         int dialogStyle = DAppsDialog.DAppsDialogStyle.BOTTOM;
         if (mFullscreenManager != null && mFullscreenManager.getPersistentFullscreenMode()
-                || shouldShowNotificationAtTop(mActivity)) {
+                // || shouldShowNotificationAtTop(mActivity)
+                ) {
             dialogStyle = DAppsDialog.DAppsDialogStyle.TOP;
         }
         mDAppsDialog =
@@ -178,7 +179,7 @@ public class DAppsWalletController implements ConnectionErrorHandler {
             mAssetRatioService.close();
             mAssetRatioService = null;
         }
-        initAssetRatioService();
+        // initAssetRatioService();
         initKeyringService();
         initJsonRpcService();
         initWootzWalletService();
@@ -261,8 +262,8 @@ public class DAppsWalletController implements ConnectionErrorHandler {
         }
     }
 
-    private boolean shouldShowNotificationAtTop(Context context) {
-        return ConfigurationUtils.isTablet(context)
-                || !BottomToolbarConfiguration.isBottomToolbarEnabled();
-    }
+    // private boolean shouldShowNotificationAtTop(Context context) {
+    //     return ConfigurationUtils.isTablet(context)
+    //             || !BottomToolbarConfiguration.isBottomToolbarEnabled();
+    // }
 }

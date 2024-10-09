@@ -1,0 +1,22 @@
+# Copyright (c) 2021 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+action("generate_tsconfig") {
+  script = "//chrome/script/generate-tsconfig.py"
+  deps = [
+    # Ensure chrome://resources/js file and typescript definitions are
+    # generated
+    "//ui/webui/resources/js:build_ts",
+  ]
+  inputs = [
+    "//package.json",
+    "//chrome/build/commands/lib/config.js",
+    "//chrome/build/commands/lib/genTsConfig.js",
+    "//chrome/build/commands/scripts/genTsConfig.js",
+    "path-map.js",
+  ]
+  outputs = [ "$root_gen_dir/tsconfig-webpack.json" ]
+  args = [ "--root_gen_dir=" + rebase_path(root_gen_dir) ]
+}

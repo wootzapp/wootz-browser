@@ -35,7 +35,6 @@ BASE_FEATURE(kSynchronizedScrolling,
 #else
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
-
 BASE_FEATURE(kRemoveMobileViewportDoubleTap,
              "RemoveMobileViewportDoubleTap",
              base::FEATURE_ENABLED_BY_DEFAULT);

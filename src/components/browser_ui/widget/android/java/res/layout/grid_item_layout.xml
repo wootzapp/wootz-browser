@@ -29,15 +29,3 @@ found in the LICENSE file.
         android:ellipsize="end"/>
 
 </LinearLayout>
-
-<!-- <TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/item_title"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:padding="8dp"
-    android:textSize="11sp"
-    android:textAlignment="center"
-    android:maxLines="1"
-    android:ellipsize="end"
-    android:gravity="center"
-    android:contentDescription="@string/content_description_grid_item" /> -->

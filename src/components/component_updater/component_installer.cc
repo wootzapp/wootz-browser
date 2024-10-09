@@ -575,4 +575,14 @@ void ComponentInstaller::ComponentReady(base::Value::Dict manifest) {
                                     std::move(manifest));
 }
 
+
+bool ComponentInstaller::IsWootzComponent() const {
+  return false;
+}
+
+bool ComponentInstallerPolicy::IsWootzComponent() const {
+  return true; // Need to understand the usage of this.
+}
+
+
 }  // namespace component_updater

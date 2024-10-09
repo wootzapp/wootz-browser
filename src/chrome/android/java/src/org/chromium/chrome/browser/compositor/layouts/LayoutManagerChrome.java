@@ -312,7 +312,6 @@ public class LayoutManagerChrome extends LayoutManagerImpl
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
         boolean move_top_toolbar = true;
-        // boolean move_top_toolbar = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
         return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
                                        supportSwipeDown && move_top_toolbar);
     }

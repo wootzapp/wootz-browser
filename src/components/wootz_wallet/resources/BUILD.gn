@@ -1,0 +1,24 @@
+import("//components/common/typescript.gni")
+import("//tools/grit/grit_rule.gni")
+import("//tools/grit/repack.gni")
+
+transpile_web_ui("wootz_wallet_script_resources") {
+  entry_points = [
+    [
+      "ethereum_provider_script",
+      rebase_path("ethereum_provider.js"),
+    ],
+    [
+      "solana_provider_script",
+      rebase_path("solana_provider.js"),
+    ],
+  ]
+
+  resource_name = "wootz_wallet_script"
+}
+
+pack_web_resources("ethereum_provider_generated_resources") {
+  resource_name = "wootz_wallet_script"
+  output_dir = "$root_gen_dir/components/wootz_wallet/resources"
+  deps = [ ":wootz_wallet_script_resources" ]
+}

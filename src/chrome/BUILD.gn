@@ -1531,6 +1531,7 @@ group("resources") {
     "//chrome/browser:resources",
     "//chrome/common:resources",
     "//chrome/renderer:resources",
+    "//components/resources:resources_repack"
   ]
 }
 

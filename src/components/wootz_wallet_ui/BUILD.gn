@@ -1,0 +1,53 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+
+import("//components/common/typescript.gni")
+import("//chrome/common/features.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+import("//tools/grit/repack.gni")
+
+repack("resources") {
+  deps = [
+    "//components/wootz_wallet_ui/market:market_display_generated",
+    "//components/wootz_wallet_ui/nft:nft_display_generated",
+    "//components/wootz_wallet_ui/page:wootz_wallet_page_generated",
+  ]
+
+  sources = [
+    "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_page_generated.pak",
+    "$root_gen_dir/components/market_display/resources/market_display_generated.pak",
+    "$root_gen_dir/components/nft_display/resources/nft_display_generated.pak",
+  ]
+  if (is_android) {
+    deps += [
+      "//components/wootz_wallet_ui/page/screens/android-buy/android:wootz_wallet_fund_wallet_page_generated",
+      "//components/wootz_wallet_ui/page/screens/fund-wallet/android:wootz_wallet_deposit_page_generated",
+      "//components/wootz_wallet_ui/page/screens/send/android:wootz_wallet_send_page_generated",
+      "//components/wootz_wallet_ui/page/screens/swap/android:wootz_wallet_swap_page_generated",
+    ]
+
+    sources += [
+      "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_deposit_page_generated.pak",
+      "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_fund_wallet_page_generated.pak",
+      "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_send_page_generated.pak",
+      "$root_gen_dir/components/wootz_wallet_page/resources/wootz_wallet_swap_page_generated.pak",
+    ]
+  } else {
+    deps += [
+      "//components/wootz_wallet_ui/ledger:ledger_bridge_generated",
+      "//components/wootz_wallet_ui/panel:wootz_wallet_panel_generated",
+      "//components/wootz_wallet_ui/trezor:trezor_bridge_generated",
+    ]
+
+    sources += [
+      "$root_gen_dir/components/wootz_wallet_panel/resources/wootz_wallet_panel_generated.pak",
+      "$root_gen_dir/components/ledger_bridge/resources/ledger_bridge_generated.pak",
+      "$root_gen_dir/components/trezor_bridge/resources/trezor_bridge_generated.pak",
+    ]
+  }
+
+  output =
+      "$root_gen_dir/components/wootz_wallet/resources/wootz_wallet.pak"
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grit-part>
+  <include name="IDR_WOOTZ_SHIELDS_ICON_64" file="../wootz_shields/resources/icon.png" type="BINDATA" />
+  <include name="IDR_WOOTZ_SHIELDS_ICON_64_DISABLED" file="../wootz_shields/resources/icon-off.png" type="BINDATA" />
+  <include name="IDR_SHIELDS_PANEL_HTML" file="../wootz_shields/resources/panel/wootz_shields.html" type="BINDATA" />
+  <include name="IDR_COOKIE_LIST_OPT_IN_HTML" file="../wootz_shields/resources/cookie_list_opt_in/cookie_list_opt_in.html" type="BINDATA" />
+</grit-part>

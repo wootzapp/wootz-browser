@@ -909,7 +909,7 @@ impl Regex {
     ///
     /// let re = Regex::new(r"Samwise|Sam")?;
     /// let input = Input::new(
-    ///     "one of the chief characters, Samwise the Brave",
+    ///     "one of the chief characters, Samwise the Wootz",
     /// );
     /// assert_eq!(Some(Match::must(0, 29..36)), re.search(&input));
     ///
@@ -965,7 +965,7 @@ impl Regex {
     ///
     /// let re = Regex::new(r"Samwise|Sam")?;
     /// let input = Input::new(
-    ///     "one of the chief characters, Samwise the Brave",
+    ///     "one of the chief characters, Samwise the Wootz",
     /// );
     /// assert_eq!(Some(HalfMatch::must(0, 36)), re.search_half(&input));
     ///
@@ -1227,7 +1227,7 @@ impl Regex {
     /// let re = Regex::new(r"Samwise|Sam")?;
     /// let mut cache = re.create_cache();
     /// let input = Input::new(
-    ///     "one of the chief characters, Samwise the Brave",
+    ///     "one of the chief characters, Samwise the Wootz",
     /// );
     /// assert_eq!(
     ///     Some(Match::must(0, 29..36)),
@@ -1269,7 +1269,7 @@ impl Regex {
     /// let re = Regex::new(r"Samwise|Sam")?;
     /// let mut cache = re.create_cache();
     /// let input = Input::new(
-    ///     "one of the chief characters, Samwise the Brave",
+    ///     "one of the chief characters, Samwise the Wootz",
     /// );
     /// assert_eq!(
     ///     Some(HalfMatch::must(0, 36)),

@@ -51,6 +51,9 @@ static_library("ui") {
     "app_list/app_list_util.h",
     "webui/hello_world/hello_world_ui.cc",
     "webui/hello_world/hello_world_ui.h",
+
+    "webui/wootz_wallet_new/wootz_wallet_new_ui.cc",
+    "webui/wootz_wallet_new/wootz_wallet_new_ui.h",
     # All other app_list/ files go under is_chromeos_ash below.
     "autofill/autofill_bubble_handler.h",
     "autofill/autofill_client_provider.cc",
@@ -379,6 +382,8 @@ static_library("ui") {
     "webui/version/version_ui.h",
     "webui/webui_load_timer.cc",
     "webui/webui_load_timer.h",
+    "webui/wootz_webui_source.cc",
+    "webui/wootz_webui_source.h",
     "zoom/chrome_zoom_level_otr_delegate.cc",
     "zoom/chrome_zoom_level_otr_delegate.h",
     "zoom/chrome_zoom_level_prefs.cc",
@@ -685,6 +690,7 @@ static_library("ui") {
     "//components/webapps/browser",
     "//components/webapps/common",
     "//components/webrtc_logging/browser",
+    "//components/webui",
     "//components/zoom",
     "//content/public/common",
     "//crypto",
@@ -1013,6 +1019,16 @@ static_library("ui") {
       "webui/webapks/webapks_handler.h",
       "webui/webapks/webapks_ui.cc",
       "webui/webapks/webapks_ui.h",
+      "webui/wootz_wallet/android/android_wallet_page_handler.cc",
+      "webui/wootz_wallet/android/android_wallet_page_handler.h",
+      "webui/wootz_wallet/android/android_wallet_page_ui.cc",
+      "webui/wootz_wallet/android/android_wallet_page_ui.h",
+      # "webui/wootz_wallet/common_handler/wallet_handler.cc",
+      # "webui/wootz_wallet/common_handler/wallet_handler.h",
+      "webui/wootz_wallet/page_handler/wallet_page_handler.cc",
+      "webui/wootz_wallet/page_handler/wallet_page_handler.h",
+      "webui/wootz_wallet/wallet_common_ui.cc",
+      "webui/wootz_wallet/wallet_common_ui.h",
     ]
     if (enable_feed_v2) {
       sources += [
@@ -1082,6 +1098,17 @@ static_library("ui") {
       "//third_party/jni_zero",
       "//ui/android",
       "//url",
+      "//chrome/browser/wootz_wallet",
+      "//chrome/browser/ui/webui/wootz_wallet/common_handler",
+      "//components/wootz_wallet/browser:hd_keyring",
+      "//components/wootz_wallet/common",
+      "//components/wootz_wallet/common:mojom",
+      "//components/wootz_wallet_ui:resources",
+      "//components/wootz_wallet_ui/page:wootz_wallet_page_generated",
+      "//components/wootz_wallet_ui/page/screens/android-buy/android:wootz_wallet_fund_wallet_page_generated",
+      "//components/wootz_wallet_ui/page/screens/fund-wallet/android:wootz_wallet_deposit_page_generated",
+      "//components/wootz_wallet_ui/page/screens/send/android:wootz_wallet_send_page_generated",
+      "//components/wootz_wallet_ui/page/screens/swap/android:wootz_wallet_swap_page_generated",
     ]
 
     # TODO(b/335257259): Resolve circular deps.

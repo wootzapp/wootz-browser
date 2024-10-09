@@ -77,6 +77,16 @@ RequestTypeForUma GetUmaValueForRequestType(RequestType request_type) {
       return RequestTypeForUma::PERMISSION_ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
       return RequestTypeForUma::PERMISSION_AR;
+    case RequestType::kWootzEthereum:
+      return RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM;
+    case RequestType::kWootzSolana:
+      return RequestTypeForUma::PERMISSION_WOOTZ_SOLANA;
+    case RequestType::kWootzGoogleSignInPermission:
+      return RequestTypeForUma::PERMISSION_WOOTZ_GOOGLE_SIGN_IN_PERMISSION;
+    case RequestType::kWootzLocalhostAccessPermission:
+      return RequestTypeForUma::PERMISSION_WOOTZ_LOCALHOST_PERMISSION;
+    case RequestType::kWidevine:
+      return RequestTypeForUma::PERMISSION_WIDEVINE;
 #if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return RequestTypeForUma::PERMISSION_CAMERA_PAN_TILT_ZOOM;
@@ -212,6 +222,16 @@ std::string GetPermissionRequestString(RequestTypeForUma type) {
       return "VR";
     case RequestTypeForUma::PERMISSION_AR:
       return "AR";
+    case RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM:
+      return "WootzEtherum";
+    case RequestTypeForUma::PERMISSION_WOOTZ_SOLANA:
+      return "WootzSolana";
+    case RequestTypeForUma::PERMISSION_WOOTZ_GOOGLE_SIGN_IN_PERMISSION:
+      return "WootzGoogleSignInPermission";
+    case RequestTypeForUma::PERMISSION_WOOTZ_LOCALHOST_PERMISSION:
+      return "WootzLocalhostPermission";
+    case RequestTypeForUma::PERMISSION_WIDEVINE:
+      return "Widevine";
     case RequestTypeForUma::PERMISSION_STORAGE_ACCESS:
       return "StorageAccess";
     case RequestTypeForUma::PERMISSION_TOP_LEVEL_STORAGE_ACCESS:

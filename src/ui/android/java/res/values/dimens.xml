@@ -36,7 +36,7 @@ found in the LICENSE file.
     <dimen name="button_min_width">88dp</dimen>
     <dimen name="button_bg_vertical_inset">4dp</dimen>
     <dimen name="button_outlined_border_width">1dp</dimen>
-
+    <dimen name="default_regular">16dp</dimen>
     <!-- Menu footer chip measures-->
     <!-- ( listPreferredItemHeightSmall(40dp) - text size(12sp) - top and bottom padding(12dp) ) / 2 -->
     <dimen name="menu_footer_chip_end_padding">8dp</dimen>
