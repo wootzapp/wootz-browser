@@ -28,9 +28,7 @@ void ExtensionURLLoaderThrottle::WillStartRequest(
     network::ResourceRequest* request,
     bool* defer) {
   start_request_url_ = request->url;
-  if (start_request_url_.spec().ends_with(".crx")) {
-    LOG(ERROR) << "CRXCRX " << start_request_url_.spec();
-  }
+
   if (manager_->ShouldRejectRequest(start_request_url_))
     delegate_->CancelWithError(net::ERR_TEMPORARILY_THROTTLED, kCancelReason);
 }

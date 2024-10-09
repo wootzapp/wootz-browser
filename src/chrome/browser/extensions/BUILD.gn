@@ -607,6 +607,7 @@ static_library("extensions") {
     "extension_web_ui_override_registrar.h",
     "extension_webkit_preferences.cc",
     "extension_webkit_preferences.h",
+    "extensions_android.cc",
     # "external_component_loader.cc",
     # "external_component_loader.h",
     # "external_install_error.cc",

@@ -1060,9 +1060,9 @@ void ChromeExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
   //   return;
   // }
 
-  // ExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
-  //     browser_context, owner_site_instance, partition_name, in_memory,
-  //     std::move(callback));
+  ExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
+      browser_context, owner_site_instance, partition_name, in_memory,
+      std::move(callback));
 }
 
 void ChromeExtensionsBrowserClient::CreatePasswordReuseDetectionManager(

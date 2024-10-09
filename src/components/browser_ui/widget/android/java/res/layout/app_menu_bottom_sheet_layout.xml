@@ -32,8 +32,13 @@
             android:layout_height="500dp"
             android:orientation="vertical"
             android:layout_gravity="top"
-            android:background="#FF0000"
-            android:visibility="invisible" />
+            android:visibility="invisible" >
+            <ImageButton
+                android:id="@+id/test_button"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="?attr/selectableItemBackground" />
+        </LinearLayout>
 
         <FrameLayout
             android:id="@+id/app_menu_footer"

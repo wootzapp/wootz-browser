@@ -3233,7 +3233,7 @@ static_library("browser") {  sources = [
       "enterprise/util/android_enterprise_info.cc",
       "enterprise/util/android_enterprise_info.h",
       "fast_checkout/fast_checkout_accessibility_service.h",
-      "fast_checkout/fast_checkout_accessibility_service_impl.cc",
+      # "fast_checkout/fast_checkout_accessibility_service_impl.cc",
       "fast_checkout/fast_checkout_accessibility_service_impl.h",
       "fast_checkout/fast_checkout_capabilities_fetcher.h",
       "fast_checkout/fast_checkout_capabilities_fetcher_factory.cc",

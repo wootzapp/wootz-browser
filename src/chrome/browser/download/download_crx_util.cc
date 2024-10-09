@@ -91,7 +91,7 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
       extensions::CrxInstaller::Create(
           service,
           CreateExtensionInstallPrompt(profile, download_item),
-          nullptr)); // oots exts patch
+          nullptr)); // woots exts patch
           // WebstoreInstaller::GetAssociatedApproval(download_item)));
 
   installer->set_error_on_unsupported_requirements(true);
@@ -108,9 +108,9 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
 //       DownloadItem::TARGET_DISPOSITION_PROMPT)
 //     return false;
 
-//   if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
-//       extensions::UserScript::IsURLUserScript(download_item.GetURL(),
-//                                               download_item.GetMimeType())) {
+  // if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
+  //     extensions::UserScript::IsURLUserScript(download_item.GetURL(),
+  //                                             download_item.GetMimeType())) {
 //     return true;
 //   } else {
 //     return false;

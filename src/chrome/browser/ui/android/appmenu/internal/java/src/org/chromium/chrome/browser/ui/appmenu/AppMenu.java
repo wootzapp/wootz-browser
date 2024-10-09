@@ -63,6 +63,7 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.ui.appmenu.internal.R;
+import org.chromium.chrome.browser.extensions.Extensions;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter;
@@ -76,6 +77,7 @@ import android.widget.BaseAdapter;
 
 import java.beans.Visibility;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -487,7 +489,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         thinWebView.attachWebContents(webContents, contentView, null);
 
         webContents.getNavigationController().loadUrl(
-                new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/index.html"));
+                new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/popup.html"));
         
         // scrollView.addView(viewWrapper);
         // return scrollView;
@@ -524,6 +526,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             });
         }
         parent.setLayoutParams(layoutParams);
+        Log.d(TAG, "EXTS: " + Extensions.getExtensionsInfo().toString());
+        Log.d(TAG, Extensions.getExtensionsInfo().get(1).getIconBitmap().toString());
 
         View gridView = parent.findViewById(R.id.app_menu_grid);
         gridView.setVisibility(View.GONE);
@@ -531,7 +535,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         LinearLayout webView = (LinearLayout) parent.findViewById(R.id.web_view);
         webView.setVisibility(View.VISIBLE);
 
-        webView.addView(createWebView());
+        ImageButton button = (ImageButton) parent.findViewById(R.id.test_button);
+        button.setImageBitmap(Extensions.getExtensionsInfo().get(1).getIconBitmap());
+
+        // webView.addView(createWebView());
 
 
         // Set up bottom sheet callback to maintain bottom margin when expanded
