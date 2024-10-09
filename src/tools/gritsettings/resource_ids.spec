@@ -1331,8 +1331,7 @@
     "META": {"sizes": {"includes": [50],}},
     "includes": [8460],
   },
-
-  "chrome/browser/resources/rewards/dist/rewards_resources.grd": {
+  
   # Thinking about appending to the end?
   # Please read the header and find the right section above instead.
 }

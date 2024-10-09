@@ -44,6 +44,7 @@ import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.chrome.browser.extensions.Extensions;
 import org.chromium.base.ContextUtils;
 import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.components.thinwebview.ThinWebView;
@@ -63,7 +64,6 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.ui.appmenu.internal.R;
-import org.chromium.chrome.browser.extensions.Extensions;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter;
@@ -77,7 +77,6 @@ import android.widget.BaseAdapter;
 
 import java.beans.Visibility;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -448,7 +447,107 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
 // In the code below we are setting the margin respective to parent i think
 
-    private View createWebView() {
+    // private View createWebView() {
+    //     NestedScrollView scrollView = new NestedScrollView(getContext());
+    //     scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+    //             ViewGroup.LayoutParams.MATCH_PARENT,
+    //             ViewGroup.LayoutParams.MATCH_PARENT));
+        
+    //     // Create a FrameLayout to wrap the GridView
+    //     FrameLayout viewWrapper = new FrameLayout(getContext());
+    //     FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
+    //             ViewGroup.LayoutParams.MATCH_PARENT,
+    //             ViewGroup.LayoutParams.MATCH_PARENT);
+        
+    //     // Set margins for the wrapper (adjust these values as needed)
+    //     int margin = dpToPx(32); // Convert 16dp to pixels
+    //     wrapperParams.setMargins(
+    //         0,
+    //         -margin, 
+    //         0, 
+    //         margin
+    //     );
+    //     viewWrapper.setLayoutParams(wrapperParams);
+
+    //     Profile profile = ProfileManager.getLastUsedRegularProfile();
+    //     WebContents webContents = WebContentsFactory.createWebContents(profile, true, false);
+    //     ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
+    //     webContents.setDelegates(
+    //         VersionInfo.getProductVersion(),
+    //         ViewAndroidDelegate.createBasicDelegate(contentView),
+    //         contentView,
+    //         mHandler.getWindowAndroid(),
+    //         WebContents.createDefaultInternalsHolder());
+
+    //     Log.d(TAG, "contentview " + contentView.toString());
+    //     // viewWrapper.addView(contentView);
+
+    //     IntentRequestTracker intentRequestTracker = mHandler.getWindowAndroid().getIntentRequestTracker();
+    //     ThinWebView thinWebView = ThinWebViewFactory.create(
+    //         getContext(), new ThinWebViewConstraints(), intentRequestTracker);
+    //     thinWebView.attachWebContents(webContents, contentView, null);
+
+    //     webContents.getNavigationController().loadUrl(
+    //             new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/index.html"));
+        
+    //     // scrollView.addView(viewWrapper);
+    //     // return scrollView;
+    //     // return contentView;
+    //     return thinWebView.getView();
+    // }
+
+    private View createWebView(int i) {
+        Log.d(TAG, "EXTS: " + Extensions.getExtensionsInfo().get(i).toString());        LinearLayout container = new LinearLayout(getContext());
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // Add back button
+        ImageButton backButton = new ImageButton(getContext());
+        backButton.setImageResource(R.drawable.ic_arrow_back_24dp);  // Use appropriate back arrow icon
+        backButton.setBackgroundColor(Color.TRANSPARENT);
+        backButton.setOnClickListener(v -> returnToAppMenu());
+        container.addView(backButton);
+
+        // // Create and add WebView
+        // NestedScrollView scrollView = new NestedScrollView(getContext());
+        // scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+        //         ViewGroup.LayoutParams.MATCH_PARENT,
+        //         ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // FrameLayout viewWrapper = new FrameLayout(getContext());
+        // FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
+        //         ViewGroup.LayoutParams.MATCH_PARENT,
+        //         ViewGroup.LayoutParams.MATCH_PARENT);
+
+        // int margin = dpToPx(32);
+        // wrapperParams.setMargins(0, -margin, 0, margin);
+        // viewWrapper.setLayoutParams(wrapperParams);
+
+        // Profile profile = ProfileManager.getLastUsedRegularProfile();
+        // WebContents webContents = WebContentsFactory.createWebContents(profile, true, false);
+        // ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
+        // webContents.setDelegates(
+        //     VersionInfo.getProductVersion(),
+        //     ViewAndroidDelegate.createBasicDelegate(contentView),
+        //     contentView,
+        //     mHandler.getWindowAndroid(),
+        //     WebContents.createDefaultInternalsHolder());
+
+        // IntentRequestTracker intentRequestTracker = mHandler.getWindowAndroid().getIntentRequestTracker();
+        // ThinWebView thinWebView = ThinWebViewFactory.create(
+        //     getContext(), new ThinWebViewConstraints(), intentRequestTracker);
+        // thinWebView.attachWebContents(webContents, contentView, null);
+
+        // webContents.getNavigationController().loadUrl(
+        //         new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/index.html"));
+
+        // viewWrapper.addView(thinWebView.getView());
+        // scrollView.addView(viewWrapper);
+        // container.addView(scrollView);
+
+        // return container;
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -487,14 +586,31 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         ThinWebView thinWebView = ThinWebViewFactory.create(
             getContext(), new ThinWebViewConstraints(), intentRequestTracker);
         thinWebView.attachWebContents(webContents, contentView, null);
-
+        float borderRadius = dpToPx(24); // You can adjust this value as needed
+        thinWebView.getView().setClipToOutline(true);
+        thinWebView.getView().setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
+            }
+        });
+        String popupUrl = Extensions.getExtensionsInfo().get(i).getPopupUrl();
         webContents.getNavigationController().loadUrl(
-                new LoadUrlParams("chrome-extension://nooifbgheppjhcogpnlegfapppjlinno/popup.html"));
+                new LoadUrlParams(popupUrl));
         
         // scrollView.addView(viewWrapper);
         // return scrollView;
         // return contentView;
         return thinWebView.getView();
+    }
+
+    private void returnToAppMenu() {
+        View view = getView();
+        if (view != null) {
+            view.findViewById(R.id.app_menu_grid).setVisibility(View.VISIBLE);
+            view.findViewById(R.id.app_menu_extensions).setVisibility(View.VISIBLE);
+            view.findViewById(R.id.web_view).setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -526,17 +642,12 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             });
         }
         parent.setLayoutParams(layoutParams);
-        Log.d(TAG, "EXTS: " + Extensions.getExtensionsInfo().toString());
-        Log.d(TAG, Extensions.getExtensionsInfo().get(1).getIconBitmap().toString());
 
         View gridView = parent.findViewById(R.id.app_menu_grid);
-        gridView.setVisibility(View.GONE);
-
+        gridView.setVisibility(View.VISIBLE);
+        createExtensionsRow();
         LinearLayout webView = (LinearLayout) parent.findViewById(R.id.web_view);
-        webView.setVisibility(View.VISIBLE);
-
-        ImageButton button = (ImageButton) parent.findViewById(R.id.test_button);
-        button.setImageBitmap(Extensions.getExtensionsInfo().get(1).getIconBitmap());
+        webView.setVisibility(View.GONE);
 
         // webView.addView(createWebView());
 
@@ -602,6 +713,65 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         return Math.round((float) dp * density);
     }
 
+    private void createExtensionsRow() {
+        Context context = getContext();
+        View view = getView();
+        if(view == null) return;
+        View extensionsDivider = view.findViewById(R.id.extensions_divider);
+        extensionsDivider.setVisibility(View.VISIBLE);
+        LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
+        LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
+        parent.setVisibility(View.VISIBLE);
+        // LinearLayout extensionsRow = new LinearLayout(view.getContext());
+        // extensionsRow.setOrientation(LinearLayout.HORIZONTAL);
+        // extensionsRow.setLayoutParams(new LinearLayout.LayoutParams(
+        //         ViewGroup.LayoutParams.MATCH_PARENT,
+        //         ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Add extension icons here
+        for(int i = 0;i < Extensions.getExtensionsInfo().size();i++){
+            ImageButton extensionIcon = new ImageButton(context);
+            if(Extensions.getExtensionsInfo().get(i).getIconBitmap() != null){
+                extensionIcon.setImageBitmap(Extensions.getExtensionsInfo().get(i).getIconBitmap());
+            }
+            else{
+                extensionIcon.setImageResource(R.drawable.test_extension_logo);
+            }
+            extensionIcon.setLayoutParams(new LinearLayout.LayoutParams(
+                dpToPx(48), dpToPx(48)));
+            final int index = i;
+            extensionIcon.setOnClickListener(v -> openExtensionWebView(index));
+            extensionsContainer.addView(extensionIcon);
+        }
+        // ImageView extensionIcon = new ImageView(context);
+        // extensionIcon.setImageResource(R.drawable.test_extension_logo);
+        // extensionIcon.setLayoutParams(new LinearLayout.LayoutParams(
+        //     dpToPx(48), dpToPx(48)));
+        // extensionIcon.setOnClickListener(v -> openExtensionWebView(i));
+        // extensionsContainer.addView(extensionIcon);
+    }
+
+    private void openExtensionWebView(int i) {
+        View view = getView();
+        if (view != null) {
+            view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
+            view.findViewById(R.id.app_menu_extensions).setVisibility(View.GONE);
+            view.findViewById(R.id.extensions_divider).setVisibility(View.GONE);
+            LinearLayout webViewContainer = view.findViewById(R.id.web_view);
+            webViewContainer.setVisibility(View.VISIBLE);
+            webViewContainer.removeAllViews();
+            webViewContainer.addView(createWebView(i));
+        }
+    }
+
+    public boolean onBackPressed() {
+        View view = getView();
+        if (view != null && view.findViewById(R.id.app_menu_grid).getVisibility() == View.GONE) {
+            returnToAppMenu();
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public void show(@NonNull FragmentManager manager, @Nullable String tag) {
@@ -908,6 +1078,12 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.app_menu_bottom_sheet_layout, container, false);
         
+        LinearLayout contentLayout = view.findViewById(R.id.app_menu_content);
+        
+        // Add extensions row
+        createExtensionsRow();
+        // contentLayout.addView(createExtensionsRow(), 0);  // Add at the top
+
         mGridView = view.findViewById(R.id.app_menu_grid);
         mGridView.setNumColumns(GRID_COLUMNS);
         
