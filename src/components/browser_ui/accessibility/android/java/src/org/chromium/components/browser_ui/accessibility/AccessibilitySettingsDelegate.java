@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.accessibility;
-import android.app.Activity;
+
 import org.chromium.content_public.browser.BrowserContextHandle;
 
 /**
@@ -22,21 +22,6 @@ public interface AccessibilitySettingsDelegate {
          */
         void setValue(int value);
     }
-    interface BooleanPreferenceDelegate {
-        /**
-         * @return whether the preference is enabled.
-         */
-        boolean isEnabled();
-
-        /**
-         * Called when the preference value is changed.
-         */
-        void setEnabled(boolean value);
-    }
-    void requestRestart(Activity activity);
-
-    BooleanPreferenceDelegate getMoveTopToolbarToBottomDelegate();
-    BooleanPreferenceDelegate getDisableToolbarSwipeUpDelegate();
 
     /** @return The BrowserContextHandle that should be used to read and update settings. */
     BrowserContextHandle getBrowserContextHandle();

@@ -18,13 +18,14 @@ import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.TransitiveObservableSupplier;
 import org.chromium.chrome.browser.layouts.LayoutType;
-
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
-
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
+
+import android.graphics.Outline;
+import android.view.ViewOutlineProvider;
+
 
 /** Root coordinator of the Hub. */
 public class HubCoordinator implements PaneHubController, BackPressHandler {
@@ -85,13 +86,23 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mContainerView.addView(mMainHubParent);
 
         HubToolbarView hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
+        // This might be causing crash whenever you click on Tabswitcher on a native incognito new tab page
+        // float borderRadius = 80f;
+        // hubToolbarView.setClipToOutline(true);
+        // hubToolbarView.setOutlineProvider(new ViewOutlineProvider() {
+        //     @Override
+        //     public void getOutline(View view, Outline outline) {
+        //         outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
+        //     }
+        // });
+
         mHubToolbarCoordinator =
                 new HubToolbarCoordinator(hubToolbarView, paneManager, menuButtonCoordinator);
 
         HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
         mHubPaneHostCoordinator =
                 new HubPaneHostCoordinator(hubPaneHostView, paneManager.getFocusedPaneSupplier());
-                if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+                if (true) {
                     LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)
                     hubPaneHostView.getLayoutParams();
                     params.bottomMargin = hubToolbarView.getHeight();

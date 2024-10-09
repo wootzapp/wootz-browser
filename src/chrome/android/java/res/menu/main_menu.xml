@@ -66,9 +66,9 @@ found in the LICENSE file.
             android:title="@null" />
 
         <item android:id="@+id/wootz_wallet_id"
-            android:title="@string/wootz_wallet_title" />
+            android:title="@string/wootz_wallet_title"
+            android:icon="@drawable/ic_open_in_browser" />
 
-        
         <item android:id="@+id/open_history_menu_id"
             android:title="@string/menu_history"
             android:icon="@drawable/ic_history_googblue_24dp" />

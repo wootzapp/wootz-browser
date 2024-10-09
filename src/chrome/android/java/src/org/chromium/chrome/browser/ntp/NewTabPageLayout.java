@@ -197,10 +197,10 @@ public class NewTabPageLayout extends LinearLayout {
         mMiddleSpacer = findViewById(R.id.ntp_middle_spacer);
         mFakeSearchBoxLayout = findViewById(R.id.search_box);
         insertSiteSectionView();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        if (true) {
             FrameLayout.LayoutParams params =
                 new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
-            params.gravity = Gravity.BOTTOM;
+                params.gravity = Gravity.TOP;
             setLayoutParams(params);
         }
     }

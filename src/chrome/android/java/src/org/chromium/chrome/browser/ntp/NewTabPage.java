@@ -113,7 +113,6 @@ import org.chromium.content_public.browser.NavigationController;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.List;
 
@@ -691,16 +690,12 @@ public class NewTabPage
         final int topControlsDistanceToRest =
                 mBrowserControlsStateProvider.getContentOffset()
                         - mBrowserControlsStateProvider.getTopControlsHeight();
-        int topMargin = getToolbarExtraYOffset() + topControlsDistanceToRest;
+        final int topMargin = getToolbarExtraYOffset() + topControlsDistanceToRest;
 
-        int bottomMargin =
+        final int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
                         - mBrowserControlsStateProvider.getBottomControlOffset();
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-            // move the margin of the new tab page up if the top toolbar is at the bottom
-            bottomMargin += mBrowserControlsStateProvider.getTopControlsHeight();
-            topMargin = -mBrowserControlsStateProvider.getTopControlsHeight();
-        }
+
         if (topMargin != layoutParams.topMargin || bottomMargin != layoutParams.bottomMargin) {
             layoutParams.topMargin = topMargin;
             layoutParams.bottomMargin = bottomMargin;
@@ -715,7 +710,9 @@ public class NewTabPage
      *     strip.
      */
     private int getToolbarExtraYOffset() {
-        return 0;
+        return mBrowserControlsStateProvider.getTopControlsHeight()
+                - mToolbarHeight
+                - mTabStripHeightSupplier.get();
     }
 
     /**

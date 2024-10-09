@@ -240,8 +240,6 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kMultiInstanceApplicationStatusCleanup,
     &kNavBarColorMatchesTabBackground,
     &kNewTabSearchEngineUrlAndroid,
-    &features::kMoveTopToolbarToBottom,
-    &features::kDisableToolbarSwipeUp,
     &kNotificationPermissionVariant,
     &kNotificationPermissionBottomSheet,
     &kPageAnnotationsService,

@@ -11,9 +11,12 @@ import android.view.View;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-
+import androidx.fragment.app.FragmentManager;
+import android.util.Log;
 /** A factory for creating an {@link AppMenuCoordinator}. */
 public class AppMenuCoordinatorFactory {
+    private static final String TAG = "AppMenuCoordinatorFactory";
+
     private AppMenuCoordinatorFactory() {}
 
     /**
@@ -28,6 +31,8 @@ public class AppMenuCoordinatorFactory {
      * @param hardwareButtonAnchorView The {@link View} used as an anchor for the menu when it is
      *            displayed using a hardware button.
      * @param appRect Supplier of the app area in Window that the menu should fit in.
+     * @param fragmentManager The {@link FragmentManager} for the containing activity.
+     * @param itemRowHeight The height of each item row in the menu.
      */
     public static AppMenuCoordinator createAppMenuCoordinator(
             Context context,
@@ -36,15 +41,32 @@ public class AppMenuCoordinatorFactory {
             AppMenuDelegate appMenuDelegate,
             View decorView,
             View hardwareButtonAnchorView,
-            Supplier<Rect> appRect) {
-        return new AppMenuCoordinatorImpl(
-                context,
-                activityLifecycleDispatcher,
-                buttonDelegate,
-                appMenuDelegate,
-                decorView,
-                hardwareButtonAnchorView,
-                appRect);
+            Supplier<Rect> appRect,
+            FragmentManager fragmentManager,
+            int itemRowHeight) {  // Add this parameter
+        Log.d(TAG, "Creating AppMenuCoordinator");
+        try {
+            // Log each parameter
+            Log.d(TAG, "Context: " + (context != null ? context.getClass().getSimpleName() : "null"));
+            Log.d(TAG, "ActivityLifecycleDispatcher: " + (activityLifecycleDispatcher != null ? "not null" : "null"));
+            // ... log other parameters ...
+
+            AppMenuCoordinator coordinator = new AppMenuCoordinatorImpl(
+                    context,
+                    activityLifecycleDispatcher,
+                    buttonDelegate,
+                    appMenuDelegate,
+                    decorView,
+                    hardwareButtonAnchorView,
+                    appRect,
+                    fragmentManager,
+                    itemRowHeight);  // Pass the itemRowHeight
+            Log.d(TAG, "AppMenuCoordinator created successfully");
+            return coordinator;
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating AppMenuCoordinator", e);
+            throw e; // or handle the error appropriately
+        }
     }
 
     /** @param reporter A means of reporting an exception without crashing. */

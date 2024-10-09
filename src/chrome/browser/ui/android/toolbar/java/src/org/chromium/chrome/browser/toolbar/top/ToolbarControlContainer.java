@@ -12,6 +12,8 @@ import android.graphics.Region;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
+import android.graphics.Outline;
+import android.view.ViewOutlineProvider;
 import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -19,7 +21,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewStub;
 import android.view.Gravity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -123,7 +124,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     @Override
     public void initWithToolbar(int toolbarLayoutId) {
         try (TraceEvent te = TraceEvent.scoped("ToolbarControlContainer.initWithToolbar")) {
-            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if (true) {
                 // the top toolbar is docked at the bottom
                 CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams)getLayoutParams();
                 layoutParams.gravity = Gravity.START | Gravity.BOTTOM;
@@ -133,6 +134,27 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             ViewStub toolbarStub = findViewById(R.id.toolbar_stub);
             toolbarStub.setLayoutResource(toolbarLayoutId);
             toolbarStub.inflate();
+
+            // By DevJangid
+            MarginLayoutParams params = (MarginLayoutParams) mToolbarContainer.getLayoutParams();
+            // changed the top margin to 0 so that app menu and toolbar will not have any gap b/w them
+            int leftMargin = ViewUtils.dpToPx(getContext(), 16);
+            int rightMargin = ViewUtils.dpToPx(getContext(), 16);
+            int bottomMargin = ViewUtils.dpToPx(getContext(), 16);
+            params.setMargins(leftMargin, 0, rightMargin, bottomMargin); // left, top, right, bottom
+            mToolbarContainer.setLayoutParams(params);
+
+
+            // By Devendra(dkt)
+            // Add border radius
+            float borderRadius = 80f; // You can adjust this value as needed
+            mToolbarContainer.setClipToOutline(true);
+            mToolbarContainer.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
+                }
+            });
         }
     }
 

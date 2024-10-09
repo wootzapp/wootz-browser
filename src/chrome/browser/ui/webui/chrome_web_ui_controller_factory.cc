@@ -111,7 +111,6 @@
 #include "url/url_constants.h"
 #include "components/constants/webui_url_constants.h"
 #include "chrome/browser/ui/webui/wootz_wallet/android/android_wallet_page_ui.h"
-#include "chrome/browser/ui/webui/wootz_wallet_new/wootz_wallet_new_ui.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "chrome/browser/ui/webui/wootz_wallet/android/android_wallet_page_ui.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
@@ -461,10 +460,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<RewardsUI>;
   if (url.host_piece() == kWalletPageHost)
     return &NewWebUI<AndroidWalletPageUI>;
-
-  if (url.host_piece() == chrome::kChromeUIWootzWalletNewHost)
-    return &NewWebUI<WootzWalletNewUI>;
-
   if (url.host_piece() == chrome::kChromeUINTPTilesInternalsHost)
     return &NewWebUI<NTPTilesInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIOmniboxHost)

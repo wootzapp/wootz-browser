@@ -171,7 +171,7 @@ public class FindToolbarTablet extends FindToolbar {
 
         if (show && getVisibility() != View.VISIBLE && mCurrentAnimation != mAnimationEnter) {
             View anchorView = getRootView().findViewById(R.id.toolbar);
-            if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+            if (false) {
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) getLayoutParams();
                 lp.topMargin = anchorView.getBottom() - mYInsetPx;
                 setLayoutParams(lp);

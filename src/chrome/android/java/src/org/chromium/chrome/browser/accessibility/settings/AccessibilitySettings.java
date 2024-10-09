@@ -31,7 +31,6 @@ import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
-import org.chromium.components.browser_ui.accessibility.AccessibilitySettingsDelegate.BooleanPreferenceDelegate;
 
 /** Fragment to keep track of all the accessibility related preferences. */
 public class AccessibilitySettings extends PreferenceFragmentCompat
@@ -46,10 +45,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     public static final String PREF_CAPTIONS = "captions";
     public static final String PREF_ZOOM_INFO = "zoom_info";
     public static final String PREF_IMAGE_DESCRIPTIONS = "image_descriptions";
-    static final String PREF_MOVE_TOOLBAR_TO_BOTTOM = "move_toolbar_bottom";
-    static final String PREF_DISABLE_TOOLBAR_SWIPE_UP = "disable_toolbar_swipeup";
-    private BooleanPreferenceDelegate mMoveTopToolbarToBottomDelegate;
-    private BooleanPreferenceDelegate mDisableToolbarSwipeUpDelegate;
+
     private TextScalePreference mTextScalePref;
     private PageZoomPreference mPageZoomDefaultZoomPref;
     private ChromeSwitchPreference mPageZoomIncludeOSAdjustment;
@@ -148,17 +144,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
         readerForAccessibilityPref.setChecked(
                 mPrefService.getBoolean(Pref.READER_FOR_ACCESSIBILITY));
         readerForAccessibilityPref.setOnPreferenceChangeListener(this);
-        ChromeSwitchPreference mMoveToolbarToBottomPref =
-                (ChromeSwitchPreference) findPreference(PREF_MOVE_TOOLBAR_TO_BOTTOM);
-        mMoveTopToolbarToBottomDelegate = mDelegate.getMoveTopToolbarToBottomDelegate();
-        mMoveToolbarToBottomPref.setChecked(mMoveTopToolbarToBottomDelegate.isEnabled());
-        mMoveToolbarToBottomPref.setOnPreferenceChangeListener(this);
 
-        ChromeSwitchPreference mDisableToolbarSwipeUpPref =
-                (ChromeSwitchPreference) findPreference(PREF_DISABLE_TOOLBAR_SWIPE_UP);
-        mDisableToolbarSwipeUpDelegate = mDelegate.getDisableToolbarSwipeUpDelegate();
-        mDisableToolbarSwipeUpPref.setChecked(mDisableToolbarSwipeUpDelegate.isEnabled());
-        mDisableToolbarSwipeUpPref.setOnPreferenceChangeListener(this);
         Preference captions = findPreference(PREF_CAPTIONS);
         captions.setOnPreferenceClickListener(
                 preference -> {
@@ -239,11 +225,6 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
                     mDelegate.getBrowserContextHandle(), (Integer) newValue);
         } else if (PREF_PAGE_ZOOM_ALWAYS_SHOW.equals(preference.getKey())) {
             PageZoomUtils.setShouldAlwaysShowZoomMenuItem((Boolean) newValue);
-        } else if (PREF_MOVE_TOOLBAR_TO_BOTTOM.equals(preference.getKey())) {
-            mMoveTopToolbarToBottomDelegate.setEnabled((Boolean) newValue);
-            mDelegate.requestRestart(getActivity());
-        } else if (PREF_DISABLE_TOOLBAR_SWIPE_UP.equals(preference.getKey())) {
-            mDisableToolbarSwipeUpDelegate.setEnabled((Boolean) newValue);
         } else if (PREF_PAGE_ZOOM_INCLUDE_OS_ADJUSTMENT.equals(preference.getKey())) {
             // TODO(mschillaci): Implement the override behavior for OS level.
         }

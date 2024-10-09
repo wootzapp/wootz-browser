@@ -46,7 +46,6 @@ import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.Sw
 import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -312,8 +311,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl
 
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
-        // boolean move_top_toolbar = true;
-        boolean move_top_toolbar = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
+        boolean move_top_toolbar = true;
         return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
                                        supportSwipeDown && move_top_toolbar);
     }
@@ -586,35 +584,40 @@ public class LayoutManagerChrome extends LayoutManagerImpl
         public void onSwipeUpdated(MotionEvent current, float tx, float ty, float dx, float dy) {
             if (mToolbarSwipeLayout == null) return;
 
-            float x = current.getRawX() * mPxToDp;
-            float y = current.getRawY() * mPxToDp;
-            dx *= mPxToDp;
-            dy *= mPxToDp;
-            tx *= mPxToDp;
-            ty *= mPxToDp;
+            // By DevJangid
+            // To Disable the toolbar scroll.
+            return ;
+    
+            // float x = current.getRawX() * mPxToDp;
+            // float y = current.getRawY() * mPxToDp;
+            // dx *= mPxToDp;
+            // dy *= mPxToDp;
+            // tx *= mPxToDp;
+            // ty *= mPxToDp;
 
-            // If scroll direction has been computed, send the event to super.
-            if (mScrollDirection != ScrollDirection.UNKNOWN) {
-                mToolbarSwipeLayout.swipeUpdated(time(), x, y, dx, dy, tx, ty);
-                return;
-            }
+            // // If scroll direction has been computed, send the event to super.
+            // if (mScrollDirection != ScrollDirection.UNKNOWN) {
+            //     mToolbarSwipeLayout.swipeUpdated(time(), x, y, dx, dy, tx, ty);
+            //     return;
+            // }
 
-            mScrollDirection = computeScrollDirection(dx, dy);
-            if (mScrollDirection == ScrollDirection.UNKNOWN) return;
+            // mScrollDirection = computeScrollDirection(dx, dy);
+            // if (mScrollDirection == ScrollDirection.UNKNOWN) return;
 
-            if (mSupportSwipeDown && mScrollDirection == ScrollDirection.DOWN) {
-                RecordUserAction.record("MobileToolbarSwipeOpenStackView");
-                showLayout(LayoutType.TAB_SWITCHER, true);
-            } else if (mSupportSwipeUp
-                       && mScrollDirection == ScrollDirection.UP
-                       && !ChromeFeatureList.sDisableToolbarSwipeUp.isEnabled()) {
-                showLayout(LayoutType.TAB_SWITCHER, true);
-            } else if (mScrollDirection == ScrollDirection.LEFT
-                    || mScrollDirection == ScrollDirection.RIGHT) {
-                startShowing(mToolbarSwipeLayout, true);
-            }
+            // if (mSupportSwipeDown && mScrollDirection == ScrollDirection.DOWN) {
+            //     RecordUserAction.record("MobileToolbarSwipeOpenStackView");
+            //     showLayout(LayoutType.TAB_SWITCHER, true);
+            // } else if (mSupportSwipeUp
+            //            && mScrollDirection == ScrollDirection.UP
+            //            && false) {
+            // } else if (false) {
+            //     showLayout(LayoutType.TAB_SWITCHER, true);
+            // } else if (mScrollDirection == ScrollDirection.LEFT
+            //         || mScrollDirection == ScrollDirection.RIGHT) {
+            //     startShowing(mToolbarSwipeLayout, true);
+            // }
 
-            mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);
+            // mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);
         }
 
         @Override

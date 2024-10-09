@@ -5621,6 +5621,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_ACCESSIBILITY_BTN_REFRESH" desc="Content description for the refresh page button.">
         Reload this page
       </message>
+      <message name="IDS_CONTENT_DESCRIPTION_GRID_ITEM" desc="Content description for ImageView in grid_layout_item.xml">
+        Grid Item
+      </message>
       <message name="IDS_ACCESSIBILITY_BTN_STOP_LOADING" desc="Content description for the stop loading page button.">
         Stop page loading
       </message>

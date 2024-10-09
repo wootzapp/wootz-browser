@@ -17,9 +17,6 @@ import org.chromium.base.ValueChangedCallback;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.browser.back_press.BackPressManager;
-
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
-
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -111,12 +108,8 @@ public class HubManagerImpl implements HubManager, HubController {
         assert params != null : "HubContainerView should always have layout params.";
         mStatusIndicatorHeight = height;
 
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
-        else
-            params.topMargin = mStatusIndicatorHeight + mAppHeaderHeight;
-
-        // params.topMargin = mStatusIndicatorHeight + mAppHeaderHeight;
+        params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
+        
         mHubContainerView.setLayoutParams(params);
     }
 
@@ -127,12 +120,8 @@ public class HubManagerImpl implements HubManager, HubController {
         assert params != null : "HubContainerView should always have layout params.";
         mAppHeaderHeight = height;
 
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
-        else
-            params.topMargin = mStatusIndicatorHeight + mAppHeaderHeight;
+        params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
 
-        // params.topMargin = mStatusIndicatorHeight + mAppHeaderHeight;
         mHubContainerView.setLayoutParams(params);
     }
 
@@ -239,10 +228,10 @@ public class HubManagerImpl implements HubManager, HubController {
             mMenuOrKeyboardActionController.unregisterMenuOrKeyboardActionHandler(
                     menuOrKeyboardActionHandler);
         }
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
+
+
             mSnackbarManager.setParentView((ViewGroup)getPaneHostView());
-        else
-            mSnackbarManager.setParentView(mHubContainerView);
+            
         // mSnackbarManager.setParentView(null);
     }
 

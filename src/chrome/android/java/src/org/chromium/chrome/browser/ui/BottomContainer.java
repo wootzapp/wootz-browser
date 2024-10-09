@@ -15,7 +15,7 @@ import org.chromium.base.lifetime.Destroyable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.ui.base.ApplicationViewportInsetSupplier;
 import org.chromium.ui.base.ViewportInsets;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
 /**
  * The container that holds both infobars and snackbars. It will be translated up and down when the
  * bottom controls' offset changes.
@@ -63,23 +63,21 @@ public class BottomContainer extends FrameLayout
     }
     @Override
     public void onTopControlsHeightChanged(int topControlsHeight, int topControlsMinHeight) {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            setTranslationY(mBaseYOffset);
+        setTranslationY(mBaseYOffset);
     }
 
     @Override
     public void onAndroidControlsVisibilityChanged(int visibility) {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            setTranslationY(mBaseYOffset);
+        setTranslationY(mBaseYOffset);
     }
     @Override
     public void setTranslationY(float y) {
-        mBaseYOffset = y;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+
+       
             // the snackbar container is moved up because there is the top toolbar at the bottom
             mBaseYOffset = -(mBrowserControlsStateProvider.getTopControlsHeight()
                              + mBrowserControlsStateProvider.getTopControlOffset());
-        }
+        
         float offsetFromControls =
                 mBrowserControlsStateProvider.getBottomControlOffset()
                         - mBrowserControlsStateProvider.getBottomControlsHeight();

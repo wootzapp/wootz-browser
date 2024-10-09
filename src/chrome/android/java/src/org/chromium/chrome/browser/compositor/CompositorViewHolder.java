@@ -249,10 +249,10 @@ public class CompositorViewHolder extends FrameLayout
                         @Override
                         public void setCurrentTouchEventOffsets(float top) {
                             EventForwarder forwarder = getEventForwarder();
-                            if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-                                // no need to adjust the touch offsets, since the content view is never moved
-                                top = 0;
-                            }
+                            
+                            // no need to adjust the touch offsets, since the content view is never moved
+                            top = 0;
+
                             if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
                         }
 
@@ -904,19 +904,13 @@ public class CompositorViewHolder extends FrameLayout
                             + mBrowserControlsManager.getBottomControlsHeight();
             controlsInsets = mControlsResizeView ? controlsHeight : controlsMinHeight;
         }
+ 
+        int keyboardInset = 0;
 
-        int keyboardInset =
-                mApplicationBottomInsetSupplier != null
-                        ? mApplicationBottomInsetSupplier.get().webContentsHeightInset
-                        : 0;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-        // if(true){
-            keyboardInset = 0;
-        }
         int viewportInsets = controlsInsets + keyboardInset;
 
         if (isAttachedToWindow(view)) {
-            webContents.setSize(width, height - viewportInsets);
+            webContents.setSize(width, height/* - viewportInsets*/);
 
             // Dispatch the geometrychange JavaScript event to the page.
             // TODO(bokan): This doesn't belong in updateWebContentsSize. Ideally the content/ layer

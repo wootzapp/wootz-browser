@@ -15,7 +15,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-
+import androidx.fragment.app.FragmentManager;
 /** A UI coordinator the app menu. */
 class AppMenuCoordinatorImpl implements AppMenuCoordinator {
     private static Boolean sHasPermanentMenuKeyForTesting;
@@ -61,6 +61,8 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
      * @param hardwareButtonAnchorView The {@link View} used as an anchor for the menu when it is
      *            displayed using a hardware button.
      * @param appRect Supplier of the app area in Window that the menu should fit in.
+     * @param fragmentManager The {@link FragmentManager} for the containing activity.
+     * @param itemRowHeight The height of each menu item row.
      */
     public AppMenuCoordinatorImpl(
             Context context,
@@ -69,7 +71,9 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
             AppMenuDelegate appMenuDelegate,
             View decorView,
             View hardwareButtonAnchorView,
-            Supplier<Rect> appRect) {
+            Supplier<Rect> appRect,
+            FragmentManager fragmentManager,
+            int itemRowHeight) {  // Add this parameter
         mContext = context;
         mButtonDelegate = buttonDelegate;
         mAppMenuDelegate = appMenuDelegate;
@@ -83,7 +87,9 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
                         decorView,
                         activityLifecycleDispatcher,
                         hardwareButtonAnchorView,
-                        appRect);
+                        appRect,
+                        fragmentManager,
+                        itemRowHeight);  // Pass the itemRowHeight
     }
 
     @Override

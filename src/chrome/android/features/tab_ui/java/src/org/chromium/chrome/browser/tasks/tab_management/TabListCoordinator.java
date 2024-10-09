@@ -480,8 +480,7 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
-                if (actionOnRelatedTabs && ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-                // if(true){
+                if (actionOnRelatedTabs && true) {
                     gridLayoutManager =
                         new GridLayoutManagerDockBottom(context, GRID_LAYOUT_SPAN_COUNT_COMPACT);
                     ((GridLayoutManagerDockBottom)gridLayoutManager)
@@ -522,7 +521,7 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
-                // layout.setStackFromEnd(ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled());
+
                 layout.setStackFromEnd(true);
                 mRecyclerView.setLayoutManager(layout);
             }

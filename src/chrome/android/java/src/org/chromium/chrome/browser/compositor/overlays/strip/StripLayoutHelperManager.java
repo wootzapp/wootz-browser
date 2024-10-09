@@ -90,7 +90,6 @@ import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.util.ColorUtils;
 import org.chromium.url.GURL;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -774,9 +773,7 @@ public class StripLayoutHelperManager
                 mLeftPadding,
                 mRightPadding);
         float top = mTopPadding;
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled() &&
-        if( true &&
-            mBrowserControlsManagerSupplier.get() != null) {
+        if( true && mBrowserControlsManagerSupplier.get() != null) {
             // move the rectangle to grab the touch events as the tab list (in tablet mode)
             // is down and is following the toolbar offset as it moves.
             // values are in pixels.

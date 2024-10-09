@@ -16,23 +16,38 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowInsetsCompat;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+
+import java.util.function.Supplier;
+
+import javax.swing.ViewportLayout;
+
 import org.chromium.base.BuildInfo;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
+import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdown;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownEmbedder;
+import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownEmbedder.OmniboxAlignment;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.display.DisplayUtil;
+import android.util.Log;
+import org.chromium.ui.KeyboardVisibilityDelegate;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
+import org.chromium.base.ContextUtils;
+import android.graphics.Rect;
 
 /**
  * Implementation of {@link OmniboxSuggestionsDropdownEmbedder} that positions it using an "anchor"
  * and "horizontal alignment" view.
  */
-class OmniboxSuggestionsDropdownEmbedderImpl
+public class OmniboxSuggestionsDropdownEmbedderImpl
         implements OmniboxSuggestionsDropdownEmbedder,
                 OnLayoutChangeListener,
                 OnGlobalLayoutListener,
@@ -54,7 +69,15 @@ class OmniboxSuggestionsDropdownEmbedderImpl
     private WindowInsetsCompat mWindowInsetsCompat;
     private DeferredIMEWindowInsetApplicationCallback mDeferredIMEWindowInsetApplicationCallback;
     private @Nullable View mBaseChromeLayout;
-
+    private KeyboardVisibilityDelegate mKeyboardVisibilityDelegate;
+    private ValueAnimator mPaddingAnimator;
+    private int mCurrentBottomPadding;
+    private View mContentView;
+    private boolean isKeyboardShowing;
+    private int mKeyboardHeight;
+    private boolean isWhitePatchVisible;
+    private KeyboardVisibilityDelegate.KeyboardVisibilityListener mKeyboardVisibilityListener;
+    private @Nullable View mCompositorViewHolder;
     /**
      * @param windowAndroid Window object in which the dropdown will be displayed.
      * @param windowDelegate Delegate object for performing window operations.
@@ -74,7 +97,9 @@ class OmniboxSuggestionsDropdownEmbedderImpl
             @NonNull View anchorView,
             @NonNull View alignmentView,
             boolean forcePhoneStyleOmnibox,
-            @Nullable View baseChromeLayout) {
+            @Nullable View baseChromeLayout,
+            @Nullable View compositorViewHolder
+            ) {
         mWindowAndroid = windowAndroid;
         mWindowDelegate = windowDelegate;
         mAnchorView = anchorView;
@@ -86,6 +111,36 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         mWindowWidthDp = configuration.smallestScreenWidthDp;
         mWindowHeightDp = configuration.screenHeightDp;
         mBaseChromeLayout = baseChromeLayout;
+        mCompositorViewHolder = compositorViewHolder;
+        mKeyboardVisibilityDelegate = KeyboardVisibilityDelegate.getInstance();
+        mCurrentBottomPadding = 0;
+        mContentView = mAnchorView.getRootView().findViewById(android.R.id.content);
+        isKeyboardShowing = false;
+        mKeyboardHeight = 0;
+        isWhitePatchVisible = true;
+        mKeyboardVisibilityListener = (isShowing)-> {
+            Log.d("Omni", "keyboard " + isShowing);
+            if(isShowing){
+                mKeyboardHeight = mKeyboardVisibilityDelegate.calculateKeyboardHeight(mCompositorViewHolder.getRootView());
+                Log.d("Omni", "keyboardHeight " + mKeyboardHeight);
+                recalculateOmniboxAlignment();
+            }
+            else{
+                mKeyboardHeight = 0;
+                Log.d("Omni", "keyboardHeight " + mKeyboardHeight);
+                recalculateOmniboxAlignment();
+            }
+        };
+        setupWindowAndroidKeyboardDelegate();
+        recalculateOmniboxAlignment();
+    }
+    private void setupWindowAndroidKeyboardDelegate(){
+        if(mWindowAndroid != null){
+            mWindowAndroid.getKeyboardDelegate().addKeyboardVisibilityListener(mKeyboardVisibilityListener);
+        }
+    }
+    private void onKeyboardVisibilityChanged(boolean opened) {
+        // Log.d("Omni", "keyboard " + opened);
         recalculateOmniboxAlignment();
     }
 
@@ -108,11 +163,34 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         return mOmniboxAlignmentSupplier.get();
     }
 
+    public void setWhitePatchVisible(boolean visible) {
+        isWhitePatchVisible = visible;
+        recalculateOmniboxAlignment();
+    }
+
+    public boolean isWhitePatchVisible() {
+        return isWhitePatchVisible;
+    }
+
     @Override
     public boolean isTablet() {
         if (mForcePhoneStyleOmnibox) return false;
         return mWindowWidthDp >= DeviceFormFactor.MINIMUM_TABLET_WIDTH_DP
                 && DeviceFormFactor.isWindowOnTablet(mWindowAndroid);
+    }
+
+    public int calculateKeyboardHeightFromWindowInsets(View rootView) {
+
+            if (rootView == null || rootView.getRootWindowInsets() == null) return 0;
+            WindowInsetsCompat windowInsetsCompat =
+                    WindowInsetsCompat.toWindowInsetsCompat(
+                            rootView.getRootWindowInsets(), rootView);
+            int imeHeightIncludingSystemBars =
+                    windowInsetsCompat.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+            if (imeHeightIncludingSystemBars == 0) return 0;
+            int bottomSystemBarsHeight =
+                    windowInsetsCompat.getInsets(WindowInsetsCompat.Type.systemBars()).bottom;
+            return imeHeightIncludingSystemBars - bottomSystemBarsHeight;
     }
 
     @Override
@@ -129,9 +207,8 @@ class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onDetachedFromWindow() {
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-            recalculateOmniboxAlignment();
-        }
+        mKeyboardHeight = 0;
+        recalculateOmniboxAlignment();
         mAnchorView.removeOnLayoutChangeListener(this);
         mAlignmentView.removeOnLayoutChangeListener(this);
         mAnchorView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -161,12 +238,16 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         recalculateOmniboxAlignment();
     }
 
+
     // OnGlobalLayoutListener
     @Override
     public void onGlobalLayout() {
+        Log.d("Omni", "onGlobalLayout");
         if (offsetInWindowChanged(mAnchorView) || insetsHaveChanged(mAnchorView)) {
+            mKeyboardHeight = mKeyboardVisibilityDelegate.calculateKeyboardHeight(mCompositorViewHolder.getRootView());
             recalculateOmniboxAlignment();
         }
+
     }
 
     // ComponentCallbacks
@@ -216,7 +297,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
      *  |           dropdown            |
      * </pre>
      */
-    void recalculateOmniboxAlignment() {
+    public void recalculateOmniboxAlignment() {
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
         int contentViewTopPadding = contentView == null ? 0 : contentView.getPaddingTop();
 
@@ -231,8 +312,7 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         ViewUtils.getRelativeLayoutPosition(baseRelativeLayout, mAnchorView, mPositionArray);
 
         int top = mPositionArray[1] + mAnchorView.getMeasuredHeight() - contentViewTopPadding;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled())
-            top -= mPositionArray[1];
+        top -= mPositionArray[1];
         int left;
         int width;
         int paddingLeft;
@@ -264,10 +344,10 @@ class OmniboxSuggestionsDropdownEmbedderImpl
             paddingRight = 0;
         }
 
-        int keyboardHeight =
-                mDeferredIMEWindowInsetApplicationCallback != null
-                        ? mDeferredIMEWindowInsetApplicationCallback.getCurrentKeyboardHeight()
-                        : 0;
+        // int keyboardHeight = 
+                // mDeferredIMEWindowInsetApplicationCallback != null
+                //         ? mDeferredIMEWindowInsetApplicationCallback.getCurrentKeyboardHeight() : 0;
+                
 
         int windowHeight;
         if (BuildInfo.getInstance().isAutomotive
@@ -293,22 +373,35 @@ class OmniboxSuggestionsDropdownEmbedderImpl
         int minSpaceAboveWindowBottom =
                 mContext.getResources()
                         .getDimensionPixelSize(R.dimen.omnibox_min_space_above_window_bottom);
-        int windowSpace =
-                Math.min(windowHeight - keyboardHeight, windowHeight - minSpaceAboveWindowBottom);
+        int windowSpace = Math.min(windowHeight - mKeyboardHeight, windowHeight - minSpaceAboveWindowBottom);
         // If content view is null, then omnibox might not be in the activity content.
         int contentSpace =
                 contentView == null
                         ? Integer.MAX_VALUE
-                        : contentView.getMeasuredHeight() - keyboardHeight;
-        int height = Math.min(windowSpace, contentSpace) - top;
-        if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
-            ViewCompat.setPaddingRelative(
-                contentView, 0, 0, 0, keyboardHeight);
-            top = 0;
+                        : (contentView.getMeasuredHeight() - mKeyboardHeight);
+        int height = Math.min(windowSpace, Integer.MAX_VALUE/*contentSpace*/) - top;
+        int offset = -25;
+        Log.d("Omnibox", "windowSpace: " + windowSpace + 
+        " contentSpace: " + contentSpace + 
+        " height: " + height + 
+        " KeyboardHeight: " + mKeyboardHeight +
+        " windowHeight: " + windowHeight +
+        " contentViewHeight: " + (contentView != null ? contentView.getMeasuredHeight() : "null"));
+
+        if(mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView) || (mKeyboardHeight > 0)){
+            if(windowSpace - mKeyboardHeight - contentSpace < offset){
+                ViewCompat.setPaddingRelative(contentView, 0, 0, 0, mKeyboardHeight);
+            }
+            else{
+                ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
+            }
+        }
+        else{
+            ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
         }
 
-        // TODO(pnoland@, https://crbug.com/1416985): avoid pushing changes that are identical to
-        // the previous alignment value.
+
+        top = 0;
         OmniboxAlignment omniboxAlignment =
                 new OmniboxAlignment(left, top, width, height, paddingLeft, paddingRight);
         mOmniboxAlignmentSupplier.set(omniboxAlignment);
