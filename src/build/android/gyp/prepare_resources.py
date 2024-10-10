@@ -78,10 +78,9 @@ def _CheckAllFilesListed(resource_files, resource_dirs):
   if missing_files:
     sys.stderr.write('Error: Found files not listed in the sources list of '
                      'the BUILD.gn target:\n')
-    for path in missing_files: # wootz patch, delete orphan resources, be carefull
+    for path in missing_files:
       sys.stderr.write('{}\n'.format(path))
-      os.remove(path)
-    # sys.exit(1)
+    sys.exit(1)
 
 
 def _ZipResources(resource_dirs, zip_path, ignore_pattern):

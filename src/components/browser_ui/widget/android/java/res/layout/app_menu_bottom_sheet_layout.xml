@@ -17,28 +17,79 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
 
-        <GridView
-            android:id="@+id/app_menu_grid"
+        <LinearLayout
+            android:id="@+id/app_menu_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:verticalSpacing="8dp"
-            android:horizontalSpacing="8dp"
-            android:stretchMode="columnWidth"
-            android:gravity="center" />
-        
+            android:orientation="vertical">
+            <GridView
+                android:id="@+id/app_menu_grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:verticalSpacing="8dp"
+                android:horizontalSpacing="8dp"
+                android:stretchMode="columnWidth"
+                android:gravity="center" />
+            <!-- <LinearLayout
+                android:id="@+id/app_menu_extensions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:visibility="invisible">
+                <TextView
+                    android:id="@+id/app_menu_extensions_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Extensions" />
+            </LinearLayout> -->
+                        <!-- Extensions section -->
+
+            <View
+                android:id="@+id/extensions_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:visibility="visible"/>
+            
+            <LinearLayout
+                android:id="@+id/app_menu_extensions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+                
+                <TextView
+                    android:id="@+id/app_menu_extensions_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Extensions"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:paddingStart="8dp"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="8dp"/>
+                
+                <LinearLayout
+                    android:id="@+id/app_menu_extensions_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp">
+                    <!-- Extension items will be added here programmatically -->
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
         <LinearLayout
             android:id="@+id/web_view"
             android:layout_width="match_parent"
             android:layout_height="500dp"
             android:orientation="vertical"
             android:layout_gravity="top"
-            android:visibility="invisible" >
-            <ImageButton
-                android:id="@+id/test_button"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:background="?attr/selectableItemBackground" />
-        </LinearLayout>
+            android:background="@android:color/transparent"
+            android:visibility="invisible" />
 
         <FrameLayout
             android:id="@+id/app_menu_footer"
