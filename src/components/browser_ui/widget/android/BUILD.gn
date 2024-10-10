@@ -211,6 +211,7 @@ android_resources("java_resources") {
     "java/res/drawable/async_image_view_waiting.xml",
     "java/res/drawable/bottom_sheet_background.xml",
     "java/res/drawable/card_with_corners_background.xml",
+    "java/res/drawable/circular_button_background.xml",
     "java/res/drawable/gradient_paragraph_loading_animation.xml",
     "java/res/drawable/ic_arrow_back_24dp.xml",
     "java/res/drawable/ic_check_googblue_24dp_animated.xml",
