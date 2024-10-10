@@ -1,0 +1,14 @@
+Name: cpuinfo
+Short Name: cpuinfo
+URL: https://github.com/pytorch/cpuinfo
+Version: 1e83a2fdd3102f65c6f1fb602c1b320486218a99
+Date: 2024-10-03
+License: BSD
+License File: src/LICENSE
+Security Critical: Yes
+Shipped: yes
+
+Description:
+cpuinfo is a library to detect essential for performance optimization
+information about host CPU. This library supports //third_party/xnnpack, which
+in turn supports //third_party/tflite.

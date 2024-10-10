@@ -1,0 +1,11 @@
+achuith@chromium.org
+afakhry@chromium.org
+hidehiko@chromium.org
+jamescook@chromium.org
+khorimoto@chromium.org
+oshima@chromium.org
+xiyuan@chromium.org
+
+# This is for the common case of adding or renaming files. If you're doing
+# structural changes, use usual OWNERS rules.
+per-file BUILD.gn=*

@@ -1,0 +1,27 @@
+// Copyright 2022 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// https://www.w3.org/TR/webnn/
+
+enum MLOperandDataType {
+  "float32",
+  "float16",
+  "int32",
+  "uint32",
+  "int64",
+  "uint64",
+  "int8",
+  "uint8",
+  "int4",
+  "uint4"
+};
+
+dictionary MLOperandDescriptor {
+  required MLOperandDataType dataType;
+
+  // TODO(crbug.com/365813262): Remove this field in favor of `shape`.
+  sequence<[EnforceRange] unsigned long> dimensions;
+  // TODO(crbug.com/365813262): Make this field required and remove its default.
+  sequence<[EnforceRange] unsigned long> shape = [];
+};
