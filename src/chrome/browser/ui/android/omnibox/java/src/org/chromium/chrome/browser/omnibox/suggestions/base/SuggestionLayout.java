@@ -181,8 +181,8 @@ class SuggestionLayout extends ViewGroup {
                         || mOutlineProvider.isBottomEdgeRounded() != roundBottomEdge;
 
         if (!needUpdate) return;
-        //Abhinandan: interchanged bottom and top edged
-        mOutlineProvider.setRoundingEdges(true, roundBottomEdge, true, roundTopEdge);
+
+        mOutlineProvider.setRoundingEdges(true, roundTopEdge, true, roundBottomEdge);
         setClipToOutline(roundTopEdge || roundBottomEdge);
         // Make sure the view redraws. Otherwise, the on-screen visuals may not reflect our desired
         // rounding effect.
