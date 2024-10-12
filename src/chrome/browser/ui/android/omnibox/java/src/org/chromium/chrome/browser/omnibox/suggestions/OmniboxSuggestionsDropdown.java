@@ -237,7 +237,8 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
             // reverse the layout so that the items are at the bottom (in reverse order)
             // and anchored to the bottom edge
             mLayoutScrollListener.setReverseLayout(true);
-            paddingTop = 0;
+            //Abhinandan: Added padding 5
+            paddingTop = 5;
         }
         setLayoutManager(mLayoutScrollListener);
         ViewCompat.setPaddingRelative(this, 0, paddingTop, 0, paddingBottom);
@@ -631,6 +632,8 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         // a left margin would) and is less risky than calling View#setLeft(), which is intended
         // for use by the layout system.
         setTranslationX(mOmniboxAlignment.left);
+        // Abhinandan:Ensure no vertical translation
+        setTranslationY(0);    
     }
 
     private void setRoundBottomCorners(boolean roundBottomCorners) {
