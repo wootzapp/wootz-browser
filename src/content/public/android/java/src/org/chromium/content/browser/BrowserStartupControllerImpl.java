@@ -135,6 +135,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
                     new Runnable() {
                         @Override
                         public void run() {
+                            Log.e("lalala", "run");
                             addStartupCompletedObserver(
                                     new StartupCallback() {
                                         @Override
@@ -143,6 +144,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
                                             Context context = ContextUtils.getApplicationContext();
                                             mTracingController =
                                                     new TracingControllerAndroidImpl(context);
+                                            Log.e("lalala", "" + mTracingController);
                                             mTracingController.registerReceiver(context);
                                         }
 
@@ -318,6 +320,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
     /** Wrap ContentMain.start() for testing. */
     @VisibleForTesting
     int contentMainStart(boolean startMinimalBrowser) {
+        Log.d("lalala", "content main start");
         return ContentMain.start(startMinimalBrowser);
     }
 
@@ -426,6 +429,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
     }
 
     private void postStartupCompleted(final StartupCallback callback) {
+        Log.e("lalala", "post startup");
         PostTask.postTask(
                 TaskTraits.UI_DEFAULT,
                 new Runnable() {

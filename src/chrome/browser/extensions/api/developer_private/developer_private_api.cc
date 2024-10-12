@@ -55,7 +55,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/application_launch.h"
 #include "chrome/browser/ui/extensions/extensions_dialogs.h"
 #include "chrome/browser/ui/safety_hub/menu_notification_service_factory.h"
@@ -488,7 +488,7 @@ void BrowserContextKeyedAPIFactory<
   DependsOn(EventRouterFactory::GetInstance());
   DependsOn(ExtensionSystemFactory::GetInstance());
   DependsOn(PermissionsManager::GetFactory());
-  DependsOn(ToolbarActionsModelFactory::GetInstance());
+  //DependsOn(ToolbarActionsModelFactory::GetInstance());
 }
 
 // static
@@ -516,7 +516,7 @@ DeveloperPrivateEventRouter::DeveloperPrivateEventRouter(Profile* profile)
   extension_allowlist_observer_.Observe(
       ExtensionSystem::Get(profile)->extension_service()->allowlist());
   permissions_manager_observation_.Observe(PermissionsManager::Get(profile));
-  toolbar_actions_model_observation_.Observe(ToolbarActionsModel::Get(profile));
+  // toolbar_actions_model_observation_.Observe(ToolbarActionsModel::Get(profile));
   pref_change_registrar_.Init(profile->GetPrefs());
   // The unretained is safe, since the PrefChangeRegistrar unregisters the
   // callback on destruction.
@@ -708,20 +708,20 @@ void DeveloperPrivateEventRouter::OnExtensionPermissionsUpdated(
                             extension.id());
 }
 
-void DeveloperPrivateEventRouter::OnToolbarPinnedActionsChanged() {
-  // Currently, only enabled extensions are considered since they are the only
-  // ones that have extension actions.
-  // TODO(crbug.com/40280426): Since pinned info is stored as a pref, include
-  // disabled extensions in this event as well.
-  const ExtensionSet& extensions =
-      ExtensionRegistry::Get(profile_)->enabled_extensions();
-  for (const auto& extension : extensions) {
-    if (ui_util::ShouldDisplayInExtensionSettings(*extension)) {
-      BroadcastItemStateChanged(developer::EventType::kPinnedActionsChanged,
-                                extension->id());
-    }
-  }
-}
+// void DeveloperPrivateEventRouter::OnToolbarPinnedActionsChanged() {
+//   // Currently, only enabled extensions are considered since they are the only
+//   // ones that have extension actions.
+//   // TODO(crbug.com/40280426): Since pinned info is stored as a pref, include
+//   // disabled extensions in this event as well.
+//   const ExtensionSet& extensions =
+//       ExtensionRegistry::Get(profile_)->enabled_extensions();
+//   for (const auto& extension : extensions) {
+//     if (ui_util::ShouldDisplayInExtensionSettings(*extension)) {
+//       BroadcastItemStateChanged(developer::EventType::kPinnedActionsChanged,
+//                                 extension->id());
+//     }
+//   }
+// }
 
 void DeveloperPrivateEventRouter::OnProfilePrefChanged() {
   base::Value::List args;
@@ -903,14 +903,14 @@ DeveloperPrivateAutoUpdateFunction::~DeveloperPrivateAutoUpdateFunction() {}
 ExtensionFunction::ResponseAction DeveloperPrivateAutoUpdateFunction::Run() {
   ExtensionUpdater* updater =
       ExtensionSystem::Get(browser_context())->extension_service()->updater();
-  if (updater) {
-    ExtensionUpdater::CheckParams params;
-    params.fetch_priority = DownloadFetchPriority::kForeground;
-    params.install_immediately = true;
-    params.callback =
-        base::BindOnce(&DeveloperPrivateAutoUpdateFunction::OnComplete, this);
-    updater->CheckNow(std::move(params));
-  }
+  // if (updater) {
+  //   ExtensionUpdater::CheckParams params;
+  //   params.fetch_priority = DownloadFetchPriority::kForeground;
+  //   params.install_immediately = true;
+  //   params.callback =
+  //       base::BindOnce(&DeveloperPrivateAutoUpdateFunction::OnComplete, this);
+  //   updater->CheckNow(std::move(params));
+  // }
   return RespondLater();
 }
 
@@ -1074,108 +1074,109 @@ DeveloperPrivateUpdateExtensionConfigurationFunction::Run() {
       developer::UpdateExtensionConfiguration::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  const developer::ExtensionConfigurationUpdate& update = params->update;
+  // const developer::ExtensionConfigurationUpdate& update = params->update;
 
-  const Extension* extension = GetExtensionById(update.extension_id);
-  if (!extension)
-    return RespondNow(Error(kNoSuchExtensionError));
+  // const Extension* extension = GetExtensionById(update.extension_id);
+  // if (!extension)
+  //   return RespondNow(Error(kNoSuchExtensionError));
 
-  // The chrome://extensions page uses toggles which, when dragged, do not
-  // invoke a user gesture. Work around this for the chrome://extensions page.
-  // TODO(dpapad): Remove this exemption when sliding a toggle counts as a
-  // gesture.
-  bool allowed =
-      source_context_type() == mojom::ContextType::kWebUi || user_gesture();
-  if (!allowed)
-    return RespondNow(Error(kRequiresUserGestureError));
+  // // The chrome://extensions page uses toggles which, when dragged, do not
+  // // invoke a user gesture. Work around this for the chrome://extensions page.
+  // // TODO(dpapad): Remove this exemption when sliding a toggle counts as a
+  // // gesture.
+  // bool allowed =
+  //     source_context_type() == mojom::ContextType::kWebUi || user_gesture();
+  // if (!allowed)
+  //   return RespondNow(Error(kRequiresUserGestureError));
 
-  if (update.file_access) {
-    util::SetAllowFileAccess(
-        extension->id(), browser_context(), *update.file_access);
-  }
-  if (update.incognito_access) {
-    util::SetIsIncognitoEnabled(
-        extension->id(), browser_context(), *update.incognito_access);
-  }
-  if (update.error_collection) {
-    ErrorConsole::Get(browser_context())->SetReportingAllForExtension(
-        extension->id(), *update.error_collection);
-  }
-  if (update.host_access != developer::HostAccess::kNone) {
-    PermissionsManager* manager = PermissionsManager::Get(browser_context());
-    if (!manager->CanAffectExtension(*extension))
-      return RespondNow(Error(kCannotChangeHostPermissions));
+  // if (update.file_access) {
+  //   util::SetAllowFileAccess(
+  //       extension->id(), browser_context(), *update.file_access);
+  // }
+  // if (update.incognito_access) {
+  //   util::SetIsIncognitoEnabled(
+  //       extension->id(), browser_context(), *update.incognito_access);
+  // }
+  // if (update.error_collection) {
+  //   ErrorConsole::Get(browser_context())->SetReportingAllForExtension(
+  //       extension->id(), *update.error_collection);
+  // }
+  // if (update.host_access != developer::HostAccess::kNone) {
+  //   PermissionsManager* manager = PermissionsManager::Get(browser_context());
+  //   if (!manager->CanAffectExtension(*extension))
+  //     return RespondNow(Error(kCannotChangeHostPermissions));
 
-    ScriptingPermissionsModifier modifier(browser_context(), extension);
-    switch (update.host_access) {
-      case developer::HostAccess::kOnClick:
-        modifier.SetWithholdHostPermissions(true);
-        modifier.RemoveAllGrantedHostPermissions();
-        break;
-      case developer::HostAccess::kOnSpecificSites:
-        if (manager->HasBroadGrantedHostPermissions(*extension))
-          modifier.RemoveBroadGrantedHostPermissions();
-        modifier.SetWithholdHostPermissions(true);
-        break;
-      case developer::HostAccess::kOnAllSites:
-        modifier.SetWithholdHostPermissions(false);
-        break;
-      case developer::HostAccess::kNone:
-        NOTREACHED_IN_MIGRATION();
-    }
-  }
-  if (update.show_access_requests_in_toolbar) {
-    SitePermissionsHelper(Profile::FromBrowserContext(browser_context()))
-        .SetShowAccessRequestsInToolbar(
-            extension->id(), *update.show_access_requests_in_toolbar);
-  }
-  if (update.acknowledge_safety_check_warning) {
-    ExtensionPrefs::Get(browser_context())
-        ->SetBooleanPref(extension->id(), kPrefAcknowledgeSafetyCheckWarning,
-                         *update.acknowledge_safety_check_warning);
-    ExtensionPrefs::Get(browser_context())
-        ->SetIntegerPref(
-            extension->id(), kPrefAcknowledgeSafetyCheckWarningReason,
-            static_cast<int>(update.acknowledge_safety_check_warning_reason));
-    DeveloperPrivateEventRouter* event_router =
-        DeveloperPrivateAPI::Get(browser_context())
-            ->developer_private_event_router();
-    if (event_router) {
-      event_router->OnExtensionConfigurationChanged(extension->id());
-    }
-  }
-  if (update.acknowledge_mv2_deprecation_warning.value_or(false)) {
-    ManifestV2ExperimentManager* experiment_manager =
-        ManifestV2ExperimentManager::Get(browser_context());
-    if (experiment_manager->GetCurrentExperimentStage() !=
-        MV2ExperimentStage::kNone) {
-      experiment_manager->MarkWarningAsAcknowledged(extension->id());
-    }
-    // There isn't a separate observer for the MV2 acknowledged state changing,
-    // but this is the only place it's changed. Just fire the event directly.
-    DeveloperPrivateEventRouter* event_router =
-        DeveloperPrivateAPI::Get(browser_context())
-            ->developer_private_event_router();
-    if (event_router) {
-      event_router->OnExtensionConfigurationChanged(extension->id());
-    }
-  }
-  if (update.pinned_to_toolbar) {
-    ToolbarActionsModel* toolbar_actions_model = ToolbarActionsModel::Get(
-        Profile::FromBrowserContext(browser_context()));
-    if (!toolbar_actions_model->HasAction(extension->id())) {
-      return RespondNow(Error(kCannotSetPinnedWithoutAction));
-    }
+  //   ScriptingPermissionsModifier modifier(browser_context(), extension);
+  //   switch (update.host_access) {
+  //     case developer::HostAccess::kOnClick:
+  //       modifier.SetWithholdHostPermissions(true);
+  //       modifier.RemoveAllGrantedHostPermissions();
+  //       break;
+  //     case developer::HostAccess::kOnSpecificSites:
+  //       if (manager->HasBroadGrantedHostPermissions(*extension))
+  //         modifier.RemoveBroadGrantedHostPermissions();
+  //       modifier.SetWithholdHostPermissions(true);
+  //       break;
+  //     case developer::HostAccess::kOnAllSites:
+  //       modifier.SetWithholdHostPermissions(false);
+  //       break;
+  //     case developer::HostAccess::kNone:
+  //       NOTREACHED_IN_MIGRATION();
+  //   }
+  // }
+  // if (update.show_access_requests_in_toolbar) {
+  //   SitePermissionsHelper(Profile::FromBrowserContext(browser_context()))
+  //       .SetShowAccessRequestsInToolbar(
+  //           extension->id(), *update.show_access_requests_in_toolbar);
+  // }
+  // if (update.acknowledge_safety_check_warning) {
+  //   ExtensionPrefs::Get(browser_context())
+  //       ->SetBooleanPref(extension->id(), kPrefAcknowledgeSafetyCheckWarning,
+  //                        *update.acknowledge_safety_check_warning);
+  //   ExtensionPrefs::Get(browser_context())
+  //       ->SetIntegerPref(
+  //           extension->id(), kPrefAcknowledgeSafetyCheckWarningReason,
+  //           static_cast<int>(update.acknowledge_safety_check_warning_reason));
+  //   DeveloperPrivateEventRouter* event_router =
+  //       DeveloperPrivateAPI::Get(browser_context())
+  //           ->developer_private_event_router();
+  //   if (event_router) {
+  //     event_router->OnExtensionConfigurationChanged(extension->id());
+  //   }
+  // }
+  // if (update.acknowledge_mv2_deprecation_warning.value_or(false)) {
+  //   ManifestV2ExperimentManager* experiment_manager =
+  //       ManifestV2ExperimentManager::Get(browser_context());
+  //   if (experiment_manager->GetCurrentExperimentStage() !=
+  //       MV2ExperimentStage::kNone) {
+  //     experiment_manager->MarkWarningAsAcknowledged(extension->id());
+  //   }
+  //   // There isn't a separate observer for the MV2 acknowledged state changing,
+  //   // but this is the only place it's changed. Just fire the event directly.
+  //   DeveloperPrivateEventRouter* event_router =
+  //       DeveloperPrivateAPI::Get(browser_context())
+  //           ->developer_private_event_router();
+  //   if (event_router) {
+  //     event_router->OnExtensionConfigurationChanged(extension->id());
+  //   }
+  // }
+  // if (update.pinned_to_toolbar) {
+  //   ToolbarActionsModel* toolbar_actions_model = ToolbarActionsModel::Get(
+  //       Profile::FromBrowserContext(browser_context()));
+  //   if (!toolbar_actions_model->HasAction(extension->id())) {
+  //     return RespondNow(Error(kCannotSetPinnedWithoutAction));
+  //   }
 
-    bool is_action_pinned =
-        toolbar_actions_model->IsActionPinned(extension->id());
-    if (is_action_pinned != *update.pinned_to_toolbar) {
-      toolbar_actions_model->SetActionVisibility(extension->id(),
-                                                 !is_action_pinned);
-    }
-  }
+  //   bool is_action_pinned =
+  //       toolbar_actions_model->IsActionPinned(extension->id());
+  //   if (is_action_pinned != *update.pinned_to_toolbar) {
+  //     toolbar_actions_model->SetActionVisibility(extension->id(),
+  //                                                !is_action_pinned);
+  //   }
+  // }
 
-  return RespondNow(NoArguments());
+  // return RespondNow(NoArguments());
+  return RespondNow(Error("not implemented"));
 }
 
 DeveloperPrivateReloadFunction::DeveloperPrivateReloadFunction() = default;
@@ -1271,10 +1272,10 @@ void DeveloperPrivateReloadFunction::OnGotManifestError(
 }
 
 void DeveloperPrivateReloadFunction::ClearObservers() {
-  registry_observation_.Reset();
-  error_reporter_observation_.Reset();
+  // registry_observation_.Reset();
+  // error_reporter_observation_.Reset();
 
-  Release();  // Balanced in Run().
+  // Release();  // Balanced in Run().
 }
 
 DeveloperPrivateLoadUnpackedFunction::DeveloperPrivateLoadUnpackedFunction() {}
@@ -2028,34 +2029,34 @@ DeveloperPrivateOpenDevToolsFunction::Run() {
 
   // If we include a url, we should inspect it specifically (and not just the
   // render frame).
-  if (properties.url) {
-    // Line/column numbers are reported in display-friendly 1-based numbers,
-    // but are inspected in zero-based numbers.
-    // Default to the first line/column.
-    DevToolsWindow::OpenDevToolsWindow(
-        web_contents,
-        DevToolsToggleAction::Reveal(
-            base::UTF8ToUTF16(*properties.url),
-            properties.line_number ? *properties.line_number - 1 : 0,
-            properties.column_number ? *properties.column_number - 1 : 0),
-        DevToolsOpenedByAction::kInspectLink);
-  } else {
-    DevToolsWindow::OpenDevToolsWindow(web_contents,
-                                       DevToolsOpenedByAction::kInspectLink);
-  }
+  // if (properties.url) {
+  //   // Line/column numbers are reported in display-friendly 1-based numbers,
+  //   // but are inspected in zero-based numbers.
+  //   // Default to the first line/column.
+  //   DevToolsWindow::OpenDevToolsWindow(
+  //       web_contents,
+  //       DevToolsToggleAction::Reveal(
+  //           base::UTF8ToUTF16(*properties.url),
+  //           properties.line_number ? *properties.line_number - 1 : 0,
+  //           properties.column_number ? *properties.column_number - 1 : 0),
+  //       DevToolsOpenedByAction::kInspectLink);
+  // } else {
+  //   DevToolsWindow::OpenDevToolsWindow(web_contents,
+  //                                      DevToolsOpenedByAction::kInspectLink);
+  // }
 
   // Once we open the inspector, we focus on the appropriate tab...
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents);
 
-  // ... but some pages (popups and apps) don't have tabs, and some (background
-  // pages) don't have an associated browser. For these, the inspector opens in
-  // a new window, and our work is done.
-  if (!browser || !browser->is_type_normal())
-    return RespondNow(NoArguments());
+  // // ... but some pages (popups and apps) don't have tabs, and some (background
+  // // pages) don't have an associated browser. For these, the inspector opens in
+  // // a new window, and our work is done.
+  // if (!browser || !browser->is_type_normal())
+  //   return RespondNow(NoArguments());
 
-  TabStripModel* tab_strip = browser->tab_strip_model();
-  tab_strip->ActivateTabAt(tab_strip->GetIndexOfWebContents(
-      web_contents));  // Not through direct user gesture.
+  // TabStripModel* tab_strip = browser->tab_strip_model();
+  // tab_strip->ActivateTabAt(tab_strip->GetIndexOfWebContents(
+  //     web_contents));  // Not through direct user gesture.
   return RespondNow(NoArguments());
 }
 
@@ -2120,11 +2121,11 @@ DeveloperPrivateRepairExtensionFunction::Run() {
   if (!web_contents)
     return RespondNow(Error(kCouldNotFindWebContentsError));
 
-  auto reinstaller = base::MakeRefCounted<WebstoreReinstaller>(
-      web_contents, params->extension_id,
-      base::BindOnce(
-          &DeveloperPrivateRepairExtensionFunction::OnReinstallComplete, this));
-  reinstaller->BeginReinstall();
+  // auto reinstaller = base::MakeRefCounted<WebstoreReinstaller>(
+  //     web_contents, params->extension_id,
+  //     base::BindOnce(
+  //         &DeveloperPrivateRepairExtensionFunction::OnReinstallComplete, this));
+  // reinstaller->BeginReinstall();
 
   return RespondLater();
 }
@@ -2153,8 +2154,8 @@ ExtensionFunction::ResponseAction DeveloperPrivateShowOptionsFunction::Run() {
   if (!web_contents)
     return RespondNow(Error(kCouldNotFindWebContentsError));
 
-  ExtensionTabUtil::OpenOptionsPage(extension,
-                                    chrome::FindBrowserWithTab(web_contents));
+  // ExtensionTabUtil::OpenOptionsPage(extension,
+  //                                   chrome::FindBrowserWithTab(web_contents));
   return RespondNow(NoArguments());
 }
 
@@ -2689,19 +2690,20 @@ DeveloperPrivateRemoveMultipleExtensionsFunction::Run() {
     CHECK_IS_TEST();
     parent = nullptr;
   } else {
-    parent = chrome::FindBrowserWithTab(GetSenderWebContents())
-                 ->window()
-                 ->GetNativeWindow();
+    parent = nullptr;
+    // parent = chrome::FindBrowserWithTab(GetSenderWebContents())
+    //              ->window()
+    //              ->GetNativeWindow();
   }
 
-  ShowExtensionMultipleUninstallDialog(
-      profile_, parent, extension_ids_,
-      base::BindOnce(
-          &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogAccepted,
-          this),
-      base::BindOnce(
-          &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogCancelled,
-          this));
+  // ShowExtensionMultipleUninstallDialog(
+  //     profile_, parent, extension_ids_,
+  //     base::BindOnce(
+  //         &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogAccepted,
+  //         this),
+  //     base::BindOnce(
+  //         &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogCancelled,
+  //         this));
   return RespondLater();
 }
 
@@ -2740,15 +2742,15 @@ DeveloperPrivateDismissSafetyHubExtensionsMenuNotificationFunction::
 
 ExtensionFunction::ResponseAction
 DeveloperPrivateDismissSafetyHubExtensionsMenuNotificationFunction::Run() {
-  content::WebContents* web_contents = GetSenderWebContents();
-  if (!web_contents) {
-    return RespondNow(Error(kCouldNotFindWebContentsError));
-  }
+  // content::WebContents* web_contents = GetSenderWebContents();
+  // if (!web_contents) {
+  //   return RespondNow(Error(kCouldNotFindWebContentsError));
+  // }
 
-  Profile* profile = Profile::FromBrowserContext(browser_context());
-  SafetyHubMenuNotificationServiceFactory::GetForProfile(profile)
-      ->DismissActiveNotificationOfModule(
-          safety_hub::SafetyHubModuleType::EXTENSIONS);
+  // Profile* profile = Profile::FromBrowserContext(browser_context());
+  // SafetyHubMenuNotificationServiceFactory::GetForProfile(profile)
+  //     ->DismissActiveNotificationOfModule(
+  //         safety_hub::SafetyHubModuleType::EXTENSIONS);
   return RespondNow(NoArguments());
 }
 

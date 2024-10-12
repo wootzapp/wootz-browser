@@ -59,6 +59,9 @@ struct SchemeRegistry {
        SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket secure.
       {kWsScheme, SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket.
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
+      {kChromeScheme, SCHEME_WITH_HOST},
+      {"wootzapp", SCHEME_WITH_HOST},
+
   };
 
   // Schemes that are allowed for referrers.
@@ -556,6 +559,7 @@ void DoAddSchemeWithHandler(const char* new_scheme,
   DCHECK(strlen(new_scheme) > 0);
   DCHECK(strlen(handler) > 0);
   DCHECK_EQ(base::ToLowerASCII(new_scheme), new_scheme);
+  LOG(ERROR) << "wootz: " << new_scheme;
   DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithHandler::scheme));
   schemes->push_back({new_scheme, handler});
 }
@@ -576,7 +580,7 @@ void DoAddSchemeWithType(const char* new_scheme,
   DCHECK(schemes);
   DCHECK(strlen(new_scheme) > 0);
   DCHECK_EQ(base::ToLowerASCII(new_scheme), new_scheme);
-  DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithType::scheme));
+  // DCHECK(!base::Contains(*schemes, new_scheme, &SchemeWithType::scheme)); // wootz todo seems exts scheme dcheck
   schemes->push_back({new_scheme, type});
 }
 

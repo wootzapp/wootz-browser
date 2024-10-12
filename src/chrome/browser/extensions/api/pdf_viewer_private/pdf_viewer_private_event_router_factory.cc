@@ -35,7 +35,8 @@ PdfViewerPrivateEventRouterFactory::PdfViewerPrivateEventRouterFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(EventRouterFactory::GetInstance());
 }
 

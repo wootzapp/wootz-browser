@@ -470,6 +470,9 @@ content::WebUIDataSource* CreateAndAddExtensionsSource(Profile* profile,
   source->AddBoolean("isLacrosEnabled",
                      crosapi::browser_util::IsLacrosEnabled());
 #endif
+  
+  source->OverrideContentSecurityPolicy(network::mojom::CSPDirectiveName::DefaultSrc, "*");
+  source->OverrideContentSecurityPolicy(network::mojom::CSPDirectiveName::ScriptSrc, "*");
 
   return source;
 }

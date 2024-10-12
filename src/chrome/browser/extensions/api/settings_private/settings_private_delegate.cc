@@ -24,7 +24,7 @@ namespace extensions {
 
 SettingsPrivateDelegate::SettingsPrivateDelegate(Profile* profile)
     : profile_(profile) {
-  prefs_util_ = std::make_unique<PrefsUtil>(profile);
+  // prefs_util_ = std::make_unique<PrefsUtil>(profile);
 }
 
 SettingsPrivateDelegate::~SettingsPrivateDelegate() {
@@ -42,12 +42,12 @@ std::optional<base::Value::Dict> SettingsPrivateDelegate::GetPref(
 base::Value::List SettingsPrivateDelegate::GetAllPrefs() {
   base::Value::List prefs;
 
-  const TypedPrefMap& keys = prefs_util_->GetAllowlistedKeys();
-  for (const auto& it : keys) {
-    if (std::optional<base::Value::Dict> pref = GetPref(it.first); pref) {
-      prefs.Append(std::move(*pref));
-    }
-  }
+  // const TypedPrefMap& keys = prefs_util_->GetAllowlistedKeys();
+  // for (const auto& it : keys) {
+  //   if (std::optional<base::Value::Dict> pref = GetPref(it.first); pref) {
+  //     prefs.Append(std::move(*pref));
+  //   }
+  // }
 
   return prefs;
 }

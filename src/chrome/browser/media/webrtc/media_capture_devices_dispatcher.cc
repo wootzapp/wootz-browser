@@ -98,9 +98,9 @@ MediaCaptureDevicesDispatcher::MediaCaptureDevicesDispatcher()
 #endif
   media_access_handlers_.push_back(
       std::make_unique<ExtensionMediaAccessHandler>());
-  media_access_handlers_.push_back(
-      std::make_unique<DesktopCaptureAccessHandler>());
-  media_access_handlers_.push_back(std::make_unique<TabCaptureAccessHandler>());
+  // media_access_handlers_.push_back(
+  //     std::make_unique<DesktopCaptureAccessHandler>());
+  // media_access_handlers_.push_back(std::make_unique<TabCaptureAccessHandler>());
   media_access_handlers_.push_back(
       std::make_unique<controlled_frame::ControlledFrameMediaAccessHandler>());
 #endif

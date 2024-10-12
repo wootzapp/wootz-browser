@@ -37,7 +37,8 @@ SettingsPrivateEventRouterFactory::SettingsPrivateEventRouterFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(EventRouterFactory::GetInstance());
   DependsOn(settings_private::GeneratedPrefsFactory::GetInstance());
   DependsOn(SettingsPrivateDelegateFactory::GetInstance());

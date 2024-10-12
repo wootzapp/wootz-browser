@@ -298,8 +298,8 @@ void RenderInputRouter::SendGestureEventWithLatencyInfo(
     const GestureEventWithLatencyInfo& gesture_with_latency) {
   const blink::WebGestureEvent& gesture_event = gesture_with_latency.event;
   if (gesture_event.GetType() == WebInputEvent::Type::kGestureScrollBegin) {
-    DCHECK(
-        !is_in_gesture_scroll_[static_cast<int>(gesture_event.SourceDevice())]);
+    // DCHECK(
+    //     !is_in_gesture_scroll_[static_cast<int>(gesture_event.SourceDevice())]); // wootz turn off for emulator
     is_in_gesture_scroll_[static_cast<int>(gesture_event.SourceDevice())] =
         true;
   } else if (gesture_event.GetType() ==

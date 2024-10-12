@@ -1,1 +1,0 @@
-{"version":3,"file":"distributeByToken.js","sourceRoot":"","sources":["../../../../../src/extensions/split/write/distributeByToken.ts"],"names":[],"mappings":";;AAoBA,8CAQC;AA5BD,4FAAoF;AAGpF;;;;;;;;;;;;;;;;GAgBG;AACH,SAAgB,iBAAiB,CAC/B,OAAyD;IAEzD,OAAO,IAAA,8CAAmB,EAAC;QACzB,MAAM,EAAE,oCAAoC;QAC5C,MAAM,EAAE,CAAC,OAAO,CAAC,YAAY,CAAC;QAC9B,GAAG,OAAO;KACX,CAAC,CAAC;AACL,CAAC"}

@@ -309,7 +309,8 @@ are declared in tools/grit/grit_rule.gni.
       </if>
 
       <!-- Settings specific strings -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <part file="settings_strings.grdp" />
         <part file="shared_settings_strings.grdp"/>
       </if>
@@ -496,7 +497,8 @@ are declared in tools/grit/grit_rule.gni.
         Disable
       </message>
       <!-- Search strings are only used in webui, so no mobile. -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <message name="IDS_SEARCH_CLEARED" desc="Message announced to screenreader users when search is cleared.">
           Search cleared
         </message>
@@ -11760,7 +11762,8 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google 
       <!-- Settings related strings not specific to chrome://settings.
            (Settings specific strings are in settings_strings.grdp).
            Android uses native UI for settings -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <message name="IDS_TOOLBAR_INFORM_SET_HOME_PAGE" desc="The confirmation message when dropping a link on the Home toolbar button">
            Your home page has been set.
         </message>
@@ -12486,7 +12489,8 @@ Check your passwords anytime in <ph name="GOOGLE_PASSWORD_MANAGER">$1<ex>Google 
       </message>
 
       <!-- Managed UI on pages like chrome://settings and chrome://downloads -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <if expr="chromeos_ash">
           <message name="IDS_DEVICE_MANAGED_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (ChromeOS)">
             Your <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph><ph name="DEVICE_TYPE">$2<ex>Chromebook</ex></ph> is managed<ph name="END_LINK">&lt;/a&gt;</ph> by your organization

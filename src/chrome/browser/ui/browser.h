@@ -51,7 +51,7 @@
 #include "ui/shell_dialogs/select_file_dialog.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#error This file should only be included on desktop.
+// #error This file should only be included on desktop.
 #endif
 
 class BackgroundContents;
@@ -817,7 +817,7 @@ class Browser : public TabStripModelObserver,
       content::EyeDropperListener* listener) override;
   void InitiatePreview(content::WebContents& web_contents,
                        const GURL& url) override;
-  bool ShouldUseInstancedSystemMediaControls() const override;
+  // bool ShouldUseInstancedSystemMediaControls() const override;
   void DraggableRegionsChanged(
       const std::vector<blink::mojom::DraggableRegionPtr>& regions,
       content::WebContents* contents) override;

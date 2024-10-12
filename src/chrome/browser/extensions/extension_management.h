@@ -291,9 +291,9 @@ class ExtensionManagement : public KeyedService {
   // |forced_stage| is reported for the extensions which have installation mode
   // as INSTALLATION_FORCED, and |other_stage| is reported for all other
   // installation modes.
-  void ReportExtensionManagementInstallCreationStage(
-      InstallStageTracker::InstallCreationStage forced_stage,
-      InstallStageTracker::InstallCreationStage other_stage);
+//   void ReportExtensionManagementInstallCreationStage(
+//       InstallStageTracker::InstallCreationStage forced_stage,
+//       InstallStageTracker::InstallCreationStage other_stage);
 
   // Helper to return an extension install list, in format specified by
   // ExternalPolicyLoader::AddExtension().

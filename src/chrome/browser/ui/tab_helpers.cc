@@ -690,7 +690,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  webapps::PreRedirectionURLObserver::CreateForWebContents(web_contents);
+  // webapps::PreRedirectionURLObserver::CreateForWebContents(web_contents);
 #endif
 
 // TODO(crbug.com/40118868): Revisit the macro expression once build flag switch
@@ -767,20 +767,20 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   extensions::TabHelper::CreateForWebContents(web_contents);
   extensions::NavigationExtensionEnabler::CreateForWebContents(web_contents);
 
-  if (base::FeatureList::IsEnabled(
-          extensions_features::kExtensionSidePanelIntegration)) {
-    extensions::side_panel_util::CreateSidePanelManagerForWebContents(
-        profile, web_contents);
-  }
+  // if (base::FeatureList::IsEnabled(
+  //         extensions_features::kExtensionSidePanelIntegration)) {
+  //   extensions::side_panel_util::CreateSidePanelManagerForWebContents(
+  //       profile, web_contents);
+  // }
 
-  extensions::WebNavigationTabObserver::CreateForWebContents(web_contents);
-  if (web_app::AreWebAppsEnabled(profile)) {
-    web_app::WebAppTabHelper::CreateForWebContents(web_contents);
-  }
-  // Note WebAppMetricsTabHelper must be created after AppBannerManager.
-  if (web_app::WebAppMetricsTabHelper::IsEnabled(web_contents)) {
-    web_app::WebAppMetricsTabHelper::CreateForWebContents(web_contents);
-  }
+  // extensions::WebNavigationTabObserver::CreateForWebContents(web_contents);
+  // if (web_app::AreWebAppsEnabled(profile)) {
+  //   web_app::WebAppTabHelper::CreateForWebContents(web_contents);
+  // }
+  // // Note WebAppMetricsTabHelper must be created after AppBannerManager.
+  // if (web_app::WebAppMetricsTabHelper::IsEnabled(web_contents)) {
+  //   web_app::WebAppMetricsTabHelper::CreateForWebContents(web_contents);
+  // }
 #endif
 
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)

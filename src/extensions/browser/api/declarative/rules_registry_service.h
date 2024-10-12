@@ -187,8 +187,9 @@ template <>
 struct BrowserContextFactoryDependencies<RulesRegistryService> {
   static void DeclareFactoryDependencies(
       BrowserContextKeyedAPIFactory<RulesRegistryService>* factory) {
-    factory->DependsOn(
-        ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+    if (extensions::ExtensionsBrowserClient::Get())
+      factory->DependsOn(
+          ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
     factory->DependsOn(WebRequestEventRouterFactory::GetInstance());
   }
 };

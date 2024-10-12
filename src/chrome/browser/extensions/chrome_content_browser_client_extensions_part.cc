@@ -784,7 +784,7 @@ bool ChromeContentBrowserClientExtensionsPart::
 
   const Extension* extension =
       registry->enabled_extensions().GetByID(site_url.host());
-  extension_webkit_preferences::SetPreferences(extension, web_prefs);
+  // extension_webkit_preferences::SetPreferences(extension, web_prefs);
   return true;
 }
 
@@ -796,10 +796,10 @@ void ChromeContentBrowserClientExtensionsPart::OverrideWebkitPrefs(
 
 void ChromeContentBrowserClientExtensionsPart::BrowserURLHandlerCreated(
     BrowserURLHandler* handler) {
-  handler->AddHandlerPair(&ExtensionWebUI::HandleChromeURLOverride,
-                          BrowserURLHandler::null_handler());
-  handler->AddHandlerPair(BrowserURLHandler::null_handler(),
-                          &ExtensionWebUI::HandleChromeURLOverrideReverse);
+  // handler->AddHandlerPair(&ExtensionWebUI::HandleChromeURLOverride,
+  //                         BrowserURLHandler::null_handler());
+  // handler->AddHandlerPair(BrowserURLHandler::null_handler(),
+  //                         &ExtensionWebUI::HandleChromeURLOverrideReverse);
 }
 
 void ChromeContentBrowserClientExtensionsPart::
@@ -810,8 +810,8 @@ void ChromeContentBrowserClientExtensionsPart::
 
 void ChromeContentBrowserClientExtensionsPart::GetURLRequestAutoMountHandlers(
     std::vector<storage::URLRequestAutoMountHandler>* handlers) {
-  handlers->push_back(base::BindRepeating(
-      MediaFileSystemBackend::AttemptAutoMountForURLRequest));
+  // handlers->push_back(base::BindRepeating(
+  //     MediaFileSystemBackend::AttemptAutoMountForURLRequest));
 }
 
 void ChromeContentBrowserClientExtensionsPart::GetAdditionalFileSystemBackends(
@@ -820,8 +820,8 @@ void ChromeContentBrowserClientExtensionsPart::GetAdditionalFileSystemBackends(
     download::QuarantineConnectionCallback quarantine_connection_callback,
     std::vector<std::unique_ptr<storage::FileSystemBackend>>*
         additional_backends) {
-  additional_backends->push_back(std::make_unique<MediaFileSystemBackend>(
-      storage_partition_path, std::move(quarantine_connection_callback)));
+  // additional_backends->push_back(std::make_unique<MediaFileSystemBackend>(
+  //     storage_partition_path, std::move(quarantine_connection_callback)));
 
   additional_backends->push_back(
       std::make_unique<sync_file_system::SyncFileSystemBackend>(

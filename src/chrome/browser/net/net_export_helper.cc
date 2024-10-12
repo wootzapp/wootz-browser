@@ -58,8 +58,8 @@ base::Value::List GetExtensionInfo(Profile* profile) {
       for (const auto& extension : extensions) {
         base::Value::Dict extension_info;
         bool enabled = extension_service->IsExtensionEnabled(extension->id());
-        extensions::GetExtensionBasicInfo(extension.get(), enabled,
-                                          &extension_info);
+        // extensions::GetExtensionBasicInfo(extension.get(), enabled, // wootz ext patch
+        //                                   &extension_info);
         extension_list.Append(std::move(extension_info));
       }
     }

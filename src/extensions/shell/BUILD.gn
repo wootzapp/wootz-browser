@@ -18,7 +18,7 @@ if (is_linux || is_chromeos) {
   import("//build/linux/extract_symbols.gni")
 }
 
-assert(enable_extensions)
+# assert(enable_extensions)
 
 grit("resources") {
   source = "app_shell_resources.grd"
@@ -36,7 +36,7 @@ source_set("app_shell_lib") {
   deps = [
     ":resources",
     ":version_header",
-    "//apps",
+    # "//apps",
     "//base",
     "//build:chromeos_buildflags",
     "//components/feedback",
@@ -61,10 +61,10 @@ source_set("app_shell_lib") {
     "//content/shell:content_shell_lib",
     "//device/bluetooth",
     "//extensions:extensions_resources",
-    "//extensions:shell_and_test_pak",
+    # "//extensions:shell_and_test_pak",
     "//extensions/browser",
-    "//extensions/browser/kiosk",
-    "//extensions/browser/updater",
+    # "//extensions/browser/kiosk",
+    # "//extensions/browser/updater",
     "//extensions/common",
     "//extensions/common:core_api_provider",
     "//extensions/common/api",
@@ -284,7 +284,7 @@ executable("app_shell") {
     ":app_shell_lib",
     "//build/win:default_exe_manifest",
     "//content/public/app",
-    "//extensions:shell_and_test_pak",
+    # "//extensions:shell_and_test_pak",
   ]
 
   if (is_win) {
@@ -315,17 +315,17 @@ test("app_shell_unittests") {
 
   deps = [
     ":app_shell_lib",
-    "//apps",
+    # "//apps",
     "//base",
     "//base/test:test_support",
     "//build:chromeos_buildflags",
     "//components/crx_file",
     "//components/feedback",
-    "//components/keep_alive_registry",
+    # "//components/keep_alive_registry",
     "//components/prefs",
     "//components/user_prefs",
     "//content/test:test_support",
-    "//extensions:shell_and_test_pak",
+    # "//extensions:shell_and_test_pak",
     "//extensions:test_support",
     "//extensions/browser",
     "//extensions/common",

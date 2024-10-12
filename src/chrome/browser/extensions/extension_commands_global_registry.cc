@@ -23,15 +23,15 @@ ExtensionCommandsGlobalRegistry::ExtensionCommandsGlobalRegistry(
 
 ExtensionCommandsGlobalRegistry::~ExtensionCommandsGlobalRegistry() {
   if (!IsEventTargetsEmpty()) {
-    GlobalShortcutListener* global_shortcut_listener =
-        GlobalShortcutListener::GetInstance();
+    // GlobalShortcutListener* global_shortcut_listener =
+    //     GlobalShortcutListener::GetInstance();
 
-    // Resume GlobalShortcutListener before we clean up if the shortcut handling
-    // is currently suspended.
-    if (global_shortcut_listener->IsShortcutHandlingSuspended())
-      global_shortcut_listener->SetShortcutHandlingSuspended(false);
+    // // Resume GlobalShortcutListener before we clean up if the shortcut handling
+    // // is currently suspended.
+    // if (global_shortcut_listener->IsShortcutHandlingSuspended())
+    //   global_shortcut_listener->SetShortcutHandlingSuspended(false);
 
-    global_shortcut_listener->UnregisterAccelerators(this);
+    // global_shortcut_listener->UnregisterAccelerators(this);
   }
 }
 
@@ -84,8 +84,8 @@ void ExtensionCommandsGlobalRegistry::AddExtensionKeybindings(
     const ui::Accelerator& accelerator = iter->second.accelerator();
 
     if (!IsAcceleratorRegistered(accelerator)) {
-      if (!GlobalShortcutListener::GetInstance()->RegisterAccelerator(
-              accelerator, this))
+      // if (!GlobalShortcutListener::GetInstance()->RegisterAccelerator(
+      //         accelerator, this))
         continue;
     }
 
@@ -96,14 +96,14 @@ void ExtensionCommandsGlobalRegistry::AddExtensionKeybindings(
 void ExtensionCommandsGlobalRegistry::RemoveExtensionKeybindingImpl(
     const ui::Accelerator& accelerator,
     const std::string& command_name) {
-  GlobalShortcutListener::GetInstance()->UnregisterAccelerator(
-      accelerator, this);
+  // GlobalShortcutListener::GetInstance()->UnregisterAccelerator(
+  //     accelerator, this);
 }
 
 void ExtensionCommandsGlobalRegistry::OnShortcutHandlingSuspended(
     bool suspended) {
-  GlobalShortcutListener::GetInstance()->SetShortcutHandlingSuspended(
-      suspended);
+  // GlobalShortcutListener::GetInstance()->SetShortcutHandlingSuspended(
+  //     suspended);
   if (registry_for_active_window())
     registry_for_active_window()->SetShortcutHandlingSuspended(suspended);
 }

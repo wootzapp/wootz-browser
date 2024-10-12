@@ -5,7 +5,7 @@
 import("//extensions/buildflags/buildflags.gni")
 
 assert(enable_extensions)
-
+# assert(!is_android)
 source_set("controlled_frame") {
   sources = [
     "api/controlled_frame_internal_api.cc",
@@ -19,7 +19,7 @@ source_set("controlled_frame") {
   deps = [
     "//base",
     "//chrome/browser/extensions",
-    "//chrome/browser/web_applications",
+    # "//chrome/browser/web_applications",
     "//content/public/common",
     "//extensions/browser",
     "//extensions/common",

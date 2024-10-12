@@ -61,7 +61,7 @@ ExtensionSystemSharedFactory::ExtensionSystemSharedFactory()
   // This depends on ExtensionDownloader, which depends on
   // IdentityManager for webstore authentication.
   DependsOn(IdentityManagerFactory::GetInstance());
-  DependsOn(InstallStageTrackerFactory::GetInstance());
+  // DependsOn(InstallStageTrackerFactory::GetInstance());
   // ExtensionService (owned by the ExtensionSystem) depends on
   // ExtensionHostRegistry.
   DependsOn(ExtensionHostRegistry::GetFactory());

@@ -38,6 +38,7 @@ import org.chromium.ui.interpolators.Interpolators;
 
 /** The overflow menu button. */
 public class MenuButton extends FrameLayout implements TintObserver {
+    public static OnTouchListener sTouchListener;
     /** The {@link ImageButton} for the menu button. */
     private ImageButton mMenuImageButton;
 

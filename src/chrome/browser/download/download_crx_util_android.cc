@@ -5,18 +5,34 @@
 // Download code which handles CRX files (extensions, themes, apps, ...).
 
 #include "chrome/browser/download/download_crx_util.h"
+#include "extensions/common/extension.h"
+#include "components/download/public/common/download_item.h"
+#include "net/http/http_response_headers.h"
 
 namespace download_crx_util {
 
 bool IsExtensionDownload(const download::DownloadItem& download_item) {
-  // Extensions are not supported on Android. We want to treat them as
-  // normal file downloads.
-  return false;
+    std::string content_disposition = download_item.GetContentDisposition();
+    if (content_disposition.find("filename=") != std::string::npos &&
+        content_disposition.find(".crx") != std::string::npos) {
+        return true;
+    }
+
+    if (download_item.GetMimeType() == extensions::Extension::kMimeType) {
+        return true; 
+    }
+
+    std::string url = download_item.GetURL().spec();
+    if (url.ends_with(".crx")) {
+        return true;
+    }
+
+    return false;
 }
 
 bool IsTrustedExtensionDownload(Profile* profile,
                                 const download::DownloadItem& item) {
-  // Extensions are not supported on Android, return the safe default.
+  // Webstore exts are not supported
   return false;
 }
 

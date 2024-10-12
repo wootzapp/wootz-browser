@@ -6,7 +6,7 @@ import("//build/config/features.gni")
 import("//extensions/buildflags/buildflags.gni")
 import("//pdf/features.gni")
 
-assert(enable_extensions)
+# assert(enable_extensions)
 
 source_set("renderer") {
   sources = [

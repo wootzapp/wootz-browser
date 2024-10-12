@@ -961,11 +961,11 @@ BASE_FEATURE(kOfflineAutoFetch,
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_ANDROID)
 
-#if !BUILDFLAG(IS_ANDROID)
+// #if !BUILDFLAG(IS_ANDROID) // wootz exts
 BASE_FEATURE(kOnConnectNative,
              "OnConnectNative",
              base::FEATURE_DISABLED_BY_DEFAULT);
-#endif
+// #endif
 
 // Enables/disables marketing emails for other countries other than US,CA,UK.
 BASE_FEATURE(kOobeMarketingAdditionalCountriesSupported,

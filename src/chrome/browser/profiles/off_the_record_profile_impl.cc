@@ -206,7 +206,7 @@ void OffTheRecordProfileImpl::Init() {
   ChromePluginServiceFilter::GetInstance()->RegisterProfile(this);
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   // Make the chrome//extension-icon/ resource available.
   content::URLDataSource::Add(
       this, std::make_unique<extensions::ExtensionIconSource>(profile_));

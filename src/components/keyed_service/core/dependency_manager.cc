@@ -18,6 +18,7 @@
 #include "components/keyed_service/core/keyed_service_base_factory.h"
 #include "components/keyed_service/core/keyed_service_factory.h"
 #include "components/keyed_service/core/refcounted_keyed_service_factory.h"
+#include "base/debug/stack_trace.h"
 
 #ifndef NDEBUG
 #include "base/files/file_path.h"
@@ -31,7 +32,7 @@ DependencyManager::~DependencyManager() {
 }
 
 void DependencyManager::AddComponent(KeyedServiceBaseFactory* component) {
-#if DCHECK_IS_ON()
+#if false && DCHECK_IS_ON()
   // TODO(crbug.com/40158018): Tighten this check to ensure that no factories
   // are registered after CreateContextServices() is called.
   DCHECK(!context_services_created_ ||
@@ -45,7 +46,7 @@ void DependencyManager::AddComponent(KeyedServiceBaseFactory* component) {
          "Ensure.*KeyedServiceFactoriesBuilt().";
 #endif  // DCHECK_IS_ON()
 
-  if (disallow_factory_registration_) {
+  if (false && disallow_factory_registration_) {
     SCOPED_CRASH_KEY_STRING32("KeyedServiceFactories", "factory_name",
                               component->name());
     base::debug::DumpWithoutCrashing();

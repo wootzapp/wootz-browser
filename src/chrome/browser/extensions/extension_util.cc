@@ -282,11 +282,11 @@ base::Value::Dict GetExtensionInfo(const Extension* extension) {
   dict.Set("id", extension->id());
   dict.Set("name", extension->name());
 
-  GURL icon = extensions::ExtensionIconSource::GetIconURL(
-      extension, extension_misc::EXTENSION_ICON_SMALLISH,
-      ExtensionIconSet::Match::kBigger,
-      false);  // Not grayscale.
-  dict.Set("icon", icon.spec());
+  // GURL icon = extensions::ExtensionIconSource::GetIconURL(
+  //     extension, extension_misc::EXTENSION_ICON_SMALLISH,
+  //     ExtensionIconSet::Match::kBigger,
+  //     false);  // Not grayscale.
+  // dict.Set("icon", icon.spec());
 
   return dict;
 }

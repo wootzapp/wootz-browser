@@ -101,50 +101,51 @@ IncognitoResult ShouldOpenIncognitoWindow(Profile* profile,
                                           std::optional<bool> incognito,
                                           std::vector<GURL>* urls,
                                           std::string* error) {
-  const policy::IncognitoModeAvailability incognito_availability =
-      IncognitoModePrefs::GetAvailability(profile->GetPrefs());
-  bool incognito_result = false;
-  if (incognito.has_value()) {
-    incognito_result = incognito.value();
-    if (incognito_result && incognito_availability ==
-                                policy::IncognitoModeAvailability::kDisabled) {
-      *error = extensions::tabs_constants::kIncognitoModeIsDisabled;
-      return IncognitoResult::kError;
-    }
-    if (!incognito_result &&
-        incognito_availability == policy::IncognitoModeAvailability::kForced) {
-      *error = extensions::tabs_constants::kIncognitoModeIsForced;
-      return IncognitoResult::kError;
-    }
-  } else if (incognito_availability ==
-             policy::IncognitoModeAvailability::kForced) {
-    // If incognito argument is not specified explicitly, we default to
-    // incognito when forced so by policy.
-    incognito_result = true;
-  }
+  // const policy::IncognitoModeAvailability incognito_availability =
+  //     IncognitoModePrefs::GetAvailability(profile->GetPrefs());
+  // bool incognito_result = false;
+  // if (incognito.has_value()) {
+  //   incognito_result = incognito.value();
+  //   if (incognito_result && incognito_availability ==
+  //                               policy::IncognitoModeAvailability::kDisabled) {
+  //     *error = extensions::tabs_constants::kIncognitoModeIsDisabled;
+  //     return IncognitoResult::kError;
+  //   }
+  //   if (!incognito_result &&
+  //       incognito_availability == policy::IncognitoModeAvailability::kForced) {
+  //     *error = extensions::tabs_constants::kIncognitoModeIsForced;
+  //     return IncognitoResult::kError;
+  //   }
+  // } else if (incognito_availability ==
+  //            policy::IncognitoModeAvailability::kForced) {
+  //   // If incognito argument is not specified explicitly, we default to
+  //   // incognito when forced so by policy.
+  //   incognito_result = true;
+  // }
 
-  // Remove all URLs that are not allowed in an incognito session. Note that a
-  // ChromeOS guest session is not considered incognito in this case.
-  if (incognito_result && !profile->IsGuestSession()) {
-    std::string first_url_erased;
-    for (size_t i = 0; i < urls->size();) {
-      if (IsURLAllowedInIncognito((*urls)[i], profile)) {
-        i++;
-      } else {
-        if (first_url_erased.empty())
-          first_url_erased = (*urls)[i].spec();
-        urls->erase(urls->begin() + i);
-      }
-    }
-    if (urls->empty() && !first_url_erased.empty()) {
-      *error = extensions::ErrorUtils::FormatErrorMessage(
-          extensions::tabs_constants::kURLsNotAllowedInIncognitoError,
-          first_url_erased);
-      return IncognitoResult::kError;
-    }
-  }
-  return incognito_result ? IncognitoResult::kIncognito
-                          : IncognitoResult::kRegular;
+  // // Remove all URLs that are not allowed in an incognito session. Note that a
+  // // ChromeOS guest session is not considered incognito in this case.
+  // if (incognito_result && !profile->IsGuestSession()) {
+  //   std::string first_url_erased;
+  //   for (size_t i = 0; i < urls->size();) {
+  //     if (IsURLAllowedInIncognito((*urls)[i], profile)) {
+  //       i++;
+  //     } else {
+  //       if (first_url_erased.empty())
+  //         first_url_erased = (*urls)[i].spec();
+  //       urls->erase(urls->begin() + i);
+  //     }
+  //   }
+  //   if (urls->empty() && !first_url_erased.empty()) {
+  //     *error = extensions::ErrorUtils::FormatErrorMessage(
+  //         extensions::tabs_constants::kURLsNotAllowedInIncognitoError,
+  //         first_url_erased);
+  //     return IncognitoResult::kError;
+  //   }
+  // }
+  // return incognito_result ? IncognitoResult::kIncognito
+  //                         : IncognitoResult::kRegular;
+  return IncognitoResult::kRegular;
 }
 
 }  // namespace windows_util

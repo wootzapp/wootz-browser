@@ -252,8 +252,8 @@ bool ExtensionService::OnExternalExtensionUpdateUrlFound(
         info.extension_id);
   }
 
-  InstallStageTracker* install_stage_tracker =
-      InstallStageTracker::Get(profile_);
+  // InstallStageTracker* install_stage_tracker =
+  //     InstallStageTracker::Get(profile_);
 
   const Extension* extension = registry_->GetExtensionById(
       info.extension_id, ExtensionRegistry::EVERYTHING);
@@ -266,9 +266,9 @@ bool ExtensionService::OnExternalExtensionUpdateUrlFound(
             info.extension_id) &&
         current == Manifest::GetHigherPriorityLocation(
                        current, info.download_location)) {
-      install_stage_tracker->ReportFailure(
-          info.extension_id,
-          InstallStageTracker::FailureReason::ALREADY_INSTALLED);
+      // install_stage_tracker->ReportFailure(
+      //     info.extension_id,
+      //     InstallStageTracker::FailureReason::ALREADY_INSTALLED);
       return false;
     }
     // If the installation is requested from a higher priority source, update
@@ -330,8 +330,8 @@ bool ExtensionService::OnExternalExtensionUpdateUrlFound(
   // be added, then there is already a pending record from a higher-priority
   // install source.  In this case, signal that this extension will not be
   // installed by returning false.
-  install_stage_tracker->ReportInstallationStage(
-      info.extension_id, InstallStageTracker::Stage::PENDING);
+  // install_stage_tracker->ReportInstallationStage(
+  //     info.extension_id, InstallStageTracker::Stage::PENDING);
   if (!pending_extension_manager()->AddFromExternalUpdateUrl(
           info.extension_id, info.install_parameter, info.update_url,
           info.download_location, info.creation_flags,
@@ -340,9 +340,9 @@ bool ExtensionService::OnExternalExtensionUpdateUrlFound(
     // source is already present in the |pending_extension_list_|. No need to
     // report the failure in this case.
     if (!pending_extension_manager()->IsIdPending(info.extension_id)) {
-      install_stage_tracker->ReportFailure(
-          info.extension_id,
-          InstallStageTracker::FailureReason::PENDING_ADD_FAILED);
+      // install_stage_tracker->ReportFailure(
+      //     info.extension_id,
+      //     InstallStageTracker::FailureReason::PENDING_ADD_FAILED);
     }
     return false;
   }
@@ -357,6 +357,7 @@ void ExtensionService::OnExternalProviderUpdateComplete(
     const std::vector<ExternalInstallInfoUpdateUrl>& update_url_extensions,
     const std::vector<ExternalInstallInfoFile>& file_extensions,
     const std::set<std::string>& removed_extensions) {
+#if 0
   // Update pending_extension_manager() with the new extensions first.
   for (const auto& extension : update_url_extensions)
     OnExternalExtensionUpdateUrlFound(extension, false);
@@ -383,6 +384,7 @@ void ExtensionService::OnExternalProviderUpdateComplete(
 
   error_controller_->ShowErrorIfNeeded();
   external_install_manager_->UpdateExternalExtensionAlert();
+#endif
 }
 
 ExtensionService::ExtensionService(
@@ -420,8 +422,8 @@ ExtensionService::ExtensionService(
       ready_(ready),
       shared_module_service_(new SharedModuleService(profile_)),
       extension_registrar_(profile_, this),
-      force_installed_tracker_(registry_, profile_),
-      force_installed_metrics_(registry_, profile_, &force_installed_tracker_),
+      // force_installed_tracker_(registry_, profile_),
+      // force_installed_metrics_(registry_, profile_, &force_installed_tracker_),
       corrupted_extension_reinstaller_(profile_)
 #if BUILDFLAG(IS_CHROMEOS_ASH)
       ,
@@ -446,14 +448,14 @@ ExtensionService::ExtensionService(
   if (g_browser_process->profile_manager())
     profile_manager_observation_.Observe(g_browser_process->profile_manager());
 
-  UpgradeDetector::GetInstance()->AddObserver(this);
+  // UpgradeDetector::GetInstance()->AddObserver(this);
 
   if (base::FeatureList::IsEnabled(kCWSInfoService)) {
     cws_info_service_observation_.Observe(CWSInfoService::Get(profile_));
   }
 
   ExtensionManagementFactory::GetForBrowserContext(profile_)->AddObserver(this);
-
+#if 0
   // Set up the ExtensionUpdater.
   if (autoupdate_enabled) {
     updater_ = std::make_unique<ExtensionUpdater>(
@@ -463,13 +465,14 @@ ExtensionService::ExtensionService(
         base::BindRepeating(ChromeExtensionDownloaderFactory::CreateForProfile,
                             profile));
   }
-
+#endif
   component_loader_ = std::make_unique<ComponentLoader>(system_, profile);
-
+#if 0 
   if (extensions_enabled_) {
     ExternalProviderImpl::CreateExternalProviders(
         this, profile_, &external_extension_providers_);
   }
+#endif
 
   // Set this as the ExtensionService for app sorting to ensure it causes syncs
   // if required.
@@ -477,8 +480,8 @@ ExtensionService::ExtensionService(
 
   error_controller_ =
       std::make_unique<ExtensionErrorController>(profile_, is_first_run_);
-  external_install_manager_ =
-      std::make_unique<ExternalInstallManager>(profile_, is_first_run_);
+  // external_install_manager_ =
+  //     std::make_unique<ExternalInstallManager>(profile_, is_first_run_);
 
   extension_action_storage_manager_ =
       std::make_unique<ExtensionActionStorageManager>(profile_);
@@ -502,7 +505,7 @@ base::WeakPtr<ExtensionServiceInterface> ExtensionService::AsWeakPtr() {
 }
 
 ExtensionService::~ExtensionService() {
-  UpgradeDetector::GetInstance()->RemoveObserver(this);
+  // UpgradeDetector::GetInstance()->RemoveObserver(this);
   // No need to unload extensions here because they are profile-scoped, and the
   // profile is in the process of being deleted.
   for (const auto& provider : external_extension_providers_)
@@ -515,7 +518,7 @@ void ExtensionService::Shutdown() {
   }
   ExtensionManagementFactory::GetForBrowserContext(profile())->RemoveObserver(
       this);
-  external_install_manager_->Shutdown();
+  // external_install_manager_->Shutdown();
   corrupted_extension_reinstaller_.Shutdown();
   extension_registrar_.Shutdown();
   weak_ptr_factory_.InvalidateWeakPtrs();
@@ -682,8 +685,8 @@ scoped_refptr<CrxInstaller> ExtensionService::CreateUpdateInstaller(
                                       false /* fail_install_if_unexpected */);
     }
     creation_flags = pending_extension_info->creation_flags();
-    if (pending_extension_info->mark_acknowledged())
-      external_install_manager_->AcknowledgeExternalExtension(id);
+    // if (pending_extension_info->mark_acknowledged())
+    //   external_install_manager_->AcknowledgeExternalExtension(id);
     // If the extension was installed from or has migrated to the webstore, or
     // its auto-update URL is from the webstore, treat it as a webstore install.
     // Note that we ignore some older extensions with blank auto-update URLs
@@ -1152,7 +1155,7 @@ void ExtensionService::UnblockAllExtensions() {
   }
   // While extensions are blocked, we won't display any external install
   // warnings. Now that they are unblocked, we should update the error.
-  external_install_manager_->UpdateExternalExtensionAlert();
+  // external_install_manager_->UpdateExternalExtensionAlert();
 }
 
 void ExtensionService::GrantPermissionsAndEnableExtension(
@@ -1221,17 +1224,17 @@ void ExtensionService::PostActivateExtension(
   // If the extension has permission to load chrome://favicon/ resources we need
   // to make sure that the FaviconSource is registered with the
   // ChromeURLDataManager.
-  if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIFaviconURL))) {
-    content::URLDataSource::Add(
-        profile_, std::make_unique<FaviconSource>(
-                      profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
-  }
+  // if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIFaviconURL))) {
+  //   content::URLDataSource::Add(
+  //       profile_, std::make_unique<FaviconSource>(
+  //                     profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
+  // }
 
   // Same for chrome://theme/ resources.
-  if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
-    content::URLDataSource::Add(profile_,
-                                std::make_unique<ThemeSource>(profile_));
-  }
+  // if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
+  //   content::URLDataSource::Add(profile_,
+  //                               std::make_unique<ThemeSource>(profile_));
+  // }
 }
 
 // TODO(michaelpg): Group with other ExtensionRegistrar::Delegate overrides
@@ -1352,7 +1355,7 @@ void ExtensionService::CheckManagementPolicy() {
   // is mutually exclusive to |to_disable|.
   for (const std::string& id : to_enable)
     EnableExtension(id);
-
+#if 0
   if (updater_.get()) {
     // Find all extensions disabled due to minimum version requirement from
     // policy (including the ones that got disabled just now), and check
@@ -1369,7 +1372,7 @@ void ExtensionService::CheckManagementPolicy() {
     if (!to_recheck.ids.empty())
       updater_->CheckNow(std::move(to_recheck));
   }
-
+#endif
   // Check the disabled extensions to see if any should be force uninstalled.
   std::vector<ExtensionId> remove_list;
   for (const auto& extension : registry_->disabled_extensions()) {
@@ -1390,10 +1393,10 @@ void ExtensionService::CheckManagementPolicy() {
 
 void ExtensionService::CheckForUpdatesSoon() {
   // This can legitimately happen in unit tests.
-  if (!updater_.get())
-    return;
+  // if (!updater_.get())
+  //   return;
 
-  updater_->CheckSoon();
+  // updater_->CheckSoon();
 }
 
 // Some extensions will autoupdate themselves externally from Chrome.  These
@@ -1459,6 +1462,7 @@ void ExtensionService::OnAllExternalProvidersReady() {
   InstallLimiter::Get(profile_)->OnAllExternalProvidersReady();
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
+#if 0
   // Install any pending extensions.
   if (update_once_all_providers_are_ready_ && updater()) {
     update_once_all_providers_are_ready_ = false;
@@ -1470,7 +1474,7 @@ void ExtensionService::OnAllExternalProvidersReady() {
   } else if (external_updates_finished_callback_) {
     std::move(external_updates_finished_callback_).Run();
   }
-
+#endif
   // Uninstall all the unclaimed extensions.
   ExtensionPrefs::ExtensionsInfo extensions_info =
       extension_prefs_->GetInstalledExtensionsInfo();
@@ -1482,7 +1486,7 @@ void ExtensionService::OnAllExternalProvidersReady() {
 
   error_controller_->ShowErrorIfNeeded();
 
-  external_install_manager_->UpdateExternalExtensionAlert();
+  // external_install_manager_->UpdateExternalExtensionAlert();
 }
 
 void ExtensionService::UnloadExtension(const std::string& extension_id,
@@ -1559,10 +1563,10 @@ void ExtensionService::AddExtension(const Extension* extension) {
     const int kReasonMask = disable_reason::DISABLE_PERMISSIONS_INCREASE |
                             disable_reason::DISABLE_REMOTE_INSTALL;
     if (reasons & kReasonMask && !(reasons & ~kReasonMask)) {
-      AddExtensionDisabledError(
-          this, extension,
-          extension_prefs_->HasDisableReason(
-              extension->id(), disable_reason::DISABLE_REMOTE_INSTALL));
+      // AddExtensionDisabledError(
+      //     this, extension,
+      //     extension_prefs_->HasDisableReason(
+      //         extension->id(), disable_reason::DISABLE_REMOTE_INSTALL));
     }
   }
 }
@@ -2082,8 +2086,8 @@ bool ExtensionService::OnExternalExtensionFileFound(
   // Depending on the source, a new external extension might not need a user
   // notification on installation. For such extensions, mark them acknowledged
   // now to suppress the notification.
-  if (info.mark_acknowledged)
-    external_install_manager_->AcknowledgeExternalExtension(info.extension_id);
+  // if (info.mark_acknowledged)
+  //   external_install_manager_->AcknowledgeExternalExtension(info.extension_id);
 
   return true;
 }
@@ -2214,7 +2218,7 @@ int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
                ? disable_reason::DISABLE_USER_ACTION
                : disable_reasons;
   }
-
+#if 0
   if (ExternalInstallManager::IsPromptingEnabled()) {
     // External extensions are initially disabled. We prompt the user before
     // enabling them. Hosted apps are excepted because they are not dangerous
@@ -2230,7 +2234,7 @@ int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
       return disable_reason::DISABLE_EXTERNAL_EXTENSION;
     }
   }
-
+#endif
   return disable_reason::DISABLE_NONE;
 }
 
@@ -2406,8 +2410,8 @@ void ExtensionService::UnloadAllExtensionsInternal() {
 }
 
 void ExtensionService::OnInstalledExtensionsLoaded() {
-  if (updater_)
-    updater_->Start();
+  // if (updater_)
+  //   updater_->Start();
 
   // Enable any Shared Modules that incorrectly got disabled previously.
   // This is temporary code to fix incorrect behavior from previous versions of

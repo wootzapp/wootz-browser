@@ -184,8 +184,8 @@ void MaybeCreateExtensionWebRequestReporterForRenderer(
     return;
   }
 
-  safe_browsing::ExtensionWebRequestReporterImpl::Create(render_process_host,
-                                                         std::move(receiver));
+  // safe_browsing::ExtensionWebRequestReporterImpl::Create(render_process_host,
+  //                                                        std::move(receiver));
 }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 #endif  // BUILDFLAG(SAFE_BROWSING_AVAILABLE)

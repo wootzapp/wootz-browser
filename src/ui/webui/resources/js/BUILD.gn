@@ -5,7 +5,7 @@
 import("//build/config/chromeos/ui_mode.gni")
 import("../tools/build_webui.gni")
 
-include_polymer = !is_android && !is_ios
+include_polymer = true #!is_android && !is_ios
 
 build_webui("build") {
   grd_prefix = "webui_js"

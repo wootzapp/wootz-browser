@@ -10,7 +10,7 @@
 #include "chrome/browser/extensions/api/autofill_private/autofill_private_event_router_factory.h"
 #include "chrome/browser/extensions/api/bookmark_manager_private/bookmark_manager_private_api.h"
 #include "chrome/browser/extensions/api/bookmarks/bookmarks_api.h"
-#include "chrome/browser/extensions/api/braille_display_private/braille_display_private_api.h"
+// #include "chrome/browser/extensions/api/braille_display_private/braille_display_private_api.h"
 #include "chrome/browser/extensions/api/commands/command_service.h"
 #include "chrome/browser/extensions/api/cookies/cookies_api.h"
 #include "chrome/browser/extensions/api/developer_private/developer_private_api.h"
@@ -27,16 +27,16 @@
 #include "chrome/browser/extensions/api/processes/processes_api.h"
 #include "chrome/browser/extensions/api/reading_list/reading_list_event_router.h"
 #include "chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router_factory.h"
-#include "chrome/browser/extensions/api/sessions/sessions_api.h"
+// #include "chrome/browser/extensions/api/sessions/sessions_api.h"
 #include "chrome/browser/extensions/api/settings_overrides/settings_overrides_api.h"
 #include "chrome/browser/extensions/api/settings_private/settings_private_event_router_factory.h"
-#include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
-#include "chrome/browser/extensions/api/tab_capture/tab_capture_registry.h"
+// #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
+// #include "chrome/browser/extensions/api/tab_capture/tab_capture_registry.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_event_router_factory.h"
 #include "chrome/browser/extensions/api/tabs/tabs_windows_api.h"
 #include "chrome/browser/extensions/api/web_authentication_proxy/web_authentication_proxy_api.h"
 #include "chrome/browser/extensions/api/web_navigation/web_navigation_api.h"
-#include "chrome/browser/extensions/api/webrtc_audio_private/webrtc_audio_private_api.h"
+// #include "chrome/browser/extensions/api/webrtc_audio_private/webrtc_audio_private_api.h"
 #include "chrome/browser/speech/extension_api/tts_extension_api.h"
 #include "chrome/common/buildflags.h"
 #include "extensions/browser/api/bluetooth_low_energy/bluetooth_low_energy_api.h"
@@ -77,14 +77,14 @@
 #endif
 
 namespace chrome_extensions {
-
+// wootz patched
 void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::ActivityLogAPI::GetFactoryInstance();
   extensions::AutofillPrivateEventRouterFactory::GetInstance();
   extensions::BluetoothLowEnergyAPI::GetFactoryInstance();
   extensions::BookmarksAPI::GetFactoryInstance();
-  extensions::BookmarkManagerPrivateAPI::GetFactoryInstance();
-  extensions::BrailleDisplayPrivateAPI::GetFactoryInstance();
+  // extensions::BookmarkManagerPrivateAPI::GetFactoryInstance();
+  // extensions::BrailleDisplayPrivateAPI::GetFactoryInstance();
   extensions::CommandService::GetFactoryInstance();
   extensions::CookiesAPI::GetFactoryInstance();
   extensions::DeveloperPrivateAPI::GetFactoryInstance();
@@ -121,19 +121,19 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
 #if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(USE_CUPS)
   extensions::PrintingAPIHandler::GetFactoryInstance();
 #endif
-  extensions::ProcessesAPI::GetFactoryInstance();
+  // extensions::ProcessesAPI::GetFactoryInstance();
   extensions::ReadingListEventRouter::GetFactoryInstance();
   extensions::SafeBrowsingPrivateEventRouterFactory::GetInstance();
-  extensions::SessionsAPI::GetFactoryInstance();
+  // extensions::SessionsAPI::GetFactoryInstance();
   extensions::SettingsPrivateEventRouterFactory::GetInstance();
-  extensions::SettingsOverridesAPI::GetFactoryInstance();
-  extensions::SidePanelService::GetFactoryInstance();
+  // extensions::SettingsOverridesAPI::GetFactoryInstance();
+  // extensions::SidePanelService::GetFactoryInstance();
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   extensions::SystemIndicatorManagerFactory::GetInstance();
 #endif
-  extensions::TabGroupsEventRouterFactory::GetInstance();
-  extensions::TabCaptureRegistry::GetFactoryInstance();
-  extensions::TabsWindowsAPI::GetFactoryInstance();
+  // extensions::TabGroupsEventRouterFactory::GetInstance();
+  // extensions::TabCaptureRegistry::GetFactoryInstance();
+  // extensions::TabsWindowsAPI::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   extensions::TerminalPrivateAPI::GetFactoryInstance();
 #endif
@@ -142,8 +142,8 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::VerifyTrustAPI::GetFactoryInstance();
 #endif
   extensions::WebAuthenticationProxyAPI::GetFactoryInstance();
-  extensions::WebNavigationAPI::GetFactoryInstance();
-  extensions::WebrtcAudioPrivateEventService::GetFactoryInstance();
+  // extensions::WebNavigationAPI::GetFactoryInstance();
+  // extensions::WebrtcAudioPrivateEventService::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS)
   extensions::WMDesksPrivateEventsAPI::GetFactoryInstance();
 #endif

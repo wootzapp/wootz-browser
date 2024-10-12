@@ -38,8 +38,8 @@ ExtensionInstallPromptShowParams::ExtensionInstallPromptShowParams(
                    : nullptr),
       parent_web_contents_(contents ? contents->GetWeakPtr() : nullptr),
       parent_window_(NativeWindowForWebContents(contents)) {
-  if (parent_window_)
-    native_window_tracker_ = views::NativeWindowTracker::Create(parent_window_);
+  // if (parent_window_)
+  //   native_window_tracker_ = views::NativeWindowTracker::Create(parent_window_);
 }
 
 ExtensionInstallPromptShowParams::ExtensionInstallPromptShowParams(
@@ -48,8 +48,8 @@ ExtensionInstallPromptShowParams::ExtensionInstallPromptShowParams(
     : profile_(profile),
       parent_web_contents_(nullptr),
       parent_window_(parent_window) {
-  if (parent_window_)
-    native_window_tracker_ = views::NativeWindowTracker::Create(parent_window_);
+  // if (parent_window_)
+  //   native_window_tracker_ = views::NativeWindowTracker::Create(parent_window_);
 }
 
 ExtensionInstallPromptShowParams::~ExtensionInstallPromptShowParams() = default;

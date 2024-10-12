@@ -179,8 +179,8 @@ api::passwords_private::PasswordCheckState ConvertPasswordCheckState(
 
 std::string FormatElapsedTime(base::Time time) {
   const base::TimeDelta elapsed_time = base::Time::Now() - time;
-  if (elapsed_time < base::Minutes(1))
-    return l10n_util::GetStringUTF8(IDS_PASSWORD_MANAGER_UI_JUST_NOW);
+  // if (elapsed_time < base::Minutes(1))
+  //   return l10n_util::GetStringUTF8(IDS_PASSWORD_MANAGER_UI_JUST_NOW);
 
   return base::UTF16ToUTF8(TimeFormat::SimpleWithMonthAndYear(
       TimeFormat::FORMAT_ELAPSED, TimeFormat::LENGTH_LONG, elapsed_time, true));
@@ -349,12 +349,12 @@ void PasswordCheckDelegate::StartPasswordCheck(
 void PasswordCheckDelegate::StartPasswordAnalyses(
     StartPasswordCheckCallback callback) {
   // Start the weakness check, and notify observers once done.
-  insecure_credentials_manager_.StartWeakCheck(base::BindOnce(
-      &PasswordCheckDelegate::RecordAndNotifyAboutCompletedWeakPasswordCheck,
-      weak_ptr_factory_.GetWeakPtr()));
-  insecure_credentials_manager_.StartReuseCheck(
-      base::BindOnce(&PasswordCheckDelegate::NotifyPasswordCheckStatusChanged,
-                     weak_ptr_factory_.GetWeakPtr()));
+  // insecure_credentials_manager_.StartWeakCheck(base::BindOnce(
+  //     &PasswordCheckDelegate::RecordAndNotifyAboutCompletedWeakPasswordCheck,
+  //     weak_ptr_factory_.GetWeakPtr()));
+  // insecure_credentials_manager_.StartReuseCheck(
+  //     base::BindOnce(&PasswordCheckDelegate::NotifyPasswordCheckStatusChanged,
+  //                    weak_ptr_factory_.GetWeakPtr()));
   auto progress = base::MakeRefCounted<PasswordCheckProgress>();
   for (const auto& password : saved_passwords_presenter_->GetSavedPasswords())
     progress->IncrementCounts(password);

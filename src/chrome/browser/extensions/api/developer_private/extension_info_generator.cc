@@ -679,23 +679,23 @@ void ExtensionInfoGenerator::CreateExtensionInfoHelper(
   BitMapBlocklistState blocklist_state =
       blocklist_prefs::GetExtensionBlocklistState(extension.id(),
                                                   extension_prefs_);
-  switch (blocklist_state) {
-    case BitMapBlocklistState::BLOCKLISTED_MALWARE:
-      blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_MALWARE;
-      break;
-    case BitMapBlocklistState::BLOCKLISTED_SECURITY_VULNERABILITY:
-      blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_SECURITY_VULNERABILITY;
-      break;
-    case BitMapBlocklistState::BLOCKLISTED_CWS_POLICY_VIOLATION:
-      blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_CWS_POLICY_VIOLATION;
-      break;
-    case BitMapBlocklistState::BLOCKLISTED_POTENTIALLY_UNWANTED:
-      blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_POTENTIALLY_UNWANTED;
-      break;
-    case BitMapBlocklistState::NOT_BLOCKLISTED:
-      // no-op.
-      break;
-  }
+  // switch (blocklist_state) {
+  //   case BitMapBlocklistState::BLOCKLISTED_MALWARE:
+  //     blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_MALWARE;
+  //     break;
+  //   case BitMapBlocklistState::BLOCKLISTED_SECURITY_VULNERABILITY:
+  //     blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_SECURITY_VULNERABILITY;
+  //     break;
+  //   case BitMapBlocklistState::BLOCKLISTED_CWS_POLICY_VIOLATION:
+  //     blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_CWS_POLICY_VIOLATION;
+  //     break;
+  //   case BitMapBlocklistState::BLOCKLISTED_POTENTIALLY_UNWANTED:
+  //     blocklist_text = IDS_EXTENSIONS_BLOCKLISTED_POTENTIALLY_UNWANTED;
+  //     break;
+  //   case BitMapBlocklistState::NOT_BLOCKLISTED:
+  //     // no-op.
+  //     break;
+  // }
   if (blocklist_text != -1) {
     info->blacklist_text = l10n_util::GetStringUTF8(blocklist_text);
   }
@@ -714,8 +714,8 @@ void ExtensionInfoGenerator::CreateExtensionInfoHelper(
   bool is_policy_location = Manifest::IsPolicyLocation(extension.location());
   if (is_policy_location) {
     info->controlled_info.emplace();
-    info->controlled_info->text =
-        l10n_util::GetStringUTF8(IDS_EXTENSIONS_INSTALL_LOCATION_ENTERPRISE);
+    // info->controlled_info->text =
+    //     l10n_util::GetStringUTF8(IDS_EXTENSIONS_INSTALL_LOCATION_ENTERPRISE);
   } else {
     // Create Safety Hub information for any non-enterprise extension.
     PopulateSafetyCheckInfo(extension, updates_from_web_store, state,
@@ -851,12 +851,12 @@ void ExtensionInfoGenerator::CreateExtensionInfoHelper(
   // Location text.
   int location_text = -1;
   if (info->location == developer::Location::kUnknown) {
-    location_text = IDS_EXTENSIONS_INSTALL_LOCATION_UNKNOWN;
+    // location_text = IDS_EXTENSIONS_INSTALL_LOCATION_UNKNOWN;
   } else if (extension.location() ==
              mojom::ManifestLocation::kExternalRegistry) {
-    location_text = IDS_EXTENSIONS_INSTALL_LOCATION_3RD_PARTY;
+    // location_text = IDS_EXTENSIONS_INSTALL_LOCATION_3RD_PARTY;
   } else if (extension.is_shared_module()) {
-    location_text = IDS_EXTENSIONS_INSTALL_LOCATION_SHARED_MODULE;
+    // location_text = IDS_EXTENSIONS_INSTALL_LOCATION_SHARED_MODULE;
   }
   if (location_text != -1) {
     info->location_text = l10n_util::GetStringUTF8(location_text);
@@ -944,12 +944,12 @@ void ExtensionInfoGenerator::CreateExtensionInfoHelper(
   // enabled extensions as only enabled extensions can have actions. However,
   // this information can be found in prefs, so disabled extensiosn can be
   // included as well.
-  ToolbarActionsModel* toolbar_actions_model =
-      ToolbarActionsModel::Get(profile);
-  if (toolbar_actions_model->HasAction(extension.id())) {
-    info->pinned_to_toolbar =
-        toolbar_actions_model->IsActionPinned(extension.id());
-  }
+  // ToolbarActionsModel* toolbar_actions_model =
+  //     ToolbarActionsModel::Get(profile);
+  // if (toolbar_actions_model->HasAction(extension.id())) {
+  //   info->pinned_to_toolbar =
+  //       toolbar_actions_model->IsActionPinned(extension.id());
+  // }
 
   // MV2 deprecation.
   ManifestV2ExperimentManager* mv2_experiment_manager =

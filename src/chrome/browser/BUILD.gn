@@ -141,8 +141,7 @@ source_set("main_extra_parts") {
 
 # Use a static library here because many test binaries depend on this but don't
 # require many files from it. This makes linking more efficient.
-static_library("browser") {
-  sources = [
+static_library("browser") {  sources = [
     "about_flags.cc",
     "about_flags.h",
     "accessibility/accessibility_labels_service.cc",
@@ -1931,6 +1930,10 @@ static_library("browser") {
     "webid/federated_identity_permission_context_factory.h",
     "webid/identity_provider_permission_request.cc",
     "webid/identity_provider_permission_request.h",
+    "search/instant_service.cc",
+    "search/instant_service.h",
+    "search/instant_service_factory.cc",
+    "search/instant_service_factory.h",
   ]
 
   if (!is_android) {
@@ -3215,6 +3218,8 @@ static_library("browser") {
       "download/android/service/download_task_scheduler.h",
       "download/android/string_utils.cc",
       "download/download_crx_util_android.cc",
+      "download/download_crx_util.cc",
+      "download/download_crx_util.h",
       "enterprise/reporting/browser_report_generator_android.cc",
       "enterprise/reporting/browser_report_generator_android.h",
       "enterprise/reporting/profile_report_generator_android.cc",
@@ -3228,7 +3233,7 @@ static_library("browser") {
       "enterprise/util/android_enterprise_info.cc",
       "enterprise/util/android_enterprise_info.h",
       "fast_checkout/fast_checkout_accessibility_service.h",
-      "fast_checkout/fast_checkout_accessibility_service_impl.cc",
+      # "fast_checkout/fast_checkout_accessibility_service_impl.cc",
       "fast_checkout/fast_checkout_accessibility_service_impl.h",
       "fast_checkout/fast_checkout_capabilities_fetcher.h",
       "fast_checkout/fast_checkout_capabilities_fetcher_factory.cc",
@@ -3526,6 +3531,21 @@ static_library("browser") {
       "webauthn/android/webauthn_request_delegate_android.h",
       "webid/digital_identity_provider_android.cc",
       "webid/digital_identity_provider_android.h",
+      # wootz make exts happen
+      "ssl/generated_https_first_mode_pref.cc",
+      "ssl/generated_https_first_mode_pref.h",
+      "ssl/ssl_client_auth_observer.cc",
+      "ssl/ssl_client_auth_observer.h",
+      "safe_browsing/generated_safe_browsing_pref.cc",
+      "safe_browsing/generated_safe_browsing_pref.h",
+      "content_settings/generated_cookie_prefs.cc",
+      "content_settings/generated_cookie_prefs.h",
+      "content_settings/generated_notification_pref.cc",
+      "content_settings/generated_notification_pref.h",
+      "content_settings/generated_permission_prompting_behavior_pref.cc",
+      "content_settings/generated_permission_prompting_behavior_pref.h",
+      "password_manager/generated_password_leak_detection_pref.cc",
+      "password_manager/generated_password_leak_detection_pref.h",
     ]
     public_deps += [
       "//chrome/android/features/dev_ui:buildflags",
@@ -3728,6 +3748,9 @@ static_library("browser") {
       "//third_party/smhasher:murmurhash2",
       "//ui/accessibility",
       "//url",
+      # wootz enabling exts
+      "//extensions/browser",
+      "//extensions/common:mojom",
     ]
 
     # TODO(crbug.com/335257259): Resolve circular deps caused by including
@@ -4941,7 +4964,7 @@ static_library("browser") {
         "chrome_browser_main_posix.cc",
         "chrome_browser_main_posix.h",
         "importer/firefox_profile_lock_posix.cc",
-        "process_singleton_posix.cc",
+        # "process_singleton_posix.cc",
       ]
 
       if (is_chromeos) {
@@ -6693,19 +6716,21 @@ static_library("browser") {
     }
   }
 
+
+  sources += [
+    # "chrome_browser_main_linux.cc",
+    # "chrome_browser_main_linux.h",
+    # "enterprise/signals/device_info_fetcher_linux.cc",
+    # "enterprise/signals/device_info_fetcher_linux.h",
+    # "first_run/first_run_internal_linux.cc",
+    # "memory_details_linux.cc",
+    # "metrics/bluetooth_metrics_provider.cc",
+    # "metrics/bluetooth_metrics_provider.h",
+    "policy/browser_dm_token_storage_linux.cc",
+    "policy/browser_dm_token_storage_linux.h",
+  ]
+
   if (is_linux || is_chromeos) {
-    sources += [
-      "chrome_browser_main_linux.cc",
-      "chrome_browser_main_linux.h",
-      "enterprise/signals/device_info_fetcher_linux.cc",
-      "enterprise/signals/device_info_fetcher_linux.h",
-      "first_run/first_run_internal_linux.cc",
-      "memory_details_linux.cc",
-      "metrics/bluetooth_metrics_provider.cc",
-      "metrics/bluetooth_metrics_provider.h",
-      "policy/browser_dm_token_storage_linux.cc",
-      "policy/browser_dm_token_storage_linux.h",
-    ]
     if (use_aura) {
       deps += [ "//third_party/fontconfig" ]
     }
@@ -7388,8 +7413,8 @@ static_library("browser") {
       "guest_view/app_view/chrome_app_view_guest_delegate.h",
       "guest_view/chrome_guest_view_manager_delegate.cc",
       "guest_view/chrome_guest_view_manager_delegate.h",
-      "guest_view/extension_options/chrome_extension_options_guest_delegate.cc",
-      "guest_view/extension_options/chrome_extension_options_guest_delegate.h",
+      # "guest_view/extension_options/chrome_extension_options_guest_delegate.cc",
+      # "guest_view/extension_options/chrome_extension_options_guest_delegate.h",
       "guest_view/mime_handler_view/chrome_mime_handler_view_guest_delegate.cc",
       "guest_view/mime_handler_view/chrome_mime_handler_view_guest_delegate.h",
       "guest_view/web_view/chrome_web_view_guest_delegate.cc",
@@ -7400,10 +7425,10 @@ static_library("browser") {
       "guest_view/web_view/context_menu_content_type_web_view.h",
       "media/extension_media_access_handler.cc",
       "media/extension_media_access_handler.h",
-      "media/webrtc/desktop_capture_access_handler.cc",
-      "media/webrtc/desktop_capture_access_handler.h",
-      "media/webrtc/tab_capture_access_handler.cc",
-      "media/webrtc/tab_capture_access_handler.h",
+      # "media/webrtc/desktop_capture_access_handler.cc",
+      # "media/webrtc/desktop_capture_access_handler.h",
+      # "media/webrtc/tab_capture_access_handler.cc",
+      # "media/webrtc/tab_capture_access_handler.h",
       "metrics/extensions_metrics_provider.cc",
       "metrics/extensions_metrics_provider.h",
       "performance_manager/extension_watcher.cc",
@@ -7544,30 +7569,30 @@ static_library("browser") {
       "sync_file_system/task_logger.h",
     ]
     public_deps += [
-      "//chrome/browser/apps/platform_apps",
-      "//chrome/browser/apps/platform_apps/api",
+      # "//chrome/browser/apps/platform_apps",
+      # "//chrome/browser/apps/platform_apps/api",
       "//chrome/browser/controlled_frame",
       "//chrome/browser/extensions",
       "//chrome/browser/extensions/api",
     ]
     allow_circular_includes_from += [
-      "//chrome/browser/apps/platform_apps",
+      # "//chrome/browser/apps/platform_apps",
 
       # TODO(crbug.com/40593486): This is unfortunate, but not easy to
       # fix. Ideally, //chrome/browser:browser shouldn't depend on these APIs
       #(though the APIs likely will depend on //chrome/browser), but we need
       # to pull them in here to allow registration of keyed services.
-      "//chrome/browser/apps/platform_apps/api",
+      # "//chrome/browser/apps/platform_apps/api",
 
       "//chrome/browser/extensions",
 
       # TODO(crbug.com/40761673): Remove cycles and simplify all dependencies.
-      "//chrome/browser/web_applications/extensions",
+      # "//chrome/browser/web_applications/extensions",
     ]
     deps += [
       "//apps",
       "//chrome/browser/sync_file_system/drive_backend:sync_file_system_drive_proto",
-      "//chrome/browser/web_applications/extensions",
+      # "//chrome/browser/web_applications/extensions",
       "//chrome/common/extensions/api",
       "//chrome/common/extensions/api:extensions_features",
       "//components/app_constants",

@@ -486,10 +486,11 @@ void DownloadHistory::MaybeAddToHistory(download::DownloadItem* item) {
 
   // TODO(benjhayden): Remove IsTemporary().
   if ((notifier_.GetManager() &&
-       download_crx_util::IsTrustedExtensionDownload(
-           Profile::FromBrowserContext(
-               notifier_.GetManager()->GetBrowserContext()),
-           *item)) ||
+       download_crx_util::IsExtensionDownload(*item)) ||
+      //  download_crx_util::IsTrustedExtensionDownload(
+      //      Profile::FromBrowserContext(
+      //          notifier_.GetManager()->GetBrowserContext()),
+      //      *item)) ||
       item->IsTemporary() ||
       (data->state() != DownloadHistoryData::NOT_PERSISTED) || removing) {
     return;

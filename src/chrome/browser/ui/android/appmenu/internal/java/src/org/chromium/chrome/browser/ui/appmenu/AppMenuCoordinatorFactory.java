@@ -11,6 +11,8 @@ import android.view.View;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
+import org.chromium.ui.base.WindowAndroid;
+
 import androidx.fragment.app.FragmentManager;
 import android.util.Log;
 /** A factory for creating an {@link AppMenuCoordinator}. */
@@ -43,7 +45,8 @@ public class AppMenuCoordinatorFactory {
             View hardwareButtonAnchorView,
             Supplier<Rect> appRect,
             FragmentManager fragmentManager,
-            int itemRowHeight) {  // Add this parameter
+            int itemRowHeight,
+            WindowAndroid windowAndroid) {  // Add this parameter
         Log.d(TAG, "Creating AppMenuCoordinator");
         try {
             // Log each parameter
@@ -60,7 +63,8 @@ public class AppMenuCoordinatorFactory {
                     hardwareButtonAnchorView,
                     appRect,
                     fragmentManager,
-                    itemRowHeight);  // Pass the itemRowHeight
+                    itemRowHeight,
+                    windowAndroid);  // Pass the itemRowHeight
             Log.d(TAG, "AppMenuCoordinator created successfully");
             return coordinator;
         } catch (Exception e) {

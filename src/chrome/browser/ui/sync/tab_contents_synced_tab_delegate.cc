@@ -75,8 +75,8 @@ bool TabContentsSyncedTabDelegate::IsBeingDestroyed() const {
 
 std::string TabContentsSyncedTabDelegate::GetExtensionAppId() const {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  return apps::GetAppIdForWebContents(web_contents_);
-#else
+  // return apps::GetAppIdForWebContents(web_contents_);
+// #else
   return std::string();
 #endif
 }

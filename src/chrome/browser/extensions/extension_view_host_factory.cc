@@ -39,10 +39,12 @@ std::unique_ptr<ExtensionViewHost> CreateViewHostForExtension(
   DCHECK(browser || view_type == mojom::ViewType::kExtensionSidePanel);
   scoped_refptr<content::SiteInstance> site_instance =
       ProcessManager::Get(profile)->GetSiteInstanceForURL(url);
-  return view_type == mojom::ViewType::kExtensionSidePanel
-             ? std::make_unique<ExtensionSidePanelViewHost>(
-                   extension, site_instance.get(), url, browser, web_contents)
-             : std::make_unique<ExtensionViewHost>(
+  // return view_type == mojom::ViewType::kExtensionSidePanel
+  //            ? std::make_unique<ExtensionSidePanelViewHost>(
+  //                  extension, site_instance.get(), url, browser, web_contents)
+  //            : std::make_unique<ExtensionViewHost>(
+  //                  extension, site_instance.get(), url, view_type, browser);
+  return std::make_unique<ExtensionViewHost>(
                    extension, site_instance.get(), url, view_type, browser);
 }
 
@@ -133,7 +135,8 @@ ExtensionViewHostFactory::CreateSidePanelHost(
 
   Profile* profile = browser
                          ? browser->profile()
-                         : chrome::FindBrowserWithTab(web_contents)->profile();
+                        //  : chrome::FindBrowserWithTab(web_contents)->profile();
+                        : nullptr;
   return CreateViewHost(url, profile, browser, web_contents,
                         mojom::ViewType::kExtensionSidePanel);
 }

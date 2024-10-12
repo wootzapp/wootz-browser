@@ -54,11 +54,11 @@ void PersistentNotificationHandler::OnClose(
   // NotificationEventDispatcher?
 
   // If we programatically closed this notification, don't dispatch any event.
-  if (PlatformNotificationServiceFactory::GetForProfile(profile)
-          ->WasClosedProgrammatically(notification_id)) {
-    std::move(completed_closure).Run();
-    return;
-  }
+  // if (PlatformNotificationServiceFactory::GetForProfile(profile)
+  //         ->WasClosedProgrammatically(notification_id)) {
+  //   std::move(completed_closure).Run();
+  //   return;
+  // }
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
   close_event_keep_alive_state_.AddKeepAlive(profile);

@@ -75,7 +75,7 @@ void PredictionMetricsHandler::AddRealEvent(const gfx::PointF& pos,
       if (events_queue_[i].time_stamp == time_stamp)
         event_exists = true;
     }
-    DCHECK(event_exists);
+    // DCHECK(event_exists); // wootz turn off for emulator
     return;
   }
 

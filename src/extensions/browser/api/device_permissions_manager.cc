@@ -572,9 +572,9 @@ void DevicePermissionsManager::AllowHidDevice(
     // Make sure the HidDeviceManager is active. HidDeviceManager is
     // responsible for removing the permission entry for an ephemeral hid
     // device. Only do this when an ephemeral device has been added.
-    HidDeviceManager* device_manager = HidDeviceManager::Get(context_);
-    DCHECK(device_manager);
-    device_manager->LazyInitialize();
+    // HidDeviceManager* device_manager = HidDeviceManager::Get(context_);
+    // DCHECK(device_manager);
+    // device_manager->LazyInitialize();
   }
 }
 

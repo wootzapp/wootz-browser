@@ -31,7 +31,7 @@
 namespace extensions {
 
 ChromeProcessManagerDelegate::ChromeProcessManagerDelegate() {
-  BrowserList::AddObserver(this);
+  // BrowserList::AddObserver(this);
   DCHECK(g_browser_process);
   // The profile manager can be null in unit tests.
   if (ProfileManager* profile_manager = g_browser_process->profile_manager()) {
@@ -46,7 +46,7 @@ ChromeProcessManagerDelegate::~ChromeProcessManagerDelegate() {
   DCHECK(!g_browser_process)
       << "ChromeProcessManagerDelegate expects to be shut down during "
          "BrowserProcess shutdown, after |g_browser_process| is set to null";
-  BrowserList::RemoveObserver(this);
+  // BrowserList::RemoveObserver(this);
 }
 
 bool ChromeProcessManagerDelegate::AreBackgroundPagesAllowedForContext(

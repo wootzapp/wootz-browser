@@ -221,8 +221,9 @@ void SyncEngine::AppendDependsOnFactories(
     std::set<BrowserContextKeyedServiceFactory*>* factories) {
   DCHECK(factories);
   factories->insert(drive::DriveNotificationManagerFactory::GetInstance());
-  factories->insert(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if(extensions::ExtensionsBrowserClient::Get())
+    factories->insert(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   factories->insert(IdentityManagerFactory::GetInstance());
 }
 

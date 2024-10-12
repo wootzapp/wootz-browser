@@ -222,18 +222,18 @@ ExtensionErrorUIDefault::ExtensionErrorUIDefault(
 ExtensionErrorUIDefault::~ExtensionErrorUIDefault() = default;
 
 bool ExtensionErrorUIDefault::ShowErrorInBubbleView() {
-  Browser* browser = chrome::FindLastActiveWithProfile(profile_);
-  if (!browser)
-    return false;
+  // Browser* browser = chrome::FindLastActiveWithProfile(profile_);
+  // if (!browser)
+  //   return false;
 
-  browser_ = browser;
-  global_error_->ShowBubbleView(browser);
+  // browser_ = browser;
+  // global_error_->ShowBubbleView(browser);
   return true;
 }
 
 void ExtensionErrorUIDefault::ShowExtensions() {
   DCHECK(browser_);
-  chrome::ShowExtensions(browser_);
+  // chrome::ShowExtensions(browser_);
 }
 
 void ExtensionErrorUIDefault::Close() {

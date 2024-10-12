@@ -104,8 +104,8 @@ class BrailleDisplayPrivateWriteDotsFunction : public ExtensionFunction {
 
   void WriteDotsOnIO();
 
- private:
-  std::optional<braille_display_private::WriteDots::Params> params_;
+//  private:
+//   std::optional<braille_display_private::WriteDots::Params> params_;
 };
 
 class BrailleDisplayPrivateUpdateBluetoothBrailleDisplayAddressFunction

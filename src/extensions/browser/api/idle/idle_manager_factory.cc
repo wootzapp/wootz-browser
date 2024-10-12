@@ -27,7 +27,8 @@ IdleManagerFactory::IdleManagerFactory()
     : BrowserContextKeyedServiceFactory(
           "IdleManager",
           BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 IdleManagerFactory::~IdleManagerFactory() {

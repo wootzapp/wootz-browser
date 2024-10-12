@@ -37,7 +37,7 @@ ChromeUpdateQueryParamsDelegate::GetInstance() {
 std::string ChromeUpdateQueryParamsDelegate::GetExtraParams() {
   std::string channel_name;
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  channel_name = extensions::GetChannelForExtensionUpdates();
+  // channel_name = extensions::GetChannelForExtensionUpdates();
 #else
   channel_name = chrome::GetChannelName(chrome::WithExtendedStable(true));
 #endif

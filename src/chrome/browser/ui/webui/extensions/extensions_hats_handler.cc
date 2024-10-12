@@ -154,38 +154,38 @@ void ExtensionsHatsHandler::RequestHatsSurvey(SurveyStringData survey_data) {
   if (!hats_service) {
     return;
   }
-  hats_service->LaunchDelayedSurvey(kHatsSurveyTriggerExtensions, 0, {},
-                                    survey_data);
+  // hats_service->LaunchDelayedSurvey(kHatsSurveyTriggerExtensions, 0, {},
+  //                                   survey_data);
 }
 
 void ExtensionsHatsHandler::HandleUserNavigation() {
-  Browser* browser = chrome::FindBrowserWithTab(web_ui()->GetWebContents());
-  // We check that the primary page change was not a window.
-  if ((!browser || browser->tab_strip_model()->empty() ||
-       web_ui()->GetWebContents()->IsBeingDestroyed() ||
-       !base::FeatureList::IsEnabled(
-           features::kHappinessTrackingSurveysExtensionsSafetyHub)) &&
-      !test_navigation_) {
-    return;
-  }
-  SurveyStringData survey_data = CreateSurveyStrings();
-  // If the user has interacted with the review panel we will show them a
-  // survey.
-  bool panel_interaction =
-      number_of_triggering_extensions_removed_ + number_of_extensions_kept_;
-  features::ExtensionsSafetyHubHaTSArms survey_arm =
-      features::kHappinessTrackingSurveysExtensionsSurveyArm.Get();
-  if (panel_interaction &&
-      survey_arm ==
-          features::ExtensionsSafetyHubHaTSArms::kReviewPanelInteraction) {
-    RequestHatsSurvey(survey_data);
-  } else if (!panel_interaction &&
-             static_cast<int>(survey_arm) == review_panel_shown_ &&
-             time_spent_on_page_ >
-                 features::kHappinessTrackingSurveysExtensionsSafetyHubTime
-                     .Get()) {
-    RequestHatsSurvey(survey_data);
-  }
+  // Browser* browser = chrome::FindBrowserWithTab(web_ui()->GetWebContents());
+  // // We check that the primary page change was not a window.
+  // if ((!browser || browser->tab_strip_model()->empty() ||
+  //      web_ui()->GetWebContents()->IsBeingDestroyed() ||
+  //      !base::FeatureList::IsEnabled(
+  //          features::kHappinessTrackingSurveysExtensionsSafetyHub)) &&
+  //     !test_navigation_) {
+  //   return;
+  // }
+  // SurveyStringData survey_data = CreateSurveyStrings();
+  // // If the user has interacted with the review panel we will show them a
+  // // survey.
+  // bool panel_interaction =
+  //     number_of_triggering_extensions_removed_ + number_of_extensions_kept_;
+  // features::ExtensionsSafetyHubHaTSArms survey_arm =
+  //     features::kHappinessTrackingSurveysExtensionsSurveyArm.Get();
+  // if (panel_interaction &&
+  //     survey_arm ==
+  //         features::ExtensionsSafetyHubHaTSArms::kReviewPanelInteraction) {
+  //   RequestHatsSurvey(survey_data);
+  // } else if (!panel_interaction &&
+  //            static_cast<int>(survey_arm) == review_panel_shown_ &&
+  //            time_spent_on_page_ >
+  //                features::kHappinessTrackingSurveysExtensionsSafetyHubTime
+  //                    .Get()) {
+  //   RequestHatsSurvey(survey_data);
+  // }
 }
 
 void ExtensionsHatsHandler::RenderFrameDeleted(

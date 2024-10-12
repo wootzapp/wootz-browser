@@ -496,7 +496,7 @@ void SetUpProfilingShutdownHandler() {
 // Returns true if the browser will exit before feature list initialization
 // happens in the browser process.
 bool WillExitBeforeBrowserFeatureListInitialization() {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 
   // Note: empty value for --process-type indicates its the browser process.
@@ -513,7 +513,7 @@ bool WillExitBeforeBrowserFeatureListInitialization() {
   return false;
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
 std::optional<int> HandlePackExtensionSwitches(
     const base::CommandLine& command_line) {
   // If the command line specifies --pack-extension, attempt the pack extension
@@ -1929,7 +1929,7 @@ std::optional<int> ChromeMainDelegate::PreBrowserMain() {
   if (exit_code.has_value())
     return exit_code;
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   std::optional<int> pack_extension_exit_code =

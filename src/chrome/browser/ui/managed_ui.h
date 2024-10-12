@@ -44,7 +44,7 @@ class ScopedDeviceManagerForTesting {
 // users.
 bool ShouldDisplayManagedUi(Profile* profile);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if true || !BUILDFLAG(IS_ANDROID)
 // The URL which management surfaces should link to for more info.
 //
 // Returns an empty string if ShouldDisplayManagedUi(profile) is false.
@@ -63,12 +63,6 @@ std::u16string GetManagedUiMenuItemLabel(Profile* profile);
 // Must only be called if ShouldDisplayManagedUi(profile) is true.
 std::u16string GetManagedUiMenuItemTooltip(Profile* profile);
 
-// An icon name/label recognized by <iron-icon> for the WebUI footnote for
-// Managed UI indicating that the browser is managed.
-//
-// Returns an empty string if ShouldDisplayManagedUi(profile) is false.
-std::string GetManagedUiWebUIIcon(Profile* profile);
-
 // The label for the WebUI footnote for Managed UI indicating that the browser
 // is managed. These strings contain HTML for an <a> element.
 //
@@ -79,6 +73,12 @@ std::u16string GetManagedUiWebUILabel(Profile* profile);
 // the chrome://settings/help page.
 std::u16string GetDeviceManagedUiHelpLabel(Profile* profile);
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+// An icon name/label recognized by <iron-icon> for the WebUI footnote for
+// Managed UI indicating that the browser is managed.
+//
+// Returns an empty string if ShouldDisplayManagedUi(profile) is false.
+std::string GetManagedUiWebUIIcon(Profile* profile);
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // The label for the WebUI footnote for Managed UI indicating that the device

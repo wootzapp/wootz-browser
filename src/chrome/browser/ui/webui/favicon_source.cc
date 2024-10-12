@@ -218,7 +218,8 @@ bool FaviconSource::ShouldServiceRequest(
 
 ui::NativeTheme* FaviconSource::GetNativeTheme(
     const content::WebContents::Getter& wc_getter) {
-  return webui::GetNativeThemeDeprecated(wc_getter.Run());
+  // return webui::GetNativeThemeDeprecated(wc_getter.Run());
+  return nullptr;
 }
 
 void FaviconSource::OnFaviconDataAvailable(

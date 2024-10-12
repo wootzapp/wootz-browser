@@ -1975,21 +1975,21 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
 #endif // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
 
 #if !BUILDFLAG(IS_MAC) && BUILDFLAG(ENABLE_EXTENSIONS)
-  { key::kFullscreenAllowed,
-    extensions::pref_names::kAppFullscreenAllowed,
-    base::Value::Type::BOOLEAN },
+  // { key::kFullscreenAllowed,
+  //   extensions::pref_names::kAppFullscreenAllowed,
+  //   base::Value::Type::BOOLEAN },
 #endif  // !BUILDFLAG(IS_MAC) && BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if !BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_EXTENSIONS)
-  { key::kBlockExternalExtensions,
-    extensions::pref_names::kBlockExternalExtensions,
-    base::Value::Type::BOOLEAN },
+  // { key::kBlockExternalExtensions,
+  //   extensions::pref_names::kBlockExternalExtensions,
+  //   base::Value::Type::BOOLEAN },
 #endif // !BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  { key::kExtensionExtendedBackgroundLifetimeForPortConnectionsToUrls,
-    extensions::pref_names::kExtendedBackgroundLifetimeForPortConnectionsToUrls,
-    base::Value::Type::LIST },
+  // { key::kExtensionExtendedBackgroundLifetimeForPortConnectionsToUrls,
+  //   extensions::pref_names::kExtendedBackgroundLifetimeForPortConnectionsToUrls,
+  //   base::Value::Type::LIST },
 #endif // BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
@@ -2971,31 +2971,31 @@ std::unique_ptr<ConfigurationPolicyHandlerList> BuildHandlerList(
       SimpleSchemaValidatingPolicyHandler::MANDATORY_ALLOWED));
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_ANDROID)
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  handlers->AddHandler(std::make_unique<extensions::ExtensionListPolicyHandler>(
-      key::kExtensionInstallAllowlist,
-      extensions::pref_names::kInstallAllowList, false));
-  handlers->AddHandler(
-      std::make_unique<extensions::ExtensionInstallBlockListPolicyHandler>());
-  handlers->AddHandler(
-      std::make_unique<extensions::ExtensionInstallForceListPolicyHandler>());
-  handlers->AddHandler(
-      std::make_unique<extensions::ExtensionURLPatternListPolicyHandler>(
-          key::kExtensionInstallSources,
-          extensions::pref_names::kAllowedInstallSites));
-  handlers->AddHandler(std::make_unique<StringMappingListPolicyHandler>(
-      key::kExtensionAllowedTypes, extensions::pref_names::kAllowedTypes,
-      base::BindRepeating(GetExtensionAllowedTypesMap)));
-  handlers->AddHandler(
-      std::make_unique<extensions::ExtensionSettingsPolicyHandler>(
-          chrome_schema));
-  handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
-      key::kExtensionUnpublishedAvailability,
-      extensions::pref_names::kExtensionUnpublishedAvailability,
-      /*min=*/0, /*max=*/1, /*clamp=*/false));
-  handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
-      key::kExtensionManifestV2Availability,
-      extensions::pref_names::kManifestV2Availability, /*min=*/0, /*max=*/3,
-      /*clamp=*/false));
+  // handlers->AddHandler(std::make_unique<extensions::ExtensionListPolicyHandler>(
+  //     key::kExtensionInstallAllowlist,
+  //     extensions::pref_names::kInstallAllowList, false));
+  // handlers->AddHandler(
+  //     std::make_unique<extensions::ExtensionInstallBlockListPolicyHandler>());
+  // handlers->AddHandler(
+  //     std::make_unique<extensions::ExtensionInstallForceListPolicyHandler>());
+  // handlers->AddHandler(
+  //     std::make_unique<extensions::ExtensionURLPatternListPolicyHandler>(
+  //         key::kExtensionInstallSources,
+  //         extensions::pref_names::kAllowedInstallSites));
+  // handlers->AddHandler(std::make_unique<StringMappingListPolicyHandler>(
+  //     key::kExtensionAllowedTypes, extensions::pref_names::kAllowedTypes,
+  //     base::BindRepeating(GetExtensionAllowedTypesMap)));
+  // handlers->AddHandler(
+      // std::make_unique<extensions::ExtensionSettingsPolicyHandler>(
+      //     chrome_schema));
+  // handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
+  //     key::kExtensionUnpublishedAvailability,
+  //     extensions::pref_names::kExtensionUnpublishedAvailability,
+  //     /*min=*/0, /*max=*/1, /*clamp=*/false));
+  // handlers->AddHandler(std::make_unique<IntRangePolicyHandler>(
+  //     key::kExtensionManifestV2Availability,
+  //     extensions::pref_names::kManifestV2Availability, /*min=*/0, /*max=*/3,
+  //     /*clamp=*/false));
 
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 

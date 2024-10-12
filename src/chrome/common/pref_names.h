@@ -1883,7 +1883,7 @@ inline constexpr char kSuppressDifferentOriginSubframeJSDialogs[] =
 // or disabled. Defaults to blink::features::kReduceUserAgent field trial.
 inline constexpr char kUserAgentReduction[] = "user_agent_reduction";
 
-#if (!BUILDFLAG(IS_ANDROID))
+// #if (!BUILDFLAG(IS_ANDROID)) // wootz ext patrch
 // Boolean determining the side the side panel will be appear on (left / right).
 // True when the side panel is aligned to the right.
 inline constexpr char kSidePanelHorizontalAlignment[] =
@@ -1895,12 +1895,12 @@ inline constexpr char kSidePanelCompanionEntryPinnedToToolbar[] =
 // Corresponds to the enterprise policy.
 inline constexpr char kGoogleSearchSidePanelEnabled[] =
     "side_panel.google_search_side_panel_enabled";
-#endif
+// #endif
 
 inline constexpr char kManagedPrivateNetworkAccessRestrictionsEnabled[] =
     "managed_private_network_access_restrictions_enabled";
 
-#if BUILDFLAG(ENABLE_COMPOSE)
+// #if BUILDFLAG(ENABLE_COMPOSE) // wootz exts patch
 // Boolean indicating whether or not the Compose FRE has been completed.
 inline constexpr char kPrefHasCompletedComposeFRE[] =
     "compose_has_completed_fre";
@@ -1922,7 +1922,7 @@ inline constexpr char kEnableProactiveNudge[] =
 // elapsed time.
 inline constexpr char kProactiveNudgeDisabledSitesWithTime[] =
     "compose.proactive_nudge_disabled_sites_with_time";
-#endif
+// #endif
 
 #if !BUILDFLAG(IS_ANDROID)
 // Integer value controlling the data region to store covered data from Chrome.
@@ -3786,7 +3786,7 @@ inline constexpr char kAdbSideloadingPowerwashOnNextRebootNotificationShown[] =
     "adb_sideloading_powerwash_on_next_reboot_notification_shown";
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
+// #if !BUILDFLAG(IS_ANDROID) // wootz exts patch
 // Boolean pref that indicates whether caret browsing is currently enabled.
 inline constexpr char kCaretBrowsingEnabled[] =
     "settings.a11y.caretbrowsing.enabled";
@@ -3797,7 +3797,7 @@ inline constexpr char kCaretBrowsingEnabled[] =
 // is toggled silently by the keyboard shortcut.
 inline constexpr char kShowCaretBrowsingDialog[] =
     "settings.a11y.caretbrowsing.show_dialog";
-#endif
+// #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Enum pref indicating how to launch the Lacros browser. It is managed by

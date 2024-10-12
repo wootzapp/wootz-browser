@@ -56,8 +56,9 @@ namespace extensions {
 class PasswordsPrivateDelegateImpl
     : public PasswordsPrivateDelegate,
       public password_manager::SavedPasswordsPresenter::Observer,
-      public syncer::SyncServiceObserver,
-      public web_app::WebAppInstallManagerObserver {
+      public syncer::SyncServiceObserver
+    //   public web_app::WebAppInstallManagerObserver 
+      {
  public:
   using AuthResultCallback = base::OnceCallback<void(bool)>;
 
@@ -187,8 +188,8 @@ class PasswordsPrivateDelegateImpl
       const password_manager::PasswordStoreChangeList& changes) override;
 
   // web_app::WebAppInstallManagerObserver implementation.
-  void OnWebAppInstalledWithOsHooks(const webapps::AppId& app_id) override;
-  void OnWebAppInstallManagerDestroyed() override;
+//   void OnWebAppInstalledWithOsHooks(const webapps::AppId& app_id) override;
+//   void OnWebAppInstallManagerDestroyed() override;
 
   // Called after the lists are fetched. Once both lists have been set, the
   // class is considered initialized and any queued functions (which could
@@ -309,9 +310,9 @@ class PasswordsPrivateDelegateImpl
   base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
       sync_service_observation_{this};
 
-  base::ScopedObservation<web_app::WebAppInstallManager,
-                          web_app::WebAppInstallManagerObserver>
-      install_manager_observation_{this};
+//   base::ScopedObservation<web_app::WebAppInstallManager,
+//                           web_app::WebAppInstallManagerObserver>
+//       install_manager_observation_{this};
 
   std::unique_ptr<password_manager::RecipientsFetcher>
       sharing_password_recipients_fetcher_;

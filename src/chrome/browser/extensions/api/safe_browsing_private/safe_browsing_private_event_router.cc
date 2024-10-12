@@ -291,10 +291,10 @@ const char SafeBrowsingPrivateEventRouter::kTriggerFileTransfer[] =
 SafeBrowsingPrivateEventRouter::SafeBrowsingPrivateEventRouter(
     content::BrowserContext* context)
     : context_(context) {
-  event_router_ = EventRouter::Get(context_);
-  reporting_client_ =
-      enterprise_connectors::RealtimeReportingClientFactory::GetForProfile(
-          context);
+  // event_router_ = EventRouter::Get(context_);
+  // reporting_client_ =
+  //     enterprise_connectors::RealtimeReportingClientFactory::GetForProfile(
+  //         context);
 }
 
 SafeBrowsingPrivateEventRouter::~SafeBrowsingPrivateEventRouter() = default;
@@ -320,71 +320,71 @@ void SafeBrowsingPrivateEventRouter::OnPolicySpecifiedPasswordReuseDetected(
     const std::string& user_name,
     bool is_phishing_url,
     bool warning_shown) {
-  api::safe_browsing_private::PolicySpecifiedPasswordReuse params;
-  params.url = url.spec();
-  params.user_name = user_name;
-  params.is_phishing_url = is_phishing_url;
+  // api::safe_browsing_private::PolicySpecifiedPasswordReuse params;
+  // params.url = url.spec();
+  // params.user_name = user_name;
+  // params.is_phishing_url = is_phishing_url;
 
-  // |event_router_| can be null in tests.
-  if (event_router_) {
-    base::Value::List event_value;
-    event_value.Append(params.ToValue());
+  // // |event_router_| can be null in tests.
+  // if (event_router_) {
+  //   base::Value::List event_value;
+  //   event_value.Append(params.ToValue());
 
-    auto extension_event = std::make_unique<Event>(
-        events::
-            SAFE_BROWSING_PRIVATE_ON_POLICY_SPECIFIED_PASSWORD_REUSE_DETECTED,
-        api::safe_browsing_private::OnPolicySpecifiedPasswordReuseDetected::
-            kEventName,
-        std::move(event_value));
-    event_router_->BroadcastEvent(std::move(extension_event));
-  }
+  //   auto extension_event = std::make_unique<Event>(
+  //       events::
+  //           SAFE_BROWSING_PRIVATE_ON_POLICY_SPECIFIED_PASSWORD_REUSE_DETECTED,
+  //       api::safe_browsing_private::OnPolicySpecifiedPasswordReuseDetected::
+  //           kEventName,
+  //       std::move(event_value));
+  //   event_router_->BroadcastEvent(std::move(extension_event));
+  // }
 
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyPasswordReuseEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyPasswordReuseEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, params.url);
-  event.Set(kKeyUserName, params.user_name);
-  event.Set(kKeyIsPhishingUrl, params.is_phishing_url);
-  event.Set(kKeyEventResult,
-            safe_browsing::EventResultToString(
-                warning_shown ? safe_browsing::EventResult::WARNED
-                              : safe_browsing::EventResult::ALLOWED));
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, params.url);
+  // event.Set(kKeyUserName, params.user_name);
+  // event.Set(kKeyIsPhishingUrl, params.is_phishing_url);
+  // // event.Set(kKeyEventResult,
+  // //           safe_browsing::EventResultToString(
+  // //               warning_shown ? safe_browsing::EventResult::WARNED
+  // //                             : safe_browsing::EventResult::ALLOWED));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyPasswordReuseEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeyPasswordReuseEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnPolicySpecifiedPasswordChanged(
     const std::string& user_name) {
   // |event_router_| can be null in tests.
-  if (event_router_) {
-    base::Value::List event_value;
-    event_value.Append(user_name);
-    auto extension_event = std::make_unique<Event>(
-        events::SAFE_BROWSING_PRIVATE_ON_POLICY_SPECIFIED_PASSWORD_CHANGED,
-        api::safe_browsing_private::OnPolicySpecifiedPasswordChanged::
-            kEventName,
-        std::move(event_value));
-    event_router_->BroadcastEvent(std::move(extension_event));
-  }
+  // if (event_router_) {
+  //   base::Value::List event_value;
+  //   event_value.Append(user_name);
+  //   auto extension_event = std::make_unique<Event>(
+  //       events::SAFE_BROWSING_PRIVATE_ON_POLICY_SPECIFIED_PASSWORD_CHANGED,
+  //       api::safe_browsing_private::OnPolicySpecifiedPasswordChanged::
+  //           kEventName,
+  //       std::move(event_value));
+  //   event_router_->BroadcastEvent(std::move(extension_event));
+  // }
 
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyPasswordChangedEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyPasswordChangedEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUserName, user_name);
+  // base::Value::Dict event;
+  // event.Set(kKeyUserName, user_name);
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyPasswordChangedEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeyPasswordChangedEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnDangerousDownloadOpened(
@@ -397,148 +397,148 @@ void SafeBrowsingPrivateEventRouter::OnDangerousDownloadOpened(
     const download::DownloadDangerType danger_type,
     const int64_t content_size) {
   api::safe_browsing_private::DangerousDownloadInfo params;
-  params.url = url.spec();
-  params.file_name = file_name;
-  params.download_digest_sha256 = download_digest_sha256;
-  params.user_name = reporting_client_->GetProfileUserName();
+  // params.url = url.spec();
+  // params.file_name = file_name;
+  // params.download_digest_sha256 = download_digest_sha256;
+  // params.user_name = reporting_client_->GetProfileUserName();
 
-  // |event_router_| can be null in tests.
-  if (event_router_) {
-    base::Value::List event_value;
-    event_value.Append(params.ToValue());
+  // // |event_router_| can be null in tests.
+  // if (event_router_) {
+  //   base::Value::List event_value;
+  //   event_value.Append(params.ToValue());
 
-    auto extension_event = std::make_unique<Event>(
-        events::SAFE_BROWSING_PRIVATE_ON_DANGEROUS_DOWNLOAD_OPENED,
-        api::safe_browsing_private::OnDangerousDownloadOpened::kEventName,
-        std::move(event_value));
-    event_router_->BroadcastEvent(std::move(extension_event));
-  }
+  //   auto extension_event = std::make_unique<Event>(
+  //       events::SAFE_BROWSING_PRIVATE_ON_DANGEROUS_DOWNLOAD_OPENED,
+  //       api::safe_browsing_private::OnDangerousDownloadOpened::kEventName,
+  //       std::move(event_value));
+  //   event_router_->BroadcastEvent(std::move(extension_event));
+  // }
 
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, params.url);
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, params.download_digest_sha256);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, kTriggerFileDownload);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(
-                                 safe_browsing::EventResult::BYPASSED));
-  event.Set(kKeyClickedThrough, true);
-  event.Set(kKeyThreatType, DangerTypeToThreatType(danger_type));
-  // The scan ID can be empty when the reported dangerous download is from a
-  // Safe Browsing verdict.
-  if (!scan_id.empty()) {
-    event.Set(kKeyScanId, scan_id);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, params.url);
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, params.download_digest_sha256);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, kTriggerFileDownload);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(
+  // //                                safe_browsing::EventResult::BYPASSED));
+  // event.Set(kKeyClickedThrough, true);
+  // event.Set(kKeyThreatType, DangerTypeToThreatType(danger_type));
+  // // The scan ID can be empty when the reported dangerous download is from a
+  // // Safe Browsing verdict.
+  // if (!scan_id.empty()) {
+  //   event.Set(kKeyScanId, scan_id);
+  // }
 
-  reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
-                                         std::move(settings.value()),
-                                         std::move(event));
+  // reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
+  //                                        std::move(settings.value()),
+  //                                        std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnSecurityInterstitialShown(
     const GURL& url,
     const std::string& reason,
     int net_error_code) {
-  api::safe_browsing_private::InterstitialInfo params;
-  params.url = url.spec();
-  params.reason = reason;
-  if (net_error_code < 0) {
-    params.net_error_code = base::NumberToString(net_error_code);
-  }
-  params.user_name = reporting_client_->GetProfileUserName();
+  // api::safe_browsing_private::InterstitialInfo params;
+  // params.url = url.spec();
+  // params.reason = reason;
+  // if (net_error_code < 0) {
+  //   params.net_error_code = base::NumberToString(net_error_code);
+  // }
+  // params.user_name = reporting_client_->GetProfileUserName();
 
-  // |event_router_| can be null in tests.
-  if (event_router_) {
-    base::Value::List event_value;
-    event_value.Append(params.ToValue());
+  // // |event_router_| can be null in tests.
+  // if (event_router_) {
+  //   base::Value::List event_value;
+  //   event_value.Append(params.ToValue());
 
-    auto extension_event = std::make_unique<Event>(
-        events::SAFE_BROWSING_PRIVATE_ON_SECURITY_INTERSTITIAL_SHOWN,
-        api::safe_browsing_private::OnSecurityInterstitialShown::kEventName,
-        std::move(event_value));
-    event_router_->BroadcastEvent(std::move(extension_event));
-  }
+  //   auto extension_event = std::make_unique<Event>(
+  //       events::SAFE_BROWSING_PRIVATE_ON_SECURITY_INTERSTITIAL_SHOWN,
+  //       api::safe_browsing_private::OnSecurityInterstitialShown::kEventName,
+  //       std::move(event_value));
+  //   event_router_->BroadcastEvent(std::move(extension_event));
+  // }
 
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyInterstitialEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyInterstitialEvent) == 0) {
+  //   return;
+  // }
 
-  PrefService* prefs = Profile::FromBrowserContext(context_)->GetPrefs();
-  safe_browsing::EventResult event_result =
-      prefs->GetBoolean(prefs::kSafeBrowsingProceedAnywayDisabled)
-          ? safe_browsing::EventResult::BLOCKED
-          : safe_browsing::EventResult::WARNED;
-  base::Value::Dict event;
-  event.Set(kKeyUrl, params.url);
-  event.Set(kKeyReason, params.reason);
-  event.Set(kKeyNetErrorCode, net_error_code);
-  event.Set(kKeyClickedThrough, false);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // PrefService* prefs = Profile::FromBrowserContext(context_)->GetPrefs();
+  // safe_browsing::EventResult event_result =
+  //     prefs->GetBoolean(prefs::kSafeBrowsingProceedAnywayDisabled)
+  //         ? safe_browsing::EventResult::BLOCKED
+  //         : safe_browsing::EventResult::WARNED;
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, params.url);
+  // event.Set(kKeyReason, params.reason);
+  // event.Set(kKeyNetErrorCode, net_error_code);
+  // event.Set(kKeyClickedThrough, false);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyInterstitialEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeyInterstitialEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnSecurityInterstitialProceeded(
     const GURL& url,
     const std::string& reason,
     int net_error_code) {
-  api::safe_browsing_private::InterstitialInfo params;
-  params.url = url.spec();
-  params.reason = reason;
-  if (net_error_code < 0) {
-    params.net_error_code = base::NumberToString(net_error_code);
-  }
-  params.user_name = reporting_client_->GetProfileUserName();
+  // api::safe_browsing_private::InterstitialInfo params;
+  // params.url = url.spec();
+  // params.reason = reason;
+  // if (net_error_code < 0) {
+  //   params.net_error_code = base::NumberToString(net_error_code);
+  // }
+  // params.user_name = reporting_client_->GetProfileUserName();
 
-  // |event_router_| can be null in tests.
-  if (event_router_) {
-    base::Value::List event_value;
-    event_value.Append(params.ToValue());
+  // // |event_router_| can be null in tests.
+  // if (event_router_) {
+  //   base::Value::List event_value;
+  //   event_value.Append(params.ToValue());
 
-    auto extension_event = std::make_unique<Event>(
-        events::SAFE_BROWSING_PRIVATE_ON_SECURITY_INTERSTITIAL_PROCEEDED,
-        api::safe_browsing_private::OnSecurityInterstitialProceeded::kEventName,
-        std::move(event_value));
-    event_router_->BroadcastEvent(std::move(extension_event));
-  }
+  //   auto extension_event = std::make_unique<Event>(
+  //       events::SAFE_BROWSING_PRIVATE_ON_SECURITY_INTERSTITIAL_PROCEEDED,
+  //       api::safe_browsing_private::OnSecurityInterstitialProceeded::kEventName,
+  //       std::move(event_value));
+  //   event_router_->BroadcastEvent(std::move(extension_event));
+  // }
 
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyInterstitialEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyInterstitialEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, params.url);
-  event.Set(kKeyReason, params.reason);
-  event.Set(kKeyNetErrorCode, net_error_code);
-  event.Set(kKeyClickedThrough, true);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(
-                                 safe_browsing::EventResult::BYPASSED));
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, params.url);
+  // event.Set(kKeyReason, params.reason);
+  // event.Set(kKeyNetErrorCode, net_error_code);
+  // event.Set(kKeyClickedThrough, true);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(
+  // //                                safe_browsing::EventResult::BYPASSED));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyInterstitialEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeyInterstitialEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnAnalysisConnectorResult(
@@ -585,46 +585,46 @@ void SafeBrowsingPrivateEventRouter::OnDangerousDeepScanningResult(
     safe_browsing::EventResult event_result,
     const std::string& scan_id,
     const std::string& content_transfer_method) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeySource, source);
-  event.Set(kKeyDestination, destination);
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyThreatType, threat_type);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, trigger);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
-  event.Set(kKeyClickedThrough,
-            event_result == safe_browsing::EventResult::BYPASSED);
-  // The scan ID can be empty when the reported dangerous download is from a
-  // Safe Browsing verdict.
-  if (!scan_id.empty()) {
-    event.Set(kKeyScanId, scan_id);
-  }
-  if (!content_transfer_method.empty()) {
-    event.Set(kKeyContentTransferMethod, content_transfer_method);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeySource, source);
+  // event.Set(kKeyDestination, destination);
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyThreatType, threat_type);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, trigger);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // event.Set(kKeyClickedThrough,
+  //           event_result == safe_browsing::EventResult::BYPASSED);
+  // // The scan ID can be empty when the reported dangerous download is from a
+  // // Safe Browsing verdict.
+  // if (!scan_id.empty()) {
+  //   event.Set(kKeyScanId, scan_id);
+  // }
+  // if (!content_transfer_method.empty()) {
+  //   event.Set(kKeyContentTransferMethod, content_transfer_method);
+  // }
 
-  reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
-                                         std::move(settings.value()),
-                                         std::move(event));
+  // reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
+  //                                        std::move(settings.value()),
+  //                                        std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnSensitiveDataEvent(
@@ -641,42 +641,42 @@ void SafeBrowsingPrivateEventRouter::OnSensitiveDataEvent(
     const enterprise_connectors::ContentAnalysisResponse::Result& result,
     const int64_t content_size,
     safe_browsing::EventResult event_result) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeySensitiveDataEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeySensitiveDataEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeySource, source);
-  event.Set(kKeyDestination, destination);
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, trigger);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
-  event.Set(kKeyClickedThrough,
-            event_result == safe_browsing::EventResult::BYPASSED);
-  event.Set(kKeyScanId, scan_id);
-  if (!content_transfer_method.empty()) {
-    event.Set(kKeyContentTransferMethod, content_transfer_method);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeySource, source);
+  // event.Set(kKeyDestination, destination);
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, trigger);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // event.Set(kKeyClickedThrough,
+  //           event_result == safe_browsing::EventResult::BYPASSED);
+  // event.Set(kKeyScanId, scan_id);
+  // if (!content_transfer_method.empty()) {
+  //   event.Set(kKeyContentTransferMethod, content_transfer_method);
+  // }
 
-  AddAnalysisConnectorVerdictToEvent(result, event);
+  // AddAnalysisConnectorVerdictToEvent(result, event);
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnAnalysisConnectorWarningBypassed(
@@ -694,45 +694,45 @@ void SafeBrowsingPrivateEventRouter::OnAnalysisConnectorWarningBypassed(
     const enterprise_connectors::ContentAnalysisResponse::Result& result,
     const int64_t content_size,
     std::optional<std::u16string> user_justification) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeySensitiveDataEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeySensitiveDataEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeySource, source);
-  event.Set(kKeyDestination, destination);
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, trigger);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(
-                                 safe_browsing::EventResult::BYPASSED));
-  event.Set(kKeyClickedThrough, true);
-  event.Set(kKeyScanId, scan_id);
-  if (user_justification) {
-    event.Set(kKeyUserJustification, *user_justification);
-  }
-  if (!content_transfer_method.empty()) {
-    event.Set(kKeyContentTransferMethod, content_transfer_method);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeySource, source);
+  // event.Set(kKeyDestination, destination);
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, trigger);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(
+  // //                                safe_browsing::EventResult::BYPASSED));
+  // event.Set(kKeyClickedThrough, true);
+  // event.Set(kKeyScanId, scan_id);
+  // if (user_justification) {
+  //   event.Set(kKeyUserJustification, *user_justification);
+  // }
+  // if (!content_transfer_method.empty()) {
+  //   event.Set(kKeyContentTransferMethod, content_transfer_method);
+  // }
 
-  AddAnalysisConnectorVerdictToEvent(result, event);
+  // AddAnalysisConnectorVerdictToEvent(result, event);
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnUnscannedFileEvent(
@@ -749,40 +749,40 @@ void SafeBrowsingPrivateEventRouter::OnUnscannedFileEvent(
     const std::string& content_transfer_method,
     const int64_t content_size,
     safe_browsing::EventResult event_result) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyUnscannedFileEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyUnscannedFileEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeySource, source);
-  event.Set(kKeyDestination, destination);
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyContentType, mime_type);
-  event.Set(kKeyUnscannedReason, reason);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, trigger);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
-  event.Set(kKeyClickedThrough,
-            event_result == safe_browsing::EventResult::BYPASSED);
-  if (!content_transfer_method.empty()) {
-    event.Set(kKeyContentTransferMethod, content_transfer_method);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeySource, source);
+  // event.Set(kKeyDestination, destination);
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyContentType, mime_type);
+  // event.Set(kKeyUnscannedReason, reason);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, trigger);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // event.Set(kKeyClickedThrough,
+  //           event_result == safe_browsing::EventResult::BYPASSED);
+  // if (!content_transfer_method.empty()) {
+  //   event.Set(kKeyContentTransferMethod, content_transfer_method);
+  // }
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyUnscannedFileEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeyUnscannedFileEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnDangerousDownloadEvent(
@@ -810,41 +810,41 @@ void SafeBrowsingPrivateEventRouter::OnDangerousDownloadEvent(
     const std::string& scan_id,
     const int64_t content_size,
     safe_browsing::EventResult event_result) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyThreatType, threat_type);
-  event.Set(kKeyClickedThrough, false);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, kTriggerFileDownload);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyThreatType, threat_type);
+  // event.Set(kKeyClickedThrough, false);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, kTriggerFileDownload);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
 
-  // The scan ID can be empty when the reported dangerous download is from a
-  // Safe Browsing verdict.
-  if (!scan_id.empty()) {
-    event.Set(kKeyScanId, scan_id);
-  }
+  // // The scan ID can be empty when the reported dangerous download is from a
+  // // Safe Browsing verdict.
+  // if (!scan_id.empty()) {
+  //   event.Set(kKeyScanId, scan_id);
+  // }
 
-  reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
-                                         std::move(settings.value()),
-                                         std::move(event));
+  // reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
+  //                                        std::move(settings.value()),
+  //                                        std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnDangerousDownloadWarningBypassed(
@@ -870,41 +870,41 @@ void SafeBrowsingPrivateEventRouter::OnDangerousDownloadWarningBypassed(
     const std::string& mime_type,
     const std::string& scan_id,
     const int64_t content_size) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     settings->enabled_event_names.count(kKeyDangerousDownloadEvent) == 0) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeyFileName,
-            GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
-                                       Profile::FromBrowserContext(context_),
-                                       settings->per_profile)));
-  event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
-  event.Set(kKeyThreatType, threat_type);
-  event.Set(kKeyClickedThrough, true);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, kTriggerFileDownload);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(
-                                 safe_browsing::EventResult::BYPASSED));
-  // The scan ID can be empty when the reported dangerous download is from a
-  // Safe Browsing verdict.
-  if (!scan_id.empty()) {
-    event.Set(kKeyScanId, scan_id);
-  }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeyFileName,
+  //           GetFileName(file_name, enterprise_connectors::IncludeDeviceInfo(
+  //                                      Profile::FromBrowserContext(context_),
+  //                                      settings->per_profile)));
+  // event.Set(kKeyDownloadDigestSha256, download_digest_sha256);
+  // event.Set(kKeyThreatType, threat_type);
+  // event.Set(kKeyClickedThrough, true);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, kTriggerFileDownload);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(
+  // //                                safe_browsing::EventResult::BYPASSED));
+  // // The scan ID can be empty when the reported dangerous download is from a
+  // // Safe Browsing verdict.
+  // if (!scan_id.empty()) {
+  //   event.Set(kKeyScanId, scan_id);
+  // }
 
-  reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
-                                         std::move(settings.value()),
-                                         std::move(event));
+  // reporting_client_->ReportRealtimeEvent(kKeyDangerousDownloadEvent,
+  //                                        std::move(settings.value()),
+  //                                        std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnLoginEvent(
@@ -912,96 +912,96 @@ void SafeBrowsingPrivateEventRouter::OnLoginEvent(
     bool is_federated,
     const url::Origin& federated_origin,
     const std::u16string& username) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value()) {
-    return;
-  }
+//   std::optional<enterprise_connectors::ReportingSettings> settings =
+//       reporting_client_->GetReportingSettings();
+//   if (!settings.has_value()) {
+//     return;
+//   }
 
-  std::unique_ptr<url_matcher::URLMatcher> matcher =
-      CreateURLMatcherForOptInEvent(settings.value(), kKeyLoginEvent);
-  if (!IsOptInEventEnabled(matcher.get(), url)) {
-    return;
-  }
+//   std::unique_ptr<url_matcher::URLMatcher> matcher =
+//       CreateURLMatcherForOptInEvent(settings.value(), kKeyLoginEvent);
+//   if (!IsOptInEventEnabled(matcher.get(), url)) {
+//     return;
+//   }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyIsFederated, is_federated);
-  if (is_federated) {
-    event.Set(kKeyFederatedOrigin, federated_origin.Serialize());
-  }
-  event.Set(kKeyLoginUserName, MaskUsername(username));
+//   base::Value::Dict event;
+//   event.Set(kKeyUrl, url.spec());
+//   event.Set(kKeyIsFederated, is_federated);
+//   if (is_federated) {
+//     event.Set(kKeyFederatedOrigin, federated_origin.Serialize());
+//   }
+//   event.Set(kKeyLoginUserName, MaskUsername(username));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyLoginEvent, std::move(settings.value()), std::move(event));
-}
+//   reporting_client_->ReportRealtimeEvent(
+//       kKeyLoginEvent, std::move(settings.value()), std::move(event));
+// }
 
-void SafeBrowsingPrivateEventRouter::OnPasswordBreach(
-    const std::string& trigger,
-    const std::vector<std::pair<GURL, std::u16string>>& identities) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value()) {
-    return;
-  }
+// void SafeBrowsingPrivateEventRouter::OnPasswordBreach(
+//     const std::string& trigger,
+//     const std::vector<std::pair<GURL, std::u16string>>& identities) {
+//   std::optional<enterprise_connectors::ReportingSettings> settings =
+//       reporting_client_->GetReportingSettings();
+//   if (!settings.has_value()) {
+//     return;
+//   }
 
-  std::unique_ptr<url_matcher::URLMatcher> matcher =
-      CreateURLMatcherForOptInEvent(settings.value(), kKeyPasswordBreachEvent);
-  if (!matcher) {
-    return;
-  }
+//   std::unique_ptr<url_matcher::URLMatcher> matcher =
+//       CreateURLMatcherForOptInEvent(settings.value(), kKeyPasswordBreachEvent);
+//   if (!matcher) {
+//     return;
+//   }
 
-  base::Value::Dict event;
-  base::Value::List identities_list;
-  event.Set(kKeyTrigger, trigger);
-  for (const std::pair<GURL, std::u16string>& i : identities) {
-    if (!IsOptInEventEnabled(matcher.get(), i.first)) {
-      continue;
-    }
+//   base::Value::Dict event;
+//   base::Value::List identities_list;
+//   event.Set(kKeyTrigger, trigger);
+//   for (const std::pair<GURL, std::u16string>& i : identities) {
+//     if (!IsOptInEventEnabled(matcher.get(), i.first)) {
+//       continue;
+//     }
 
-    base::Value::Dict identity;
-    identity.Set(kKeyPasswordBreachIdentitiesUrl, i.first.spec());
-    identity.Set(kKeyPasswordBreachIdentitiesUsername, MaskUsername(i.second));
-    identities_list.Append(std::move(identity));
-  }
+//     base::Value::Dict identity;
+//     identity.Set(kKeyPasswordBreachIdentitiesUrl, i.first.spec());
+//     identity.Set(kKeyPasswordBreachIdentitiesUsername, MaskUsername(i.second));
+//     identities_list.Append(std::move(identity));
+//   }
 
-  if (identities_list.empty()) {
-    // Don't send an empty event if none of the breached identities matched a
-    // pattern in the URL filters.
-    return;
-  }
+//   if (identities_list.empty()) {
+//     // Don't send an empty event if none of the breached identities matched a
+//     // pattern in the URL filters.
+//     return;
+//   }
 
-  event.Set(kKeyPasswordBreachIdentities, std::move(identities_list));
+//   event.Set(kKeyPasswordBreachIdentities, std::move(identities_list));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeyPasswordBreachEvent, std::move(settings.value()), std::move(event));
+//   reporting_client_->ReportRealtimeEvent(
+//       kKeyPasswordBreachEvent, std::move(settings.value()), std::move(event));
 }
 
 void SafeBrowsingPrivateEventRouter::OnUrlFilteringInterstitial(
     const GURL& url,
     const std::string& threat_type,
     const safe_browsing::RTLookupResponse& response) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() || settings->enabled_event_names.count(
-                                   kKeyUrlFilteringInterstitialEvent) == 0) {
-    return;
-  }
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  safe_browsing::EventResult event_result =
-      GetEventResultFromThreatType(threat_type);
-  event.Set(kKeyClickedThrough,
-            event_result == safe_browsing::EventResult::BYPASSED);
-  if (!threat_type.empty()) {
-    event.Set(kKeyThreatType, threat_type);
-  }
-  AddTriggeredRuleInfoToUrlFilteringInterstitialEvent(response, event);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() || settings->enabled_event_names.count(
+  //                                  kKeyUrlFilteringInterstitialEvent) == 0) {
+  //   return;
+  // }
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // safe_browsing::EventResult event_result =
+  //     GetEventResultFromThreatType(threat_type);
+  // event.Set(kKeyClickedThrough,
+  //           event_result == safe_browsing::EventResult::BYPASSED);
+  // if (!threat_type.empty()) {
+  //   event.Set(kKeyThreatType, threat_type);
+  // }
+  // AddTriggeredRuleInfoToUrlFilteringInterstitialEvent(response, event);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
 
-  reporting_client_->ReportRealtimeEvent(kKeyUrlFilteringInterstitialEvent,
-                                         std::move(settings.value()),
-                                         std::move(event));
+  // reporting_client_->ReportRealtimeEvent(kKeyUrlFilteringInterstitialEvent,
+  //                                        std::move(settings.value()),
+  //                                        std::move(event));
 }
 
 #if BUILDFLAG(ENTERPRISE_DATA_CONTROLS)
@@ -1015,45 +1015,45 @@ void SafeBrowsingPrivateEventRouter::OnDataControlsSensitiveDataEvent(
     const data_controls::Verdict::TriggeredRules& triggered_rules,
     safe_browsing::EventResult event_result,
     int64_t content_size) {
-  std::optional<enterprise_connectors::ReportingSettings> settings =
-      reporting_client_->GetReportingSettings();
-  if (!settings.has_value() ||
-      !base::Contains(settings->enabled_event_names, kKeySensitiveDataEvent)) {
-    return;
-  }
+  // std::optional<enterprise_connectors::ReportingSettings> settings =
+  //     reporting_client_->GetReportingSettings();
+  // if (!settings.has_value() ||
+  //     !base::Contains(settings->enabled_event_names, kKeySensitiveDataEvent)) {
+  //   return;
+  // }
 
-  base::Value::Dict event;
-  event.Set(kKeyUrl, url.spec());
-  event.Set(kKeyTabUrl, tab_url.spec());
-  event.Set(kKeySource, source);
-  event.Set(kKeyDestination, destination);
-  event.Set(kKeyContentType, mime_type);
-  // |content_size| can be set to -1 to indicate an unknown size, in
-  // which case the field is not set.
-  if (content_size >= 0) {
-    event.Set(kKeyContentSize, base::Int64ToValue(content_size));
-  }
-  event.Set(kKeyTrigger, trigger);
-  event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
+  // base::Value::Dict event;
+  // event.Set(kKeyUrl, url.spec());
+  // event.Set(kKeyTabUrl, tab_url.spec());
+  // event.Set(kKeySource, source);
+  // event.Set(kKeyDestination, destination);
+  // event.Set(kKeyContentType, mime_type);
+  // // |content_size| can be set to -1 to indicate an unknown size, in
+  // // which case the field is not set.
+  // if (content_size >= 0) {
+  //   event.Set(kKeyContentSize, base::Int64ToValue(content_size));
+  // }
+  // event.Set(kKeyTrigger, trigger);
+  // // event.Set(kKeyEventResult, safe_browsing::EventResultToString(event_result));
 
-  base::Value::List triggered_rule_info;
-  triggered_rule_info.reserve(triggered_rules.size());
-  for (const auto& [rule_id, name] : triggered_rules) {
-    base::Value::Dict triggered_rule;
-    triggered_rule.Set(
-        extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleId,
-        rule_id);
-    triggered_rule.Set(
-        extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleName,
-        name);
+  // base::Value::List triggered_rule_info;
+  // triggered_rule_info.reserve(triggered_rules.size());
+  // for (const auto& [rule_id, name] : triggered_rules) {
+  //   base::Value::Dict triggered_rule;
+  //   triggered_rule.Set(
+  //       extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleId,
+  //       rule_id);
+  //   triggered_rule.Set(
+  //       extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleName,
+  //       name);
 
-    triggered_rule_info.Append(std::move(triggered_rule));
-  }
-  event.Set(extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleInfo,
-            std::move(triggered_rule_info));
+  //   triggered_rule_info.Append(std::move(triggered_rule));
+  // }
+  // event.Set(extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleInfo,
+  //           std::move(triggered_rule_info));
 
-  reporting_client_->ReportRealtimeEvent(
-      kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
+  // reporting_client_->ReportRealtimeEvent(
+  //     kKeySensitiveDataEvent, std::move(settings.value()), std::move(event));
 }
 #endif  // BUILDFLAG(ENTERPRISE_DATA_CONTROLS)
 

@@ -363,17 +363,17 @@ void ExternalInstallError::DidCloseBubbleView() {
 }
 
 void ExternalInstallError::ShowDialog(Browser* browser) {
-  DCHECK(install_ui_.get());
-  DCHECK(prompt_.get());
-  DCHECK(browser);
-  content::WebContents* web_contents = nullptr;
-  web_contents = browser->tab_strip_model()->GetActiveWebContents();
-  manager_->DidChangeInstallAlertVisibility(this, true);
-  ExtensionInstallPrompt::GetDefaultShowDialogCallback().Run(
-      std::make_unique<ExtensionInstallPromptShowParams>(web_contents),
-      base::BindOnce(&ExternalInstallError::OnInstallPromptDone,
-                     weak_factory_.GetWeakPtr()),
-      std::move(prompt_));
+  // DCHECK(install_ui_.get());
+  // DCHECK(prompt_.get());
+  // DCHECK(browser);
+  // content::WebContents* web_contents = nullptr;
+  // web_contents = browser->tab_strip_model()->GetActiveWebContents();
+  // manager_->DidChangeInstallAlertVisibility(this, true);
+  // ExtensionInstallPrompt::GetDefaultShowDialogCallback().Run(
+  //     std::make_unique<ExtensionInstallPromptShowParams>(web_contents),
+  //     base::BindOnce(&ExternalInstallError::OnInstallPromptDone,
+  //                    weak_factory_.GetWeakPtr()),
+  //     std::move(prompt_));
 }
 
 const Extension* ExternalInstallError::GetExtension() const {
@@ -460,10 +460,10 @@ void ExternalInstallError::OnDialogReady(
       // DidChangeInstallAlertVisibility() regardless because we depend on this
       // in unit tests.
       manager_->DidChangeInstallAlertVisibility(this, true);
-      Browser* browser = chrome::FindTabbedBrowser(
-          Profile::FromBrowserContext(browser_context_), true);
-      if (browser)
-        global_error_->ShowBubbleView(browser);
+      // Browser* browser = chrome::FindTabbedBrowser(
+      //     Profile::FromBrowserContext(browser_context_), true);
+      // if (browser)
+      //   global_error_->ShowBubbleView(browser);
     }
   } else {
     DCHECK(alert_type_ == MENU_ALERT);

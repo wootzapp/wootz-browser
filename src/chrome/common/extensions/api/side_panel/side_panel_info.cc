@@ -65,12 +65,12 @@ SidePanelManifestHandler::~SidePanelManifestHandler() = default;
 
 bool SidePanelManifestHandler::Parse(Extension* extension,
                                      std::u16string* error) {
-  auto info = ParseFromDictionary(*extension, error);
-  if (!info) {
-    return false;
-  }
-  extension->SetManifestData(SidePanelManifestKeys::kSidePanel,
-                             std::move(info));
+  // auto info = ParseFromDictionary(*extension, error);
+  // if (!info) {
+  //   return false;
+  // }
+  // extension->SetManifestData(SidePanelManifestKeys::kSidePanel,
+  //                            std::move(info));
   return true;
 }
 

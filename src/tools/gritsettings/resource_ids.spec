@@ -604,6 +604,10 @@
     "META": {"sizes": {"includes": [10]}},
     "includes": [4800],
   },
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/rewards/rewards_resources.grd": {
+    "META": {"sizes": {"includes": [20]}},
+    "includes": [4810],
+  },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/quota_internals/quota_internals_resources.grd": {
     "META": {"sizes": {"includes": [20]}},
     "includes": [4820],
@@ -1305,7 +1309,7 @@
   },
  
   "<(SHARED_INTERMEDIATE_DIR)/ui/webui/resources/webui_resources.grd": {
-    "META": {"sizes": {"includes": [111]}},
+    "META": {"sizes": {"includes": [500]}},
     "includes": [8400],
   },
   "weblayer/weblayer_resources.grd": {
@@ -1332,9 +1336,6 @@
     "META": {"sizes": {"includes": [1800]}},
     "includes": [8540],
   },
-
-  # END "everything else" section.
-  # Everything but chrome/, components/, content/, and ios/
 
   # Thinking about appending to the end?
   # Please read the header and find the right section above instead.

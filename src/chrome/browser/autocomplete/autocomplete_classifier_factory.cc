@@ -56,8 +56,9 @@ AutocompleteClassifierFactory::AutocompleteClassifierFactory()
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 #endif
   DependsOn(TemplateURLServiceFactory::GetInstance());
   DependsOn(ShortcutsBackendFactory::GetInstance());

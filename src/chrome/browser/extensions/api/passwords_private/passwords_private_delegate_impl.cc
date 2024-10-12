@@ -36,11 +36,11 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-#include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -268,19 +268,19 @@ void MaybeShowProfileSwitchIPH(Profile* profile) {
   ProfileManager* profile_manager = g_browser_process->profile_manager();
   // Try to show promo only if there is profile menu button and there are
   // multiple profiles.
-  if (launched_app && launched_app->app_controller() &&
-      launched_app->app_controller()->HasProfileMenuButton() &&
-      profile_manager && profile_manager->GetNumberOfProfiles() > 1) {
-    launched_app->window()->MaybeShowProfileSwitchIPH();
-  }
+  // if (launched_app && launched_app->app_controller() &&
+  //     launched_app->app_controller()->HasProfileMenuButton() &&
+  //     profile_manager && profile_manager->GetNumberOfProfiles() > 1) {
+  //   launched_app->window()->MaybeShowProfileSwitchIPH();
+  // }
 #endif
 }
 
 // Returns a passkey model instance if the feature is enabled.
 webauthn::PasskeyModel* MaybeGetPasskeyModel(Profile* profile) {
-  if (base::FeatureList::IsEnabled(syncer::kSyncWebauthnCredentials)) {
-    return PasskeyModelFactory::GetInstance()->GetForProfile(profile);
-  }
+  // if (base::FeatureList::IsEnabled(syncer::kSyncWebauthnCredentials)) {
+  //   return PasskeyModelFactory::GetInstance()->GetForProfile(profile);
+  // }
   return nullptr;
 }
 
@@ -313,8 +313,8 @@ PasswordsPrivateDelegateImpl::PasswordsPrivateDelegateImpl(Profile* profile)
   auth_timeout_handler_.Init(
       base::BindRepeating(&PasswordsPrivateDelegateImpl::OsReauthTimeoutCall,
                           weak_ptr_factory_.GetWeakPtr()));
-  saved_passwords_presenter_.AddObserver(this);
-  saved_passwords_presenter_.Init();
+  // saved_passwords_presenter_.AddObserver(this);
+  // saved_passwords_presenter_.Init();
 
   if (syncer::SyncService* service =
           SyncServiceFactory::GetForProfile(profile_)) {
@@ -322,14 +322,14 @@ PasswordsPrivateDelegateImpl::PasswordsPrivateDelegateImpl(Profile* profile)
   }
 
 #if !BUILDFLAG(IS_CHROMEOS)
-  auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
-  install_manager_observation_.Observe(&provider->install_manager());
+  // auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
+  // install_manager_observation_.Observe(&provider->install_manager());
 #endif
 }
 
 PasswordsPrivateDelegateImpl::~PasswordsPrivateDelegateImpl() {
-  saved_passwords_presenter_.RemoveObserver(this);
-  install_manager_observation_.Reset();
+  // saved_passwords_presenter_.RemoveObserver(this);
+  // install_manager_observation_.Reset();
 #if !BUILDFLAG(IS_WIN)
   if (device_authenticator_) {
     device_authenticator_->Cancel();
@@ -448,12 +448,12 @@ bool PasswordsPrivateDelegateImpl::AddPassword(
   auto* client = ChromePasswordManagerClient::FromWebContents(web_contents);
   DCHECK(client);
   // Update the default store to the last used one.
-  if (success &&
-      client->GetPasswordFeatureManager()->IsOptedInForAccountStorage() &&
-      !base::FeatureList::IsEnabled(
-          password_manager::features::kButterOnDesktopFollowup)) {
-    client->GetPasswordFeatureManager()->SetDefaultPasswordStore(store_to_use);
-  }
+  // if (success &&
+  //     client->GetPasswordFeatureManager()->IsOptedInForAccountStorage() &&
+  //     !base::FeatureList::IsEnabled(
+  //         password_manager::features::kButterOnDesktopFollowup)) {
+  //   client->GetPasswordFeatureManager()->SetDefaultPasswordStore(store_to_use);
+  // }
   return success;
 }
 
@@ -692,14 +692,14 @@ void PasswordsPrivateDelegateImpl::MovePasswordsToAccount(
     credentials_to_move.push_back(*entry);
   }
 
-  saved_passwords_presenter_.MoveCredentialsToAccount(
-      credentials_to_move,
-      base::FeatureList::IsEnabled(
-          password_manager::features::kButterOnDesktopFollowup)
-          ? password_manager::metrics_util::MoveToAccountStoreTrigger::
-                kExplicitlyTriggeredInSettings
-          : password_manager::metrics_util::MoveToAccountStoreTrigger::
-                kExplicitlyTriggeredForMultiplePasswordsInSettings);
+  // saved_passwords_presenter_.MoveCredentialsToAccount(
+  //     credentials_to_move,
+  //     base::FeatureList::IsEnabled(
+  //         password_manager::features::kButterOnDesktopFollowup)
+  //         ? password_manager::metrics_util::MoveToAccountStoreTrigger::
+  //               kExplicitlyTriggeredInSettings
+  //         : password_manager::metrics_util::MoveToAccountStoreTrigger::
+  //               kExplicitlyTriggeredForMultiplePasswordsInSettings);
 }
 
 void PasswordsPrivateDelegateImpl::FetchFamilyMembers(
@@ -760,11 +760,11 @@ void PasswordsPrivateDelegateImpl::ImportPasswords(
   auto* client = ChromePasswordManagerClient::FromWebContents(web_contents);
   DCHECK(client);
   // Update the default store to the last used one.
-  if (client->GetPasswordFeatureManager()->IsOptedInForAccountStorage() &&
-      !base::FeatureList::IsEnabled(
-          password_manager::features::kButterOnDesktopFollowup)) {
-    client->GetPasswordFeatureManager()->SetDefaultPasswordStore(store_to_use);
-  }
+  // if (client->GetPasswordFeatureManager()->IsOptedInForAccountStorage() &&
+  //     !base::FeatureList::IsEnabled(
+  //         password_manager::features::kButterOnDesktopFollowup)) {
+  //   client->GetPasswordFeatureManager()->SetDefaultPasswordStore(store_to_use);
+  // }
 }
 
 void PasswordsPrivateDelegateImpl::ContinueImport(
@@ -837,21 +837,21 @@ void PasswordsPrivateDelegateImpl::SetAccountStorageOptIn(
     return;
   }
   if (!opt_in) {
-    if (base::FeatureList::IsEnabled(
-            password_manager::features::kButterOnDesktopFollowup)) {
-      client->GetPasswordFeatureManager()->OptOutOfAccountStorage();
-    } else {
-      client->GetPasswordFeatureManager()
-          ->OptOutOfAccountStorageAndClearSettings();
-    }
+    // if (base::FeatureList::IsEnabled(
+    //         password_manager::features::kButterOnDesktopFollowup)) {
+    //   client->GetPasswordFeatureManager()->OptOutOfAccountStorage();
+    // } else {
+    //   client->GetPasswordFeatureManager()
+    //       ->OptOutOfAccountStorageAndClearSettings();
+    // }
     return;
   }
 
-  if (!password_manager::features_util::AreAccountStorageOptInPromosAllowed()) {
-    // No need to show a reauth dialog in this case, just opt-in directly.
-    client->GetPasswordFeatureManager()->OptInToAccountStorage();
-    return;
-  }
+  // if (!password_manager::features_util::AreAccountStorageOptInPromosAllowed()) {
+  //   // No need to show a reauth dialog in this case, just opt-in directly.
+  //   client->GetPasswordFeatureManager()->OptInToAccountStorage();
+  //   return;
+  // }
 
   // The opt in pref is automatically set upon successful reauth.
   client->TriggerReauthForPrimaryAccount(
@@ -880,15 +880,15 @@ bool PasswordsPrivateDelegateImpl::UnmuteInsecureCredential(
 
 void PasswordsPrivateDelegateImpl::StartPasswordCheck(
     StartPasswordCheckCallback callback) {
-  password_check_delegate_.StartPasswordCheck(
-      password_manager::LeakDetectionInitiator::kBulkSyncedPasswordsCheck,
-      std::move(callback));
-  auto* sentiment_service =
-      TrustSafetySentimentServiceFactory::GetForProfile(profile_);
-  if (!sentiment_service) {
-    return;
-  }
-  sentiment_service->RanPasswordCheck();
+  // password_check_delegate_.StartPasswordCheck(
+  //     password_manager::LeakDetectionInitiator::kBulkSyncedPasswordsCheck,
+  //     std::move(callback));
+  // auto* sentiment_service =
+  //     TrustSafetySentimentServiceFactory::GetForProfile(profile_);
+  // if (!sentiment_service) {
+  //   return;
+  // }
+  // sentiment_service->RanPasswordCheck();
 }
 
 api::passwords_private::PasswordCheckStatus
@@ -913,71 +913,73 @@ void PasswordsPrivateDelegateImpl::SwitchBiometricAuthBeforeFillingState(
 
 void PasswordsPrivateDelegateImpl::ShowAddShortcutDialog(
     content::WebContents* web_contents) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
-  DCHECK(browser);
-  web_app::CreateWebAppFromCurrentWebContents(
-      browser, web_app::WebAppInstallFlow::kInstallSite);
-  base::UmaHistogramEnumeration(
-      "PasswordManager.ShortcutMetric",
-      password_manager::metrics_util::PasswordManagerShortcutMetric::
-          kAddShortcutClicked);
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  // DCHECK(browser);
+  // web_app::CreateWebAppFromCurrentWebContents(
+  //     browser, web_app::WebAppInstallFlow::kInstallSite);
+  // base::UmaHistogramEnumeration(
+  //     "PasswordManager.ShortcutMetric",
+  //     password_manager::metrics_util::PasswordManagerShortcutMetric::
+  //         kAddShortcutClicked);
 }
 
 void PasswordsPrivateDelegateImpl::ShowExportedFileInShell(
     content::WebContents* web_contents,
     std::string file_path) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
-  DCHECK(browser);
-#if !BUILDFLAG(IS_WIN)
-  base::FilePath path(file_path);
-#else
-  base::FilePath path(base::UTF8ToWide(file_path));
-#endif
-  platform_util::ShowItemInFolder(browser->profile(), path);
+//   Browser* browser = chrome::FindBrowserWithTab(web_contents);
+//   DCHECK(browser);
+// #if !BUILDFLAG(IS_WIN)
+//   base::FilePath path(file_path);
+// #else
+//   base::FilePath path(base::UTF8ToWide(file_path));
+// #endif
+//   platform_util::ShowItemInFolder(browser->profile(), path);
 }
 
 void PasswordsPrivateDelegateImpl::ChangePasswordManagerPin(
     content::WebContents* web_contents,
     base::OnceCallback<void(bool)> success_callback) {
-  ChangePinController* controller =
-      ChangePinController::ForWebContents(web_contents);
-  if (controller) {
-    controller->StartChangePin(std::move(success_callback));
-  }
+  // ChangePinController* controller =
+  //     ChangePinController::ForWebContents(web_contents);
+  // if (controller) {
+  //   controller->StartChangePin(std::move(success_callback));
+  // }
 }
 
 bool PasswordsPrivateDelegateImpl::IsPasswordManagerPinAvailable(
     content::WebContents* web_contents) {
-  ChangePinController* controller =
-      ChangePinController::ForWebContents(web_contents);
-  if (!controller) {
-    return false;
-  }
-  return controller->IsChangePinFlowAvailable();
+  // ChangePinController* controller =
+  //     ChangePinController::ForWebContents(web_contents);
+  // if (!controller) {
+  //   return false;
+  // }
+  // return controller->IsChangePinFlowAvailable();
+  return false;
 }
 
 void PasswordsPrivateDelegateImpl::DisconnectCloudAuthenticator(
     content::WebContents* web_contents,
     base::OnceCallback<void(bool)> success_callback) {
-  EnclaveManagerInterface* enclave_manager =
-      EnclaveManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(web_contents->GetBrowserContext()));
-  if (enclave_manager) {
-    enclave_manager->Unenroll(std::move(success_callback));
-  }
+  // EnclaveManagerInterface* enclave_manager =
+  //     EnclaveManagerFactory::GetForProfile(
+  //         Profile::FromBrowserContext(web_contents->GetBrowserContext()));
+  // if (enclave_manager) {
+  //   enclave_manager->Unenroll(std::move(success_callback));
+  // }
 }
 
 bool PasswordsPrivateDelegateImpl::IsConnectedToCloudAuthenticator(
     content::WebContents* web_contents) {
-  EnclaveManagerInterface* enclave_manager =
-      EnclaveManagerFactory::GetForProfile(
-          Profile::FromBrowserContext(web_contents->GetBrowserContext()));
+  // EnclaveManagerInterface* enclave_manager =
+  //     EnclaveManagerFactory::GetForProfile(
+  //         Profile::FromBrowserContext(web_contents->GetBrowserContext()));
 
-  if (!enclave_manager) {
-    return false;
-  }
+  // if (!enclave_manager) {
+  //   return false;
+  // }
 
-  return enclave_manager->is_registered();
+  // return enclave_manager->is_registered();
+  return false;
 }
 
 base::WeakPtr<PasswordsPrivateDelegate>
@@ -996,15 +998,15 @@ void PasswordsPrivateDelegateImpl::RestartAuthTimer() {
 
 void PasswordsPrivateDelegateImpl::MaybeShowPasswordShareButtonIPH(
     base::WeakPtr<content::WebContents> web_contents) {
-  if (!web_contents) {
-    return;
-  }
-  Browser* browser = chrome::FindBrowserWithTab(web_contents.get());
-  if (!browser || !browser->window()) {
-    return;
-  }
-  browser->window()->MaybeShowFeaturePromo(
-      feature_engagement::kIPHPasswordSharingFeature);
+  // if (!web_contents) {
+  //   return;
+  // }
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents.get());
+  // if (!browser || !browser->window()) {
+  //   return;
+  // }
+  // browser->window()->MaybeShowFeaturePromo(
+  //     feature_engagement::kIPHPasswordSharingFeature);
 }
 
 void PasswordsPrivateDelegateImpl::OnPasswordsExportProgress(
@@ -1161,25 +1163,25 @@ void PasswordsPrivateDelegateImpl::OnSavedPasswordsChanged(
   SetCredentials(saved_passwords_presenter_.GetSavedCredentials());
 }
 
-void PasswordsPrivateDelegateImpl::OnWebAppInstalledWithOsHooks(
-    const webapps::AppId& app_id) {
-  if (app_id != web_app::kPasswordManagerAppId) {
-    return;
-  }
-  // Post task with delay because new browser window for an app isn't created
-  // yet.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, base::BindOnce(&MaybeShowProfileSwitchIPH, profile_),
-      base::Seconds(1));
-  base::UmaHistogramEnumeration(
-      "PasswordManager.ShortcutMetric",
-      password_manager::metrics_util::PasswordManagerShortcutMetric::
-          kShortcutInstalled);
-}
+// void PasswordsPrivateDelegateImpl::OnWebAppInstalledWithOsHooks(
+//     const webapps::AppId& app_id) {
+//   if (app_id != web_app::kPasswordManagerAppId) {
+//     return;
+//   }
+//   // Post task with delay because new browser window for an app isn't created
+//   // yet.
+//   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+//       FROM_HERE, base::BindOnce(&MaybeShowProfileSwitchIPH, profile_),
+//       base::Seconds(1));
+//   base::UmaHistogramEnumeration(
+//       "PasswordManager.ShortcutMetric",
+//       password_manager::metrics_util::PasswordManagerShortcutMetric::
+//           kShortcutInstalled);
+// }
 
-void PasswordsPrivateDelegateImpl::OnWebAppInstallManagerDestroyed() {
-  install_manager_observation_.Reset();
-}
+// void PasswordsPrivateDelegateImpl::OnWebAppInstallManagerDestroyed() {
+//   // install_manager_observation_.Reset();
+// }
 
 void PasswordsPrivateDelegateImpl::InitializeIfNecessary() {
   if (is_initialized_ || !current_entries_initialized_) {

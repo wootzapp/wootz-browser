@@ -735,39 +735,40 @@ ExtensionFunction::ResponseAction UsbGetUserSelectedDevicesFunction::Run() {
       GetUserSelectedDevices::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(parameters);
 
-  if (!user_gesture()) {
-    return RespondNow(WithArguments(base::Value::List()));
-  }
+  // if (!user_gesture()) {
+  //   return RespondNow(WithArguments(base::Value::List()));
+  // }
 
-  bool multiple = false;
-  if (parameters->options.multiple) {
-    multiple = *parameters->options.multiple;
-  }
+  // bool multiple = false;
+  // if (parameters->options.multiple) {
+  //   multiple = *parameters->options.multiple;
+  // }
 
-  std::vector<UsbDeviceFilterPtr> filters;
-  if (parameters->options.filters) {
-    filters.reserve(parameters->options.filters->size());
-    for (const auto& filter : *parameters->options.filters)
-      filters.push_back(ConvertDeviceFilter(filter));
-  }
+  // std::vector<UsbDeviceFilterPtr> filters;
+  // if (parameters->options.filters) {
+  //   filters.reserve(parameters->options.filters->size());
+  //   for (const auto& filter : *parameters->options.filters)
+  //     filters.push_back(ConvertDeviceFilter(filter));
+  // }
 
-  content::WebContents* web_contents = GetSenderWebContents();
-  if (!web_contents) {
-    return RespondNow(
-        Error(function_constants::kCouldNotFindSenderWebContents));
-  }
+  // content::WebContents* web_contents = GetSenderWebContents();
+  // if (!web_contents) {
+  //   return RespondNow(
+  //       Error(function_constants::kCouldNotFindSenderWebContents));
+  // }
 
-  prompt_ =
-      ExtensionsAPIClient::Get()->CreateDevicePermissionsPrompt(web_contents);
-  if (!prompt_) {
-    return RespondNow(Error(kErrorNotSupported));
-  }
+  // prompt_ =
+  //     ExtensionsAPIClient::Get()->CreateDevicePermissionsPrompt(web_contents);
+  // if (!prompt_) {
+  //   return RespondNow(Error(kErrorNotSupported));
+  // }
 
-  prompt_->AskForUsbDevices(
-      extension(), browser_context(), multiple, std::move(filters),
-      base::BindOnce(&UsbGetUserSelectedDevicesFunction::OnDevicesChosen,
-                     this));
-  return RespondLater();
+  // prompt_->AskForUsbDevices(
+  //     extension(), browser_context(), multiple, std::move(filters),
+  //     base::BindOnce(&UsbGetUserSelectedDevicesFunction::OnDevicesChosen,
+  //                    this));
+  // return RespondLater();
+  return RespondNow(Error("not supported"));
 }
 
 void UsbGetUserSelectedDevicesFunction::OnDevicesChosen(

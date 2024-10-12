@@ -10,7 +10,8 @@ import("//mojo/public/tools/bindings/mojom.gni")
 import("//testing/test.gni")
 
 assert(!is_fuchsia, "Fuchsia shouldn't use anything in //chrome")
-
+assert(!is_android)
+assert(false)
 source_set("web_applications") {
   sources = [
     "callback_utils.h",

@@ -35,7 +35,8 @@ PasswordsPrivateEventRouterFactory::PasswordsPrivateEventRouterFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 PasswordsPrivateEventRouterFactory::~PasswordsPrivateEventRouterFactory() =

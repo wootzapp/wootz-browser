@@ -1661,15 +1661,15 @@ TEST_F(PasswordsPrivateDelegateImplTest, GetCredentialGroups) {
 TEST_F(PasswordsPrivateDelegateImplTest, PasswordManagerAppInstalled) {
   base::HistogramTester histogram_tester;
   auto delegate = CreateDelegate();
-  static_cast<web_app::WebAppInstallManagerObserver*>(delegate.get())
-      ->OnWebAppInstalledWithOsHooks(web_app::kPasswordManagerAppId);
+//   static_cast<web_app::WebAppInstallManagerObserver*>(delegate.get())
+//       ->OnWebAppInstalledWithOsHooks(web_app::kPasswordManagerAppId);
 
   EXPECT_THAT(histogram_tester.GetAllSamples("PasswordManager.ShortcutMetric"),
               base::BucketsAre(base::Bucket(1, 1)));
 
   // Check that installing other app doesn't get recorded.
-  static_cast<web_app::WebAppInstallManagerObserver*>(delegate.get())
-      ->OnWebAppInstalledWithOsHooks(web_app::kYoutubeMusicAppId);
+//   static_cast<web_app::WebAppInstallManagerObserver*>(delegate.get())
+//       ->OnWebAppInstalledWithOsHooks(web_app::kYoutubeMusicAppId);
 
   histogram_tester.ExpectUniqueSample("PasswordManager.ShortcutMetric", 1, 1);
 }

@@ -32,7 +32,8 @@ InstallLimiterFactory::InstallLimiterFactory()
               .WithGuest(ProfileSelection::kOffTheRecordOnly)
 #endif
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 InstallLimiterFactory::~InstallLimiterFactory() = default;

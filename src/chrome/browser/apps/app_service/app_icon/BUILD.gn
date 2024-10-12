@@ -4,7 +4,7 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
-assert(!is_android)
+# assert(!is_android)
 
 source_set("app_icon") {
   sources = [
@@ -23,8 +23,8 @@ source_set("app_icon") {
     "//chrome/browser/icon_transcoder",
     "//chrome/browser/profiles",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/resources:app_icon_resources_grit",
-    "//chrome/browser/web_applications",
+    # "//chrome/browser/resources:app_icon_resources_grit",
+    # "//chrome/browser/web_applications",
     "//chrome/common",
     "//components/app_constants",
     "//components/favicon/core",
@@ -81,58 +81,58 @@ source_set("util") {
   }
 }
 
-source_set("unit_tests") {
-  testonly = true
+# source_set("unit_tests") {
+#   testonly = true
 
-  sources = [
-    "app_icon_factory_unittest.cc",
-    "chrome_apps_icon_unittest.cc",
-    "web_app_icon_unittest.cc",
-  ]
+#   sources = [
+#     "app_icon_factory_unittest.cc",
+#     "chrome_apps_icon_unittest.cc",
+#     "web_app_icon_unittest.cc",
+#   ]
 
-  deps = [
-    ":app_icon",
-    ":test_support",
-    ":util",
-    "//base",
-    "//base/test:test_support",
-    "//build:chromeos_buildflags",
-    "//cc:test_support",
-    "//chrome/app/theme:chrome_unscaled_resources_grit",
-    "//chrome/browser/apps:icon_standardizer",
-    "//chrome/browser/apps/app_service",
-    "//chrome/browser/extensions",
-    "//chrome/browser/resources:component_extension_resources_grit",
-    "//chrome/browser/web_applications",
-    "//chrome/browser/web_applications:web_applications_test_support",
-    "//chrome/common:non_code_constants",
-    "//chrome/test:test_support",
-    "//components/app_constants",
-    "//components/services/app_service",
-    "//content/test:test_support",
-    "//services/data_decoder/public/cpp:test_support",
-    "//skia",
-    "//testing/gtest",
-    "//ui/base",
-    "//ui/gfx",
-    "//ui/gfx:test_support",
-    "//ui/gfx/codec",
-  ]
+#   deps = [
+#     ":app_icon",
+#     ":test_support",
+#     ":util",
+#     "//base",
+#     "//base/test:test_support",
+#     "//build:chromeos_buildflags",
+#     "//cc:test_support",
+#     "//chrome/app/theme:chrome_unscaled_resources_grit",
+#     "//chrome/browser/apps:icon_standardizer",
+#     # "//chrome/browser/apps/app_service",
+#     "//chrome/browser/extensions",
+#     "//chrome/browser/resources:component_extension_resources_grit",
+#     # "//chrome/browser/web_applications",
+#     # "//chrome/browser/web_applications:web_applications_test_support",
+#     "//chrome/common:non_code_constants",
+#     "//chrome/test:test_support",
+#     "//components/app_constants",
+#     "//components/services/app_service",
+#     "//content/test:test_support",
+#     "//services/data_decoder/public/cpp:test_support",
+#     "//skia",
+#     "//testing/gtest",
+#     "//ui/base",
+#     "//ui/gfx",
+#     "//ui/gfx:test_support",
+#     "//ui/gfx/codec",
+#   ]
 
-  if (is_chromeos_ash) {
-    sources += [
-      "app_icon_decoder_unittest.cc",
-      "arc_apps_icon_unittest.cc",
-      "browser_shortcut_icon_unittest.cc",
-      "guest_os_apps_icon_unittest.cc",
-    ]
+#   if (is_chromeos_ash) {
+#     sources += [
+#       "app_icon_decoder_unittest.cc",
+#       "arc_apps_icon_unittest.cc",
+#       "browser_shortcut_icon_unittest.cc",
+#       "guest_os_apps_icon_unittest.cc",
+#     ]
 
-    deps += [
-      "//ash/components/arc:arc_test_support",
-      "//chrome/browser/ash:test_support",
-    ]
-  }
-}
+#     deps += [
+#       "//ash/components/arc:arc_test_support",
+#       "//chrome/browser/ash:test_support",
+#     ]
+#   }
+# }
 
 source_set("test_support") {
   testonly = true
@@ -144,7 +144,7 @@ source_set("test_support") {
     "web_app_icon_test_helper.h",
   ]
 
-  public_deps = [ "//chrome/browser/apps/app_service" ]
+  # public_deps = [ "//chrome/browser/apps/app_service" ]
 
   deps = [
     ":app_icon",

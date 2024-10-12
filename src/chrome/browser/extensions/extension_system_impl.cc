@@ -164,9 +164,9 @@ void ExtensionSystemImpl::Shared::RegisterManagementPolicyProviders() {
 }
 
 void ExtensionSystemImpl::Shared::InitInstallGates() {
-  update_install_gate_ = std::make_unique<UpdateInstallGate>(profile_);
-  extension_service_->RegisterInstallGate(
-      ExtensionPrefs::DELAY_REASON_WAIT_FOR_IDLE, update_install_gate_.get());
+  // update_install_gate_ = std::make_unique<UpdateInstallGate>(profile_);
+  // extension_service_->RegisterInstallGate(
+  //     ExtensionPrefs::DELAY_REASON_WAIT_FOR_IDLE, update_install_gate_.get());
   extension_service_->RegisterInstallGate(
       ExtensionPrefs::DELAY_REASON_WAIT_FOR_IMPORTS,
       extension_service_->shared_module_service());
@@ -279,12 +279,12 @@ void ExtensionSystemImpl::Shared::Init(bool extensions_enabled) {
   ExtensionSyncService::Get(profile_);
 
   // Make the chrome://extension-icon/ resource available.
-  content::URLDataSource::Add(profile_,
-                              std::make_unique<ExtensionIconSource>(profile_));
+  // content::URLDataSource::Add(profile_,
+  //                             std::make_unique<ExtensionIconSource>(profile_));
 
   // Register the source for the chrome://extensions-internals page.
-  content::URLDataSource::Add(
-      profile_, std::make_unique<ExtensionsInternalsSource>(profile_));
+  // content::URLDataSource::Add(
+  //     profile_, std::make_unique<ExtensionsInternalsSource>(profile_));
 }
 
 void ExtensionSystemImpl::Shared::Shutdown() {

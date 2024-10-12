@@ -221,17 +221,17 @@ void ExtensionWebContentsObserver::ReadyToCommitNavigation(
   content::RenderFrameHost* parent_or_outerdoc =
       navigation_handle->GetParentFrameOrOuterDocument();
 
-  content::RenderFrameHost* outermost_main_render_frame_host =
-      parent_or_outerdoc ? parent_or_outerdoc->GetOutermostMainFrame()
-                         : navigation_handle->GetRenderFrameHost();
+  // content::RenderFrameHost* outermost_main_render_frame_host =
+  //     parent_or_outerdoc ? parent_or_outerdoc->GetOutermostMainFrame()
+  //                        : navigation_handle->GetRenderFrameHost();
 
-  const Extension* const extension =
-      GetExtensionFromFrame(outermost_main_render_frame_host, false);
-  KioskDelegate* const kiosk_delegate =
-      ExtensionsBrowserClient::Get()->GetKioskDelegate();
-  DCHECK(kiosk_delegate);
-  bool is_kiosk =
-      extension && kiosk_delegate->IsAutoLaunchedKioskApp(extension->id());
+  // const Extension* const extension =
+  //     GetExtensionFromFrame(outermost_main_render_frame_host, false);
+  // KioskDelegate* const kiosk_delegate =
+  //     ExtensionsBrowserClient::Get()->GetKioskDelegate();
+  // DCHECK(kiosk_delegate);
+  // bool is_kiosk =
+  //     extension && kiosk_delegate->IsAutoLaunchedKioskApp(extension->id());
 
   // If the top most frame is an extension, packaged app, hosted app, etc. then
   // the main frame and all iframes should be able to autoplay without
@@ -240,7 +240,8 @@ void ExtensionWebContentsObserver::ReadyToCommitNavigation(
       parent_or_outerdoc
           ? parent_or_outerdoc->GetOutermostMainFrame()->GetLastCommittedURL()
           : navigation_handle->GetURL();
-  if (is_kiosk || registry->enabled_extensions().GetExtensionOrAppByURL(url)) {
+  // if (is_kiosk || registry->enabled_extensions().GetExtensionOrAppByURL(url)) {
+  if (registry->enabled_extensions().GetExtensionOrAppByURL(url)) {
     mojo::AssociatedRemote<blink::mojom::AutoplayConfigurationClient> client;
     navigation_handle->GetRenderFrameHost()
         ->GetRemoteAssociatedInterfaces()

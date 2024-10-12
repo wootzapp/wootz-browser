@@ -24,7 +24,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/extensions_container.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
@@ -76,24 +76,24 @@ bool g_report_error_for_invisible_icon = false;
 // also checking the incognito profile.
 Browser* FindLastActiveBrowserWindow(Profile* profile,
                                      bool check_incognito_profile) {
-  Browser* browser = chrome::FindLastActiveWithProfile(profile);
+  // Browser* browser = chrome::FindLastActiveWithProfile(profile);
 
-  if (browser && browser->window()->IsActive())
-    return browser;  // Found an active browser.
+  // if (browser)  //&& browser->window()->IsActive())
+  //   return browser;  // Found an active browser.
 
-  // It's possible that the last active browser actually corresponds to the
-  // associated incognito profile, and this won't be returned by
-  // FindLastActiveWithProfile(). If the extension can operate incognito, then
-  // check the last active incognito, too.
-  if (check_incognito_profile && profile->HasPrimaryOTRProfile()) {
-    Profile* incognito_profile =
-        profile->GetPrimaryOTRProfile(/*create_if_needed=*/false);
-    DCHECK(incognito_profile);
-    Browser* incognito_browser =
-        chrome::FindLastActiveWithProfile(incognito_profile);
-    if (incognito_browser->window()->IsActive())
-      return incognito_browser;
-  }
+  // // It's possible that the last active browser actually corresponds to the
+  // // associated incognito profile, and this won't be returned by
+  // // FindLastActiveWithProfile(). If the extension can operate incognito, then
+  // // check the last active incognito, too.
+  // if (check_incognito_profile && profile->HasPrimaryOTRProfile()) {
+  //   Profile* incognito_profile =
+  //       profile->GetPrimaryOTRProfile(/*create_if_needed=*/false);
+  //   DCHECK(incognito_profile);
+  //   // Browser* incognito_browser =
+  //   //     chrome::FindLastActiveWithProfile(incognito_profile);
+  //   // if (incognito_browser->window()->IsActive())
+  //     // return incognito_browser;
+  // }
 
   return nullptr;
 }
@@ -124,16 +124,17 @@ bool ParseColor(const base::Value& color_value, SkColor& color) {
 bool HasPopupOnActiveTab(Browser* browser,
                          content::BrowserContext* browser_context,
                          const Extension& extension) {
-  content::WebContents* web_contents =
-      browser->tab_strip_model()->GetActiveWebContents();
-  ExtensionAction* extension_action =
-      ExtensionActionManager::Get(browser_context)
-          ->GetExtensionAction(extension);
-  DCHECK(extension_action);
-  int tab_id = ExtensionTabUtil::GetTabId(web_contents);
+  // content::WebContents* web_contents =
+  //     browser->tab_strip_model()->GetActiveWebContents();
+  // ExtensionAction* extension_action =
+  //     ExtensionActionManager::Get(browser_context)
+  //         ->GetExtensionAction(extension);
+  // DCHECK(extension_action);
+  // int tab_id = ExtensionTabUtil::GetTabId(web_contents);
 
-  return extension_action->HasPopup(tab_id) &&
-         extension_action->GetIsVisibleIgnoringDeclarative(tab_id);
+  // return extension_action->HasPopup(tab_id) &&
+  //        extension_action->GetIsVisibleIgnoringDeclarative(tab_id);
+  return false;
 }
 
 // Attempts to open `extension`'s popup in the given `browser`. Returns true on
@@ -142,23 +143,23 @@ bool OpenPopupInBrowser(Browser& browser,
                         const Extension& extension,
                         std::string* error,
                         ShowPopupCallback callback) {
-  if (!browser.SupportsWindowFeature(Browser::FEATURE_TOOLBAR) ||
-      !browser.window()->IsToolbarVisible()) {
-    *error = "Browser window has no toolbar.";
-    return false;
-  }
+  // if (!browser.SupportsWindowFeature(Browser::FEATURE_TOOLBAR)){ // ||
+  //     //!browser.window()->IsToolbarVisible()) {
+  //   *error = "Browser window has no toolbar.";
+  //   return false;
+  // }
 
-  ExtensionsContainer* extensions_container =
-      browser.window()->GetExtensionsContainer();
-  // The ExtensionsContainer could be null if, e.g., this is a popup window with
-  // no toolbar.
-  // TODO(devlin): Is that still possible, given the checks above?
-  if (!extensions_container ||
-      !extensions_container->ShowToolbarActionPopupForAPICall(
-          extension.id(), std::move(callback))) {
-    *error = kFailedToOpenPopupGenericError;
-    return false;
-  }
+  // ExtensionsContainer* extensions_container =
+  //     browser.window()->GetExtensionsContainer();
+  // // The ExtensionsContainer could be null if, e.g., this is a popup window with
+  // // no toolbar.
+  // // TODO(devlin): Is that still possible, given the checks above?
+  // if (!extensions_container ||
+  //     !extensions_container->ShowToolbarActionPopupForAPICall(
+  //         extension.id(), std::move(callback))) {
+  //   *error = kFailedToOpenPopupGenericError;
+  //   return false;
+  // }
 
   return true;
 }
@@ -614,28 +615,29 @@ ActionGetUserSettingsFunction::ActionGetUserSettingsFunction() = default;
 ActionGetUserSettingsFunction::~ActionGetUserSettingsFunction() = default;
 
 ExtensionFunction::ResponseAction ActionGetUserSettingsFunction::Run() {
-  DCHECK(extension());
-  ExtensionActionManager* const action_manager =
-      ExtensionActionManager::Get(browser_context());
-  ExtensionAction* const action =
-      action_manager->GetExtensionAction(*extension());
+  // DCHECK(extension());
+  // ExtensionActionManager* const action_manager =
+  //     ExtensionActionManager::Get(browser_context());
+  // ExtensionAction* const action =
+  //     action_manager->GetExtensionAction(*extension());
 
-  // This API is only available to extensions with the "action" key in the
-  // manifest, so they should always have an action.
-  DCHECK(action);
-  DCHECK_EQ(ActionInfo::Type::kAction, action->action_type());
+  // // This API is only available to extensions with the "action" key in the
+  // // manifest, so they should always have an action.
+  // DCHECK(action);
+  // DCHECK_EQ(ActionInfo::Type::kAction, action->action_type());
 
-  const bool is_pinned =
-      ToolbarActionsModel::Get(Profile::FromBrowserContext(browser_context()))
-          ->IsActionPinned(extension_id());
+  // const bool is_pinned =
+  //     ToolbarActionsModel::Get(Profile::FromBrowserContext(browser_context()))
+  //         ->IsActionPinned(extension_id());
 
-  // TODO(devlin): Today, no action APIs are compiled. Unfortunately, this
-  // means we miss out on the compiled types, which would be rather helpful
-  // here.
-  base::Value::Dict ui_settings;
-  ui_settings.Set("isOnToolbar", is_pinned);
+  // // TODO(devlin): Today, no action APIs are compiled. Unfortunately, this
+  // // means we miss out on the compiled types, which would be rather helpful
+  // // here.
+  // base::Value::Dict ui_settings;
+  // ui_settings.Set("isOnToolbar", is_pinned);
 
-  return RespondNow(WithArguments(std::move(ui_settings)));
+  // return RespondNow(WithArguments(std::move(ui_settings)));
+  return RespondNow(Error("not implemented"));
 }
 
 ActionOpenPopupFunction::ActionOpenPopupFunction() = default;

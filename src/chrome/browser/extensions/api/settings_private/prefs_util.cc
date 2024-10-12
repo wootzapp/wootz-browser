@@ -1127,8 +1127,8 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
   // Media Remoting settings.
-  (*s_allowlist)[media_router::prefs::kMediaRouterMediaRemotingEnabled] =
-      settings_api::PrefType::kBoolean;
+//   (*s_allowlist)[media_router::prefs::kMediaRouterMediaRemotingEnabled] =
+//       settings_api::PrefType::kBoolean;
 
   // Performance settings.
   (*s_allowlist)

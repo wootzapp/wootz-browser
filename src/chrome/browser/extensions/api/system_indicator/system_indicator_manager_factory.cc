@@ -34,7 +34,8 @@ SystemIndicatorManagerFactory::SystemIndicatorManagerFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 SystemIndicatorManagerFactory::~SystemIndicatorManagerFactory() = default;

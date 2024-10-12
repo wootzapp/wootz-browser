@@ -76,76 +76,76 @@ api::enterprise_reporting_private::ContextInfo ToContextInfo(
     enterprise_signals::ContextInfo&& signals) {
   api::enterprise_reporting_private::ContextInfo info;
 
-  info.browser_affiliation_ids = std::move(signals.browser_affiliation_ids);
-  info.profile_affiliation_ids = std::move(signals.profile_affiliation_ids);
-  info.on_file_attached_providers =
-      std::move(signals.on_file_attached_providers);
-  info.on_file_downloaded_providers =
-      std::move(signals.on_file_downloaded_providers);
-  info.on_bulk_data_entry_providers =
-      std::move(signals.on_bulk_data_entry_providers);
-  info.on_print_providers = std::move(signals.on_print_providers);
-  info.on_security_event_providers =
-      std::move(signals.on_security_event_providers);
-  info.site_isolation_enabled = signals.site_isolation_enabled;
-  info.chrome_remote_desktop_app_blocked =
-      signals.chrome_remote_desktop_app_blocked;
-  info.third_party_blocking_enabled = signals.third_party_blocking_enabled;
-  info.os_firewall = ToInfoSettingValue(signals.os_firewall);
-  info.system_dns_servers = std::move(signals.system_dns_servers);
-  switch (signals.realtime_url_check_mode) {
-    case safe_browsing::REAL_TIME_CHECK_DISABLED:
-      info.realtime_url_check_mode = extensions::api::
-          enterprise_reporting_private::RealtimeUrlCheckMode::kDisabled;
-      break;
-    case safe_browsing::REAL_TIME_CHECK_FOR_MAINFRAME_ENABLED:
-      info.realtime_url_check_mode = extensions::api::
-          enterprise_reporting_private::RealtimeUrlCheckMode::kEnabledMainFrame;
-      break;
-  }
-  info.browser_version = std::move(signals.browser_version);
-  info.built_in_dns_client_enabled = signals.built_in_dns_client_enabled;
-  info.enterprise_profile_id = signals.enterprise_profile_id;
+  // info.browser_affiliation_ids = std::move(signals.browser_affiliation_ids);
+  // info.profile_affiliation_ids = std::move(signals.profile_affiliation_ids);
+  // info.on_file_attached_providers =
+  //     std::move(signals.on_file_attached_providers);
+  // info.on_file_downloaded_providers =
+  //     std::move(signals.on_file_downloaded_providers);
+  // info.on_bulk_data_entry_providers =
+  //     std::move(signals.on_bulk_data_entry_providers);
+  // info.on_print_providers = std::move(signals.on_print_providers);
+  // info.on_security_event_providers =
+  //     std::move(signals.on_security_event_providers);
+  // info.site_isolation_enabled = signals.site_isolation_enabled;
+  // info.chrome_remote_desktop_app_blocked =
+  //     signals.chrome_remote_desktop_app_blocked;
+  // info.third_party_blocking_enabled = signals.third_party_blocking_enabled;
+  // info.os_firewall = ToInfoSettingValue(signals.os_firewall);
+  // info.system_dns_servers = std::move(signals.system_dns_servers);
+  // switch (signals.realtime_url_check_mode) {
+  //   case safe_browsing::REAL_TIME_CHECK_DISABLED:
+  //     info.realtime_url_check_mode = extensions::api::
+  //         enterprise_reporting_private::RealtimeUrlCheckMode::kDisabled;
+  //     break;
+  //   case safe_browsing::REAL_TIME_CHECK_FOR_MAINFRAME_ENABLED:
+  //     info.realtime_url_check_mode = extensions::api::
+  //         enterprise_reporting_private::RealtimeUrlCheckMode::kEnabledMainFrame;
+  //     break;
+  // }
+  // info.browser_version = std::move(signals.browser_version);
+  // info.built_in_dns_client_enabled = signals.built_in_dns_client_enabled;
+  // info.enterprise_profile_id = signals.enterprise_profile_id;
 
-  switch (signals.safe_browsing_protection_level) {
-    case safe_browsing::SafeBrowsingState::NO_SAFE_BROWSING:
-      info.safe_browsing_protection_level = extensions::api::
-          enterprise_reporting_private::SafeBrowsingLevel::kDisabled;
-      break;
-    case safe_browsing::SafeBrowsingState::STANDARD_PROTECTION:
-      info.safe_browsing_protection_level = extensions::api::
-          enterprise_reporting_private::SafeBrowsingLevel::kStandard;
-      break;
-    case safe_browsing::SafeBrowsingState::ENHANCED_PROTECTION:
-      info.safe_browsing_protection_level = extensions::api::
-          enterprise_reporting_private::SafeBrowsingLevel::kEnhanced;
-      break;
-  }
-  if (!signals.password_protection_warning_trigger.has_value()) {
-    info.password_protection_warning_trigger = extensions::api::
-        enterprise_reporting_private::PasswordProtectionTrigger::kPolicyUnset;
-  } else {
-    switch (signals.password_protection_warning_trigger.value()) {
-      case safe_browsing::PASSWORD_PROTECTION_OFF:
-        info.password_protection_warning_trigger =
-            extensions::api::enterprise_reporting_private::
-                PasswordProtectionTrigger::kPasswordProtectionOff;
-        break;
-      case safe_browsing::PASSWORD_REUSE:
-        info.password_protection_warning_trigger =
-            extensions::api::enterprise_reporting_private::
-                PasswordProtectionTrigger::kPasswordReuse;
-        break;
-      case safe_browsing::PHISHING_REUSE:
-        info.password_protection_warning_trigger =
-            extensions::api::enterprise_reporting_private::
-                PasswordProtectionTrigger::kPhishingReuse;
-        break;
-      case safe_browsing::PASSWORD_PROTECTION_TRIGGER_MAX:
-        NOTREACHED_IN_MIGRATION();
-        break;
-    }
-  }
+  // switch (signals.safe_browsing_protection_level) {
+  //   case safe_browsing::SafeBrowsingState::NO_SAFE_BROWSING:
+  //     info.safe_browsing_protection_level = extensions::api::
+  //         enterprise_reporting_private::SafeBrowsingLevel::kDisabled;
+  //     break;
+  //   case safe_browsing::SafeBrowsingState::STANDARD_PROTECTION:
+  //     info.safe_browsing_protection_level = extensions::api::
+  //         enterprise_reporting_private::SafeBrowsingLevel::kStandard;
+  //     break;
+  //   case safe_browsing::SafeBrowsingState::ENHANCED_PROTECTION:
+  //     info.safe_browsing_protection_level = extensions::api::
+  //         enterprise_reporting_private::SafeBrowsingLevel::kEnhanced;
+  //     break;
+  // }
+  // if (!signals.password_protection_warning_trigger.has_value()) {
+  //   info.password_protection_warning_trigger = extensions::api::
+  //       enterprise_reporting_private::PasswordProtectionTrigger::kPolicyUnset;
+  // } else {
+  //   switch (signals.password_protection_warning_trigger.value()) {
+  //     case safe_browsing::PASSWORD_PROTECTION_OFF:
+  //       info.password_protection_warning_trigger =
+  //           extensions::api::enterprise_reporting_private::
+  //               PasswordProtectionTrigger::kPasswordProtectionOff;
+  //       break;
+  //     case safe_browsing::PASSWORD_REUSE:
+  //       info.password_protection_warning_trigger =
+  //           extensions::api::enterprise_reporting_private::
+  //               PasswordProtectionTrigger::kPasswordReuse;
+  //       break;
+  //     case safe_browsing::PHISHING_REUSE:
+  //       info.password_protection_warning_trigger =
+  //           extensions::api::enterprise_reporting_private::
+  //               PasswordProtectionTrigger::kPhishingReuse;
+  //       break;
+  //     case safe_browsing::PASSWORD_PROTECTION_TRIGGER_MAX:
+  //       NOTREACHED_IN_MIGRATION();
+  //       break;
+  //   }
+  // }
 
   return info;
 }
@@ -440,24 +440,25 @@ EnterpriseReportingPrivateGetContextInfoFunction::
 
 ExtensionFunction::ResponseAction
 EnterpriseReportingPrivateGetContextInfoFunction::Run() {
-  auto* connectors_service =
-      enterprise_connectors::ConnectorsServiceFactory::GetInstance()
-          ->GetForBrowserContext(browser_context());
-  DCHECK(connectors_service);
+  // auto* connectors_service =
+  //     enterprise_connectors::ConnectorsServiceFactory::GetInstance()
+  //         ->GetForBrowserContext(browser_context());
+  // DCHECK(connectors_service);
 
-  context_info_fetcher_ =
-      enterprise_signals::ContextInfoFetcher::CreateInstance(
-          browser_context(), connectors_service);
-  context_info_fetcher_->Fetch(base::BindOnce(
-      &EnterpriseReportingPrivateGetContextInfoFunction::OnContextInfoRetrieved,
-      this));
+  // context_info_fetcher_ =
+  //     enterprise_signals::ContextInfoFetcher::CreateInstance(
+  //         browser_context(), connectors_service);
+  // context_info_fetcher_->Fetch(base::BindOnce(
+  //     &EnterpriseReportingPrivateGetContextInfoFunction::OnContextInfoRetrieved,
+  //     this));
 
-  return RespondLater();
+  // return RespondLater();
+  return RespondNow(Error("not implemented"));
 }
 
 void EnterpriseReportingPrivateGetContextInfoFunction::OnContextInfoRetrieved(
     enterprise_signals::ContextInfo context_info) {
-  Respond(WithArguments(ToContextInfo(std::move(context_info)).ToValue()));
+  // Respond(WithArguments(ToContextInfo(std::move(context_info)).ToValue()));
 }
 
 // getCertificate
@@ -469,50 +470,51 @@ EnterpriseReportingPrivateGetCertificateFunction::
 
 ExtensionFunction::ResponseAction
 EnterpriseReportingPrivateGetCertificateFunction::Run() {
-  std::optional<api::enterprise_reporting_private::GetCertificate::Params>
-      params =
-          api::enterprise_reporting_private::GetCertificate::Params::Create(
-              args());
-  EXTENSION_FUNCTION_VALIDATE(params);
+  // std::optional<api::enterprise_reporting_private::GetCertificate::Params>
+  //     params =
+  //         api::enterprise_reporting_private::GetCertificate::Params::Create(
+  //             args());
+  // EXTENSION_FUNCTION_VALIDATE(params);
 
-  // If AutoSelectCertificateForUrl is not set at the machine level, this
-  // operation is not supported and should return immediately with the
-  // appropriate status field value.
-  if (!chrome::enterprise_util::IsMachinePolicyPref(
-          prefs::kManagedAutoSelectCertificateForUrls)) {
-    api::enterprise_reporting_private::Certificate ret;
-    ret.status = extensions::api::enterprise_reporting_private::
-        CertificateStatus::kPolicyUnset;
-    return RespondNow(WithArguments(ret.ToValue()));
-  }
+  // // If AutoSelectCertificateForUrl is not set at the machine level, this
+  // // operation is not supported and should return immediately with the
+  // // appropriate status field value.
+  // if (!chrome::enterprise_util::IsMachinePolicyPref(
+  //         prefs::kManagedAutoSelectCertificateForUrls)) {
+  //   api::enterprise_reporting_private::Certificate ret;
+  //   ret.status = extensions::api::enterprise_reporting_private::
+  //       CertificateStatus::kPolicyUnset;
+  //   return RespondNow(WithArguments(ret.ToValue()));
+  // }
 
-  client_cert_fetcher_ =
-      enterprise_signals::ClientCertificateFetcher::Create(browser_context());
-  client_cert_fetcher_->FetchAutoSelectedCertificateForUrl(
-      GURL(params->url),
-      base::BindOnce(&EnterpriseReportingPrivateGetCertificateFunction::
-                         OnClientCertFetched,
-                     this));
+  // client_cert_fetcher_ =
+  //     enterprise_signals::ClientCertificateFetcher::Create(browser_context());
+  // client_cert_fetcher_->FetchAutoSelectedCertificateForUrl(
+  //     GURL(params->url),
+  //     base::BindOnce(&EnterpriseReportingPrivateGetCertificateFunction::
+  //                        OnClientCertFetched,
+  //                    this));
 
-  return RespondLater();
+  // return RespondLater();
+  return RespondNow(Error("not implemented"));
 }
 
-void EnterpriseReportingPrivateGetCertificateFunction::OnClientCertFetched(
-    std::unique_ptr<net::ClientCertIdentity> cert) {
-  api::enterprise_reporting_private::Certificate ret;
+// void EnterpriseReportingPrivateGetCertificateFunction::OnClientCertFetched(
+//     std::unique_ptr<net::ClientCertIdentity> cert) {
+  // api::enterprise_reporting_private::Certificate ret;
 
-  // Getting here means the status is always OK, but the |encoded_certificate|
-  // field is only set if there actually was a certificate selected.
-  ret.status =
-      extensions::api::enterprise_reporting_private::CertificateStatus::kOk;
-  if (cert) {
-    std::string_view der_cert = net::x509_util::CryptoBufferAsStringPiece(
-        cert->certificate()->cert_buffer());
-    ret.encoded_certificate.emplace(der_cert.begin(), der_cert.end());
-  }
+  // // Getting here means the status is always OK, but the |encoded_certificate|
+  // // field is only set if there actually was a certificate selected.
+  // ret.status =
+  //     extensions::api::enterprise_reporting_private::CertificateStatus::kOk;
+  // if (cert) {
+  //   std::string_view der_cert = net::x509_util::CryptoBufferAsStringPiece(
+  //       cert->certificate()->cert_buffer());
+  //   ret.encoded_certificate.emplace(der_cert.begin(), der_cert.end());
+  // }
 
-  Respond(WithArguments(ret.ToValue()));
-}
+  // Respond(WithArguments(ret.ToValue()));
+// }
 
 #if BUILDFLAG(IS_CHROMEOS)
 

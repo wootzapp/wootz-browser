@@ -19,9 +19,9 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
-#include "chrome/browser/web_applications/web_app.h"
+// #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_registrar.h"
+// #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "components/webapps/common/web_app_id.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/constants.h"
@@ -94,36 +94,37 @@ std::optional<webapps::AppId> GetIsolatedWebAppIdFromUrl(const GURL& url) {
 UrlIdentity CreateIsolatedWebAppIdentityFromUrl(Profile* profile,
                                                 const GURL& url,
                                                 const FormatOptions& options) {
-  DCHECK(url.SchemeIs(chrome::kIsolatedAppScheme));
+  // DCHECK(url.SchemeIs(chrome::kIsolatedAppScheme));
 
-  DCHECK(profile) << "Profile cannot be null when type is Isolated Web App.";
+  // DCHECK(profile) << "Profile cannot be null when type is Isolated Web App.";
 
-  web_app::WebAppProvider* provider =
-      web_app::WebAppProvider::GetForWebApps(profile);
-  if (!provider) {  // fallback to default
-    // WebAppProvider can be null in ChromeOS depending on whether Lacros is
-    // enabled or not.
-    return CreateDefaultUrlIdentityFromUrl(url, options);
-  }
+  // web_app::WebAppProvider* provider =
+  //     web_app::WebAppProvider::GetForWebApps(profile);
+  // if (!provider) {  // fallback to default
+  //   // WebAppProvider can be null in ChromeOS depending on whether Lacros is
+  //   // enabled or not.
+  //   return CreateDefaultUrlIdentityFromUrl(url, options);
+  // }
 
-  std::optional<webapps::AppId> app_id = GetIsolatedWebAppIdFromUrl(url);
-  if (!app_id.has_value()) {  // fallback to default
-    return CreateDefaultUrlIdentityFromUrl(url, options);
-  }
+  // std::optional<webapps::AppId> app_id = GetIsolatedWebAppIdFromUrl(url);
+  // if (!app_id.has_value()) {  // fallback to default
+  //   return CreateDefaultUrlIdentityFromUrl(url, options);
+  // }
 
-  const web_app::WebApp* web_app =
-      provider->registrar_unsafe().GetAppById(app_id.value());
+  // const web_app::WebApp* web_app =
+  //     provider->registrar_unsafe().GetAppById(app_id.value());
 
-  if (!web_app) {  // fallback to default
-    return CreateDefaultUrlIdentityFromUrl(url, options);
-  }
+  // if (!web_app) {  // fallback to default
+  //   return CreateDefaultUrlIdentityFromUrl(url, options);
+  // }
 
-  return UrlIdentity{
-      .type = Type::kIsolatedWebApp,
-      .name = base::CollapseWhitespace(
-          base::UTF8ToUTF16(
-              provider->registrar_unsafe().GetAppShortName(app_id.value())),
-          false)};
+  // return UrlIdentity{
+  //     .type = Type::kIsolatedWebApp,
+  //     .name = base::CollapseWhitespace(
+  //         base::UTF8ToUTF16(
+  //             provider->registrar_unsafe().GetAppShortName(app_id.value())),
+  //         false)};
+  return UrlIdentity();
 }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 

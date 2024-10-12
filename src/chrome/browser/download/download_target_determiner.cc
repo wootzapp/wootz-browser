@@ -1206,7 +1206,8 @@ DownloadConfirmationReason DownloadTargetDeterminer::NeedsConfirmation(
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Don't prompt for extension downloads if the installation site is white
   // listed.
-  if (download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_))
+  // if (download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_))
+  if (download_crx_util::IsExtensionDownload(*download_))
     return DownloadConfirmationReason::NONE;
 #endif
 
@@ -1281,7 +1282,8 @@ DownloadFileType::DangerLevel DownloadTargetDeterminer::GetDangerLevel(
   // User-initiated extension downloads from pref-whitelisted sources are not
   // considered dangerous.
   if (download_->HasUserGesture() &&
-      download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_)) {
+      download_crx_util::IsExtensionDownload(*download_)) {
+      // download_crx_util::IsTrustedExtensionDownload(GetProfile(), *download_)) {
     return DownloadFileType::NOT_DANGEROUS;
   }
 

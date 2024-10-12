@@ -287,9 +287,12 @@ bool CleanupDirectorySync(const base::FilePath&);
 namespace enterprise_connectors {
 class LinuxKeyRotationCommand;
 }  // namespace enterprise_connectors
+
 namespace extensions {
 class InstalledLoader;
 class UnpackedInstaller;
+class Extension;
+class IconLoaderJNI;
 }  // namespace extensions
 namespace font_service::internal {
 class MappedFontFile;
@@ -628,6 +631,7 @@ class BASE_EXPORT [[maybe_unused, nodiscard]] ScopedAllowBlocking {
   friend class crypto::ScopedAllowBlockingForNSS;  // http://crbug.com/59847
   friend class drive::FakeDriveService;
   friend class extensions::InstalledLoader;
+  friend class extensions::IconLoaderJNI;
   friend class extensions::UnpackedInstaller;
   friend class font_service::internal::MappedFontFile;
   friend class ios_web_view::WebViewBrowserState;

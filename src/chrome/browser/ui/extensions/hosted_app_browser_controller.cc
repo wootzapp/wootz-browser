@@ -13,10 +13,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/common/extensions/api/url_handlers/url_handlers_parser.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
@@ -181,17 +181,17 @@ void HostedAppBrowserController::Uninstall(
   if (!extension)
     return;
 
-  DCHECK(!uninstall_dialog_);
-  uninstall_dialog_ = ExtensionUninstallDialog::Create(
-      browser()->profile(),
-      browser()->window() ? browser()->window()->GetNativeWindow() : nullptr,
-      this);
+  // DCHECK(!uninstall_dialog_);
+  // uninstall_dialog_ = ExtensionUninstallDialog::Create(
+  //     browser()->profile(),
+  //     browser()->window() ? browser()->window()->GetNativeWindow() : nullptr,
+  //     this);
 
-  // The dialog can be closed by UI system whenever it likes, but
-  // OnExtensionUninstallDialogClosed will be called anyway.
-  uninstall_dialog_->ConfirmUninstall(extension,
-                                      UNINSTALL_REASON_USER_INITIATED,
-                                      UNINSTALL_SOURCE_HOSTED_APP_MENU);
+  // // The dialog can be closed by UI system whenever it likes, but
+  // // OnExtensionUninstallDialogClosed will be called anyway.
+  // uninstall_dialog_->ConfirmUninstall(extension,
+  //                                     UNINSTALL_REASON_USER_INITIATED,
+  //                                     UNINSTALL_SOURCE_HOSTED_APP_MENU);
 }
 
 bool HostedAppBrowserController::IsInstalled() const {
@@ -213,14 +213,14 @@ void HostedAppBrowserController::OnTabInserted(content::WebContents* contents) {
 
   const Extension* extension = GetExtension();
   extensions::TabHelper::FromWebContents(contents)->SetExtensionApp(extension);
-  web_app::SetAppPrefsForWebContents(contents);
+  // web_app::SetAppPrefsForWebContents(contents);
 }
 
 void HostedAppBrowserController::OnTabRemoved(content::WebContents* contents) {
   AppBrowserController::OnTabRemoved(contents);
 
   extensions::TabHelper::FromWebContents(contents)->SetExtensionApp(nullptr);
-  web_app::ClearAppPrefsForWebContents(contents);
+  // web_app::ClearAppPrefsForWebContents(contents);
 }
 
 void HostedAppBrowserController::LoadAppIcon(

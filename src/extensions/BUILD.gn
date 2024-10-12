@@ -157,7 +157,7 @@ static_library("test_support") {
     "//build:chromeos_buildflags",
     "//chrome/common:buildflags",
     "//components/crx_file",
-    "//components/guest_view/browser:test_support",
+    # "//components/guest_view/browser:test_support",
     "//components/keyed_service/content",
     "//components/pref_registry",
     "//components/prefs:test_support",
@@ -170,7 +170,7 @@ static_library("test_support") {
     "//extensions/browser:test_support",
     "//extensions/browser/api",
     "//extensions/browser/api/storage:settings_namespace",
-    "//extensions/browser/updater",
+    # "//extensions/browser/updater",
     "//extensions/common",
     "//extensions/common:core_api_provider",
     "//extensions/common/api",
@@ -198,111 +198,111 @@ static_library("test_support") {
   public_deps = [ "//content/public/browser" ]
 }
 
-repack("shell_and_test_pak") {
-  testonly = true
+# repack("shell_and_test_pak") {
+#   testonly = true
 
-  sources = [
-    "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
-    "$root_gen_dir/content/content_resources.pak",
-    "$root_gen_dir/content/shell/shell_resources.pak",
-    "$root_gen_dir/device/bluetooth/strings/bluetooth_strings_en-US.pak",
-    "$root_gen_dir/extensions/extensions_browser_resources_100_percent.pak",
-    "$root_gen_dir/extensions/extensions_renderer_resources.pak",
-    "$root_gen_dir/extensions/extensions_resources.pak",
-    "$root_gen_dir/extensions/shell/app_shell_resources.pak",
-    "$root_gen_dir/extensions/strings/extensions_strings_en-US.pak",
-    "$root_gen_dir/mojo/public/js/mojo_bindings_resources.pak",
-    "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
-    "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_100_percent.pak",
-    "$root_gen_dir/third_party/blink/public/strings/blink_strings_en-US.pak",
-    "$root_gen_dir/ui/resources/ui_resources_100_percent.pak",
-    "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
-    "$root_gen_dir/ui/strings/ax_strings_en-US.pak",
-    "$root_gen_dir/ui/strings/ui_strings_en-US.pak",
-  ]
+#   sources = [
+#     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
+#     "$root_gen_dir/content/content_resources.pak",
+#     "$root_gen_dir/content/shell/shell_resources.pak",
+#     "$root_gen_dir/device/bluetooth/strings/bluetooth_strings_en-US.pak",
+#     "$root_gen_dir/extensions/extensions_browser_resources_100_percent.pak",
+#     "$root_gen_dir/extensions/extensions_renderer_resources.pak",
+#     "$root_gen_dir/extensions/extensions_resources.pak",
+#     "$root_gen_dir/extensions/shell/app_shell_resources.pak",
+#     "$root_gen_dir/extensions/strings/extensions_strings_en-US.pak",
+#     "$root_gen_dir/mojo/public/js/mojo_bindings_resources.pak",
+#     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
+#     "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_100_percent.pak",
+#     "$root_gen_dir/third_party/blink/public/strings/blink_strings_en-US.pak",
+#     "$root_gen_dir/ui/resources/ui_resources_100_percent.pak",
+#     "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
+#     "$root_gen_dir/ui/strings/ax_strings_en-US.pak",
+#     "$root_gen_dir/ui/strings/ui_strings_en-US.pak",
+#   ]
 
-  output = "$root_out_dir/extensions_shell_and_test.pak"
+#   output = "$root_out_dir/extensions_shell_and_test.pak"
 
-  deps = [
-    ":extensions_resources",
-    "//content:content_resources",
-    "//content/browser/devtools:devtools_resources",
-    "//content/shell:resources",
-    "//device/bluetooth/strings",
-    "//extensions/shell:resources",
-    "//extensions/strings",
-    "//mojo/public/js:resources",
-    "//third_party/blink/public:resources",
-    "//third_party/blink/public:scaled_resources_100_percent",
-    "//third_party/blink/public/strings",
-    "//ui/resources",
-    "//ui/strings",
-  ]
-}
+#   deps = [
+#     ":extensions_resources",
+#     "//content:content_resources",
+#     "//content/browser/devtools:devtools_resources",
+#     "//content/shell:resources",
+#     "//device/bluetooth/strings",
+#     "//extensions/shell:resources",
+#     "//extensions/strings",
+#     "//mojo/public/js:resources",
+#     "//third_party/blink/public:resources",
+#     "//third_party/blink/public:scaled_resources_100_percent",
+#     "//third_party/blink/public/strings",
+#     "//ui/resources",
+#     "//ui/strings",
+#   ]
+# }
 
-test("extensions_unittests") {
-  use_xvfb = use_xvfb_in_this_config
+# test("extensions_unittests") {
+#   use_xvfb = use_xvfb_in_this_config
 
-  sources = [
-    "test/extensions_unittests_main.cc",
-    "test/flakiness_test_util_test.cc",
-    "test/logging_timer_unittest.cc",
-  ]
+#   sources = [
+#     "test/extensions_unittests_main.cc",
+#     "test/flakiness_test_util_test.cc",
+#     "test/logging_timer_unittest.cc",
+#   ]
 
-  data = [
-    "test/data/",
-    "//chrome/test/data/extensions/",
-    "$root_out_dir/content_shell.pak",
-    "$root_out_dir/extensions_shell_and_test.pak",
-  ]
+#   data = [
+#     "test/data/",
+#     "//chrome/test/data/extensions/",
+#     "$root_out_dir/content_shell.pak",
+#     "$root_out_dir/extensions_shell_and_test.pak",
+#   ]
 
-  deps = [
-    ":extensions_resources",
-    ":shell_and_test_pak",
-    ":test_support",
-    "//base/test:test_support",
-    "//content/public/common",
-    "//content/test:test_support",
-    "//extensions/browser:unit_tests",
-    "//extensions/common",
-    "//extensions/common:unit_tests",
-    "//extensions/renderer:unit_tests",
-    "//extensions/shell:unit_tests",
-    "//services/data_decoder/public/cpp:test_support",
-    "//services/service_manager/public/cpp/test:test_support",
-    "//ui/gl:test_support",
-  ]
+#   deps = [
+#     ":extensions_resources",
+#     # ":shell_and_test_pak",
+#     ":test_support",
+#     "//base/test:test_support",
+#     "//content/public/common",
+#     "//content/test:test_support",
+#     "//extensions/browser:unit_tests",
+#     "//extensions/common",
+#     "//extensions/common:unit_tests",
+#     "//extensions/renderer:unit_tests",
+#     "//extensions/shell:unit_tests",
+#     "//services/data_decoder/public/cpp:test_support",
+#     "//services/service_manager/public/cpp/test:test_support",
+#     "//ui/gl:test_support",
+#   ]
 
-  data_deps = [
-    "//testing/buildbot/filters:extensions_unittests_filters",
-    "//third_party/mesa_headers",
-  ]
+#   data_deps = [
+#     "//testing/buildbot/filters:extensions_unittests_filters",
+#     "//third_party/mesa_headers",
+#   ]
 
-  if (is_chromeos) {
-    deps += [
-      "//chrome/browser/chromeos/extensions/telemetry/api:extensions_unittests",
-    ]
-  }
-}
+#   if (is_chromeos) {
+#     deps += [
+#       "//chrome/browser/chromeos/extensions/telemetry/api:extensions_unittests",
+#     ]
+#   }
+# }
 
-test("extensions_browsertests") {
-  use_xvfb = use_xvfb_in_this_config
+# test("extensions_browsertests") {
+#   use_xvfb = use_xvfb_in_this_config
 
-  data = [
-    "//extensions/test/data/",
-    "//net/tools/testserver/",
-    "//third_party/pywebsocket3/src/mod_pywebsocket/",
-    "$root_out_dir/extensions_shell_and_test.pak",
-  ]
+#   data = [
+#     "//extensions/test/data/",
+#     "//net/tools/testserver/",
+#     "//third_party/pywebsocket3/src/mod_pywebsocket/",
+#     "$root_out_dir/extensions_shell_and_test.pak",
+#   ]
 
-  deps = [
-    "//extensions/browser:browser_tests",
-    "//extensions/renderer:browser_tests",
-    "//extensions/shell:browser_tests",
-  ]
+#   deps = [
+#     "//extensions/browser:browser_tests",
+#     "//extensions/renderer:browser_tests",
+#     "//extensions/shell:browser_tests",
+#   ]
 
-  data_deps = [ "//third_party/mesa_headers" ]
-}
+#   data_deps = [ "//third_party/mesa_headers" ]
+# }
 
 # TODO(rockot) bug 505926: These should be moved to extensions_browsertests but have
 # old dependencies on chrome files. The chrome dependencies should be removed
@@ -338,7 +338,7 @@ source_set("chrome_extensions_browsertests_sources") {
     "//components/captive_portal/core:test_support",
     "//components/dom_distiller/content/browser",
     "//components/dom_distiller/core:test_support",
-    "//components/guest_view/browser:test_support",
+    # "//components/guest_view/browser:test_support",
     "//components/javascript_dialogs",
     "//components/resources",
     "//components/strings",

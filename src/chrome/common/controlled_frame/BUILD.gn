@@ -6,7 +6,7 @@ import("//extensions/buildflags/buildflags.gni")
 
 assert(enable_extensions,
        "Cannot depend on controlled frame because enable_extensions=false.")
-
+# assert(!is_android)
 source_set("controlled_frame") {
   sources = [
     "controlled_frame_api_provider.cc",

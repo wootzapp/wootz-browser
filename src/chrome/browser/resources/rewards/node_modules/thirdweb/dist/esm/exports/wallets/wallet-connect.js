@@ -1,2 +1,0 @@
-export { createWalletConnectClient, createWalletConnectSession, disconnectWalletConnectSession, getActiveWalletConnectSessions, } from "../../wallets/wallet-connect/receiver/index.js";
-//# sourceMappingURL=wallet-connect.js.map

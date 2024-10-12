@@ -20,7 +20,7 @@
 #include "chrome/browser/ui/browser.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#error This file should only be included on desktop.
+// #error This file should only be included on desktop.
 #endif
 
 class Browser;
