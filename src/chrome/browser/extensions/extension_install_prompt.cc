@@ -15,6 +15,8 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
+#include "base/android/jni_array.h"
+#include "base/android/jni_string.h"
 #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
 #include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/profiles/profile.h"
@@ -24,6 +26,7 @@
 #include "chrome/grit/theme_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
+#include "content/browser/web_contents/web_contents_impl.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_dialog_auto_confirm.h"
 #include "extensions/browser/extension_prefs.h"
@@ -44,6 +47,8 @@
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
+#include "chrome/android/chrome_jni_headers/ExtensionsConfirmationDialog_jni.h"
+#include "content/browser/web_contents/web_contents_android.h"
 
 using extensions::Extension;
 using extensions::Manifest;
@@ -508,12 +513,15 @@ void ExtensionInstallPrompt::OnInstallSuccess(
   extension_ = extension;
   SetIcon(icon);
 
-  install_ui_->OnInstallSuccess(extension, &icon_);
+  LOG(ERROR) << "WOOTZ: Extension install success: " << extension->id();
+  // install_ui_->OnInstallSuccess(extension, &icon_);
 }
 
 void ExtensionInstallPrompt::OnInstallFailure(
     const extensions::CrxInstallError& error) {
-  install_ui_->OnInstallFailure(error);
+  LOG(ERROR) << "WOOTZ: Extension install failure";
+
+  // install_ui_->OnInstallFailure(error);
 }
 
 std::unique_ptr<ExtensionInstallPrompt::Prompt>
@@ -565,49 +573,93 @@ void ExtensionInstallPrompt::LoadImageIfNeeded() {
 }
 
 void ExtensionInstallPrompt::ShowConfirmation() {
-  // std::unique_ptr<const PermissionSet> permissions_to_display;
+  std::unique_ptr<const PermissionSet> permissions_to_display;
 
-  // if (custom_permissions_.get()) {
-  //   permissions_to_display = custom_permissions_->Clone();
-  // } else if (extension_) {
-  //   // For delegated installs, all optional permissions are pre-approved by the
-  //   // person who triggers the install, so add them to the list.
-  //   bool include_optional_permissions =
-  //       prompt_->type() == DELEGATED_PERMISSIONS_PROMPT;
-  //   permissions_to_display =
-  //       extensions::util::GetInstallPromptPermissionSetForExtension(
-  //           extension_.get(), profile_, include_optional_permissions);
-  // }
+  if (custom_permissions_.get()) {
+    permissions_to_display = custom_permissions_->Clone();
+  } else if (extension_) {
+    // For delegated installs, all optional permissions are pre-approved by the
+    // person who triggers the install, so add them to the list.
+    bool include_optional_permissions =
+        prompt_->type() == DELEGATED_PERMISSIONS_PROMPT;
+    permissions_to_display =
+        extensions::util::GetInstallPromptPermissionSetForExtension(
+            extension_.get(), profile_, include_optional_permissions);
+  }
 
-  // prompt_->set_extension(extension_.get());
-  // if (permissions_to_display) {
-  //   prompt_->AddPermissionSet(*permissions_to_display);
-  // }
+  prompt_->set_extension(extension_.get());
+  if (permissions_to_display) {
+    prompt_->AddPermissionSet(*permissions_to_display);
+  }
 
-  // prompt_->set_icon(gfx::Image::CreateFrom1xBitmap(icon_));
+  prompt_->set_icon(gfx::Image::CreateFrom1xBitmap(icon_));
 
-  // if (show_params_->WasParentDestroyed()) {
-  //   std::move(done_callback_).Run(DoneCallbackPayload(Result::ABORTED));
-  //   return;
-  // }
+  if (show_params_->WasParentDestroyed()) {
+    std::move(done_callback_).Run(DoneCallbackPayload(Result::ABORTED));
+    return;
+  }
 
-  // g_last_prompt_type_for_tests = prompt_->type();
-  // did_call_show_dialog_ = true;
+  g_last_prompt_type_for_tests = prompt_->type();
+  did_call_show_dialog_ = true;
 
-  // // Notify observers.
-  // prompt_->OnDialogOpened();
+  // Notify observers.
+  prompt_->OnDialogOpened();
 
-  // // If true, auto confirm is enabled and already handled the result.
-  // if (AutoConfirmPromptIfEnabled())
-  //   return;
+  // If true, auto confirm is enabled and already handled the result.
+  if (AutoConfirmPromptIfEnabled())
+    return;
 
-  // if (show_dialog_callback_.is_null())
-  //   show_dialog_callback_ = GetDefaultShowDialogCallback();
-  // // TODO(crbug.com/40625151): Use OnceCallback and eliminate the need for
-  // // a callback on the stack.
-  // auto cb = std::move(done_callback_);
-  // std::move(show_dialog_callback_)
-  //     .Run(std::move(show_params_), std::move(cb), std::move(prompt_));
+  if (show_dialog_callback_.is_null())
+    show_dialog_callback_ = GetDefaultShowDialogCallback();
+  // TODO(crbug.com/40625151): Use OnceCallback and eliminate the need for
+  // a callback on the stack.
+  auto cb = std::move(done_callback_);
+  std::move(show_dialog_callback_)
+      .Run(std::move(show_params_), std::move(cb), std::move(prompt_));
+}
+
+void JNI_ExtensionsConfirmationDialog_OnDialogResult(JNIEnv* env, jlong nativeCallbackPtr, jboolean confirmed) {
+    auto* done_callback = reinterpret_cast<ExtensionInstallPrompt::DoneCallback*>(nativeCallbackPtr);
+
+    if (confirmed) {
+        std::move(*done_callback).Run(ExtensionInstallPrompt::DoneCallbackPayload(ExtensionInstallPrompt::Result::ACCEPTED_WITH_WITHHELD_PERMISSIONS));
+    } else {
+        std::move(*done_callback).Run(ExtensionInstallPrompt::DoneCallbackPayload(ExtensionInstallPrompt::Result::USER_CANCELED));
+    }
+
+    delete done_callback;
+}
+
+void ShowExtensionInstallDialogImpl(
+    std::unique_ptr<ExtensionInstallPromptShowParams> show_params,
+    ExtensionInstallPrompt::DoneCallback done_callback,
+    std::unique_ptr<ExtensionInstallPrompt::Prompt> prompt) {
+    JNIEnv* env = base::android::AttachCurrentThread();
+
+    auto* callback_ptr = new ExtensionInstallPrompt::DoneCallback(std::move(done_callback));
+
+    content::WebContents* webContents = show_params->GetParentWebContents();
+
+    if (webContents) {
+        content::WebContentsAndroid* webContentsAndroid = static_cast<content::WebContentsImpl*>(webContents)->GetWebContentsAndroid();
+        if (webContentsAndroid) {
+            base::android::ScopedJavaLocalRef<jobject> java_web_contents = webContentsAndroid->GetJavaObject();
+
+            Java_ExtensionsConfirmationDialog_showInstallDialog(
+                env, 
+                reinterpret_cast<jlong>(callback_ptr), 
+                java_web_contents);
+            return;
+        }
+    }
+
+    std::move(*callback_ptr).Run(ExtensionInstallPrompt::DoneCallbackPayload(ExtensionInstallPrompt::Result::ABORTED));
+
+    delete callback_ptr;
+}
+
+ExtensionInstallPrompt::ShowDialogCallback ExtensionInstallPrompt::GetDefaultShowDialogCallback() {
+  return base::BindRepeating(&ShowExtensionInstallDialogImpl);
 }
 
 bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {

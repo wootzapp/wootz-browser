@@ -1169,29 +1169,29 @@ void CrxInstaller::CheckUpdateFromSettingsPage() {
 }
 
 void CrxInstaller::ConfirmReEnable() {
-  // DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  // ExtensionService* service = service_weak_.get();
-  // if (!service || service->browser_terminating())
-  //   return;
+  ExtensionService* service = service_weak_.get();
+  if (!service || service->browser_terminating())
+    return;
 
-  // if (!update_from_settings_page_)
-  //   return;
+  if (!update_from_settings_page_)
+    return;
 
-  // ExtensionPrefs* prefs = ExtensionPrefs::Get(service->profile());
-  // if (!prefs->DidExtensionEscalatePermissions(extension()->id()))
-  //   return;
+  ExtensionPrefs* prefs = ExtensionPrefs::Get(service->profile());
+  if (!prefs->DidExtensionEscalatePermissions(extension()->id()))
+    return;
 
-  // if (client_) {
-  //   AddRef();  // Balanced in OnInstallPromptDone().
-  //   ExtensionInstallPrompt::PromptType type =
-  //       ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
-  //           service->profile(), extension());
-  //   client_->ShowDialog(
-  //       base::BindOnce(&CrxInstaller::OnInstallPromptDone, this), extension(),
-  //       nullptr, std::make_unique<ExtensionInstallPrompt::Prompt>(type),
-  //       ExtensionInstallPrompt::GetDefaultShowDialogCallback());
-  // }
+  if (client_) {
+    AddRef();  // Balanced in OnInstallPromptDone().
+    ExtensionInstallPrompt::PromptType type =
+        ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
+            service->profile(), extension());
+    client_->ShowDialog(
+        base::BindOnce(&CrxInstaller::OnInstallPromptDone, this), extension(),
+        nullptr, std::make_unique<ExtensionInstallPrompt::Prompt>(type),
+        ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  }
 }
 
 base::SequencedTaskRunner* CrxInstaller::GetUnpackerTaskRunner() {

@@ -66,6 +66,8 @@ schema_sources_ = [
 
   # "webstore_private.json",
   "windows.json",
+
+  "wootz.json",
 ]
 
 if (!is_android) {

@@ -8,6 +8,9 @@
 
 #include <memory>
 
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_management.h"
@@ -59,7 +62,10 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
       //       Browser::CreateParams(Browser::TYPE_NORMAL, profile, true));
       // }
       // web_contents = browser->tab_strip_model()->GetActiveWebContents();
-      return nullptr;
+      for (const TabModel* model : TabModelList::models()) {
+        if (model->IsActiveModel())
+          web_contents = model->GetActiveWebContents();
+      }
     }
     return std::make_unique<ExtensionInstallPrompt>(web_contents);
   }

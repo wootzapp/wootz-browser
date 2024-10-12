@@ -2971,32 +2971,30 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
             RecordUserAction.record("MobileMenuAllBookmarks");
         } else if (id == R.id.recent_tabs_menu_id) {
-            getTabCreator(getCurrentTabModel().isIncognito()).launchUrl("chrome-extension://mdmleeoommkeibilmejeeapabbmmjoho/index.html", 0);
+            LoadUrlParams params =
+                    new LoadUrlParams(UrlConstants.RECENT_TABS_URL, PageTransition.AUTO_BOOKMARK);
+            boolean isInOverviewMode = isInOverviewMode();
+            if (isInOverviewMode && !isTablet() && ReturnToChromeUtil.isStartSurfaceEnabled(this)) {
+                // When tapping the "Recent tabs" menu item from the overview page (Start surface or
+                // GTS), we will create the tab with the launch type FROM_START_SURFACE. Thus, if
+                // the back button is tapped on this "Recent tabs" page, it can go back to the
+                // overview page.
+                ReturnToChromeUtil.handleLoadUrlFromStartSurface(
+                        params, getCurrentTabModel().isIncognito(), null);
+            } else if (currentTab != null) {
+                currentTab.loadUrl(params);
+            } else {
+                getTabCreator(getCurrentTabModel().isIncognito())
+                        .createNewTab(params, TabLaunchType.FROM_CHROME_UI, null);
+            }
+            if (isInOverviewMode) {
+                mLayoutManager.showLayout(LayoutType.BROWSING, true);
+            }
 
-            // LoadUrlParams params =
-            //         new LoadUrlParams(UrlConstants.RECENT_TABS_URL, PageTransition.AUTO_BOOKMARK);
-            // boolean isInOverviewMode = isInOverviewMode();
-            // if (isInOverviewMode && !isTablet() && ReturnToChromeUtil.isStartSurfaceEnabled(this)) {
-            //     // When tapping the "Recent tabs" menu item from the overview page (Start surface or
-            //     // GTS), we will create the tab with the launch type FROM_START_SURFACE. Thus, if
-            //     // the back button is tapped on this "Recent tabs" page, it can go back to the
-            //     // overview page.
-            //     ReturnToChromeUtil.handleLoadUrlFromStartSurface(
-            //             params, getCurrentTabModel().isIncognito(), null);
-            // } else if (currentTab != null) {
-            //     currentTab.loadUrl(params);
-            // } else {
-            //     getTabCreator(getCurrentTabModel().isIncognito())
-            //             .createNewTab(params, TabLaunchType.FROM_CHROME_UI, null);
-            // }
-            // if (isInOverviewMode) {
-            //     mLayoutManager.showLayout(LayoutType.BROWSING, true);
-            // }
-
-            // if (currentTabIsNtp) {
-            //     NewTabPageUma.recordAction(NewTabPageUma.ACTION_OPENED_RECENT_TABS_MANAGER);
-            // }
-            // RecordUserAction.record("MobileMenuRecentTabs");
+            if (currentTabIsNtp) {
+                NewTabPageUma.recordAction(NewTabPageUma.ACTION_OPENED_RECENT_TABS_MANAGER);
+            }
+            RecordUserAction.record("MobileMenuRecentTabs");
         } else if (id == R.id.close_tab) {
             getCurrentTabModel().closeTab(currentTab, false, true);
             RecordUserAction.record("MobileTabClosed");

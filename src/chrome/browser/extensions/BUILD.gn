@@ -431,6 +431,8 @@ static_library("extensions") {
     # "api/webstore_private/extension_install_status.h",
     # "api/webstore_private/webstore_private_api.cc",
     # "api/webstore_private/webstore_private_api.h",
+    "api/wootz/wootz_api.cc",
+    "api/wootz/wootz_api.h",
     "blocklist.cc",
     "blocklist.h",
     "blocklist_check.cc",

@@ -64,7 +64,7 @@ static ScopedJavaLocalRef<jobject> JNI_Extensions_GetExtensionsInfo(
 
     jclass extension_info_class = env->FindClass("org/chromium/chrome/browser/extensions/ExtensionInfo");
     jmethodID extension_info_constructor = env->GetMethodID(extension_info_class, "<init>",
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Landroid/graphics/Bitmap;)V");
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Landroid/graphics/Bitmap;)V");
 
     for (const auto& extension : installed_extensions) {
         std::string name = extension->name();
@@ -73,8 +73,9 @@ static ScopedJavaLocalRef<jobject> JNI_Extensions_GetExtensionsInfo(
         const extensions::ActionInfo* action_info = extensions::ActionInfo::GetExtensionActionInfo(extension.get());
         std::string popup_url = (action_info && !action_info->default_popup_url.is_empty())
             ? action_info->default_popup_url.spec() 
-            : "No Popup URL";
+            : "";
 
+        jstring jid = base::android::ConvertUTF8ToJavaString(env, extension->id()).Release();
         jstring jname = base::android::ConvertUTF8ToJavaString(env, name).Release();
         jstring jdescription = base::android::ConvertUTF8ToJavaString(env, description).Release();
         jstring jpopup_url = base::android::ConvertUTF8ToJavaString(env, popup_url).Release();
@@ -83,9 +84,25 @@ static ScopedJavaLocalRef<jobject> JNI_Extensions_GetExtensionsInfo(
         // jobject icon_bitmap = nullptr;
 
         jobject extension_info = env->NewObject(extension_info_class, extension_info_constructor,
-            jname, jdescription, jpopup_url, icon_bitmap);
+            jid, jname, jdescription, jpopup_url, icon_bitmap);
         env->CallBooleanMethod(extension_info_list, array_list_add, extension_info);
     }
 
     return base::android::ScopedJavaLocalRef<jobject>(env, extension_info_list);
+}
+
+void JNI_Extensions_UninstallExtension(JNIEnv* env, const base::android::JavaParamRef<jstring>& j_extension_id) {
+    std::string extension_id = base::android::ConvertJavaStringToUTF8(env, j_extension_id);
+
+    Profile* profile = ProfileManager::GetActiveUserProfile();
+    if (!profile) {
+        return;
+    }
+
+    extensions::ExtensionService* extension_service = extensions::ExtensionSystem::Get(profile)->extension_service();
+    if (!extension_service) {
+        return;
+    }
+
+    extension_service->UninstallExtension(extension_id, extensions::UNINSTALL_REASON_USER_INITIATED, nullptr);
 }

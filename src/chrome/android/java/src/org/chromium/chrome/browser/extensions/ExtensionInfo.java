@@ -3,21 +3,29 @@ package org.chromium.chrome.browser.extensions;
 import android.graphics.Bitmap;
 
 public class ExtensionInfo {
-
+    private String id;
     private String name;
     private String description;
     private String popupUrl;
     private Bitmap iconBitmap;
 
     // Constructor
-    public ExtensionInfo(String name, String description, String popupUrl, Bitmap iconBitmap) {
+    public ExtensionInfo(String id, String name, String description, String popupUrl, Bitmap iconBitmap) {
+        this.id = id;
         this.name = name;
         this.description = description;
         this.popupUrl = popupUrl;
         this.iconBitmap = iconBitmap;
     }
 
-    // Getters and setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+    
     public String getName() {
         return name;
     }

@@ -45,6 +45,7 @@ import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.chrome.browser.extensions.ExtensionInfo;
 import org.chromium.chrome.browser.extensions.Extensions;
 import org.chromium.base.ContextUtils;
 import org.chromium.components.embedder_support.view.ContentView;
@@ -246,7 +247,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         View view = createContentView(true);
         dialog.setContentView(view);
 
-        Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
+        // Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
 
         // this code removes the dark scrim behind the menu
         Window window = dialog.getWindow();
@@ -667,27 +668,27 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         if(view == null) return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
-        extensionsDivider.setVisibility(View.VISIBLE);
-
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
-
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
-        parent.setVisibility(View.VISIBLE);
 
         extensionsContainer.removeAllViews();
 
-        scrollView.setVisibility(View.VISIBLE);
-
-        // Add extension icons here
-        for(int i = 0;i < Extensions.getExtensionsInfo().size();i++){
+        int extensionsCount = 0;
+        for(int i = 0; i < Extensions.getExtensionsInfo().size(); i++) {
+            ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
             ImageButton extensionIcon = new ImageButton(context);
-            if(Extensions.getExtensionsInfo().get(i).getIconBitmap() != null){
-                extensionIcon.setImageBitmap(Extensions.getExtensionsInfo().get(i).getIconBitmap());
+
+            if (extension.getName().equals("Web Store")) {
+                continue;
             }
-            else{
+
+            if(extension.getIconBitmap() != null){
+                extensionIcon.setImageBitmap(extension.getIconBitmap());
+            } else {
                 extensionIcon.setImageResource(R.drawable.test_extension_logo);
             }
+
             extensionIcon.setLayoutParams(new LinearLayout.LayoutParams(
                 dpToPx(48), dpToPx(48)));
             final int index = i;
@@ -697,12 +698,17 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                 return true;
             });
             extensionsContainer.addView(extensionIcon);
+            extensionsCount ++;
         }
 
-        // If there are no extensions, hide the divider and scroll view
-        if (Extensions.getExtensionsInfo().isEmpty()) {
+        if (extensionsCount == 0) {
+            parent.setVisibility(View.GONE);
             extensionsDivider.setVisibility(View.GONE);
             scrollView.setVisibility(View.GONE);
+        } else {
+            parent.setVisibility(View.VISIBLE);
+            extensionsDivider.setVisibility(View.VISIBLE);
+            scrollView.setVisibility(View.VISIBLE);
         }
     }
 
@@ -722,7 +728,9 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     private void deleteExtension(int extensionIndex) {
         // Extensions.getExtensionsInfo().remove(extensionIndex);
-        Log.d(TAG,"Deleting extension " + Extensions.getExtensionsInfo().get(extensionIndex).getName());
+        String extensionId = Extensions.getExtensionsInfo().get(extensionIndex).getId();
+        Log.d(TAG,"Deleting extension " + extensionId);
+        Extensions.uninstallExtension(extensionId);
         createExtensionsRow();
     }
 
@@ -753,6 +761,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     @Override
     public void show(@NonNull FragmentManager manager, @Nullable String tag) {
+        Log.d(TAG, Extensions.getExtensionsInfo().toString());
+
         Log.d(TAG, "show called with tag: " + tag);
         try {
             super.show(manager, tag);
@@ -966,14 +976,15 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         public GridAdapter(Context context, ModelList modelList) {
             mModelList = modelList;
-            for(int i = 0;i < modelList.size();i++){
-                Log.d(TAG,"" + mModelList.get(i).model.get(AppMenuItemProperties.TITLE));
-            }
             mInflater = LayoutInflater.from(context);
             updateValidItems();
         }
 
         public void updateValidItems() {
+            if (mModelList == null) {
+                return;
+            }
+
             mDisplayToOriginalPosition = new HashMap<>();
             mValidItemPositions = new ArrayList<>();
             for (int i = 0; i < mModelList.size(); i++) {
@@ -1064,6 +1075,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         mGridView = view.findViewById(R.id.app_menu_grid);
         mGridView.setNumColumns(GRID_COLUMNS);
+
+        if (mModelList == null) {
+            return view;
+        }
         
         mGridAdapter = new GridAdapter(getContext(), mModelList);
         mGridView.setAdapter(mGridAdapter);

@@ -155,11 +155,6 @@ void ContentClientParams::Run(
         header_client,
     bool* disable_secure_dns,
     network::mojom::URLLoaderFactoryOverridePtr* factory_override) {
-  if (!browser_context_ || !frame_ ) {
-    LOG(ERROR) << "ERRRRR Null pointer detected";
-    // return;
-}
-LOG(ERROR) << "ERRRRR " << !GetContentClient()->browser();
   GetContentClient()->browser()->WillCreateURLLoaderFactory(
       browser_context_.get(), frame_.get(), render_process_id_, type,
       request_initiator_.get(), isolation_info_.get(),
