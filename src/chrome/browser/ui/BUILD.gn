@@ -52,8 +52,6 @@ static_library("ui") {
     "webui/hello_world/hello_world_ui.cc",
     "webui/hello_world/hello_world_ui.h",
 
-    "webui/wootz_wallet_new/wootz_wallet_new_ui.cc",
-    "webui/wootz_wallet_new/wootz_wallet_new_ui.h",
     # All other app_list/ files go under is_chromeos_ash below.
     "autofill/autofill_bubble_handler.h",
     "autofill/autofill_client_provider.cc",

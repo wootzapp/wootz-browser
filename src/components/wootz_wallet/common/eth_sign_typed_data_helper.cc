@@ -19,6 +19,9 @@
 #include "components/wootz_wallet/common/hex_utils.h"
 #include "components/wootz_wallet/common/string_utils.h"
 
+#include <sstream>
+#include <iomanip>
+
 namespace wootz_wallet {
 
 // static
@@ -134,12 +137,31 @@ std::vector<uint8_t> EthSignTypedDataHelper::GetTypeHash(
 std::optional<std::pair<std::vector<uint8_t>, base::Value::Dict>>
 EthSignTypedDataHelper::HashStruct(const std::string primary_type_name,
                                    const base::Value::Dict& data) const {
+  LOG(ERROR) << "JANGID: HashStruct started";
+  LOG(ERROR) << "JANGID: Primary type name: " << primary_type_name;
+  LOG(ERROR) << "JANGID: Input data: " << data.DebugString();
+
   auto encoded_data = EncodeData(primary_type_name, data);
   if (!encoded_data) {
+    LOG(ERROR) << "JANGID: EncodeData failed";
     return std::nullopt;
   }
-  return std::make_pair(KeccakHash(encoded_data->first),
-                        std::move(encoded_data->second));
+
+  LOG(ERROR) << "JANGID: Encoded data size: " << encoded_data->first.size();
+  LOG(ERROR) << "JANGID: Encoded data (hex): " 
+             << base::HexEncode(encoded_data->first.data(), encoded_data->first.size());
+  LOG(ERROR) << "JANGID: Encoded dict: " << encoded_data->second.DebugString();
+
+  auto keccak_hash = KeccakHash(encoded_data->first);
+  LOG(ERROR) << "JANGID: Keccak hash size: " << keccak_hash.size();
+  LOG(ERROR) << "JANGID: Keccak hash (hex): " 
+             << base::HexEncode(keccak_hash.data(), keccak_hash.size());
+
+  auto result = std::make_pair(std::move(keccak_hash),
+                               std::move(encoded_data->second));
+
+  LOG(ERROR) << "JANGID: HashStruct completed";
+  return result;
 }
 
 // Encode the json data by the its type defined in json custom types starting
@@ -147,14 +169,23 @@ EthSignTypedDataHelper::HashStruct(const std::string primary_type_name,
 std::optional<std::pair<std::vector<uint8_t>, base::Value::Dict>>
 EthSignTypedDataHelper::EncodeData(const std::string& primary_type_name,
                                    const base::Value::Dict& data) const {
+  LOG(ERROR) << "JANGID: EncodeData started for primary_type_name: " << primary_type_name;
+  LOG(ERROR) << "JANGID: Input data: " << data.DebugString();
+
   const auto* primary_type = types_.FindList(primary_type_name);
   if (!primary_type) {
+    LOG(ERROR) << "JANGID: Primary type not found in types_";
     return std::nullopt;
   }
-  std::vector<uint8_t> result;
+  LOG(ERROR) << "JANGID: Primary type found: " << primary_type->DebugString();
 
+  std::vector<uint8_t> result;
   const std::vector<uint8_t> type_hash = GetTypeHash(primary_type_name);
+  LOG(ERROR) << "JANGID: Type hash size: " << type_hash.size();
+  LOG(ERROR) << "JANGID: Type hash (hex): " << base::HexEncode(type_hash.data(), type_hash.size());
+
   result.insert(result.end(), type_hash.begin(), type_hash.end());
+  LOG(ERROR) << "JANGID: Result after inserting type hash, size: " << result.size();
 
   base::Value::Dict sanitized_data;
 
@@ -163,24 +194,41 @@ EthSignTypedDataHelper::EncodeData(const std::string& primary_type_name,
     const std::string* type_str = field.FindString("type");
     const std::string* name_str = field.FindString("name");
     if (!type_str || !name_str) {
+      LOG(ERROR) << "JANGID: Invalid field, missing type or name";
       return std::nullopt;
     }
+    LOG(ERROR) << "JANGID: Processing field - Name: " << *name_str << ", Type: " << *type_str;
+
     const base::Value* value = data.Find(*name_str);
     if (value) {
+      LOG(ERROR) << "JANGID: Field value found: " << value->DebugString();
       auto encoded_field = EncodeField(*type_str, *value);
       if (!encoded_field) {
+        LOG(ERROR) << "JANGID: Failed to encode field: " << *name_str;
         return std::nullopt;
       }
+      LOG(ERROR) << "JANGID: Encoded field size: " << encoded_field->size();
+      LOG(ERROR) << "JANGID: Encoded field (hex): " << base::HexEncode(encoded_field->data(), encoded_field->size());
+
       result.insert(result.end(), encoded_field->begin(), encoded_field->end());
       sanitized_data.Set(*name_str, value->Clone());
+      LOG(ERROR) << "JANGID: Result size after inserting encoded field: " << result.size();
     } else {
+      LOG(ERROR) << "JANGID: Field value not found: " << *name_str;
       if (version_ == Version::kV4) {
         for (size_t i = 0; i < 32; ++i) {
           result.push_back(0);
         }
+        LOG(ERROR) << "JANGID: Added 32 zero bytes for missing field (V4)";
       }
     }
   }
+
+  LOG(ERROR) << "JANGID: Final result size: " << result.size();
+  LOG(ERROR) << "JANGID: Final result (hex): " << base::HexEncode(result.data(), result.size());
+  LOG(ERROR) << "JANGID: Sanitized data: " << sanitized_data.DebugString();
+  LOG(ERROR) << "JANGID: EncodeData completed";
+
   return std::make_pair(result, std::move(sanitized_data));
 }
 
@@ -250,19 +298,34 @@ std::optional<std::vector<uint8_t>> EthSignTypedDataHelper::EncodeField(
       result.push_back(static_cast<uint8_t>((encoded_value >> i) & 0xFF));
     }
   } else if (type == "address") {
+    LOG(ERROR) << "JANGID: Processing address type";
     const std::string* value_str = value.GetIfString();
     if (!value_str || !IsValidHexString(*value_str)) {
+      LOG(ERROR) << "JANGID: Invalid address value: " << (value_str ? *value_str : "null");
       return std::nullopt;
     }
+    LOG(ERROR) << "JANGID: Valid address string: " << *value_str;
+
     std::vector<uint8_t> address;
-    CHECK(PrefixedHexStringToBytes(*value_str, &address));
+    bool conversion_success = PrefixedHexStringToBytes(*value_str, &address);
+    CHECK(conversion_success);
+    LOG(ERROR) << "JANGID: Address bytes size: " << address.size();
+
     if (address.size() != 20u) {
+      LOG(ERROR) << "JANGID: Invalid address size: " << address.size() << " (expected 20)";
       return std::nullopt;
     }
-    for (size_t i = 0; i < 256 - 160; i += 8) {
+
+    size_t padding_size = (256 - 160) / 8;
+    LOG(ERROR) << "JANGID: Adding " << padding_size << " zero bytes as padding";
+    for (size_t i = 0; i < padding_size; ++i) {
       result.push_back(0);
     }
+
+    LOG(ERROR) << "JANGID: Result size before adding address: " << result.size();
     result.insert(result.end(), address.begin(), address.end());
+    LOG(ERROR) << "JANGID: Result size after adding address: " << result.size();
+    LOG(ERROR) << "JANGID: Encoded address (hex): " << base::HexEncode(result.data(), result.size());
   } else if (base::StartsWith(type, "bytes", base::CompareCase::SENSITIVE)) {
     unsigned num_bits;
     if (!base::StringToUint(type.data() + 5, &num_bits) || num_bits > 32) {
@@ -370,7 +433,22 @@ std::optional<std::vector<uint8_t>> EthSignTypedDataHelper::EncodeField(
 std::optional<std::pair<std::vector<uint8_t>, base::Value::Dict>>
 EthSignTypedDataHelper::GetTypedDataDomainHash(
     const base::Value::Dict& domain_separator) const {
-  return HashStruct("EIP712Domain", domain_separator);
+  LOG(ERROR) << "JANGID: GetTypedDataDomainHash started";
+  LOG(ERROR) << "JANGID: Domain separator: " << domain_separator.DebugString();
+
+  auto result = HashStruct("EIP712Domain", domain_separator);
+
+  if (result) {
+    LOG(ERROR) << "JANGID: Domain hash size: " << result->first.size();
+    LOG(ERROR) << "JANGID: Domain hash (hex): " 
+               << base::HexEncode(result->first.data(), result->first.size());
+    LOG(ERROR) << "JANGID: Resulting dict: " << result->second.DebugString();
+  } else {
+    LOG(ERROR) << "JANGID: Failed to compute domain hash";
+  }
+
+  LOG(ERROR) << "JANGID: GetTypedDataDomainHash completed";
+  return result;
 }
 
 std::optional<std::pair<std::vector<uint8_t>, base::Value::Dict>>
@@ -385,15 +463,61 @@ std::optional<std::vector<uint8_t>>
 EthSignTypedDataHelper::GetTypedDataMessageToSign(
     const std::vector<uint8_t>& domain_hash,
     const std::vector<uint8_t>& primary_hash) {
+  LOG(ERROR) << "JANGID: Entering GetTypedDataMessageToSign";
+
+  // Log input hashes
+  std::stringstream ss_domain, ss_primary;
+  ss_domain << std::hex << std::setfill('0');
+  ss_primary << std::hex << std::setfill('0');
+  for (const auto& byte : domain_hash) {
+    ss_domain << std::setw(2) << static_cast<int>(byte);
+  }
+  for (const auto& byte : primary_hash) {
+    ss_primary << std::setw(2) << static_cast<int>(byte);
+  }
+  LOG(ERROR) << "JANGID: Domain hash: " << ss_domain.str();
+  LOG(ERROR) << "JANGID: Primary hash: " << ss_primary.str();
+
   if (domain_hash.empty() || primary_hash.empty()) {
+    LOG(ERROR) << "JANGID: Either domain_hash or primary_hash is empty. Returning nullopt.";
     return std::nullopt;
   }
+
   std::vector<uint8_t> encoded_data({0x19, 0x01});
+  LOG(ERROR) << "JANGID: Initial encoded_data: 0x1901";
+
   encoded_data.insert(encoded_data.end(), domain_hash.begin(),
                       domain_hash.end());
+  LOG(ERROR) << "JANGID: Encoded data after inserting domain_hash. Size: " << encoded_data.size();
+
   encoded_data.insert(encoded_data.end(), primary_hash.begin(),
                       primary_hash.end());
-  return KeccakHash(encoded_data);
+  LOG(ERROR) << "JANGID: Encoded data after inserting primary_hash. Size: " << encoded_data.size();
+
+  // Log final encoded data
+  std::stringstream ss_encoded;
+  ss_encoded << std::hex << std::setfill('0');
+  for (const auto& byte : encoded_data) {
+    ss_encoded << std::setw(2) << static_cast<int>(byte);
+  }
+  LOG(ERROR) << "JANGID: Final encoded data: " << ss_encoded.str();
+
+  auto result = KeccakHash(encoded_data);
+  
+  // Log the result
+  if (!result.empty()) {
+    std::stringstream ss_result;
+    ss_result << std::hex << std::setfill('0');
+    for (const auto& byte : result) {
+      ss_result << std::setw(2) << static_cast<int>(byte);
+    }
+    LOG(ERROR) << "JANGID: Keccak hash result: " << ss_result.str();
+  } else {
+    LOG(ERROR) << "JANGID: KeccakHash returned nullopt";
+  }
+
+  LOG(ERROR) << "JANGID: Exiting GetTypedDataMessageToSign";
+  return result;
 }
 
 }  // namespace wootz_wallet

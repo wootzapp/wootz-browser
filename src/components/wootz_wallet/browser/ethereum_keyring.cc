@@ -13,6 +13,8 @@
 #include "components/wootz_wallet/common/eth_address.h"
 #include "components/wootz_wallet/common/hash_utils.h"
 
+#include <iomanip>
+
 namespace wootz_wallet {
 
 namespace {
@@ -84,28 +86,81 @@ std::vector<uint8_t> EthereumKeyring::SignMessage(
     const std::vector<uint8_t>& message,
     uint256_t chain_id,
     bool is_eip712) {
+
+  LOG(ERROR) << "JANGID: SignMessage started for address: " << address;
+  LOG(ERROR) << "JANGID: Message size: " << message.size();
+  LOG(ERROR) << "JANGID: Is EIP712: " << (is_eip712 ? "Yes" : "No");
+  
   HDKey* hd_key = GetHDKeyFromAddress(address);
   if (!hd_key) {
+    LOG(ERROR) << "JANGID: Failed to get HDKey for address: " << address;
     return std::vector<uint8_t>();
   }
+  
+LOG(ERROR) << "JANGID: Successfully retrieved HDKey for address: " << address;
+
+  LOG(ERROR) << "JANGID: Successfully retrieved HDKey " << hd_key;
+  
+  // Log HDKey details (using only available methods)
+  LOG(ERROR) << "JANGID: HDKey details:";
+  LOG(ERROR) << "  - Public key (first 4 bytes): " 
+             << base::HexEncode(hd_key->GetPublicKeyBytes().data(), 10);
+  LOG(ERROR) << "  - Private key (first 4 bytes): " 
+             << base::HexEncode(hd_key->GetPrivateKeyBytes().data(), 10);
 
   std::vector<uint8_t> hash;
   if (!is_eip712) {
+    LOG(ERROR) << "JANGID: Calculating message hash for non-EIP712 message";
     hash = GetMessageHash(message);
   } else {
+    LOG(ERROR) << "JANGID: Processing EIP712 message";
     // eip712 hash is Keccak
     if (message.size() != 32) {
+      LOG(ERROR) << "JANGID: Invalid EIP712 message size: " << message.size();
       return std::vector<uint8_t>();
     }
 
     hash = message;
   }
+  LOG(ERROR) << "JANGID: Hash size: " << hash.size();
+  
+  LOG(ERROR) << "JANGID: Message size: " << message.size();
+  LOG(ERROR) << "JANGID: Message (hex): " << base::HexEncode(message.data(), message.size());
+
+  // ... (later in the function)
+
+  LOG(ERROR) << "JANGID: Hash size: " << hash.size();
+  LOG(ERROR) << "JANGID: Hash (hex): " << base::HexEncode(hash.data(), hash.size());
 
   int recid;
+  LOG(ERROR) << "JANGID: Signing message with HDKey";
   std::vector<uint8_t> signature = hd_key->SignCompact(hash, &recid);
+  LOG(ERROR) << "JANGID: Signature size: " << signature.size();
+  LOG(ERROR) << "JANGID: Recovery ID: " << recid;
+
+  // Convert signature to hex string
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0');
+  for (const auto& byte : signature) {
+    ss << std::setw(2) << static_cast<int>(byte);
+  }
+  LOG(ERROR) << "JANGID: Signature (hex): " << ss.str();
+
   uint8_t v =
       static_cast<uint8_t>(chain_id ? recid + chain_id * 2 + 35 : recid + 27);
+  LOG(ERROR) << "JANGID: Calculated v: " << static_cast<int>(v);
   signature.push_back(v);
+
+  // Convert final signature (including v) to hex string
+  ss.str("");
+  ss.clear();
+  for (const auto& byte : signature) {
+    ss << std::setw(2) << static_cast<int>(byte);
+  }
+  LOG(ERROR) << "JANGID: Final signature (hex): " << ss.str();
+
+  LOG(ERROR) << "JANGID: Final signature size: " << signature.size();
+  LOG(ERROR) << "JANGID: SignMessage completed successfully";
 
   return signature;
 }

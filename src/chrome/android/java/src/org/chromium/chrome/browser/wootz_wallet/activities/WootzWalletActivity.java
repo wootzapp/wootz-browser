@@ -152,7 +152,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     public void finishNativeInitialization() {
 
         String accountName = "ETHEREUM JANGID";
-String privateKey = "61dbc3bdcf01a305a6da072e063677ef6d653ce43862edf29578ef03eda2e295";
+        String privateKey = "9a0b8f746a908b45eca567c666123b7e7d2fc63b6cbda710be939d9a311cda7f";
 
         super.finishNativeInitialization();
         mWalletOnboardingPagerAdapter =

@@ -100,15 +100,45 @@ std::string Secp256k1HDKeyring::ImportAccount(
 }
 
 HDKey* Secp256k1HDKeyring::GetHDKeyFromAddress(const std::string& address) {
+  LOG(ERROR) << "JANGID: GetHDKeyFromAddress started for address: " << address;
+
+  // Check imported accounts
+  LOG(ERROR) << "JANGID: Checking imported accounts...";
   const auto imported_accounts_iter = imported_accounts_.find(address);
   if (imported_accounts_iter != imported_accounts_.end()) {
-    return imported_accounts_iter->second.get();
+    LOG(ERROR) << "JANGID: HDKey found in imported accounts";
+    HDKey* hd_key = imported_accounts_iter->second.get();
+    LOG(ERROR) << "JANGID: Imported HDKey pointer: " << hd_key;
+    if (hd_key) {
+      LOG(ERROR) << "JANGID: Imported HDKey public key: ";
+    } else {
+      LOG(ERROR) << "JANGID: Imported HDKey is null";
+    }
+    return hd_key;
   }
-  for (auto& acc : accounts_) {
-    if (GetAddressInternal(*acc) == address) {
-      return acc.get();
+  LOG(ERROR) << "JANGID: Address not found in imported accounts";
+
+  // Check HD accounts
+  LOG(ERROR) << "JANGID: Checking HD accounts...";
+  for (size_t i = 0; i < accounts_.size(); ++i) {
+    auto& acc = accounts_[i];
+    std::string derived_address = GetAddressInternal(*acc);
+    LOG(ERROR) << "JANGID: Checking HD account " << i << ", derived address: " << derived_address;
+    
+    if (derived_address == address) {
+      LOG(ERROR) << "JANGID: HDKey found in HD accounts at index " << i;
+      HDKey* hd_key = acc.get();
+      LOG(ERROR) << "JANGID: HD account HDKey pointer: " << hd_key;
+      if (hd_key) {
+        LOG(ERROR) << "JANGID: HD account HDKey public key: ";
+      } else {
+        LOG(ERROR) << "JANGID: HD account HDKey is null";
+      }
+      return hd_key;
     }
   }
+
+  LOG(ERROR) << "JANGID: HDKey not found for address: " << address;
   return nullptr;
 }
 

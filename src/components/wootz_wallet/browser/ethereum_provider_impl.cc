@@ -85,6 +85,8 @@ namespace wootz_wallet {
 namespace {
 void RejectInvalidParams(base::Value id,
                          mojom::EthereumProvider::RequestCallback callback) {
+
+  LOG(ERROR)<<"JANGID RejectInvalidParams";
   base::Value formed_response = GetProviderErrorDictionary(
       mojom::ProviderError::kInvalidParams,
       l10n_util::GetStringUTF8(IDS_WALLET_INVALID_PARAMETERS));
@@ -94,20 +96,27 @@ void RejectInvalidParams(base::Value id,
 
 void RejectAccountNotAuthed(base::Value id,
                             mojom::EthereumProvider::RequestCallback callback) {
+
+  LOG(ERROR)<<"JANGID: RejectInvalidParams";
+
   base::Value formed_response = GetProviderErrorDictionary(
       mojom::ProviderError::kUnauthorized,
       l10n_util::GetStringUTF8(IDS_WALLET_NOT_AUTHED));
   std::move(callback).Run(std::move(id), std::move(formed_response), true, "",
                           false);
+  LOG(ERROR)<<"JANGID: RejectInvalidParams"<<formed_response;
 }
 
 void RejectMismatchError(base::Value id,
                          const std::string& err_msg,
                          mojom::EthereumProvider::RequestCallback callback) {
+
+  LOG(ERROR)<<"JANGID: Mismatcherror";
   base::Value formed_response =
       GetProviderErrorDictionary(mojom::ProviderError::kInternalError, err_msg);
   std::move(callback).Run(std::move(id), std::move(formed_response), true, "",
                           false);
+  LOG(ERROR)<<"JANGID: Mismatcherror"<<formed_response;
 }
 
 bool IsTypedDataStructure(const std::string& normalized_json_request) {
@@ -119,14 +128,21 @@ bool IsTypedDataStructure(const std::string& normalized_json_request) {
 
   mojom::EthSignTypedDataMetaPtr meta;
 
+  LOG(ERROR)<<"JANGID: IsTypedDataStructure";
   if (ParseEthSignTypedDataParams(normalized_json_request, &address, &message,
                                   &domain, EthSignTypedDataHelper::Version::kV4,
                                   &domain_hash_out, &primary_hash_out, &meta) ||
       ParseEthSignTypedDataParams(normalized_json_request, &address, &message,
                                   &domain, EthSignTypedDataHelper::Version::kV3,
                                   &domain_hash_out, &primary_hash_out, &meta)) {
+
+  LOG(ERROR)<<"JANGID: Returning true";
+
     return true;
   }
+
+  LOG(ERROR)<<"JANGID: IsTypedDataStructure returning false";
+
   return false;
 }
 
@@ -700,6 +716,74 @@ void EthereumProviderImpl::ContinueDecryptWithSanitizedJson(
   delegate_->ShowPanel();
 }
 
+// void EthereumProviderImpl::SignTypedMessage(
+//     const std::string& address,
+//     const std::string& message,
+//     const std::vector<uint8_t>& domain_hash,
+//     const std::vector<uint8_t>& primary_hash,
+//     mojom::EthSignTypedDataMetaPtr meta,
+//     base::Value::Dict domain,
+//     RequestCallback callback,
+//     base::Value id) {
+
+//       LOG(ERROR)<<"SIGNTYPEDMESSAFGE     JANGID ";
+
+//   std::string domain_string;
+//   if (!base::JSONWriter::Write(domain, &domain_string) || domain_hash.empty() ||
+//       primary_hash.empty()) {
+//     return RejectInvalidParams(std::move(id), std::move(callback));
+//   }
+
+//   auto chain_id = domain.FindDouble("chainId");
+//   if (chain_id) {
+//     const std::string chain_id_hex =
+//         Uint256ValueToHex((uint256_t)(uint64_t)*chain_id);
+//     if (base::CompareCaseInsensitiveASCII(
+//             chain_id_hex, json_rpc_service_->GetChainIdSync(
+//                               mojom::CoinType::ETH, delegate_->GetOrigin())) !=
+//         0) {
+//       return RejectMismatchError(
+//           std::move(id),
+//           l10n_util::GetStringFUTF8(
+//               IDS_WOOTZ_WALLET_SIGN_MESSAGE_CHAIN_ID_MISMATCH,
+//               base::ASCIIToUTF16(chain_id_hex)),
+//           std::move(callback));
+//     }
+//   }
+
+//   const auto account_id =
+//       FindAuthenticatedAccountByAddress(address, id, callback);
+//   if (!account_id) {
+//     return;
+//   }
+
+//   if (domain_hash.empty() || primary_hash.empty()) {
+//     return RejectInvalidParams(std::move(id), std::move(callback));
+//   }
+//   auto message_to_sign = EthSignTypedDataHelper::GetTypedDataMessageToSign(
+//       domain_hash, primary_hash);
+//   if (!message_to_sign || message_to_sign->size() != 32) {
+//     return RejectInvalidParams(std::move(id), std::move(callback));
+//   }
+
+//   mojom::SignDataUnionPtr sign_data =
+//       mojom::SignDataUnion::NewEthSignTypedData(mojom::EthSignTypedData::New(
+//           message, domain_string, base::HexEncode(domain_hash),
+//           base::HexEncode(primary_hash), std::move(meta)));
+
+  
+//   LOG(ERROR) << "JANGID: signTypedMessage before - message_to_sign: " 
+//            << (message_to_sign.has_value() ? "present (size: " + std::to_string(message_to_sign->size()) + ")" : "not present")
+//            << ", sign_data: " << (sign_data ? "valid" : "null")
+//            << ", account_id: " << (account_id ? account_id->address : "null"); 
+  
+//   SignMessageInternal(account_id, std::move(sign_data),
+//                       std::move(*message_to_sign), std::move(callback),
+//                       std::move(id));
+  
+//   LOG(ERROR)<<"SIGNIN signtypedmessage AFTER JANGID";
+
+// }
 void EthereumProviderImpl::SignTypedMessage(
     const std::string& address,
     const std::string& message,
@@ -710,22 +794,37 @@ void EthereumProviderImpl::SignTypedMessage(
     RequestCallback callback,
     base::Value id) {
 
-      LOG(ERROR)<<"SIGNTYPEDMESSAFGE     JANGID ";
+  LOG(ERROR) << "JANGID: SignTypedMessage started";
+  LOG(ERROR) << "JANGID: Address: " << address;
+  LOG(ERROR) << "JANGID: Message length: " << message.length();
+
+  LOG(ERROR) << "JANGID: Domain hash size: " << domain_hash.size();
+  LOG(ERROR) << "JANGID: Domain hash (hex): " << base::HexEncode(domain_hash.data(), domain_hash.size());
+
+  LOG(ERROR) << "JANGID: Primary hash size: " << primary_hash.size();
+  LOG(ERROR) << "JANGID: Primary hash (hex): " << base::HexEncode(primary_hash.data(), primary_hash.size());
 
   std::string domain_string;
   if (!base::JSONWriter::Write(domain, &domain_string) || domain_hash.empty() ||
       primary_hash.empty()) {
+    LOG(ERROR) << "JANGID: Invalid params, rejecting";
     return RejectInvalidParams(std::move(id), std::move(callback));
   }
+
+  LOG(ERROR) << "JANGID: Domain string: " << domain_string;
 
   auto chain_id = domain.FindDouble("chainId");
   if (chain_id) {
     const std::string chain_id_hex =
         Uint256ValueToHex((uint256_t)(uint64_t)*chain_id);
-    if (base::CompareCaseInsensitiveASCII(
-            chain_id_hex, json_rpc_service_->GetChainIdSync(
-                              mojom::CoinType::ETH, delegate_->GetOrigin())) !=
-        0) {
+    LOG(ERROR) << "JANGID: Chain ID from domain: " << chain_id_hex;
+    
+    std::string current_chain_id = json_rpc_service_->GetChainIdSync(
+        mojom::CoinType::ETH, delegate_->GetOrigin());
+    LOG(ERROR) << "JANGID: Current chain ID: " << current_chain_id;
+
+    if (base::CompareCaseInsensitiveASCII(chain_id_hex, current_chain_id) != 0) {
+      LOG(ERROR) << "JANGID: Chain ID mismatch, rejecting";
       return RejectMismatchError(
           std::move(id),
           l10n_util::GetStringFUTF8(
@@ -733,40 +832,45 @@ void EthereumProviderImpl::SignTypedMessage(
               base::ASCIIToUTF16(chain_id_hex)),
           std::move(callback));
     }
+  } else {
+    LOG(ERROR) << "JANGID: No chain ID found in domain";
   }
 
   const auto account_id =
       FindAuthenticatedAccountByAddress(address, id, callback);
   if (!account_id) {
+    LOG(ERROR) << "JANGID: Account not found or not authenticated";
     return;
   }
 
+  LOG(ERROR) << "JANGID: Account ID found for address: " << address;
+
   if (domain_hash.empty() || primary_hash.empty()) {
+    LOG(ERROR) << "JANGID: Empty domain_hash or primary_hash, rejecting";
     return RejectInvalidParams(std::move(id), std::move(callback));
   }
+
   auto message_to_sign = EthSignTypedDataHelper::GetTypedDataMessageToSign(
       domain_hash, primary_hash);
   if (!message_to_sign || message_to_sign->size() != 32) {
+    LOG(ERROR) << "JANGID: Invalid message_to_sign, rejecting";
     return RejectInvalidParams(std::move(id), std::move(callback));
   }
+
+  LOG(ERROR) << "JANGID: Message to sign size: " << message_to_sign->size();
 
   mojom::SignDataUnionPtr sign_data =
       mojom::SignDataUnion::NewEthSignTypedData(mojom::EthSignTypedData::New(
           message, domain_string, base::HexEncode(domain_hash),
           base::HexEncode(primary_hash), std::move(meta)));
 
-  
-  LOG(ERROR) << "JANGID: signTypedMessage before - message_to_sign: " 
-           << (message_to_sign.has_value() ? "present (size: " + std::to_string(message_to_sign->size()) + ")" : "not present")
-           << ", sign_data: " << (sign_data ? "valid" : "null")
-           << ", account_id: " << (account_id ? account_id->address : "null"); 
+  LOG(ERROR) << "JANGID: Sign data created, calling SignMessageInternal";
   
   SignMessageInternal(account_id, std::move(sign_data),
                       std::move(*message_to_sign), std::move(callback),
                       std::move(id));
   
-  LOG(ERROR)<<"SIGNIN signtypedmessage AFTER JANGID";
-
+  LOG(ERROR) << "JANGID: SignTypedMessage completed";
 }
 
 // void EthereumProviderImpl::SignMessageInternal(
@@ -1440,28 +1544,76 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
 
     LOG(ERROR)<<"JANGID: inside main CommonRequestOrSendAsync"<<method <<" address>>"<< address<<"message>>"<<message;
 
-    if (method == kEthSignTypedDataV4) {
+if (method == kEthSignTypedDataV4) {
+
+      std::stringstream ss;
+      ss << "JANGID: ParseEthSignTypedDataParams BEFORE " << address << " " << message << " " << domain;
+      ss << " Domain hash: ";
+      for (const auto& byte : domain_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      ss << " Primary hash: ";
+      for (const auto& byte : primary_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      LOG(ERROR) << ss.str();
+
       if (!ParseEthSignTypedDataParams(
               normalized_json_request, &address, &message, &domain,
               EthSignTypedDataHelper::Version::kV4, &domain_hash_out,
               &primary_hash_out, &meta)) {
     
-    LOG(ERROR)<<"JANGID: inside CommonRequestOrSendAsync"<<method <<" address>>"<< address<<"message>>"<<message;
-    
+      ss.clear();
+      ss << "JANGID: ParseEthSignTypedDataParams AFTER " << address << " " << message << " " << domain;
+      ss << " Domain hash: ";
+      for (const auto& byte : domain_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      ss << " Primary hash: ";
+      for (const auto& byte : primary_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      LOG(ERROR) << ss.str();
+
+        
+        LOG(ERROR)<<"JANGID: SendErrorOnRequest BEFORE "<<error<<" "<<error_message;
         SendErrorOnRequest(error, error_message, std::move(callback),
                            std::move(id));
         return;
       }
     } else {
+      std::stringstream ss;
+      ss << "JANGID: ParseEthSignTypedDataParams V3 BEFORE " << address << " " << message << " " << domain;
+      ss << " Domain hash: ";
+      for (const auto& byte : domain_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      ss << " Primary hash: ";
+      for (const auto& byte : primary_hash_out) {
+        ss << std::hex << static_cast<int>(byte);
+      }
+      LOG(ERROR) << ss.str();
+
       if (!ParseEthSignTypedDataParams(
               normalized_json_request, &address, &message, &domain,
               EthSignTypedDataHelper::Version::kV3, &domain_hash_out,
               &primary_hash_out, &meta)) {
         
-        LOG(ERROR)<<"JANGID: inside CommonRequestOrSendAsync"<<method <<" address>>"<< address<<"message>>"<<message;
+        ss.clear();
+        ss << "JANGID: ParseEthSignTypedDataParams V3 AFTER " << address << " " << message << " " << domain;
+        ss << " Domain hash: ";
+        for (const auto& byte : domain_hash_out) {
+          ss << std::hex << static_cast<int>(byte);
+        }
+        ss << " Primary hash: ";
+        for (const auto& byte : primary_hash_out) {
+          ss << std::hex << static_cast<int>(byte);
+        }
+        LOG(ERROR) << ss.str();
 
+        LOG(ERROR)<<"JANGID: SendErrorOnRequest V3 BEFORE "<<error<<" "<<error_message;
         SendErrorOnRequest(error, error_message, std::move(callback),
-                           std::move(id));
+                          std::move(id));
         return;
       }
     }
@@ -1775,7 +1927,7 @@ void EthereumProviderImpl::OnGetAllAccounts(
   
   LOG(ERROR) << "RequestEthereum: Got all accounts, count = " << all_accounts_info->accounts.size();
 
-  const std::string target_address = "0xeEA62A0647af14fd9c7116012C960113146aAe99";
+  const std::string target_address = "0x2D00F1AB9c81e6b5BE16004d75652e084FB0EE21";
   const std::string target_name = "ETHEREUM JANGID";
 
   std::vector<std::string> account_details;

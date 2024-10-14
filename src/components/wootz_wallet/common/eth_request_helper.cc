@@ -474,84 +474,169 @@ bool ParseEthSignTypedDataParams(const std::string& json,
                                  std::vector<uint8_t>* domain_hash_out,
                                  std::vector<uint8_t>* primary_hash_out,
                                  mojom::EthSignTypedDataMetaPtr* meta_out) {
+
+  LOG(ERROR) << "JANGID: ParseEthSignTypedDataParams started";
+  LOG(ERROR) << "JANGID: Input JSON: " << json;
+  LOG(ERROR) << "JANGID: Version: " << static_cast<int>(version);
+                                  
+  if (domain_hash_out) {
+    const std::string full_hash = base::HexEncode(domain_hash_out->data(), domain_hash_out->size());
+    LOG(ERROR) << "JANGID: Full domain_hash_out (length: " << full_hash.length() << "):";
+    for (size_t i = 0; i < full_hash.length(); i += 64) {
+      LOG(ERROR) << "JANGID:   " << full_hash.substr(i, 64);
+    }
+  } else {
+    LOG(ERROR) << "JANGID: domain_hash_out is null";
+  }
+
+
   if (!address || !message_out || !domain_out || !domain_hash_out ||
       !primary_hash_out || !meta_out) {
+    LOG(ERROR) << "JANGID: Invalid input pointers";
     return false;
   }
 
   auto list = GetParamsList(json);
   if (!list || list->size() != 2) {
+    LOG(ERROR) << "JANGID: Invalid params list, size: " << (list ? list->size() : 0);
     return false;
   }
 
   const std::string* address_str = (*list)[0].GetIfString();
   const std::string* typed_data_str = (*list)[1].GetIfString();
   if (!address_str || !typed_data_str) {
+    LOG(ERROR) << "JANGID: Invalid address or typed data string";
     return false;
   }
+
+  LOG(ERROR) << "JANGID: Address: " << *address_str;
+  LOG(ERROR) << "JANGID: Typed data length: " << typed_data_str->length();
+  LOG(ERROR) << "JANGID: Typed data: " << *typed_data_str;
 
   auto typed_data = base::JSONReader::Read(
       *typed_data_str,
       base::JSON_PARSE_CHROMIUM_EXTENSIONS | base::JSON_ALLOW_TRAILING_COMMAS);
   if (!typed_data) {
+    LOG(ERROR) << "JANGID: Failed to parse typed data JSON";
     return false;
   }
   auto* dict = typed_data->GetIfDict();
   if (!dict) {
+    LOG(ERROR) << "JANGID: Typed data is not a dictionary";
     return false;
   }
 
   const std::string* primary_type = dict->FindString("primaryType");
   if (!primary_type) {
+    LOG(ERROR) << "JANGID: Primary type not found";
     return false;
   }
+  LOG(ERROR) << "JANGID: Primary type: " << *primary_type;
 
   auto* domain = dict->FindDict("domain");
   if (!domain) {
+    LOG(ERROR) << "JANGID: Domain not found";
     return false;
   }
+  LOG(ERROR) << "JANGID: Domain: " << domain->DebugString();
 
   const auto* message = dict->FindDict("message");
   if (!message) {
+    LOG(ERROR) << "JANGID: Message not found";
     return false;
   }
+  LOG(ERROR) << "JANGID: Message: " << message->DebugString();
 
   *address = *address_str;
+  LOG(ERROR) << "JANGID: Set address: " << *address;
 
   auto* types = dict->FindDict("types");
   if (!types) {
+    LOG(ERROR) << "JANGID: Types not found";
     return false;
   }
   std::unique_ptr<EthSignTypedDataHelper> helper =
       EthSignTypedDataHelper::Create(std::move(*types), version);
   if (!helper) {
+    LOG(ERROR) << "JANGID: Failed to create EthSignTypedDataHelper";
     return false;
   }
+
+  std::string original_domain_json;
+  if (base::JSONWriter::Write(*domain, &original_domain_json)) {
+    LOG(ERROR) << "JANGID: Original domain: " << original_domain_json;
+  } else {
+    LOG(ERROR) << "JANGID: Failed to serialize original domain to JSON";
+  }
+
+
   auto domain_hash = helper->GetTypedDataDomainHash(*domain);
   if (!domain_hash) {
+    LOG(ERROR) << "JANGID: Failed to get domain hash";
     return false;
   }
+
+
+// Print domain hash
+  LOG(ERROR) << "JANGID: Domain hash size: " << domain_hash->first.size();
+  LOG(ERROR) << "JANGID: Domain hash (hex): " << base::HexEncode(domain_hash->first.data(), domain_hash->first.size());
+
+  // Print the domain data from domain_hash
+  std::string domain_hash_data_json;
+  if (base::JSONWriter::Write(domain_hash->second, &domain_hash_data_json)) {
+    LOG(ERROR) << "JANGID: Domain data from domain_hash: " << domain_hash_data_json;
+  } else {
+    LOG(ERROR) << "JANGID: Failed to serialize domain data from domain_hash to JSON";
+  }
+
+  // Compare original domain with domain_hash data
+  if (original_domain_json == domain_hash_data_json) {
+    LOG(ERROR) << "JANGID: Original domain and domain_hash data are identical";
+  } else {
+    LOG(ERROR) << "JANGID: Original domain and domain_hash data differ";
+  }
+
 
   auto primary_hash = helper->GetTypedDataPrimaryHash(*primary_type, *message);
   if (!primary_hash) {
+    LOG(ERROR) << "JANGID: Failed to get primary hash";
     return false;
   }
 
-  auto type_hash = base::HexEncode(helper->GetTypeHash(*primary_type));
+  LOG(ERROR) << "JANGID: Domain hash size: " << domain_hash->first.size();
+  LOG(ERROR) << "JANGID: Domain hash (hex): " << base::HexEncode(domain_hash->first.data(), domain_hash->first.size());
+
+  LOG(ERROR) << "JANGID: Primary hash size: " << primary_hash->first.size();
+  LOG(ERROR) << "JANGID: Primary hash (hex): " << base::HexEncode(primary_hash->first.data(), primary_hash->first.size());
+
+  auto type_hash = base::HexEncode(helper->GetTypeHash(*primary_type).data(), helper->GetTypeHash(*primary_type).size());
+  LOG(ERROR) << "JANGID: Type hash: " << type_hash;
   if (type_hash == kCowSwapTypeHash) {
     *meta_out = ParseCowSwapOrder(*message);
+    LOG(ERROR) << "JANGID: Parsed CowSwap order";
+    if (*meta_out) {
+      LOG(ERROR) << "JANGID: CowSwap meta: ";
+    }
   } else {
     *meta_out = nullptr;
+    LOG(ERROR) << "JANGID: Not a CowSwap order";
   }
 
   *domain_hash_out = domain_hash->first;
   *domain_out = std::move(domain_hash->second);
+  LOG(ERROR) << "JANGID: Set domain_hash_out size: " << domain_hash_out->size();
+  LOG(ERROR) << "JANGID: Set domain_out: " << domain_out->DebugString();
 
   *primary_hash_out = primary_hash->first;
+  LOG(ERROR) << "JANGID: Set primary_hash_out size: " << primary_hash_out->size();
+
   if (!base::JSONWriter::Write(std::move(primary_hash->second), message_out)) {
+    LOG(ERROR) << "JANGID: Failed to write primary hash to message_out";
     return false;
   }
+  LOG(ERROR) << "JANGID: Set message_out: " << *message_out;
 
+  LOG(ERROR) << "JANGID: ParseEthSignTypedDataParams completed successfully";
   return true;
 }
 
@@ -566,6 +651,9 @@ bool ParseEthDecryptData(const base::Value& obj,
   //   "ephemPublicKey": "base64-string",
   //   "ciphertext":"base64-string"
   // }
+
+  LOG(ERROR)<<"JANGID: parseEthDecrypt";
+
   auto* dict = obj.GetIfDict();
   if (!dict) {
     return false;
