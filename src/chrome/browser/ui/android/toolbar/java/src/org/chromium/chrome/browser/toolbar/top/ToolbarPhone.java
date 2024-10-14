@@ -34,6 +34,8 @@ import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.view.GestureDetector;
+import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
@@ -113,6 +115,8 @@ public class ToolbarPhone extends ToolbarLayout
     protected static final int TAB_SWITCHER = 1;
     protected static final int ENTERING_TAB_SWITCHER = 2;
     protected static final int EXITING_TAB_SWITCHER = 3;
+    private static final int SWIPE_THRESHOLD = 100;
+    private static final int SWIPE_VELOCITY_THRESHOLD = 100;
 
     @ViewDebug.ExportedProperty(
             category = "chrome",
@@ -132,6 +136,7 @@ public class ToolbarPhone extends ToolbarLayout
     private ObservableSupplier<Tracker> mTrackerSupplier;
 
     private ViewGroup mTabSwitcherButtonContainer;
+    private ViewGroup mToolbarFrameViewTop;
     private ViewGroup mOptionalButtonContainer;
     private ViewGroup mToolbarButtonsContainer;
     protected @Nullable ToggleTabStackButton mToggleTabStackButton;
@@ -141,6 +146,10 @@ public class ToolbarPhone extends ToolbarLayout
     protected View mUrlActionContainer;
     protected ImageView mToolbarShadow;
     private OptionalButtonCoordinator mOptionalButtonCoordinator;
+
+    private GestureDetector gestureDetector;
+
+    private Context context;
 
     @ViewDebug.ExportedProperty(category = "chrome")
     protected int mTabSwitcherState;
@@ -334,6 +343,20 @@ public class ToolbarPhone extends ToolbarLayout
         mHomeSurfaceToolbarBackgroundColor =
                 ChromeColors.getSurfaceColor(
                         getContext(), R.dimen.home_surface_background_color_elevation);
+
+         gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                final int SWIPE_THRESHOLD = 100;
+                final int SWIPE_VELOCITY_THRESHOLD = 100;
+
+                if (e1.getY() - e2.getY() > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                    onSwipeUp();
+                    return true;
+                }
+                return false;
+            }
+        });
         if (mIsSurfacePolishEnabled) {
             float homeSurfaceLocationBarBackgroundColorAlpha =
                     ResourcesCompat.getFloat(
@@ -353,6 +376,7 @@ public class ToolbarPhone extends ToolbarLayout
 
             mToolbarButtonsContainer = findViewById(R.id.toolbar_buttons);
             mOptionalButtonContainer = findViewById(R.id.optional_button_container);
+            mToolbarFrameViewTop = findViewById(R.id.toolbar_frame_view_top);
             mTabSwitcherButtonContainer = findViewById(R.id.tab_switcher_button_container);
             mHomeButton = findViewById(R.id.home_button);
             mUrlBar = findViewById(R.id.url_bar);
@@ -599,6 +623,10 @@ public class ToolbarPhone extends ToolbarLayout
             return getToolbarDataProvider().getNewTabPageDelegate().dispatchTouchEvent(ev);
         }
 
+        if (gestureDetector != null) {
+            gestureDetector.onTouchEvent(ev);
+        }
+    
         return super.onTouchEvent(ev);
     }
 
@@ -3201,7 +3229,16 @@ public class ToolbarPhone extends ToolbarLayout
         mNtpSearchBoxScrollFraction = ntpSearchBoxScrollFraction;
     }
 
-    public void ShowTabSwitcherToolbarContiainer() {
-        return;
+    private void onSwipeUp() {
+        if (mToolbarFrameViewTop.getVisibility() == View.GONE) {
+            mToolbarFrameViewTop.setVisibility(View.VISIBLE);
+
+            mToolbarFrameViewTop.setTranslationY(200);
+            mToolbarFrameViewTop.animate()
+                    .translationY(0)
+                    .setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
     }
 }

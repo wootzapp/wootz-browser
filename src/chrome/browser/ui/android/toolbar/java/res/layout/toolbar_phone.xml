@@ -21,13 +21,13 @@ found in the LICENSE file.
         android:orientation="vertical">
     
     <FrameLayout
-        android:id="@+id/toolbar_frame_view"
+        android:id="@+id/toolbar_frame_view_top"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_margin="8dp"
         android:padding="0dp"
-        android:visibility="visible">
+        android:visibility="gone">
 
     <LinearLayout
         android:id="@+id/pinned_apps_container"
@@ -100,6 +100,7 @@ found in the LICENSE file.
             android:layout_gravity="top"
             android:visibility="gone"
             android:layout_width="52dp"
+            android:layout_height="56dp"
             style="@style/ToolbarHoverableButton" />
         </LinearLayout>
 
