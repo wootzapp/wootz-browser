@@ -13,7 +13,108 @@ found in the LICENSE file.
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/toolbar"
     android:layout_width="match_parent"
-    android:layout_height="@dimen/toolbar_height_no_shadow" >
+    android:layout_height="wrap_content" >
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+    
+    <FrameLayout
+        android:id="@+id/toolbar_frame_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_margin="8dp"
+        android:padding="0dp"
+        android:visibility="visible">
+
+    <LinearLayout
+        android:id="@+id/pinned_apps_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:id="@+id/tab_switcher_button_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center">
+
+            <org.chromium.chrome.browser.toolbar.top.ToggleTabStackButton
+            android:id="@+id/tab_switcher_button"
+            style="@style/ToolbarHoverableButton"
+            android:layout_gravity="top"
+            android:clickable="false"
+            app:menuMaxWidth="@dimen/tab_switcher_menu_width"
+            app:menuVerticalOverlapAnchor="false" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="7"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <ImageView
+                android:src="@drawable/btn_toolbar_home"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="8dp"
+                android:contentDescription="Pinned App 1" />
+
+            <ImageView
+                android:src="@drawable/btn_toolbar_home"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="8dp"
+                android:contentDescription="Pinned App 2" />
+
+            <ImageView
+                android:src="@drawable/btn_toolbar_home"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="8dp"
+                android:contentDescription="Pinned App 1" />
+
+            <ImageView
+                android:src="@drawable/btn_toolbar_home"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_margin="8dp"
+                android:contentDescription="Pinned App 2" />
+
+        <LinearLayout
+            android:id="@+id/optional_button_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:orientation="horizontal"
+            android:gravity="center">
+        <ViewStub
+            android:id="@+id/optional_button_stub"
+            android:inflatedId="@+id/optional_toolbar_button_container"
+            android:layout_gravity="top"
+            android:visibility="gone"
+            android:layout_width="52dp"
+            style="@style/ToolbarHoverableButton" />
+        </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
+
+
+    <FrameLayout
+        android:id="@+id/toolbar_frame_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
     <org.chromium.chrome.browser.toolbar.home_button.HomeButton
         android:id="@+id/home_button"
@@ -29,7 +130,7 @@ found in the LICENSE file.
     <org.chromium.chrome.browser.omnibox.LocationBarPhone
         android:id="@+id/location_bar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:paddingStart="@dimen/location_bar_start_padding"
         android:paddingEnd="@dimen/location_bar_end_padding"/>
@@ -42,25 +143,11 @@ found in the LICENSE file.
         android:focusable="true"
         android:focusableInTouchMode="true">
 
-        <ViewStub
-            android:id="@+id/optional_button_stub"
-            android:inflatedId="@+id/optional_toolbar_button_container"
-            android:layout_gravity="top"
-            android:visibility="gone"
-            android:layout_width="52dp"
-            style="@style/ToolbarHoverableButton" />
-
-        <org.chromium.chrome.browser.toolbar.top.ToggleTabStackButton
-            android:id="@+id/tab_switcher_button"
-            style="@style/ToolbarButton"
-            android:background="@drawable/toolbar_tab_switcher_button_ripple"
-            android:paddingStart="@dimen/toolbar_tab_switcher_button_padding"
-            android:layout_gravity="top"
-            android:contentDescription="@string/accessibility_toolbar_btn_tabswitcher_toggle_default"
-            app:menuMaxWidth="@dimen/tab_switcher_menu_width"
-            app:menuVerticalOverlapAnchor="false" />
-
         <include layout="@layout/menu_button"/>
+
+    </LinearLayout>
+
+    </FrameLayout>
 
     </LinearLayout>
 

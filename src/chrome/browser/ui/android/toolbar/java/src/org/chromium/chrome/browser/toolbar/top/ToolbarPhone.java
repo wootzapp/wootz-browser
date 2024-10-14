@@ -131,6 +131,8 @@ public class ToolbarPhone extends ToolbarLayout
     protected LocationBarCoordinator mLocationBar;
     private ObservableSupplier<Tracker> mTrackerSupplier;
 
+    private ViewGroup mTabSwitcherButtonContainer;
+    private ViewGroup mOptionalButtonContainer;
     private ViewGroup mToolbarButtonsContainer;
     protected @Nullable ToggleTabStackButton mToggleTabStackButton;
     // Non-null after inflation occurs.
@@ -350,6 +352,8 @@ public class ToolbarPhone extends ToolbarLayout
             super.onFinishInflate();
 
             mToolbarButtonsContainer = findViewById(R.id.toolbar_buttons);
+            mOptionalButtonContainer = findViewById(R.id.optional_button_container);
+            mTabSwitcherButtonContainer = findViewById(R.id.tab_switcher_button_container);
             mHomeButton = findViewById(R.id.home_button);
             mUrlBar = findViewById(R.id.url_bar);
             mUrlActionContainer = findViewById(R.id.url_action_container);
@@ -1514,6 +1518,7 @@ public class ToolbarPhone extends ToolbarLayout
 
         // Translate to draw end toolbar buttons.
         ViewUtils.translateCanvasToView(this, mToolbarButtonsContainer, canvas);
+        ViewUtils.translateCanvasToView(this, mTabSwitcherButtonContainer, canvas);
 
         // Draw the optional button if visible. We check for both visibility and width because in
         // some cases (e.g. the first frame of the showing animation) the view may be visible with a
@@ -1524,7 +1529,7 @@ public class ToolbarPhone extends ToolbarLayout
                 && mOptionalButtonCoordinator.getViewWidth() != 0) {
             canvas.save();
             ViewUtils.translateCanvasToView(
-                    mToolbarButtonsContainer,
+                    mOptionalButtonContainer,
                     mOptionalButtonCoordinator.getViewForDrawing(),
                     canvas);
             mOptionalButtonCoordinator.getViewForDrawing().draw(canvas);
@@ -1538,7 +1543,7 @@ public class ToolbarPhone extends ToolbarLayout
             // Draw the tab stack button image.
             canvas.save();
             ViewUtils.translateCanvasToView(
-                    mToolbarButtonsContainer, mToggleTabStackButton, canvas);
+                    mTabSwitcherButtonContainer, mToggleTabStackButton, canvas);
 
             int backgroundWidth = mToggleTabStackButton.getDrawable().getIntrinsicWidth();
             int backgroundHeight = mToggleTabStackButton.getDrawable().getIntrinsicHeight();
@@ -3194,5 +3199,9 @@ public class ToolbarPhone extends ToolbarLayout
 
     void setNtpSearchBoxScrollFractionForTesting(float ntpSearchBoxScrollFraction) {
         mNtpSearchBoxScrollFraction = ntpSearchBoxScrollFraction;
+    }
+
+    public void ShowTabSwitcherToolbarContiainer() {
+        return;
     }
 }
