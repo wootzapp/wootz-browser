@@ -151,9 +151,6 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     @Override
     public void finishNativeInitialization() {
 
-        String accountName = "ETHEREUM JANGID";
-        String privateKey = "9a0b8f746a908b45eca567c666123b7e7d2fc63b6cbda710be939d9a311cda7f";
-
         super.finishNativeInitialization();
         mWalletOnboardingPagerAdapter =
                 new WalletOnboardingPagerAdapter(
@@ -174,26 +171,6 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
                         "asdfasdf", succ -> {})
                         )
             );
-            mKeyringService.addAccount(60,0,"123", accountInfo ->
-                        mKeyringService.setSelectedAccount(accountInfo.accountId, success -> {})) ;
-
-            mKeyringService.importAccount(accountName, privateKey, 60, accountInfo -> {
-                if (accountInfo != null) {
-                    Log.d("WootzWalletActivity", "Successfully imported account: " + accountInfo.address + " JANGID");
-                    
-                    // Set as selected account
-                    mKeyringService.setSelectedAccount(accountInfo.accountId, success -> {
-                        if (success) {
-                            Log.d("WootzWalletActivity", "Set imported account as selected JANGID");
-                        } else {
-                            Log.e("WootzWalletActivity", "Failed to set imported account as selected JANGID");
-                        }
-                    });
-                } else {
-                    Log.e("WootzWalletActivity", "Failed to import account JANGID");
-                }
-            });
-
 
             mKeyringService.isLocked(
                     isLocked -> {

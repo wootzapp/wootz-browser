@@ -678,12 +678,18 @@ void KeyringService::CreateKeyrings(const KeyringSeed& keyring_seed) {
 
 void KeyringService::CreateDefaultAccounts() {
   if (auto account =
-          AddHDAccountForKeyring(mojom::kDefaultKeyringId, GetAccountName(1))) {
+          AddHDAccountForKeyring(mojom::kDefaultKeyringId, "WootzApp Ethereum " + GetAccountName(1))) {
+
+    LOG(ERROR)<<"JANGID accountCreate"<<mojom::kDefaultKeyringId<<" "<<account->address;
+
     SetSelectedAccountInternal(*account);
     NotifyAccountsAdded(*account);
   }
   if (auto account = AddHDAccountForKeyring(mojom::kSolanaKeyringId,
-                                            "Solana " + GetAccountName(1))) {
+                                            "WootzApp Solana " + GetAccountName(1))) {
+
+    LOG(ERROR)<<"JANGID accountCreate"<<mojom::kSolanaKeyringId<<" "<<account->address;
+
     SetSelectedAccountInternal(*account);
     NotifyAccountsAdded(*account);
   }

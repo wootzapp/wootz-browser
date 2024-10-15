@@ -347,7 +347,7 @@ class KeyringService : public mojom::KeyringService {
   void CreateKeyringInternal(mojom::KeyringId keyring_id,
                              const KeyringSeed& keyring_seed);
   void CreateKeyrings(const KeyringSeed& keyring_seed);
-  void CreateDefaultAccounts();
+  void CreateDefaultAccounts() override;
   void LoadAllAccountsFromPrefs();
   void LoadAccountsFromPrefs(mojom::KeyringId keyring_id);
 
