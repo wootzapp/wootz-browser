@@ -34,6 +34,9 @@ import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.view.GestureDetector;
+import android.util.Log;
+import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
@@ -113,6 +116,8 @@ public class ToolbarPhone extends ToolbarLayout
     protected static final int TAB_SWITCHER = 1;
     protected static final int ENTERING_TAB_SWITCHER = 2;
     protected static final int EXITING_TAB_SWITCHER = 3;
+    private static final int SWIPE_THRESHOLD = 100;
+    private static final int SWIPE_VELOCITY_THRESHOLD = 100;
 
     @ViewDebug.ExportedProperty(
             category = "chrome",
@@ -131,6 +136,9 @@ public class ToolbarPhone extends ToolbarLayout
     protected LocationBarCoordinator mLocationBar;
     private ObservableSupplier<Tracker> mTrackerSupplier;
 
+    private ViewGroup mTabSwitcherButtonContainer;
+    private ViewGroup mToolbarFrameViewTop;
+    private ViewGroup mOptionalButtonContainer;
     private ViewGroup mToolbarButtonsContainer;
     protected @Nullable ToggleTabStackButton mToggleTabStackButton;
     // Non-null after inflation occurs.
@@ -139,6 +147,10 @@ public class ToolbarPhone extends ToolbarLayout
     protected View mUrlActionContainer;
     protected ImageView mToolbarShadow;
     private OptionalButtonCoordinator mOptionalButtonCoordinator;
+
+    private GestureDetector gestureDetector;
+
+    private Context context;
 
     @ViewDebug.ExportedProperty(category = "chrome")
     protected int mTabSwitcherState;
@@ -332,6 +344,35 @@ public class ToolbarPhone extends ToolbarLayout
         mHomeSurfaceToolbarBackgroundColor =
                 ChromeColors.getSurfaceColor(
                         getContext(), R.dimen.home_surface_background_color_elevation);
+
+         gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDown(MotionEvent e) {
+                onSwipeUp();
+                return true;  
+            }
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) {
+                    return false;
+                }
+            
+                float diffY = e1.getY() - e2.getY();
+            
+                final int SWIPE_THRESHOLD = 100;
+                final int SWIPE_VELOCITY_THRESHOLD = 100;
+            
+                if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffY > 0) {
+                        onSwipeUp();
+                    } else {
+                    }
+                    return true;
+                }
+                return false;
+            
+            }
+        });
         if (mIsSurfacePolishEnabled) {
             float homeSurfaceLocationBarBackgroundColorAlpha =
                     ResourcesCompat.getFloat(
@@ -350,6 +391,9 @@ public class ToolbarPhone extends ToolbarLayout
             super.onFinishInflate();
 
             mToolbarButtonsContainer = findViewById(R.id.toolbar_buttons);
+            mOptionalButtonContainer = findViewById(R.id.optional_button_container);
+            mToolbarFrameViewTop = findViewById(R.id.toolbar_frame_view_top);
+            mTabSwitcherButtonContainer = findViewById(R.id.tab_switcher_button_container);
             mHomeButton = findViewById(R.id.home_button);
             mUrlBar = findViewById(R.id.url_bar);
             mUrlActionContainer = findViewById(R.id.url_action_container);
@@ -583,6 +627,11 @@ public class ToolbarPhone extends ToolbarLayout
             return true;
         }
 
+
+        if (gestureDetector != null) {
+            boolean gestureDetected = gestureDetector.onTouchEvent(ev);
+        }
+
         return super.onInterceptTouchEvent(ev);
     }
 
@@ -595,6 +644,10 @@ public class ToolbarPhone extends ToolbarLayout
             return getToolbarDataProvider().getNewTabPageDelegate().dispatchTouchEvent(ev);
         }
 
+        if (gestureDetector != null) {
+            boolean gestureDetected = gestureDetector.onTouchEvent(ev);
+        }
+    
         return super.onTouchEvent(ev);
     }
 
@@ -1514,6 +1567,7 @@ public class ToolbarPhone extends ToolbarLayout
 
         // Translate to draw end toolbar buttons.
         ViewUtils.translateCanvasToView(this, mToolbarButtonsContainer, canvas);
+        ViewUtils.translateCanvasToView(this, mTabSwitcherButtonContainer, canvas);
 
         // Draw the optional button if visible. We check for both visibility and width because in
         // some cases (e.g. the first frame of the showing animation) the view may be visible with a
@@ -1524,7 +1578,7 @@ public class ToolbarPhone extends ToolbarLayout
                 && mOptionalButtonCoordinator.getViewWidth() != 0) {
             canvas.save();
             ViewUtils.translateCanvasToView(
-                    mToolbarButtonsContainer,
+                    mOptionalButtonContainer,
                     mOptionalButtonCoordinator.getViewForDrawing(),
                     canvas);
             mOptionalButtonCoordinator.getViewForDrawing().draw(canvas);
@@ -1538,7 +1592,7 @@ public class ToolbarPhone extends ToolbarLayout
             // Draw the tab stack button image.
             canvas.save();
             ViewUtils.translateCanvasToView(
-                    mToolbarButtonsContainer, mToggleTabStackButton, canvas);
+                    mTabSwitcherButtonContainer, mToggleTabStackButton, canvas);
 
             int backgroundWidth = mToggleTabStackButton.getDrawable().getIntrinsicWidth();
             int backgroundHeight = mToggleTabStackButton.getDrawable().getIntrinsicHeight();
@@ -3194,5 +3248,18 @@ public class ToolbarPhone extends ToolbarLayout
 
     void setNtpSearchBoxScrollFractionForTesting(float ntpSearchBoxScrollFraction) {
         mNtpSearchBoxScrollFraction = ntpSearchBoxScrollFraction;
+    }
+
+    private void onSwipeUp() {
+        if (mToolbarFrameViewTop.getVisibility() == View.GONE) {
+            mToolbarFrameViewTop.setVisibility(View.VISIBLE);
+
+            mToolbarFrameViewTop.setTranslationY(200);
+            mToolbarFrameViewTop.animate()
+                    .translationY(0)
+                    .setDuration(300)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
     }
 }

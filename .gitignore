@@ -5,3 +5,23 @@
 .gcs_entries
 .cipd/
 node_modules
+
+# Ignore generated files, intermediate classes, JARs
+*.class
+*.jar
+
+# Ignore build output directories
+out/
+build/
+bin/
+
+# Ignore IntelliJ IDEA project files
+.idea/
+*.iml
+
+# Ignore Android Studio files
+.gradle/
+local.properties
+.cxx/
+.externalNativeBuild/
+.cache/
