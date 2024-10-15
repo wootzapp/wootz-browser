@@ -60,32 +60,24 @@ found in the LICENSE file.
             android:gravity="center">
 
             <ImageView
-                android:src="@drawable/btn_toolbar_home"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_margin="8dp"
-                android:contentDescription="Pinned App 1" />
+                android:layout_margin="8dp"/>
 
             <ImageView
-                android:src="@drawable/btn_toolbar_home"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_margin="8dp"
-                android:contentDescription="Pinned App 2" />
+                android:layout_margin="8dp" />
 
             <ImageView
-                android:src="@drawable/btn_toolbar_home"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_margin="8dp"
-                android:contentDescription="Pinned App 1" />
+                android:layout_margin="8dp" />
 
             <ImageView
-                android:src="@drawable/btn_toolbar_home"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_margin="8dp"
-                android:contentDescription="Pinned App 2" />
+                android:layout_margin="8dp"/>
 
         <LinearLayout
             android:id="@+id/optional_button_container"
@@ -131,7 +123,7 @@ found in the LICENSE file.
     <org.chromium.chrome.browser.omnibox.LocationBarPhone
         android:id="@+id/location_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_gravity="top"
         android:paddingStart="@dimen/location_bar_start_padding"
         android:paddingEnd="@dimen/location_bar_end_padding"/>

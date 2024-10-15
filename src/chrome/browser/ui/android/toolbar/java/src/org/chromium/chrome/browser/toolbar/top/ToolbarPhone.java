@@ -35,6 +35,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.view.GestureDetector;
+import android.util.Log;
 import android.view.animation.DecelerateInterpolator;
 
 import androidx.annotation.ColorInt;
@@ -346,15 +347,36 @@ public class ToolbarPhone extends ToolbarLayout
 
          gestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
             @Override
+            public boolean onDown(MotionEvent e) {
+                Log.d("visibility", "onDown detected");
+                onSwipeUp();
+                return true;  // Returning true means the event was handled
+            }
+            @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) {
+                    Log.d("visibility", "onFling: e1 or e2 is null");
+                    return false;
+                }
+            
+                float diffY = e1.getY() - e2.getY();
+                Log.d("visibility", "e1.getY(): " + e1.getY() + ", e2.getY(): " + e2.getY());
+                Log.d("visibility", "onFling - velocityY: " + velocityY);
+            
                 final int SWIPE_THRESHOLD = 100;
                 final int SWIPE_VELOCITY_THRESHOLD = 100;
-
-                if (e1.getY() - e2.getY() > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
-                    onSwipeUp();
+            
+                if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffY > 0) {
+                        Log.d("visibility", "Swipe Up Detected");
+                        onSwipeUp();
+                    } else {
+                        Log.d("visibility", "Swipe Down Detected");
+                    }
                     return true;
                 }
                 return false;
+            
             }
         });
         if (mIsSurfacePolishEnabled) {
@@ -611,6 +633,15 @@ public class ToolbarPhone extends ToolbarLayout
             return true;
         }
 
+        Log.d("visibility", "onInterceptTouchEvent: action = " + ev.getAction());
+        Log.d("visibility", "Touch Event: X=" + ev.getX() + ", Y=" + ev.getY());
+
+
+        if (gestureDetector != null) {
+            boolean gestureDetected = gestureDetector.onTouchEvent(ev);
+            Log.d("visibility", "onTouch for gesture detector triggered" + gestureDetected);
+        }
+
         return super.onInterceptTouchEvent(ev);
     }
 
@@ -624,9 +655,11 @@ public class ToolbarPhone extends ToolbarLayout
         }
 
         if (gestureDetector != null) {
-            gestureDetector.onTouchEvent(ev);
+            boolean gestureDetected = gestureDetector.onTouchEvent(ev);
+            Log.d("visibility", "onTouch for gesture detector triggered1" + gestureDetected);
         }
     
+        Log.d("visibility", "onTouchDefault");
         return super.onTouchEvent(ev);
     }
 
@@ -3230,6 +3263,7 @@ public class ToolbarPhone extends ToolbarLayout
     }
 
     private void onSwipeUp() {
+        Log.d("visibility", "swipe implemented");
         if (mToolbarFrameViewTop.getVisibility() == View.GONE) {
             mToolbarFrameViewTop.setVisibility(View.VISIBLE);
 
@@ -3239,6 +3273,7 @@ public class ToolbarPhone extends ToolbarLayout
                     .setDuration(300)
                     .setInterpolator(new DecelerateInterpolator())
                     .start();
+            Log.d("visibility", "animation implemented");
         }
     }
 }
