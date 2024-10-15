@@ -100,6 +100,10 @@ const base::Feature* const kAllFeatures[] = {
     &kIPHSharedHighlightingReceiverFeature,
     &kIPHSharingHubWebnotesStylizeFeature,
     &kIPHRestoreTabsOnFREFeature,
+    // #if BUILDFLAG(ENABLE_EXTENSIONS)
+    // &kIPHExtensionsMenuFeature,
+    // &kIPHExtensionsRequestAccessButtonFeature,
+    // #endif
 #endif  // BUILDFLAG(IS_ANDROID)
 #if BUILDFLAG(IS_IOS)
     &kIPHBottomToolbarTipFeature,

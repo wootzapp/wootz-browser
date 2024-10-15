@@ -138,43 +138,44 @@ bool ChromeExtensionsAPIClient::ShouldHideResponseHeader(
 bool ChromeExtensionsAPIClient::ShouldHideBrowserNetworkRequest(
     content::BrowserContext* context,
     const WebRequestInfo& request) const {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  // DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  // Note: browser initiated non-navigation requests are hidden from extensions.
-  // But we do still need to protect some sensitive sub-frame navigation
-  // requests.
-  // Exclude main frame navigation requests.
-  bool is_browser_request =
-      request.render_process_id == -1 &&
-      request.web_request_type != WebRequestResourceType::MAIN_FRAME;
+  // // Note: browser initiated non-navigation requests are hidden from extensions.
+  // // But we do still need to protect some sensitive sub-frame navigation
+  // // requests.
+  // // Exclude main frame navigation requests.
+  // bool is_browser_request =
+  //     request.render_process_id == -1 &&
+  //     request.web_request_type != WebRequestResourceType::MAIN_FRAME;
 
-  // Hide requests made by the Devtools frontend.
-  bool is_sensitive_request =
-      is_browser_request && DevToolsUI::IsFrontendResourceURL(request.url);
+  // // Hide requests made by the Devtools frontend.
+  // bool is_sensitive_request =
+  //     is_browser_request && DevToolsUI::IsFrontendResourceURL(request.url);
 
-  // Hide requests made by the browser on behalf of the NTP.
-  is_sensitive_request |=
-      (is_browser_request &&
-       request.initiator ==
-           url::Origin::Create(GURL(chrome::kChromeUINewTabURL)));
+  // // Hide requests made by the browser on behalf of the NTP.
+  // is_sensitive_request |=
+  //     (is_browser_request &&
+  //      request.initiator ==
+  //          url::Origin::Create(GURL(chrome::kChromeUINewTabURL)));
 
-  // Hide requests made by the browser on behalf of the 1P WebUI NTP.
-  is_sensitive_request |=
-      (is_browser_request &&
-       request.initiator ==
-           url::Origin::Create(GURL(chrome::kChromeUINewTabPageURL)));
+  // // Hide requests made by the browser on behalf of the 1P WebUI NTP.
+  // is_sensitive_request |=
+  //     (is_browser_request &&
+  //      request.initiator ==
+  //          url::Origin::Create(GURL(chrome::kChromeUINewTabPageURL)));
 
-  // Hide requests made by the NTP Instant renderer.
-  auto* instant_service =
-      context
-          ? InstantServiceFactory::GetForProfile(static_cast<Profile*>(context))
-          : nullptr;
-  if (instant_service) {
-    is_sensitive_request |=
-        instant_service->IsInstantProcess(request.render_process_id);
-  }
+  // // Hide requests made by the NTP Instant renderer.
+  // auto* instant_service =
+  //     context
+  //         ? InstantServiceFactory::GetForProfile(static_cast<Profile*>(context))
+  //         : nullptr;
+  // if (instant_service) {
+  //   is_sensitive_request |=
+  //       instant_service->IsInstantProcess(request.render_process_id);
+  // }
 
-  return is_sensitive_request;
+  // return is_sensitive_request;
+  return false;
 }
 
 void ChromeExtensionsAPIClient::NotifyWebRequestWithheld(
@@ -284,15 +285,15 @@ void ChromeExtensionsAPIClient::ClearActionCount(
 void ChromeExtensionsAPIClient::OpenFileUrl(
     const GURL& file_url,
     content::BrowserContext* browser_context) {
-  CHECK(file_url.is_valid());
-  CHECK(file_url.SchemeIsFile());
-  Profile* profile = Profile::FromBrowserContext(browser_context);
-  NavigateParams navigate_params(profile, file_url,
-                                 ui::PAGE_TRANSITION_FROM_API);
-  navigate_params.disposition = WindowOpenDisposition::CURRENT_TAB;
-  navigate_params.browser =
-      chrome::FindTabbedBrowser(profile, /*match_original_profiles=*/false);
-  Navigate(&navigate_params);
+  // CHECK(file_url.is_valid());
+  // CHECK(file_url.SchemeIsFile());
+  // Profile* profile = Profile::FromBrowserContext(browser_context);
+  // NavigateParams navigate_params(profile, file_url,
+  //                                ui::PAGE_TRANSITION_FROM_API);
+  // navigate_params.disposition = WindowOpenDisposition::CURRENT_TAB;
+  // // navigate_params.browser =
+  //     // chrome::FindTabbedBrowser(profile, /*match_original_profiles=*/false);
+  // Navigate(&navigate_params);
 }
 
 AppViewGuestDelegate* ChromeExtensionsAPIClient::CreateAppViewGuestDelegate()
@@ -303,7 +304,8 @@ AppViewGuestDelegate* ChromeExtensionsAPIClient::CreateAppViewGuestDelegate()
 ExtensionOptionsGuestDelegate*
 ChromeExtensionsAPIClient::CreateExtensionOptionsGuestDelegate(
     ExtensionOptionsGuest* guest) const {
-  return new ChromeExtensionOptionsGuestDelegate(guest);
+  // return new ChromeExtensionOptionsGuestDelegate(guest);
+  return nullptr;
 }
 
 std::unique_ptr<guest_view::GuestViewManagerDelegate>
@@ -353,7 +355,8 @@ ChromeExtensionsAPIClient::CreateContentRulesRegistry(
 std::unique_ptr<DevicePermissionsPrompt>
 ChromeExtensionsAPIClient::CreateDevicePermissionsPrompt(
     content::WebContents* web_contents) const {
-  return std::make_unique<ChromeDevicePermissionsPrompt>(web_contents);
+  // return std::make_unique<ChromeDevicePermissionsPrompt>(web_contents);
+  return nullptr;
 }
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -416,7 +419,8 @@ ChromeExtensionsAPIClient::CreateSupervisedUserExtensionsDelegate(
 
 std::unique_ptr<DisplayInfoProvider>
 ChromeExtensionsAPIClient::CreateDisplayInfoProvider() const {
-  return CreateChromeDisplayInfoProvider();
+  // return CreateChromeDisplayInfoProvider();
+  return nullptr;
 }
 
 MetricsPrivateDelegate* ChromeExtensionsAPIClient::GetMetricsPrivateDelegate() {
@@ -447,11 +451,12 @@ MessagingDelegate* ChromeExtensionsAPIClient::GetMessagingDelegate() {
 
 FeedbackPrivateDelegate*
 ChromeExtensionsAPIClient::GetFeedbackPrivateDelegate() {
-  if (!feedback_private_delegate_) {
-    feedback_private_delegate_ =
-        std::make_unique<ChromeFeedbackPrivateDelegate>();
-  }
-  return feedback_private_delegate_.get();
+  // if (!feedback_private_delegate_) {
+  //   feedback_private_delegate_ =
+  //       std::make_unique<ChromeFeedbackPrivateDelegate>();
+  // }
+  // return feedback_private_delegate_.get();
+  return nullptr;
 }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)

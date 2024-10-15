@@ -138,13 +138,13 @@ void SupervisedUserExtensionsDelegateImpl::
   ParentPermissionDialog::DoneCallback inner_done_callback = base::BindOnce(
       &::OnParentPermissionDialogComplete, std::move(done_callback_));
 
-  gfx::NativeWindow parent_window =
-      contents ? contents->GetTopLevelNativeWindow() : nullptr;
-  parent_permission_dialog_ =
-      ParentPermissionDialog::CreateParentPermissionDialogForExtension(
-          Profile::FromBrowserContext(context_), parent_window, icon,
-          &extension, std::move(inner_done_callback));
-  parent_permission_dialog_->ShowDialog();
+  // gfx::NativeWindow parent_window =
+  //     contents ? contents->GetTopLevelNativeWindow() : nullptr;
+  // parent_permission_dialog_ =
+  //     ParentPermissionDialog::CreateParentPermissionDialogForExtension(
+  //         Profile::FromBrowserContext(context_), parent_window, icon,
+  //         &extension, std::move(inner_done_callback));
+  // parent_permission_dialog_->ShowDialog();
 }
 
 void SupervisedUserExtensionsDelegateImpl::
@@ -164,9 +164,9 @@ void SupervisedUserExtensionsDelegateImpl::
         FROM_HERE, std::move(block_dialog_callback));
     return;
   }
-  ShowExtensionInstallBlockedByParentDialog(
-      ExtensionInstalledBlockedByParentDialogAction::kEnable, &extension,
-      contents, std::move(block_dialog_callback));
+  // ShowExtensionInstallBlockedByParentDialog(
+  //     ExtensionInstalledBlockedByParentDialogAction::kEnable, &extension,
+  //     contents, std::move(block_dialog_callback));
 }
 
 void SupervisedUserExtensionsDelegateImpl::RequestExtensionApproval(

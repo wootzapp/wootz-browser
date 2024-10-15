@@ -92,8 +92,8 @@ IdentityLaunchWebAuthFlowFunction::IdentityLaunchWebAuthFlowFunction() {
 }
 
 IdentityLaunchWebAuthFlowFunction::~IdentityLaunchWebAuthFlowFunction() {
-  if (auth_flow_)
-    auth_flow_.release()->DetachDelegateAndDelete();
+  // if (auth_flow_)
+  //   auth_flow_.release()->DetachDelegateAndDelete();
 }
 
 ExtensionFunction::ResponseAction IdentityLaunchWebAuthFlowFunction::Run() {
@@ -169,15 +169,15 @@ void IdentityLaunchWebAuthFlowFunction::StartAuthFlow(
     WebAuthFlow::AbortOnLoad abort_on_load_for_non_interactive,
     std::optional<base::TimeDelta> timeout_for_non_interactive,
     std::optional<gfx::Rect> popup_bounds) {
-  auth_flow_ = std::make_unique<WebAuthFlow>(
-      this, profile, auth_url, mode, user_gesture(),
-      abort_on_load_for_non_interactive, timeout_for_non_interactive,
-      popup_bounds);
-  // An extension might call `launchWebAuthFlow()` with any URL. Add an infobar
-  // to attribute displayed URL to the extension.
-  auth_flow_->SetShouldShowInfoBar(extension()->name());
+  // auth_flow_ = std::make_unique<WebAuthFlow>(
+  //     this, profile, auth_url, mode, user_gesture(),
+  //     abort_on_load_for_non_interactive, timeout_for_non_interactive,
+  //     popup_bounds);
+  // // An extension might call `launchWebAuthFlow()` with any URL. Add an infobar
+  // // to attribute displayed URL to the extension.
+  // auth_flow_->SetShouldShowInfoBar(extension()->name());
 
-  auth_flow_->Start();
+  // auth_flow_->Start();
 }
 
 bool IdentityLaunchWebAuthFlowFunction::ShouldKeepWorkerAliveIndefinitely() {
@@ -215,8 +215,8 @@ void IdentityLaunchWebAuthFlowFunction::OnAuthFlowFailure(
 
   RecordHistogramFunctionResult(error);
   RespondWithError(ErrorToString(error));
-  if (auth_flow_)
-    auth_flow_.release()->DetachDelegateAndDelete();
+  // if (auth_flow_)
+  //   auth_flow_.release()->DetachDelegateAndDelete();
   Release();  // Balanced in Run.
 }
 
@@ -228,14 +228,15 @@ void IdentityLaunchWebAuthFlowFunction::OnAuthFlowURLChange(
   RecordHistogramFunctionResult(
       IdentityLaunchWebAuthFlowFunction::Error::kNone);
   Respond(WithArguments(redirect_url.spec()));
-  if (auth_flow_) {
-    auth_flow_.release()->DetachDelegateAndDelete();
-  }
+  // if (auth_flow_) {
+  //   auth_flow_.release()->DetachDelegateAndDelete();
+  // }
   Release();  // Balanced in RunAsync.
 }
 
 WebAuthFlow* IdentityLaunchWebAuthFlowFunction::GetWebAuthFlowForTesting() {
-  return auth_flow_.get();
+  // return auth_flow_.get();
+  return nullptr;
 }
 
 void IdentityLaunchWebAuthFlowFunction::SetLaunchWebAuthFlowDelegateForTesting(

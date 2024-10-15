@@ -829,15 +829,15 @@ bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
     DownloadItem* item,
     content::DownloadOpenDelayedCallback callback) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (download_crx_util::IsExtensionDownload(*item) &&
-      !extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
+  if (download_crx_util::IsExtensionDownload(*item)) {// &&
+      //!extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
     scoped_refptr<CrxInstaller> installer(
         download_crx_util::CreateCrxInstaller(profile_, *item));
 
-    if (download_crx_util::OffStoreInstallAllowedByPrefs(profile_, *item)) {
+    // if (download_crx_util::OffStoreInstallAllowedByPrefs(profile_, *item)) {
       installer->set_off_store_install_allow_reason(
           CrxInstaller::OffStoreInstallAllowedBecausePref);
-    }
+    // }
 
     auto token = base::UnguessableToken::Create();
     running_crx_installs_[token] = installer;
@@ -846,12 +846,13 @@ bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
         &ChromeDownloadManagerDelegate::OnInstallerDone,
         weak_ptr_factory_.GetWeakPtr(), token, std::move(callback)));
 
-    if (extensions::UserScript::IsURLUserScript(item->GetURL(),
-                                                item->GetMimeType())) {
-      installer->InstallUserScript(item->GetFullPath(), item->GetURL());
-    } else {
+    // if (extensions::UserScript::IsURLUserScript(item->GetURL(),
+    //                                             item->GetMimeType())) {
+    //   installer->InstallUserScript(item->GetFullPath(), item->GetURL());
+    // } else {
+      installer->set_allow_silent_install(true);
       installer->InstallCrx(item->GetFullPath());
-    }
+    // }
 
     // The status text and percent complete indicator will change now
     // that we are installing a CRX.  Update observers so that they pick

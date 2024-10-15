@@ -554,17 +554,18 @@ AutofillPrivateMigrateCreditCardsFunction::Run() {
     return RespondNow(Error(kErrorDataUnavailable));
 
   // Get local card migration manager from form data importer.
-  autofill::LocalCardMigrationManager* local_card_migration_manager =
-      form_data_importer->local_card_migration_manager();
-  if (!local_card_migration_manager)
-    return RespondNow(Error(kErrorDataUnavailable));
+  // autofill::LocalCardMigrationManager* local_card_migration_manager =
+  //     form_data_importer->local_card_migration_manager();
+  // if (!local_card_migration_manager)
+  //   return RespondNow(Error(kErrorDataUnavailable));
 
-  // Since we already check the migration requirements on the settings page, we
-  // don't check the migration requirements again.
-  local_card_migration_manager->GetMigratableCreditCards();
-  local_card_migration_manager->AttemptToOfferLocalCardMigration(
-      /*is_from_settings_page=*/true);
-  return RespondNow(NoArguments());
+  // // Since we already check the migration requirements on the settings page, we
+  // // don't check the migration requirements again.
+  // local_card_migration_manager->GetMigratableCreditCards();
+  // local_card_migration_manager->AttemptToOfferLocalCardMigration(
+  //     /*is_from_settings_page=*/true);
+  // return RespondNow(NoArguments());
+  return RespondNow(Error(kErrorDataUnavailable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

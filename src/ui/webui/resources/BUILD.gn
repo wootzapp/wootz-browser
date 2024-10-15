@@ -10,7 +10,6 @@ import("//ui/webui/resources/tools/generate_grd.gni")
 if (use_blink) {
   import("//chrome/common/features.gni")
 }
-
 generate_grd("build_grd") {
   grd_prefix = "webui"
   out_grd = "$target_gen_dir/${grd_prefix}_resources.grd"
@@ -50,7 +49,7 @@ generate_grd("build_grd") {
     "$target_gen_dir/mojo/resources.grdp",
   ]
 
-  if (include_polymer) {
+  if (false && include_polymer) {
     public_deps += [
       "cr_components/app_management:build_grdp",
       "cr_components/customize_color_scheme_mode:build_grdp",

@@ -469,92 +469,92 @@ void WebstorePrivateBeginInstallWithManifest3Function::OnWebstoreParseSuccess(
     const SkBitmap& icon,
     base::Value::Dict parsed_manifest) {
   CHECK_EQ(details().id, id);
-  parsed_manifest_ = std::move(parsed_manifest);
-  icon_ = icon;
+  // parsed_manifest_ = std::move(parsed_manifest);
+  // icon_ = icon;
 
-  std::string localized_name =
-      details().localized_name ? *details().localized_name : std::string();
+  // std::string localized_name =
+  //     details().localized_name ? *details().localized_name : std::string();
 
-  std::string error;
-  dummy_extension_ = ExtensionInstallPrompt::GetLocalizedExtensionForDisplay(
-      *parsed_manifest_, Extension::FROM_WEBSTORE, id, localized_name,
-      std::string(), &error);
+  // std::string error;
+  // dummy_extension_ = ExtensionInstallPrompt::GetLocalizedExtensionForDisplay(
+  //     *parsed_manifest_, Extension::FROM_WEBSTORE, id, localized_name,
+  //     std::string(), &error);
 
-  if (!dummy_extension_.get()) {
-    OnWebstoreParseFailure(details().id,
-                           WebstoreInstallHelper::Delegate::MANIFEST_ERROR,
-                           kWebstoreInvalidManifestError);
-    return;
-  }
+  // if (!dummy_extension_.get()) {
+  //   OnWebstoreParseFailure(details().id,
+  //                          WebstoreInstallHelper::Delegate::MANIFEST_ERROR,
+  //                          kWebstoreInvalidManifestError);
+  //   return;
+  // }
 
-  content::WebContents* web_contents = GetSenderWebContents();
-  if (!web_contents) {
-    // The browser window has gone away.
-    Respond(BuildResponse(api::webstore_private::Result::kUserCancelled,
-                          kWebstoreUserCancelledError));
-    // Matches the AddRef in Run().
-    Release();
-    return;
-  }
+  // content::WebContents* web_contents = GetSenderWebContents();
+  // if (!web_contents) {
+  //   // The browser window has gone away.
+  //   Respond(BuildResponse(api::webstore_private::Result::kUserCancelled,
+  //                         kWebstoreUserCancelledError));
+  //   // Matches the AddRef in Run().
+  //   Release();
+  //   return;
+  // }
 
-  // Check if the supervised user is allowed to install extensions in the legacy
-  // flow. NOTE: we do not block themes.
-  if (!dummy_extension_->is_theme()) {
-    if (supervised_user::AreExtensionsPermissionsEnabled(
-            *profile_->GetPrefs()) &&
-        !supervised_user::
-            IsSupervisedUserSkipParentApprovalToInstallExtensionsEnabled()) {
-      SupervisedUserExtensionsDelegate* supervised_user_extensions_delegate =
-          ManagementAPI::GetFactoryInstance()
-              ->Get(profile_)
-              ->GetSupervisedUserExtensionsDelegate();
-      CHECK(supervised_user_extensions_delegate);
-      if (!supervised_user_extensions_delegate->CanInstallExtensions()) {
-        // Assume that the block dialog will be shown here since it was checked
-        // that extensions cannot be installed by the child user. If extensions
-        // are allowed, the install prompt will be shown before the request
-        // permission dialog is shown.
-        RequestExtensionApproval(web_contents);
-        return;
-      }
-    }
-  }
+  // // Check if the supervised user is allowed to install extensions in the legacy
+  // // flow. NOTE: we do not block themes.
+  // if (!dummy_extension_->is_theme()) {
+  //   if (supervised_user::AreExtensionsPermissionsEnabled(
+  //           *profile_->GetPrefs()) &&
+  //       !supervised_user::
+  //           IsSupervisedUserSkipParentApprovalToInstallExtensionsEnabled()) {
+  //     SupervisedUserExtensionsDelegate* supervised_user_extensions_delegate =
+  //         ManagementAPI::GetFactoryInstance()
+  //             ->Get(profile_)
+  //             ->GetSupervisedUserExtensionsDelegate();
+  //     CHECK(supervised_user_extensions_delegate);
+  //     if (!supervised_user_extensions_delegate->CanInstallExtensions()) {
+  //       // Assume that the block dialog will be shown here since it was checked
+  //       // that extensions cannot be installed by the child user. If extensions
+  //       // are allowed, the install prompt will be shown before the request
+  //       // permission dialog is shown.
+  //       RequestExtensionApproval(web_contents);
+  //       return;
+  //     }
+  //   }
+  // }
 
-  // Check the management policy before the installation process begins.
-  ExtensionInstallStatus install_status = GetWebstoreExtensionInstallStatus(
-      id, profile_, dummy_extension_->manifest()->type(),
-      PermissionsParser::GetRequiredPermissions(dummy_extension_.get()),
-      dummy_extension_->manifest_version());
-  if (install_status == kBlockedByPolicy) {
-    ShowBlockedByPolicyDialog(
-        dummy_extension_.get(), icon_, web_contents,
-        base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
-                           OnBlockByPolicyPromptDone,
-                       this));
-    return;
-  }
+  // // Check the management policy before the installation process begins.
+  // ExtensionInstallStatus install_status = GetWebstoreExtensionInstallStatus(
+  //     id, profile_, dummy_extension_->manifest()->type(),
+  //     PermissionsParser::GetRequiredPermissions(dummy_extension_.get()),
+  //     dummy_extension_->manifest_version());
+  // if (install_status == kBlockedByPolicy) {
+  //   ShowBlockedByPolicyDialog(
+  //       dummy_extension_.get(), icon_, web_contents,
+  //       base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
+  //                          OnBlockByPolicyPromptDone,
+  //                      this));
+  //   return;
+  // }
 
-  if (install_status == kCanRequest || install_status == kRequestPending) {
-    install_prompt_ = std::make_unique<ExtensionInstallPrompt>(web_contents);
-    install_prompt_->ShowDialog(
-        base::BindRepeating(&WebstorePrivateBeginInstallWithManifest3Function::
-                                OnRequestPromptDone,
-                            this),
-        dummy_extension_.get(), &icon_,
-        std::make_unique<ExtensionInstallPrompt::Prompt>(
-            install_status == kCanRequest
-                ? ExtensionInstallPrompt::EXTENSION_REQUEST_PROMPT
-                : ExtensionInstallPrompt::EXTENSION_PENDING_REQUEST_PROMPT),
-        ExtensionInstallPrompt::GetDefaultShowDialogCallback());
-  } else {
-    ReportWebStoreInstallEsbAllowlistParameter(details().esb_allowlist);
+  // if (install_status == kCanRequest || install_status == kRequestPending) {
+  //   install_prompt_ = std::make_unique<ExtensionInstallPrompt>(web_contents);
+  //   install_prompt_->ShowDialog(
+  //       base::BindRepeating(&WebstorePrivateBeginInstallWithManifest3Function::
+  //                               OnRequestPromptDone,
+  //                           this),
+  //       dummy_extension_.get(), &icon_,
+  //       std::make_unique<ExtensionInstallPrompt::Prompt>(
+  //           install_status == kCanRequest
+  //               ? ExtensionInstallPrompt::EXTENSION_REQUEST_PROMPT
+  //               : ExtensionInstallPrompt::EXTENSION_PENDING_REQUEST_PROMPT),
+  //       ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+  // } else {
+  //   ReportWebStoreInstallEsbAllowlistParameter(details().esb_allowlist);
 
-    if (ShouldShowFrictionDialog(profile_)) {
-      ShowInstallFrictionDialog(web_contents);
-    } else {
-      ShowInstallDialog(web_contents);
-    }
-  }
+  //   if (ShouldShowFrictionDialog(profile_)) {
+  //     ShowInstallFrictionDialog(web_contents);
+  //   } else {
+  //     ShowInstallDialog(web_contents);
+  //   }
+  // }
   // Control flow finishes up in OnInstallPromptDone, OnRequestPromptDone or
   // OnBlockByPolicyPromptDone.
 }
@@ -866,55 +866,55 @@ bool WebstorePrivateBeginInstallWithManifest3Function::ShouldShowFrictionDialog(
 
 void WebstorePrivateBeginInstallWithManifest3Function::
     ShowInstallFrictionDialog(content::WebContents* contents) {
-  friction_dialog_shown_ = true;
-  ShowExtensionInstallFrictionDialog(
-      contents,
-      base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
-                         OnFrictionPromptDone,
-                     this));
+  // friction_dialog_shown_ = true;
+  // ShowExtensionInstallFrictionDialog(
+  //     contents,
+  //     base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
+  //                        OnFrictionPromptDone,
+  //                    this));
 }
 
 void WebstorePrivateBeginInstallWithManifest3Function::ShowInstallDialog(
     content::WebContents* contents) {
-  auto prompt = std::make_unique<ExtensionInstallPrompt::Prompt>(
-      ExtensionInstallPrompt::INSTALL_PROMPT);
+//   auto prompt = std::make_unique<ExtensionInstallPrompt::Prompt>(
+//       ExtensionInstallPrompt::INSTALL_PROMPT);
 
-  if (!dummy_extension_->is_theme()) {
-    const bool requires_parent_permission =
-        supervised_user::AreExtensionsPermissionsEnabled(
-            *profile_->GetPrefs()) &&
-        !supervised_user::SupervisedUserCanSkipExtensionParentApprovals(
-            *profile_->GetPrefs());
+//   if (!dummy_extension_->is_theme()) {
+//     const bool requires_parent_permission =
+//         supervised_user::AreExtensionsPermissionsEnabled(
+//             *profile_->GetPrefs()) &&
+//         !supervised_user::SupervisedUserCanSkipExtensionParentApprovals(
+//             *profile_->GetPrefs());
 
-    // We don't prompt for parent permission for themes, so no need
-    // to configure the install prompt to indicate that this is a child
-    // asking a parent for installation permission.
-    prompt->set_requires_parent_permission(requires_parent_permission);
-    if (requires_parent_permission) {
-      prompt->AddObserver(&supervised_user_extensions_metrics_recorder_);
-      // Bypass the install prompt dialog if V2 is enabled. The
-      // ParentAccessDialog handles both the blocked and install use case.
-#if BUILDFLAG(IS_CHROMEOS)
-      RequestExtensionApproval(contents);
-      return;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-      // Shows a parental permission dialog directly bypassing the extension
-      // install dialog view. The parental permission dialog contains a superset
-      // of data from the extension install dialog: requested extension
-      // permissions and also parent's password input.
-      PromptForParentApproval();
-      return;
-#endif  // BUILDFLAG(IS_CHROMEOS)
-    }
-  }
+//     // We don't prompt for parent permission for themes, so no need
+//     // to configure the install prompt to indicate that this is a child
+//     // asking a parent for installation permission.
+//     prompt->set_requires_parent_permission(requires_parent_permission);
+//     if (requires_parent_permission) {
+//       prompt->AddObserver(&supervised_user_extensions_metrics_recorder_);
+//       // Bypass the install prompt dialog if V2 is enabled. The
+//       // ParentAccessDialog handles both the blocked and install use case.
+// #if BUILDFLAG(IS_CHROMEOS)
+//       RequestExtensionApproval(contents);
+//       return;
+// #elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+//       // Shows a parental permission dialog directly bypassing the extension
+//       // install dialog view. The parental permission dialog contains a superset
+//       // of data from the extension install dialog: requested extension
+//       // permissions and also parent's password input.
+//       PromptForParentApproval();
+//       return;
+// #endif  // BUILDFLAG(IS_CHROMEOS)
+//     }
+//   }
 
-  install_prompt_ = std::make_unique<ExtensionInstallPrompt>(contents);
-  install_prompt_->ShowDialog(
-      base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
-                         OnInstallPromptDone,
-                     this),
-      dummy_extension_.get(), &icon_, std::move(prompt),
-      ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+//   install_prompt_ = std::make_unique<ExtensionInstallPrompt>(contents);
+//   install_prompt_->ShowDialog(
+//       base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
+//                          OnInstallPromptDone,
+//                      this),
+//       dummy_extension_.get(), &icon_, std::move(prompt),
+//       ExtensionInstallPrompt::GetDefaultShowDialogCallback());
 }
 
 void WebstorePrivateBeginInstallWithManifest3Function::
@@ -922,32 +922,32 @@ void WebstorePrivateBeginInstallWithManifest3Function::
                               const SkBitmap& icon,
                               content::WebContents* contents,
                               base::OnceClosure done_callback) {
-  DCHECK(extension);
-  DCHECK(contents);
+  // DCHECK(extension);
+  // DCHECK(contents);
 
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  // Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
 
-  std::string message_from_admin =
-      extensions::ExtensionManagementFactory::GetForBrowserContext(profile)
-          ->BlockedInstallMessage(extension->id());
-  if (!message_from_admin.empty()) {
-    blocked_by_policy_error_message_ =
-        l10n_util::GetStringFUTF16(IDS_EXTENSION_PROMPT_MESSAGE_FROM_ADMIN,
-                                   base::UTF8ToUTF16(message_from_admin));
-  }
+  // std::string message_from_admin =
+  //     extensions::ExtensionManagementFactory::GetForBrowserContext(profile)
+  //         ->BlockedInstallMessage(extension->id());
+  // if (!message_from_admin.empty()) {
+  //   blocked_by_policy_error_message_ =
+  //       l10n_util::GetStringFUTF16(IDS_EXTENSION_PROMPT_MESSAGE_FROM_ADMIN,
+  //                                  base::UTF8ToUTF16(message_from_admin));
+  // }
 
-  gfx::ImageSkia image = GetIconImage(icon, extension->is_app());
+  // gfx::ImageSkia image = GetIconImage(icon, extension->is_app());
 
-  if (extensions::ScopedTestDialogAutoConfirm::GetAutoConfirmValue() !=
-      extensions::ScopedTestDialogAutoConfirm::NONE) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, std::move(done_callback));
-    return;
-  }
+  // if (extensions::ScopedTestDialogAutoConfirm::GetAutoConfirmValue() !=
+  //     extensions::ScopedTestDialogAutoConfirm::NONE) {
+  //   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  //       FROM_HERE, std::move(done_callback));
+  //   return;
+  // }
 
-  ShowExtensionInstallBlockedDialog(extension->id(), extension->name(),
-                                    blocked_by_policy_error_message_, image,
-                                    contents, std::move(done_callback));
+  // ShowExtensionInstallBlockedDialog(extension->id(), extension->name(),
+  //                                   blocked_by_policy_error_message_, image,
+  //                                   contents, std::move(done_callback));
 }
 
 WebstorePrivateCompleteInstallFunction::

@@ -40,9 +40,9 @@ void ChromeControllerClient::Proceed() {
   // Hosted Apps should not be allowed to run if Safe Browsing considers them
   // dangerous. So, when users click proceed on an interstitial, move the tab
   // to a regular Chrome window and proceed as usual there.
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_);
-  if (web_app::AppBrowserController::IsWebApp(browser))
-    chrome::OpenInChrome(browser);
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents_);
+  // if (web_app::AppBrowserController::IsWebApp(browser))
+  //   chrome::OpenInChrome(browser);
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
   safe_browsing::SafeBrowsingControllerClient::Proceed();
 }

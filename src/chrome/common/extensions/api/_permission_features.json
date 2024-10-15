@@ -1092,5 +1092,9 @@
       "7D5A66C88A25019F997E548DEC5E0011E2855591",  // http://crbug.com/1206836
       "F740D260E7E2107B3AE454F512B65AE6CF244433"   // http://b/273392894
     ]
+  },
+  "wootz": {
+    "channel": "stable",
+    "extension_types": ["extension"]
   }
 }

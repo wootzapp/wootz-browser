@@ -187,6 +187,11 @@ DEFINE_VARIATION_PARAM(kIPHSharedHighlightingReceiverFeature,
 DEFINE_VARIATION_PARAM(kIPHSharingHubWebnotesStylizeFeature,
                        "IPH_SharingHubWebnotesStylize");
 DEFINE_VARIATION_PARAM(kIPHRestoreTabsOnFREFeature, "IPH_RestoreTabsOnFRE");
+// #if BUILDFLAG(ENABLE_EXTENSIONS)
+DEFINE_VARIATION_PARAM(kIPHExtensionsMenuFeature, "IPH_ExtensionsMenu");
+DEFINE_VARIATION_PARAM(kIPHExtensionsRequestAccessButtonFeature,
+                       "IPH_ExtensionsRequestAccessButton");
+// #endif
 #endif  // BUILDFLAG(IS_ANDROID)
 #if BUILDFLAG(IS_IOS)
 DEFINE_VARIATION_PARAM(kIPHBottomToolbarTipFeature, "IPH_BottomToolbarTip");
@@ -565,6 +570,10 @@ constexpr flags_ui::FeatureEntry::FeatureVariation
         VARIATION_ENTRY(kIPHSharedHighlightingReceiverFeature),
         VARIATION_ENTRY(kIPHSharingHubWebnotesStylizeFeature),
         VARIATION_ENTRY(kIPHRestoreTabsOnFREFeature),
+        // #if BUILDFLAG(ENABLE_EXTENSIONS)
+        VARIATION_ENTRY(kIPHExtensionsMenuFeature),
+        VARIATION_ENTRY(kIPHExtensionsRequestAccessButtonFeature),
+        // #endif
 #elif BUILDFLAG(IS_IOS)
         VARIATION_ENTRY(kIPHBottomToolbarTipFeature),
         VARIATION_ENTRY(kIPHLongPressToolbarTipFeature),

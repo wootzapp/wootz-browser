@@ -95,8 +95,9 @@ template <>
 struct BrowserContextFactoryDependencies<WMDesksPrivateEventsAPI> {
   static void DeclareFactoryDependencies(
       BrowserContextKeyedAPIFactory<WMDesksPrivateEventsAPI>* factory) {
-    factory->DependsOn(
-        ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+    if (extensions::ExtensionsBrowserClient::Get())
+      factory->DependsOn(
+          ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
     factory->DependsOn(EventRouterFactory::GetInstance());
   }
 };

@@ -564,8 +564,6 @@
 #include "chrome/browser/metrics/usage_scenario/chrome_responsiveness_calculator_delegate.h"
 #include "chrome/browser/new_tab_page/new_tab_page_util.h"
 #include "chrome/browser/page_info/about_this_site_side_panel_throttle.h"
-#include "chrome/browser/search/instant_service.h"
-#include "chrome/browser/search/instant_service_factory.h"
 #include "chrome/browser/serial/chrome_serial_delegate.h"
 #include "chrome/browser/task_manager/task_manager_interface.h"
 #include "chrome/browser/ui/browser.h"
@@ -1378,7 +1376,7 @@ void MaybeAddThrottles(
 
 // Returns whether |web_contents| is within a hosted app.
 bool IsInHostedApp(WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   Browser* browser = chrome::FindBrowserWithTab(web_contents);
   return web_app::AppBrowserController::IsWebApp(browser);
 #else
@@ -1797,7 +1795,7 @@ ChromeContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
                          weak_factory_.GetWeakPtr())));
 
   bool add_profiles_extra_parts = true;
-#if BUILDFLAG(IS_ANDROID)
+#if false && BUILDFLAG(IS_ANDROID)
   if (startup_data_.HasBuiltProfilePrefService())
     add_profiles_extra_parts = false;
 #endif
@@ -1917,23 +1915,23 @@ ChromeContentBrowserClient::GetStoragePartitionConfigForSite(
   // In general, those use cases aren't considered part of the user's normal
   // browsing activity.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (site.SchemeIs(extensions::kExtensionScheme)) {
-    // The host in an extension site URL is the extension_id.
-    CHECK(site.has_host());
-    return extensions::util::GetStoragePartitionConfigForExtensionId(
-        site.host(), browser_context);
-  }
+  // if (site.SchemeIs(extensions::kExtensionScheme)) {
+  //   // The host in an extension site URL is the extension_id.
+  //   CHECK(site.has_host());
+  //   return extensions::util::GetStoragePartitionConfigForExtensionId(
+  //       site.host(), browser_context);
+  // }
 
-  if (content::SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
-          browser_context, site)) {
-    CHECK(site.SchemeIs(chrome::kIsolatedAppScheme));
-    ASSIGN_OR_RETURN(const auto iwa_url_info,
-                     web_app::IsolatedWebAppUrlInfo::Create(site), [&](auto) {
-                       LOG(ERROR) << "Invalid isolated-app URL: " << site;
-                       return default_storage_partition_config;
-                     });
-    return iwa_url_info.storage_partition_config(browser_context);
-  }
+  // if (content::SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
+  //         browser_context, site)) {
+  //   CHECK(site.SchemeIs(chrome::kIsolatedAppScheme));
+  //   ASSIGN_OR_RETURN(const auto iwa_url_info,
+  //                    web_app::IsolatedWebAppUrlInfo::Create(site), [&](auto) {
+  //                      LOG(ERROR) << "Invalid isolated-app URL: " << site;
+  //                      return default_storage_partition_config;
+  //                    });
+  //   return iwa_url_info.storage_partition_config(browser_context);
+  // }
 #endif
 
   return default_storage_partition_config;
@@ -6292,8 +6290,8 @@ void AddChromeSchemeFactories(
     ChromeContentBrowserClient::NonNetworkURLLoaderFactoryMap* factories) {
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  InstantService* instant_service =
-      InstantServiceFactory::GetForProfile(profile);
+  // InstantService* instant_service =
+  //     InstantServiceFactory::GetForProfile(profile);
   // The test below matches when a remote 3P NTP is loaded. The effective
   // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
   // public api and to embed most-visited tiles
@@ -6301,13 +6299,13 @@ void AddChromeSchemeFactories(
   //
   // InstantService might be null for some irregular profiles, e.g. the System
   // Profile.
-  if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
-    factories->emplace(
-        chrome::kChromeSearchScheme,
-        content::CreateWebUIURLLoaderFactory(
-            frame_host, chrome::kChromeSearchScheme,
-            /*allowed_webui_hosts=*/base::flat_set<std::string>()));
-  }
+  // if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
+  //   factories->emplace(
+  //       chrome::kChromeSearchScheme,
+  //       content::CreateWebUIURLLoaderFactory(
+  //           frame_host, chrome::kChromeSearchScheme,
+  //           /*allowed_webui_hosts=*/base::flat_set<std::string>()));
+  // }
 
   extensions::ChromeExtensionWebContentsObserver* web_observer =
       extensions::ChromeExtensionWebContentsObserver::FromWebContents(
@@ -6327,7 +6325,7 @@ void AddChromeSchemeFactories(
     allowed_webui_hosts.emplace_back(content::kChromeUIResourcesHost);
     allowed_webui_hosts.emplace_back(chrome::kChromeUIThemeHost);
     // For testing purposes chrome://webui-test/ is also allowed.
-    allowed_webui_hosts.emplace_back(chrome::kChromeUIWebUITestHost);
+    // allowed_webui_hosts.emplace_back(chrome::kChromeUIWebUITestHost);
   }
   if (extension->is_extension() || extension->is_legacy_packaged_app() ||
       (extension->is_platform_app() &&
@@ -6457,7 +6455,7 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
     bool* disable_secure_dns,
     network::mojom::URLLoaderFactoryOverridePtr* factory_override,
     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
   auto* web_request_api =
       extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(
           browser_context);
@@ -6748,8 +6746,8 @@ void ChromeContentBrowserClient::ConfigureNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     cert_verifier::mojom::CertVerifierCreationParams*
         cert_verifier_creation_params) {
-  ProfileNetworkContextService* service =
-      ProfileNetworkContextServiceFactory::GetForContext(context);
+  ProfileNetworkContextService* service = nullptr;
+      // ProfileNetworkContextServiceFactory::GetForContext(context);
   if (service) {
     service->ConfigureNetworkContextParams(in_memory, relative_partition_path,
                                            network_context_params,
@@ -7078,7 +7076,7 @@ void ChromeContentBrowserClient::RegisterRendererPreferenceWatcher(
     content::BrowserContext* browser_context,
     mojo::PendingRemote<blink::mojom::RendererPreferenceWatcher> watcher) {
   Profile* profile = Profile::FromBrowserContext(browser_context);
-  if (PrefWatcher* pref_watcher = PrefWatcher::Get(profile))
+  if (PrefWatcher* pref_watcher = PrefWatcher::Get(profile)) // wootz debug
     pref_watcher->RegisterRendererPreferenceWatcher(std::move(watcher));
 }
 

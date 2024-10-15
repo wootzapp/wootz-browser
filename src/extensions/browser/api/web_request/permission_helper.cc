@@ -55,8 +55,9 @@ void BrowserContextKeyedAPIFactory<
   // Used in CanCrossIncognito().
   DependsOn(ExtensionPrefsFactory::GetInstance());
   // For ShouldHideBrowserNetworkRequest().
-  for (auto* factory : ExtensionsAPIClient::Get()->GetFactoryDependencies())
-    DependsOn(factory);
+  if (ExtensionsAPIClient::Get())
+    for (auto* factory : ExtensionsAPIClient::Get()->GetFactoryDependencies())
+      DependsOn(factory);
 }
 
 }  // namespace extensions

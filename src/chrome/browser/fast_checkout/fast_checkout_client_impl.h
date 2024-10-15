@@ -252,7 +252,7 @@ class FastCheckoutClientImpl
   std::unique_ptr<FastCheckoutTriggerValidator> trigger_validator_;
 
   // Makes a11y announcements.
-  std::unique_ptr<FastCheckoutAccessibilityService> accessibility_service_;
+//   std::unique_ptr<FastCheckoutAccessibilityService> accessibility_service_;
 
   // True if a run is ongoing; used to avoid multiple runs in parallel.
   bool is_running_ = false;

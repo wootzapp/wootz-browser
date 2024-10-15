@@ -176,6 +176,7 @@ bool AllowExtensionResourceLoad(const network::ResourceRequest& request,
                                 bool extension_enabled_in_incognito,
                                 const ExtensionSet& extensions,
                                 const ProcessMap& process_map) {
+  return true;
   const bool is_main_frame =
       destination == network::mojom::RequestDestination::kDocument;
   if (is_incognito &&

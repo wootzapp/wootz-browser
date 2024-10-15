@@ -152,6 +152,7 @@ void extensions::BrowserContextKeyedAPIFactory<
     chrome_apps::api::ExtensionSyncEventObserver>::
     DeclareFactoryDependencies() {
   DependsOn(::sync_file_system::SyncFileSystemServiceFactory::GetInstance());
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }

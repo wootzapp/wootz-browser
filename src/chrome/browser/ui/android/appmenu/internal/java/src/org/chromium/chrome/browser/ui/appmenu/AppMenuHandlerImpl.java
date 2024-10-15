@@ -33,6 +33,7 @@ import org.chromium.ui.modelutil.ListObservable.ListObserver;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.ModelListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.base.WindowAndroid;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,7 +63,7 @@ class AppMenuHandlerImpl
     private Callback<Integer> mTestOptionsItemSelectedListener;
     private FragmentManager mFragmentManager;
     private final int mItemRowHeight;
-
+    private WindowAndroid mWindowAndroid;
     /**
      * The resource id of the menu item to highlight when the menu next opens. A value of {@code
      * null} means no item will be highlighted. This value will be cleared after the menu is opened.
@@ -95,7 +96,8 @@ class AppMenuHandlerImpl
             View hardwareButtonAnchorView,
             Supplier<Rect> appRect,
             FragmentManager fragmentManager,
-            int itemRowHeight) {
+            int itemRowHeight,
+            WindowAndroid windowAndroid) {
                 Log.d(TAG, "Initializing AppMenuHandlerImpl");
         mContext = context;
         mAppMenuDelegate = appMenuDelegate;
@@ -107,6 +109,7 @@ class AppMenuHandlerImpl
         mAppRect = appRect;
         mFragmentManager = fragmentManager;
         mItemRowHeight = itemRowHeight;
+        mWindowAndroid = windowAndroid;
 
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
         mActivityLifecycleDispatcher.register(this);
@@ -138,6 +141,10 @@ class AppMenuHandlerImpl
                     }
                 };
                 Log.d(TAG, "AppMenuHandlerImpl initialized with itemRowHeight: " + itemRowHeight);
+    }
+
+    WindowAndroid getWindowAndroid() {
+        return mWindowAndroid;
     }
 
     /** Called when the containing activity is being destroyed. */

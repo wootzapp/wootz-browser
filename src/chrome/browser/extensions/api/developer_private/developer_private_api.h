@@ -81,8 +81,9 @@ class DeveloperPrivateEventRouter : public ExtensionRegistryObserver,
                                     public ExtensionAllowlist::Observer,
                                     public ExtensionManagement::Observer,
                                     public WarningService::Observer,
-                                    public PermissionsManager::Observer,
-                                    public ToolbarActionsModel::Observer {
+                                    public PermissionsManager::Observer
+                                    // public ToolbarActionsModel::Observer 
+                                    {
  public:
   explicit DeveloperPrivateEventRouter(Profile* profile);
 
@@ -164,13 +165,13 @@ class DeveloperPrivateEventRouter : public ExtensionRegistryObserver,
       PermissionsManager::UpdateReason reason) override;
 
   // ToolbarActionsModel::Observer:
-  void OnToolbarActionAdded(const ToolbarActionsModel::ActionId& id) override {}
-  void OnToolbarActionRemoved(
-      const ToolbarActionsModel::ActionId& id) override {}
-  void OnToolbarActionUpdated(
-      const ToolbarActionsModel::ActionId& id) override {}
-  void OnToolbarModelInitialized() override {}
-  void OnToolbarPinnedActionsChanged() override;
+//   void OnToolbarActionAdded(const ToolbarActionsModel::ActionId& id) override {}
+//   void OnToolbarActionRemoved(
+//       const ToolbarActionsModel::ActionId& id) override {}
+//   void OnToolbarActionUpdated(
+//       const ToolbarActionsModel::ActionId& id) override {}
+//   void OnToolbarModelInitialized() override {}
+//   void OnToolbarPinnedActionsChanged() override;
 
   // Handles a profile preference change.
   void OnProfilePrefChanged();
@@ -204,8 +205,8 @@ class DeveloperPrivateEventRouter : public ExtensionRegistryObserver,
       extension_allowlist_observer_{this};
   base::ScopedObservation<PermissionsManager, PermissionsManager::Observer>
       permissions_manager_observation_{this};
-  base::ScopedObservation<ToolbarActionsModel, ToolbarActionsModel::Observer>
-      toolbar_actions_model_observation_{this};
+//   base::ScopedObservation<ToolbarActionsModel, ToolbarActionsModel::Observer>
+//       toolbar_actions_model_observation_{this};
 
   raw_ptr<Profile> profile_;
 

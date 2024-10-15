@@ -1871,7 +1871,8 @@ public class RootUiCoordinator
                                     .findViewById(R.id.menu_anchor_stub),
                             this::getAppRectOnScreen,
                             mFragmentManager,
-                            getMenuItemRowHeight()
+                            getMenuItemRowHeight(),
+                            mWindowAndroid
                             );
             AppMenuCoordinatorFactory.setExceptionReporter(
                     (throwable) ->

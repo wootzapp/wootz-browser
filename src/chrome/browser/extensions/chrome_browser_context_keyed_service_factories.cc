@@ -43,7 +43,7 @@ void EnsureChromeBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::ExtensionManagementFactory::GetInstance();
   extensions::ExtensionNotificationDisplayHelperFactory::GetInstance();
   extensions::ExtensionSystemFactory::GetInstance();
-  extensions::ExtensionWebUIOverrideRegistrar::GetFactoryInstance();
+  // extensions::ExtensionWebUIOverrideRegistrar::GetFactoryInstance();
   extensions::image_writer::OperationManager::GetFactoryInstance();
   extensions::IncognitoConnectability::EnsureFactoryBuilt();
   extensions::InstallTrackerFactory::GetInstance();
@@ -54,7 +54,7 @@ void EnsureChromeBrowserContextKeyedServiceFactoriesBuilt() {
 #if BUILDFLAG(ENABLE_PLUGINS)
   extensions::PluginManager::GetFactoryInstance();
 #endif
-  extensions::WarningBadgeServiceFactory::GetInstance();
+  // extensions::WarningBadgeServiceFactory::GetInstance();
   extensions::WebAuthenticationProxyRegistrarFactory::GetInstance();
   extensions::WebAuthenticationProxyServiceFactory::GetInstance();
 }

@@ -35,7 +35,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/bubble/download_bubble_prefs.h"
-#include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
+// #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
 #include "chrome/browser/download/download_danger_prompt.h"
@@ -52,7 +52,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/common/extensions/api/downloads.h"
 #include "components/download/public/common/download_danger_type.h"
 #include "components/download/public/common/download_interrupt_reasons.h"
@@ -1390,44 +1390,44 @@ ExtensionFunction::ResponseAction DownloadsAcceptDangerFunction::Run() {
 }
 
 void DownloadsAcceptDangerFunction::PromptOrWait(int download_id, int retries) {
-  DownloadItem* download_item = GetDownload(
-      browser_context(), include_incognito_information(), download_id);
-  content::WebContents* web_contents = dispatcher()->GetVisibleWebContents();
-  std::string error;
-  if (InvalidId(download_item, &error) ||
-      Fault(download_item->GetState() != DownloadItem::IN_PROGRESS,
-            download_extension_errors::kNotInProgress, &error) ||
-      Fault(!download_item->IsDangerous(),
-            download_extension_errors::kNotDangerous, &error) ||
-      Fault(!web_contents, download_extension_errors::kInvisibleContext,
-            &error)) {
-    Respond(Error(std::move(error)));
-    return;
-  }
-  bool visible = platform_util::IsVisible(web_contents->GetNativeView());
-  if (!visible) {
-    if (retries > 0) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE,
-          base::BindOnce(&DownloadsAcceptDangerFunction::PromptOrWait, this,
-                         download_id, retries - 1),
-          base::Milliseconds(100));
-      return;
-    }
-    Respond(Error(download_extension_errors::kInvisibleContext));
-    return;
-  }
-  RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
-  // DownloadDangerPrompt displays a modal dialog using native widgets that the
-  // user must either accept or cancel. It cannot be scripted.
-  DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
-      download_item, web_contents, true,
-      base::BindOnce(&DownloadsAcceptDangerFunction::DangerPromptCallback, this,
-                     download_id));
-  // DownloadDangerPrompt deletes itself
-  if (on_prompt_created_ && !on_prompt_created_->is_null())
-    std::move(*on_prompt_created_).Run(prompt);
-  // Function finishes in DangerPromptCallback().
+  // DownloadItem* download_item = GetDownload(
+  //     browser_context(), include_incognito_information(), download_id);
+  // content::WebContents* web_contents = dispatcher()->GetVisibleWebContents();
+  // std::string error;
+  // if (InvalidId(download_item, &error) ||
+  //     Fault(download_item->GetState() != DownloadItem::IN_PROGRESS,
+  //           download_extension_errors::kNotInProgress, &error) ||
+  //     Fault(!download_item->IsDangerous(),
+  //           download_extension_errors::kNotDangerous, &error) ||
+  //     Fault(!web_contents, download_extension_errors::kInvisibleContext,
+  //           &error)) {
+  //   Respond(Error(std::move(error)));
+  //   return;
+  // }
+  // bool visible = platform_util::IsVisible(web_contents->GetNativeView());
+  // if (!visible) {
+  //   if (retries > 0) {
+  //     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  //         FROM_HERE,
+  //         base::BindOnce(&DownloadsAcceptDangerFunction::PromptOrWait, this,
+  //                        download_id, retries - 1),
+  //         base::Milliseconds(100));
+  //     return;
+  //   }
+  //   Respond(Error(download_extension_errors::kInvisibleContext));
+  //   return;
+  // }
+  // RecordApiFunctions(DOWNLOADS_FUNCTION_ACCEPT_DANGER);
+  // // DownloadDangerPrompt displays a modal dialog using native widgets that the
+  // // user must either accept or cancel. It cannot be scripted.
+  // DownloadDangerPrompt* prompt = DownloadDangerPrompt::Create(
+  //     download_item, web_contents, true,
+  //     base::BindOnce(&DownloadsAcceptDangerFunction::DangerPromptCallback, this,
+  //                    download_id));
+  // // DownloadDangerPrompt deletes itself
+  // if (on_prompt_created_ && !on_prompt_created_->is_null())
+  //   std::move(*on_prompt_created_).Run(prompt);
+  // // Function finishes in DangerPromptCallback().
 }
 
 void DownloadsAcceptDangerFunction::DangerPromptCallback(
@@ -1502,50 +1502,51 @@ ExtensionFunction::ResponseAction DownloadsOpenFunction::Run() {
   std::optional<downloads::Open::Params> params =
       downloads::Open::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
-  DownloadItem* download_item = GetDownload(
-      browser_context(), include_incognito_information(), params->download_id);
-  std::string error;
-  if (InvalidId(download_item, &error) ||
-      Fault(!user_gesture(), download_extension_errors::kUserGesture, &error) ||
-      Fault(download_item->GetState() != DownloadItem::COMPLETE,
-            download_extension_errors::kNotComplete, &error) ||
-      Fault(download_item->GetFileExternallyRemoved(),
-            download_extension_errors::kFileAlreadyDeleted, &error) ||
-      Fault(!extension()->permissions_data()->HasAPIPermission(
-                APIPermissionID::kDownloadsOpen),
-            download_extension_errors::kOpenPermission, &error)) {
-    return RespondNow(Error(std::move(error)));
-  }
-  Browser* browser = ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
-  if (Fault(!browser, download_extension_errors::kInvisibleContext, &error))
-    return RespondNow(Error(std::move(error)));
-  content::WebContents* web_contents =
-      browser->tab_strip_model()->GetActiveWebContents();
-  if (Fault(!web_contents, download_extension_errors::kInvisibleContext,
-            &error))
-    return RespondNow(Error(std::move(error)));
-  // Extensions with debugger permission could fake user gestures and should
-  // not be trusted.
-  if (GetSenderWebContents() &&
-      GetSenderWebContents()->HasRecentInteraction() &&
-      !extension()->permissions_data()->HasAPIPermission(
-          APIPermissionID::kDebugger)) {
-    download_item->OpenDownload();
-    return RespondNow(NoArguments());
-  }
-  // Prompt user for ack to open the download.
-  // TODO(qinmin): check if user prefers to open all download using the same
-  // extension, or check the recent user gesture on the originating webcontents
-  // to avoid showing the prompt.
-  DownloadOpenPrompt* download_open_prompt =
-      DownloadOpenPrompt::CreateDownloadOpenConfirmationDialog(
-          web_contents, extension()->name(), download_item->GetFullPath(),
-          base::BindOnce(&DownloadsOpenFunction::OpenPromptDone, this,
-                         params->download_id));
-  if (on_prompt_created_cb_)
-    std::move(*on_prompt_created_cb_).Run(download_open_prompt);
-  RecordApiFunctions(DOWNLOADS_FUNCTION_OPEN);
-  return RespondLater();
+  return RespondNow(Error(std::move("not implemented")));
+  // DownloadItem* download_item = GetDownload(
+  //     browser_context(), include_incognito_information(), params->download_id);
+  // std::string error;
+  // if (InvalidId(download_item, &error) ||
+  //     Fault(!user_gesture(), download_extension_errors::kUserGesture, &error) ||
+  //     Fault(download_item->GetState() != DownloadItem::COMPLETE,
+  //           download_extension_errors::kNotComplete, &error) ||
+  //     Fault(download_item->GetFileExternallyRemoved(),
+  //           download_extension_errors::kFileAlreadyDeleted, &error) ||
+  //     Fault(!extension()->permissions_data()->HasAPIPermission(
+  //               APIPermissionID::kDownloadsOpen),
+  //           download_extension_errors::kOpenPermission, &error)) {
+  //   return RespondNow(Error(std::move(error)));
+  // }
+  // Browser* browser = ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
+  // if (Fault(!browser, download_extension_errors::kInvisibleContext, &error))
+  //   return RespondNow(Error(std::move(error)));
+  // content::WebContents* web_contents =
+  //     browser->tab_strip_model()->GetActiveWebContents();
+  // if (Fault(!web_contents, download_extension_errors::kInvisibleContext,
+  //           &error))
+  //   return RespondNow(Error(std::move(error)));
+  // // Extensions with debugger permission could fake user gestures and should
+  // // not be trusted.
+  // if (GetSenderWebContents() &&
+  //     GetSenderWebContents()->HasRecentInteraction() &&
+  //     !extension()->permissions_data()->HasAPIPermission(
+  //         APIPermissionID::kDebugger)) {
+  //   download_item->OpenDownload();
+  //   return RespondNow(NoArguments());
+  // }
+  // // Prompt user for ack to open the download.
+  // // TODO(qinmin): check if user prefers to open all download using the same
+  // // extension, or check the recent user gesture on the originating webcontents
+  // // to avoid showing the prompt.
+  // DownloadOpenPrompt* download_open_prompt =
+  //     DownloadOpenPrompt::CreateDownloadOpenConfirmationDialog(
+  //         web_contents, extension()->name(), download_item->GetFullPath(),
+  //         base::BindOnce(&DownloadsOpenFunction::OpenPromptDone, this,
+  //                        params->download_id));
+  // if (on_prompt_created_cb_)
+  //   std::move(*on_prompt_created_cb_).Run(download_open_prompt);
+  // RecordApiFunctions(DOWNLOADS_FUNCTION_OPEN);
+  // return RespondLater();
 }
 
 void DownloadsOpenFunction::OpenPromptDone(int download_id, bool accept) {
@@ -1574,52 +1575,53 @@ ExtensionFunction::ResponseAction DownloadsSetShelfEnabledFunction::Run() {
   std::optional<downloads::SetShelfEnabled::Params> params =
       downloads::SetShelfEnabled::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
+  return RespondNow(Error(std::move("not implemented")));
   // TODO(devlin): Solve this with the feature system.
-  if (!extension()->permissions_data()->HasAPIPermission(
-          APIPermissionID::kDownloadsShelf)) {
-    return RespondNow(Error(download_extension_errors::kShelfPermission));
-  }
+  // if (!extension()->permissions_data()->HasAPIPermission(
+  //         APIPermissionID::kDownloadsShelf)) {
+  //   return RespondNow(Error(download_extension_errors::kShelfPermission));
+  // }
 
-  RecordApiFunctions(DOWNLOADS_FUNCTION_SET_SHELF_ENABLED);
-  DownloadCoreService* service = nullptr;
-  DownloadCoreService* incognito_service = nullptr;
-  GetDownloadCoreServices(browser_context(), include_incognito_information(),
-                          &service, &incognito_service);
+  // RecordApiFunctions(DOWNLOADS_FUNCTION_SET_SHELF_ENABLED);
+  // DownloadCoreService* service = nullptr;
+  // DownloadCoreService* incognito_service = nullptr;
+  // GetDownloadCoreServices(browser_context(), include_incognito_information(),
+  //                         &service, &incognito_service);
 
-  MaybeSetUiEnabled(service, incognito_service, extension(), params->enabled);
+  // MaybeSetUiEnabled(service, incognito_service, extension(), params->enabled);
 
-  BrowserList* browsers = BrowserList::GetInstance();
-  if (browsers) {
-    for (Browser* browser : *browsers) {
-      DownloadCoreService* current_service =
-          DownloadCoreServiceFactory::GetForBrowserContext(browser->profile());
-      // The following code is to hide the download UI explicitly if the UI is
-      // set to disabled.
-      bool match_current_service = (current_service == service) ||
-                                   (current_service == incognito_service);
-      if (!match_current_service || current_service->IsDownloadUiEnabled()) {
-        continue;
-      }
-      // Calling this API affects the download bubble as well, so extensions
-      // using this API is still compatible with the new download bubble. This
-      // API will eventually be deprecated (replaced by the SetUiOptions API
-      // below).
-      if (download::IsDownloadBubbleEnabled() &&
-          browser->window()->GetDownloadBubbleUIController()) {
-        browser->window()->GetDownloadBubbleUIController()->HideDownloadUi();
-      } else if (browser->window()->IsDownloadShelfVisible()) {
-        browser->window()->GetDownloadShelf()->Close();
-      }
-    }
-  }
+  // BrowserList* browsers = BrowserList::GetInstance();
+  // if (browsers) {
+  //   for (Browser* browser : *browsers) {
+  //     DownloadCoreService* current_service =
+  //         DownloadCoreServiceFactory::GetForBrowserContext(browser->profile());
+  //     // The following code is to hide the download UI explicitly if the UI is
+  //     // set to disabled.
+  //     bool match_current_service = (current_service == service) ||
+  //                                  (current_service == incognito_service);
+  //     if (!match_current_service || current_service->IsDownloadUiEnabled()) {
+  //       continue;
+  //     }
+  //     // Calling this API affects the download bubble as well, so extensions
+  //     // using this API is still compatible with the new download bubble. This
+  //     // API will eventually be deprecated (replaced by the SetUiOptions API
+  //     // below).
+  //     if (download::IsDownloadBubbleEnabled() &&
+  //         browser->window()->GetDownloadBubbleUIController()) {
+  //       browser->window()->GetDownloadBubbleUIController()->HideDownloadUi();
+  //     } else if (browser->window()->IsDownloadShelfVisible()) {
+  //       browser->window()->GetDownloadShelf()->Close();
+  //     }
+  //   }
+  // }
 
-  if (params->enabled &&
-      ((service && !service->IsDownloadUiEnabled()) ||
-       (incognito_service && !incognito_service->IsDownloadUiEnabled()))) {
-    return RespondNow(Error(download_extension_errors::kShelfDisabled));
-  }
+  // if (params->enabled &&
+  //     ((service && !service->IsDownloadUiEnabled()) ||
+  //      (incognito_service && !incognito_service->IsDownloadUiEnabled()))) {
+  //   return RespondNow(Error(download_extension_errors::kShelfDisabled));
+  // }
 
-  return RespondNow(NoArguments());
+  // return RespondNow(NoArguments());
 }
 
 DownloadsSetUiOptionsFunction::DownloadsSetUiOptionsFunction() = default;
@@ -1630,48 +1632,49 @@ ExtensionFunction::ResponseAction DownloadsSetUiOptionsFunction::Run() {
   std::optional<downloads::SetUiOptions::Params> params =
       downloads::SetUiOptions::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
-  const downloads::UiOptions& options = params->options;
-  if (!extension()->permissions_data()->HasAPIPermission(
-          APIPermissionID::kDownloadsUi)) {
-    return RespondNow(Error(download_extension_errors::kUiPermission));
-  }
+  return RespondNow(Error(std::move("not implemented")));
+  // const downloads::UiOptions& options = params->options;
+  // if (!extension()->permissions_data()->HasAPIPermission(
+  //         APIPermissionID::kDownloadsUi)) {
+  //   return RespondNow(Error(download_extension_errors::kUiPermission));
+  // }
 
-  RecordApiFunctions(DOWNLOADS_FUNCTION_SET_UI_OPTIONS);
-  DownloadCoreService* service = nullptr;
-  DownloadCoreService* incognito_service = nullptr;
-  GetDownloadCoreServices(browser_context(), include_incognito_information(),
-                          &service, &incognito_service);
+  // RecordApiFunctions(DOWNLOADS_FUNCTION_SET_UI_OPTIONS);
+  // DownloadCoreService* service = nullptr;
+  // DownloadCoreService* incognito_service = nullptr;
+  // GetDownloadCoreServices(browser_context(), include_incognito_information(),
+  //                         &service, &incognito_service);
 
-  MaybeSetUiEnabled(service, incognito_service, extension(), options.enabled);
+  // MaybeSetUiEnabled(service, incognito_service, extension(), options.enabled);
 
-  BrowserList* browsers = BrowserList::GetInstance();
-  if (browsers) {
-    for (Browser* browser : *browsers) {
-      DownloadCoreService* current_service =
-          DownloadCoreServiceFactory::GetForBrowserContext(browser->profile());
-      // The following code is to hide the download UI explicitly if the UI is
-      // set to disabled.
-      bool match_current_service = (current_service == service) ||
-                                   (current_service == incognito_service);
-      if (!match_current_service || current_service->IsDownloadUiEnabled()) {
-        continue;
-      }
-      if (download::IsDownloadBubbleEnabled() &&
-          browser->window()->GetDownloadBubbleUIController()) {
-        browser->window()->GetDownloadBubbleUIController()->HideDownloadUi();
-      } else if (browser->window()->IsDownloadShelfVisible()) {
-        browser->window()->GetDownloadShelf()->Close();
-      }
-    }
-  }
+  // BrowserList* browsers = BrowserList::GetInstance();
+  // if (browsers) {
+  //   for (Browser* browser : *browsers) {
+  //     DownloadCoreService* current_service =
+  //         DownloadCoreServiceFactory::GetForBrowserContext(browser->profile());
+  //     // The following code is to hide the download UI explicitly if the UI is
+  //     // set to disabled.
+  //     bool match_current_service = (current_service == service) ||
+  //                                  (current_service == incognito_service);
+  //     if (!match_current_service || current_service->IsDownloadUiEnabled()) {
+  //       continue;
+  //     }
+  //     if (download::IsDownloadBubbleEnabled() &&
+  //         browser->window()->GetDownloadBubbleUIController()) {
+  //       browser->window()->GetDownloadBubbleUIController()->HideDownloadUi();
+  //     } else if (browser->window()->IsDownloadShelfVisible()) {
+  //       browser->window()->GetDownloadShelf()->Close();
+  //     }
+  //   }
+  // }
 
-  if (options.enabled &&
-      ((service && !service->IsDownloadUiEnabled()) ||
-       (incognito_service && !incognito_service->IsDownloadUiEnabled()))) {
-    return RespondNow(Error(download_extension_errors::kUiDisabled));
-  }
+  // if (options.enabled &&
+  //     ((service && !service->IsDownloadUiEnabled()) ||
+  //      (incognito_service && !incognito_service->IsDownloadUiEnabled()))) {
+  //   return RespondNow(Error(download_extension_errors::kUiDisabled));
+  // }
 
-  return RespondNow(NoArguments());
+  // return RespondNow(NoArguments());
 }
 
 DownloadsGetFileIconFunction::DownloadsGetFileIconFunction()

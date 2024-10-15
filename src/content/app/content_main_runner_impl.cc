@@ -14,6 +14,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <typeinfo>
 
 #include "base/allocator/allocator_check.h"
 #include "base/allocator/partition_alloc_support.h"
@@ -1113,7 +1114,6 @@ int NO_STACK_PROTECTOR ContentMainRunnerImpl::Run() {
       base::allocator::PartitionAllocSupport::Get()
           ->ReconfigureAfterFeatureListInit(process_type);
     }
-
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     // If dynamic Mojo Core is being used, ensure that it's loaded very early in
     // the child/zygote process, before any sandbox is initialized. The library
@@ -1217,8 +1217,10 @@ int ContentMainRunnerImpl::RunBrowser(MainFunctionParams main_params,
 
     std::optional<int> post_early_initialization_exit_code =
         delegate_->PostEarlyInitialization(invoked_in_browser);
-    if (post_early_initialization_exit_code.has_value())
+    if (post_early_initialization_exit_code.has_value()) {
       return post_early_initialization_exit_code.value();
+    }
+
 
     // The hang watcher needs to be started once the feature list is available
     // but before the IO thread is started.
