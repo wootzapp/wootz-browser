@@ -43,6 +43,7 @@
 #include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "base/values.h"
+#include "base/logging.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "build/config/chromebox_for_meetings/buildflags.h"  // PLATFORM_CFM
@@ -131,6 +132,8 @@
 #include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/private_network_access/chrome_private_network_device_delegate.h"
 #include "chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.h"
+#include "chrome/browser/profiles/wootz_renderer_updater.h"
+#include "chrome/browser/profiles/wootz_renderer_updater_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_io_data.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -399,6 +402,19 @@
 #include "url/third_party/mozilla/url_parse.h"
 #include "url/url_constants.h"
 
+#include "components/user_prefs/user_prefs.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "components/wootz_wallet/browser/wootz_wallet_p3a_private.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/ethereum_provider_impl.h"
+#include "components/wootz_wallet/browser/solana_provider_impl.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/common_utils.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+
 #if BUILDFLAG(IS_WIN)
 #include "base/files/file_util.h"
 #include "base/strings/string_tokenizer.h"
@@ -536,6 +552,7 @@
 #include "content/public/browser/chromeos/multi_capture_service.h"
 #include "third_party/cros_system_api/switches/chrome_switches.h"
 #endif
+#include "chrome/browser/chrome_content_browser_client.h"
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/apps/link_capturing/link_capturing_navigation_throttle.h"
@@ -903,6 +920,82 @@ bool HandleNewTabPageLocationOverride(
 
   *url = GURL(ntp_location);
   return true;
+}
+void MaybeBindEthereumProvider(
+    content::RenderFrameHost* const frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::EthereumProvider> receiver) {
+     LOG(ERROR)<<"ANKIT3 WINDOW";       
+  auto* wootz_wallet_service =
+      wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
+          frame_host->GetBrowserContext());
+  if (!wootz_wallet_service) {
+    return;
+  }
+     LOG(ERROR)<<"ANKIT4 WINDOW";       
+      
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(frame_host);
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<wootz_wallet::EthereumProviderImpl>(
+          HostContentSettingsMapFactory::GetForProfile(
+              Profile::FromBrowserContext(frame_host->GetBrowserContext())),
+          wootz_wallet_service,
+          std::make_unique<wootz_wallet::WootzWalletProviderDelegateImpl>(
+              web_contents, frame_host),
+          user_prefs::UserPrefs::Get(web_contents->GetBrowserContext())),
+      std::move(receiver));
+}
+
+void MaybeBindWalletP3A(
+    content::RenderFrameHost* const frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::WootzWalletP3A> receiver) {
+  auto* context = frame_host->GetBrowserContext();
+  if (wootz_wallet::IsAllowedForContext(frame_host->GetBrowserContext())) {
+    wootz_wallet::WootzWalletService* wallet_service =
+        wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(context);
+    DCHECK(wallet_service);
+    wallet_service->GetWootzWalletP3A()->Bind(std::move(receiver));
+  } else {
+    // Dummy API to avoid reporting P3A for OTR contexts
+    mojo::MakeSelfOwnedReceiver(
+        std::make_unique<wootz_wallet::WootzWalletP3APrivate>(),
+        std::move(receiver));
+  }
+}
+void MaybeBindSolanaProvider(
+    content::RenderFrameHost* const frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::SolanaProvider> receiver) {
+  auto* wootz_wallet_service =
+      wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
+          frame_host->GetBrowserContext());
+  if (!wootz_wallet_service) {
+    return;
+  }
+
+  auto* json_rpc_service = wootz_wallet_service->json_rpc_service();
+  CHECK(json_rpc_service);
+
+  auto* keyring_service = wootz_wallet_service->keyring_service();
+  CHECK(keyring_service);
+
+  auto* tx_service = wootz_wallet_service->tx_service();
+  CHECK(tx_service);
+
+  auto* host_content_settings_map =
+      HostContentSettingsMapFactory::GetForProfile(
+          frame_host->GetBrowserContext());
+  if (!host_content_settings_map) {
+    return;
+  }
+
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(frame_host);
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<wootz_wallet::SolanaProviderImpl>(
+          *host_content_settings_map, wootz_wallet_service,
+          std::make_unique<wootz_wallet::WootzWalletProviderDelegateImpl>(
+              web_contents, frame_host)),
+      std::move(receiver));
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -1524,6 +1617,26 @@ ChromeContentBrowserClient::~ChromeContentBrowserClient() {
   }
 }
 
+void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
+    content::RenderFrameHost* render_frame_host,
+    mojo::BinderMapWithContext<content::RenderFrameHost*>* map)
+{
+   RegisterReceiverBindingsForFrame(render_frame_host,map);
+    map->Add<wootz_wallet::mojom::WootzWalletP3A>(
+      base::BindRepeating(&MaybeBindWalletP3A));
+
+  if (wootz_wallet::IsAllowedForContext(
+          render_frame_host->GetBrowserContext())) {
+     LOG(ERROR)<<"ANKIT2 WINDOW";       
+      map->Add<wootz_wallet::mojom::EthereumProvider>(
+          base::BindRepeating(&MaybeBindEthereumProvider));
+      map->Add<wootz_wallet::mojom::SolanaProvider>(
+          base::BindRepeating(&MaybeBindSolanaProvider));
+     
+  }
+
+}
+
 // static
 void ChromeContentBrowserClient::RegisterLocalStatePrefs(
     PrefRegistrySimple* registry) {
@@ -1850,6 +1963,16 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
     content::RenderProcessHost* host) {
   Profile* profile = Profile::FromBrowserContext(host->GetBrowserContext());
 
+  // The WootzRendererUpdater might be null for some irregular profiles, e.g.
+  // the System Profile.
+
+  LOG(ERROR)<<"WootzRendererUpdater JAGADESH";
+  if (WootzRendererUpdater* service =
+          WootzRendererUpdaterFactory::GetForProfile(profile)) {
+  LOG(ERROR)<<"WootzRendererUpdater JAGADESH GetForProfile";
+
+    service->InitializeRenderer(host);
+  }
   WebRtcLoggingController::AttachToRenderProcessHost(host);
 
   // The audio manager outlives the host, so it's safe to hand a raw pointer to

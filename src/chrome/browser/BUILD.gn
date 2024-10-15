@@ -126,6 +126,8 @@ source_set("browser_process") {
   sources = [
     "browser_process.cc",
     "browser_process.h",
+    "wootz_browser_process.cc",
+    "wootz_browser_process.h",
   ]
   deps = [ "//base" ]
   public_deps = [
@@ -2045,6 +2047,11 @@ static_library("browser") {  sources = [
     "//chrome/common:buildflags",
     "//chrome/common:constants",
     "//chrome/browser/ui",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/common",
+    "//components/wootz_wallet/common:mojom",
+    "//components/wootz_wallet/common:pref_names",
     "//chrome/services/file_util/public/mojom",
     "//components/account_id",
     "//components/autofill/core/browser",
@@ -2188,6 +2195,8 @@ static_library("browser") {  sources = [
     "//chrome/common/companion/visual_query:flags",
     "//chrome/common/net",
     "//chrome/common/notifications",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:constants",
     "//chrome/installer/util:with_no_strings",
     "//chrome/services/on_device_translation:on_device_translation_service",
     "//chrome/services/speech/buildflags",
@@ -2438,6 +2447,7 @@ static_library("browser") {  sources = [
     "//components/safe_browsing/content/browser:client_side_detection",
     "//components/safe_browsing/content/browser:safe_browsing_service",
     "//components/safe_browsing/content/browser/password_protection",
+    "//components/resources:resources_repack",
     "//components/safe_browsing/content/browser/web_ui",
     "//components/safe_browsing/core/browser",
     "//components/safe_browsing/core/browser:safe_browsing_metrics_collector",
@@ -2790,6 +2800,13 @@ static_library("browser") {  sources = [
     ]
   }
 
+  deps += [
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/common",
+    "//components/wootz_wallet/common:mojom",
+    "//components/wootz_wallet/common:pref_names",
+  ]
   if (!is_chromeos_ash) {
     sources += [
       "signin/wait_for_network_callback_helper_chrome.cc",
@@ -3145,6 +3162,16 @@ static_library("browser") {  sources = [
       "browsing_data/counters/tabs_counter.h",
       "chrome_browser_main_android.cc",
       "chrome_browser_main_android.h",
+      "wootz_wallet/android/asset_ratio_service_factory_android.cc",
+      "wootz_wallet/android/blockchain_registry_factory_android.cc",
+      "wootz_wallet/android/wootz_wallet_service_factory_android.cc",
+      "wootz_wallet/android/swap_service_factory_android.cc",
+      "wootz_wallet/android/wallet_native_utils_android.cc",
+      "permissions/wootz_dapp_permission_prompt_dialog_controller_android.cc",
+      "permissions/wootz_dapp_permission_prompt_dialog_controller_android.h",
+      "permissions/wootz_wallet_permission_prompt_android.cc",
+      "permissions/wootz_wallet_permission_prompt_android.h",
+      "permissions/connect_account_android.cc",
       "commerce/android/price_tracking_utils_android.cc",
       "commerce/android/shopping_service_factory_android.cc",
       "commerce/price_tracking/android/price_tracking_notification_bridge.cc",
@@ -3636,8 +3663,12 @@ static_library("browser") {  sources = [
       "//chrome/browser/ui/webui/feed_internals:mojo_bindings",
       "//chrome/browser/usb/android:jni_headers",
       "//chrome/browser/wallet/android:jni_headers",
+      "//chrome/browser/wootz_wallet",
+      "//chrome/browser/wootz_wallet:wootz_wallet_delegate",
       "//chrome/common:non_code_constants",
       "//chrome/common/wallet:mojo_bindings",
+      "//components/wootz_wallet/browser:permission_utils", # Wootz patch
+      "//components/wootz_wallet/common:mojom",
       "//chrome/services/media_gallery_util/public/cpp",
       "//components/android_autofill/browser:android",
       "//components/autofill/android:keyboard_suppressor",

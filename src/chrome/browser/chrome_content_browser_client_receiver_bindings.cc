@@ -6,6 +6,7 @@
 
 #include "chrome/browser/chrome_content_browser_client.h"
 
+#include "base/logging.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/chrome_browser_interface_binders.h"
 #include "chrome/browser/chrome_content_browser_client_parts.h"
 #include "chrome/browser/content_settings/content_settings_manager_delegate.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/headless/headless_mode_util.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/net/net_error_tab_helper.h"
@@ -40,6 +42,17 @@
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/user_prefs/user_prefs.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_context_utils.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_provider_delegate_impl.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "components/wootz_wallet/browser/wootz_wallet_p3a_private.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "components/wootz_wallet/browser/wootz_wallet_utils.h"
+#include "components/wootz_wallet/browser/ethereum_provider_impl.h"
+#include "components/wootz_wallet/browser/solana_provider_impl.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/common/common_utils.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
@@ -326,11 +339,15 @@ void ChromeContentBrowserClient::BindMediaServiceReceiver(
 #endif
 }
 
-void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
+void ChromeContentBrowserClient::RegisterReceiverBindingsForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
+
+  LOG(ERROR)<<"WOOTZAPP ETHEREUM IMPL HELLO ANKIT";    
   chrome::internal::PopulateChromeFrameBinders(map, render_frame_host);
   chrome::internal::PopulateChromeWebUIFrameBinders(map, render_frame_host);
+
+
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   map->Add<spellcheck::mojom::SpellCheckHost>(base::BindRepeating(
@@ -358,6 +375,8 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
                                                 extension);
 #endif
 }
+
+
 
 void ChromeContentBrowserClient::RegisterWebUIInterfaceBrokers(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {

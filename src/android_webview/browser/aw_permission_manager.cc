@@ -592,6 +592,11 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
       case PermissionType::NFC:
       case PermissionType::VR:
       case PermissionType::AR:
+      case PermissionType::WOOTZ_ETHEREUM: 
+      case PermissionType::WOOTZ_SOLANA:   
+      // case PermissionType::WOOTZ_GOOGLE_SIGN_IN:       
+      // case PermissionType::WOOTZ_LOCALHOST_ACCESS:  
+
       case PermissionType::STORAGE_ACCESS_GRANT:
       case PermissionType::TOP_LEVEL_STORAGE_ACCESS:
       case PermissionType::CAMERA_PAN_TILT_ZOOM:

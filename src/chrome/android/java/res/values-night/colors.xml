@@ -15,7 +15,8 @@ found in the LICENSE file.
     <!-- History Navigation UI colors -->
     <color name="navigation_bubble_arrow">@android:color/white</color>
 
-    <!-- <color name="wootz_link">#A0A5EB</color> -->
+    <color name="wootz_link">#A0A5EB</color>
+  
     <!-- Scrollbar colors -->
     <color name="default_scroll_thumb">@color/white_alpha_20</color>
 

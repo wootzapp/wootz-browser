@@ -104,7 +104,7 @@ class TabListContainerViewBinder {
         final int oldTopMargin = params.topMargin;
         final int oldBottomMargin = params.bottomMargin;
         if (model.get(IS_VISIBLE)) {
-            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+
             if(!true){
                 params.topMargin = model.get(TOP_MARGIN);
                 params.bottomMargin = model.get(BOTTOM_CONTROLS_HEIGHT);
@@ -117,7 +117,7 @@ class TabListContainerViewBinder {
             // Treat the bottom margin as 0 to avoid layout shift in tab shrink animations.
             // IS_VISIBLE will be set to true after the tab shrink animation see
             // {@link TabSwitcherMediator#showTabSwitcherView(boolean)}.
-            // if (!ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+           
             if(!true){
                 params.bottomMargin = 0;
             }

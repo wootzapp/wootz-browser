@@ -1,0 +1,92 @@
+/* Copyright (c) 2019 The Wootz Authors. All rights reserved.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "components/l10n/common/locale_util.h"
+
+#include <optional>
+
+#include "components/l10n/common/default_locale.h"
+#include "components/l10n/common/locale_subtag_info.h"
+#include "components/l10n/common/locale_subtag_parser_util.h"
+
+namespace wootz_l10n {
+
+namespace {
+
+constexpr char kFallbackLanguageCode[] = "en";
+constexpr char kFallbackCountryCode[] = "US";
+
+}  // namespace
+
+const std::string& GetDefaultLocaleString() {
+  return DefaultLocaleString();
+}
+
+std::string GetISOLanguageCode(const std::string& locale) {
+  std::string language = ParseLocaleSubtags(locale).language;
+  if (language.empty()) {
+    return kFallbackLanguageCode;
+  }
+
+  return language;
+}
+
+std::string GetDefaultISOLanguageCodeString() {
+  return GetISOLanguageCode(GetDefaultLocaleString());
+}
+
+std::optional<std::string> GetISOScriptCode(const std::string& locale) {
+  std::string script = ParseLocaleSubtags(locale).script;
+  if (script.empty()) {
+    return std::nullopt;
+  }
+
+  return script;
+}
+
+std::optional<std::string> GetDefaultISOScriptCodeString() {
+  return GetISOScriptCode(GetDefaultLocaleString());
+}
+
+std::string GetISOCountryCode(const std::string& locale) {
+  std::string country = ParseLocaleSubtags(locale).country;
+  if (country.empty()) {
+    return kFallbackCountryCode;
+  }
+
+  return country;
+}
+
+std::string GetDefaultISOCountryCodeString() {
+  return GetISOCountryCode(GetDefaultLocaleString());
+}
+
+std::optional<std::string> GetCharSet(const std::string& locale) {
+  std::string charset = ParseLocaleSubtags(locale).charset;
+  if (charset.empty()) {
+    return std::nullopt;
+  }
+
+  return charset;
+}
+
+std::optional<std::string> GetDefaultCharSetString() {
+  return GetCharSet(GetDefaultLocaleString());
+}
+
+std::optional<std::string> GetVariant(const std::string& locale) {
+  std::string variant_code = ParseLocaleSubtags(locale).variant;
+  if (variant_code.empty()) {
+    return std::nullopt;
+  }
+
+  return variant_code;
+}
+
+std::optional<std::string> GetDefaultVariantString() {
+  return GetVariant(GetDefaultLocaleString());
+}
+
+}  // namespace wootz_l10n

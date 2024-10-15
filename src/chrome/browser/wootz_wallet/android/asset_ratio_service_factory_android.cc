@@ -5,7 +5,7 @@
 
 #include "base/android/jni_android.h"
 #include "chrome/browser/wootz_wallet/asset_ratio_service_factory.h"
-#include "chrome/build/android/jni_headers/AssetRatioServiceFactory_jni.h"
+#include "chrome/android/chrome_jni_headers/AssetRatioServiceFactory_jni.h"
 #include "chrome/browser/profiles/profile.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 
@@ -19,7 +19,7 @@ static jlong JNI_AssetRatioServiceFactory_GetInterfaceToAssetRatioService(
       wootz_wallet::AssetRatioServiceFactory::GetInstance()->GetForContext(
           profile);
 
-  return static_cast<jlong>(pending.PassPipe().release().value());
+  return static_cast<jlong>(1);
 }
 
 }  // namespace android

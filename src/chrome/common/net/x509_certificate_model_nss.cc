@@ -12,8 +12,8 @@
 #include <memory>
 #include <tuple>
 
-#include "chrome/third_party/mozilla_security_manager/nsNSSCertHelper.h"
-#include "chrome/third_party/mozilla_security_manager/nsNSSCertificate.h"
+#include "third_party/mozilla_security_manager/nsNSSCertHelper.h"
+#include "third_party/mozilla_security_manager/nsNSSCertificate.h"
 #include "net/cert/x509_util_nss.h"
 
 namespace psm = mozilla_security_manager;

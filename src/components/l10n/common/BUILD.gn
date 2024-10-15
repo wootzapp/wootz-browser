@@ -1,0 +1,89 @@
+# Copyright (c) 2023 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+static_library("common") {
+  friend = [
+    ":test_support",
+    ":unit_tests",
+  ]
+
+  public = [
+    "country_code_util.h",
+    "locale_util.h",
+    "localization_util.h",
+    "ofac_sanction_util.h",
+    "prefs.h",
+    "un_m49_code_util.h",
+  ]
+
+  sources = [
+    "country_code_feature.cc",
+    "country_code_feature.h",
+    "country_code_util.cc",
+    "default_locale.cc",
+    "default_locale.h",
+    "locale_subtag_info.cc",
+    "locale_subtag_info.h",
+    "locale_subtag_parser_util.cc",
+    "locale_subtag_parser_util.h",
+    "locale_util.cc",
+    "locale_util.h",
+    "localization_util.cc",
+    "localization_util.h",
+    "ofac_sanction_util.cc",
+    "ofac_sanction_util.h",
+    "ofac_sanctioned_iso_3166_1_country_code_constants.h",
+    "ofac_sanctioned_un_m49_code_constants.h",
+    "prefs.cc",
+    "un_m49_code_constants.h",
+    "un_m49_code_util.cc",
+    "un_m49_code_util.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/l10n/browser",
+    "//components/prefs",
+    "//ui/base",
+  ]
+}
+
+static_library("test_support") {
+  testonly = true
+
+  sources = [
+    "test/scoped_default_locale.cc",
+    "test/scoped_default_locale.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/l10n/common",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+
+  sources = [
+    "country_code_util_unittest.cc",
+    "locale_subtag_parser_util_unittest.cc",
+    "locale_util_unittest.cc",
+    "localization_util_unittest.cc",
+    "ofac_sanction_util_unittest.cc",
+    "un_m49_code_util_unittest.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//base/test:test_support",
+    "//components/l10n/common",
+    "//components/l10n/common:test_support",
+    "//components/resources:strings_grit",
+    "//components/prefs:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
+  ]
+}

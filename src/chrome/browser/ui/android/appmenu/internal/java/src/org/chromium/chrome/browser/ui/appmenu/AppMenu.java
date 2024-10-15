@@ -179,23 +179,6 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         mNegativeVerticalOffsetNotTopAnchored = res.getDimensionPixelSize(R.dimen.menu_negative_vertical_offset_not_top_anchored);
         mChipHighlightExtension = res.getDimensionPixelOffset(R.dimen.menu_chip_highlight_extension);
     }
-    // AppMenu(int itemRowHeight, AppMenuHandlerImpl handler, Resources res) {
-    //     Log.d(TAG, "AppMenu constructor called with itemRowHeight: " + itemRowHeight);
-    //     mItemRowHeight = itemRowHeight;
-    //     assert mItemRowHeight > 0;
-
-    //     mHandler = handler;
-
-    //     mNegativeSoftwareVerticalOffset =
-    //             res.getDimensionPixelSize(R.dimen.menu_negative_software_vertical_offset);
-    //     mVerticalFadeDistance = res.getDimensionPixelSize(R.dimen.menu_vertical_fade_distance);
-    //     mNegativeVerticalOffsetNotTopAnchored =
-    //             res.getDimensionPixelSize(R.dimen.menu_negative_vertical_offset_not_top_anchored);
-    //     mChipHighlightExtension =
-    //             res.getDimensionPixelOffset(R.dimen.menu_chip_highlight_extension);
-
-    //     mTempLocation = new int[2];
-    // }
 
     /**
      * Notifies the menu that the contents of the menu item specified by {@code menuRowId} have
@@ -265,105 +248,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         return dialog;
     }
 
-    // this function below is not really used right now but should not be deleted
-    // private void setupTouchListener() {
-    //     mScrollView.setOnTouchListener(new View.OnTouchListener() {
-    //         private float startY;
-    //         private float startX;
-    //         private static final int CLICK_ACTION_THRESHOLD = 5;
-
-    //         @Override
-    //         public boolean onTouch(View v, MotionEvent event) {
-    //             switch (event.getAction()) {
-    //                 case MotionEvent.ACTION_DOWN:
-    //                     startY = event.getY();
-    //                     startX = event.getX();
-    //                     break;
-    //                 case MotionEvent.ACTION_UP:
-    //                     float endY = event.getY();
-    //                     float endX = event.getX();
-    //                     if (!isAClick(startX, endX, startY, endY)) {
-    //                         if (startY < endY && !mScrollView.canScrollVertically(-1)) {
-    //                             // Swiping down and scroll view is at the top
-    //                             mBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-    //                             return true;
-    //                         } else if (startY > endY && !mScrollView.canScrollVertically(1)) {
-    //                             // Swiping up and scroll view is at the bottom
-    //                             dismiss();
-    //                             return true;
-    //                         }
-    //                     }
-    //                     break;
-    //             }
-    //             return false;
-    //         }
-
-    //         private boolean isAClick(float startX, float endX, float startY, float endY) {
-    //             float differenceX = Math.abs(startX - endX);
-    //             float differenceY = Math.abs(startY - endY);
-    //             return !(differenceX > CLICK_ACTION_THRESHOLD || differenceY > CLICK_ACTION_THRESHOLD);
-    //         }
-    //     });
-    // }
-
     private View createContentView(boolean test) {
-        // Context context = getContext();
-        // View contentView = LayoutInflater.from(context).inflate(R.layout.app_menu_bottom_sheet_layout, null);
-        // mGridView = contentView.findViewById(R.id.app_menu_grid);
-        // mGridView.setNumColumns(GRID_COLUMNS);
-        // mGridView.setAdapter(mAdapter);
-        // mGridView.setOnItemClickListener(this);
-
-        // inflateHeader(mHeaderResourceId, contentView);
-        // inflateFooter(mFooterResourceId, contentView);
-
-        // return contentView;
-
-
-        // Context context = getContext();
-        // CoordinatorLayout coordinatorLayout = new CoordinatorLayout(context);
-        // coordinatorLayout.setLayoutParams(new ViewGroup.LayoutParams(
-        //         ViewGroup.LayoutParams.MATCH_PARENT,
-        //         ViewGroup.LayoutParams.MATCH_PARENT));
-
-        // mGridView = new GridView(context);
-        // mGridView.setLayoutParams(new ViewGroup.LayoutParams(
-        //         ViewGroup.LayoutParams.MATCH_PARENT,
-        //         ViewGroup.LayoutParams.WRAP_CONTENT));
-        // mGridView.setNumColumns(3); // Adjust as needed
-        // mGridAdapter = new GridAdapter(context, mModelList);
-        // mGridView.setAdapter(mGridAdapter);
-        // mGridView.setOnItemClickListener(this);
-
-        // coordinatorLayout.addView(mGridView);
-
-        // coordinatorLayout.setOnTouchListener(new CustomTouchListener());
-
-        // return coordinatorLayout;
-
-        
-        // NestedScrollView scrollView = new NestedScrollView(getContext());
-        // scrollView.setLayoutParams(new ViewGroup.LayoutParams(
-        //         ViewGroup.LayoutParams.MATCH_PARENT,
-        //         ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        // mGridView = new GridView(getContext());
-        // mGridView.setLayoutParams(new ViewGroup.LayoutParams(
-        //         ViewGroup.LayoutParams.MATCH_PARENT,
-        //         ViewGroup.LayoutParams.WRAP_CONTENT));
-        // mGridView.setNumColumns(3); // Adjust as needed
-        // mGridAdapter = new GridAdapter(getContext(), mModelList);
-        // mGridView.setAdapter(mGridAdapter);
-        // mGridView.setOnItemClickListener(this);
-
-        // // Disable GridView scrolling
-        // mGridView.setNestedScrollingEnabled(true);
-
-        // scrollView.addView(mGridView);
-
-        // return scrollView;
-
-
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -415,39 +300,6 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         // }
         
         return scrollView;  
-
-        // Context context = getContext();
-        // View contentView = LayoutInflater.from(context).inflate(R.layout.app_menu_bottom_sheet_layout, null);
-    
-        // // Find the GridView in the inflated layout
-        // mGridView = contentView.findViewById(R.id.app_menu_grid);
-        
-        // // Check if the GridView already has a parent
-        // // if (mGridView.getParent() != null) {
-        // //     ((ViewGroup) mGridView.getParent()).removeView(mGridView); // Remove it from its current parent
-        // // }
-    
-        // // Set up the GridView adapter
-        // mGridAdapter = new GridAdapter(context, mModelList);
-        // mGridView.setAdapter(mGridAdapter);
-        // mGridView.setOnItemClickListener(this);
-    
-        // // Create a NestedScrollView to wrap the GridView
-        // // mScrollView = new NestedScrollView(context);
-        // // mScrollView.setLayoutParams(new ViewGroup.LayoutParams(
-        // //         ViewGroup.LayoutParams.MATCH_PARENT,
-        // //         ViewGroup.LayoutParams.WRAP_CONTENT));
-    
-        // // // Add the GridView to the NestedScrollView
-        // // mScrollView.addView(mGridView);
-    
-        // // Inflate header and footer if needed
-        // inflateHeader(mHeaderResourceId, contentView);
-        // inflateFooter(mFooterResourceId, contentView);
-    
-        // return mScrollView; // Return the NestedScrollViewew; // Return the NestedScrollView
-
-
 
     }
 
@@ -619,42 +471,6 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             }
         });
 
-        // super.onActivityCreated(savedInstanceState);
-    
-        // View parent = (View) getView().getParent();
-        // parent.setBackgroundColor(Color.TRANSPARENT);
-    
-        // CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams) parent.getLayoutParams();
-        
-        // // Set fixed margins
-        // int marginInPixels = dpToPx(32);
-        // layoutParams.setMargins(marginInPixels, -marginInPixels, marginInPixels, marginInPixels);
-        // parent.setLayoutParams(layoutParams);
-    
-        // // Set up BottomSheetBehavior
-        // mBehavior = BottomSheetBehavior.from(parent);
-        // mBehavior.setSkipCollapsed(true);
-        // mBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-        
-        // // Disable dragging on the BottomSheetBehavior
-        // mBehavior.setDraggable(false);
-    
-        // // Add a callback to maintain the bottom margin when expanded
-        // mBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
-        //     @Override
-        //     public void onStateChanged(@NonNull View bottomSheet, int newState) {
-        //         if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-        //             bottomSheet.setPadding(0, 0, 0, marginInPixels);
-        //         } else {
-        //             bottomSheet.setPadding(0, 0, 0, 0);
-        //         }
-        //     }
-    
-        //     @Override
-        //     public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-        //         // Not needed for this implementation
-        //     }
-        // });
     }
 
     private int dpToPx(int dp) {

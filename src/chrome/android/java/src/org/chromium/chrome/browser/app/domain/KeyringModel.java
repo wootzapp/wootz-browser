@@ -1,0 +1,434 @@
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+package org.chromium.chrome.browser.app.domain;
+
+import static org.chromium.base.ThreadUtils.assertOnUiThread;
+
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringDef;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
+
+import org.chromium.base.Callbacks;
+import org.chromium.base.Log;
+import org.chromium.wootz_wallet.mojom.AccountInfo;
+import org.chromium.wootz_wallet.mojom.AllAccountsInfo;
+import org.chromium.wootz_wallet.mojom.WootzWalletConstants;
+import org.chromium.wootz_wallet.mojom.WootzWalletService;
+import org.chromium.wootz_wallet.mojom.CoinType;
+import org.chromium.wootz_wallet.mojom.JsonRpcService;
+import org.chromium.wootz_wallet.mojom.KeyringId;
+import org.chromium.wootz_wallet.mojom.KeyringService;
+import org.chromium.wootz_wallet.mojom.KeyringServiceObserver;
+import org.chromium.wootz_wallet.mojom.NetworkInfo;
+import org.chromium.chrome.browser.wootz_wallet.observers.KeyringServiceObserverImpl;
+import org.chromium.chrome.browser.wootz_wallet.util.AssetUtils;
+import org.chromium.chrome.browser.wootz_wallet.util.WalletUtils;
+import org.chromium.chrome.browser.util.LiveDataUtil;
+import org.chromium.mojo.system.MojoException;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import org.chromium.chrome.browser.util.LiveDataUtil;
+
+public class KeyringModel implements KeyringServiceObserver {
+    private static final String TAG = "KeyringModel";
+    private final Object mLock = new Object();
+
+    private KeyringService mKeyringService;
+    private WootzWalletService mWootzWalletService;
+    private final MutableLiveData<AccountInfo> _mSelectedAccount;
+    private final MutableLiveData<AllAccountsInfo> _mAllAccountsInfo;
+    private final MutableLiveData<List<AccountInfo>> _mAccountInfos;
+    private CryptoSharedActions mCryptoSharedActions;
+    public LiveData<List<AccountInfo>> mAccountInfos;
+    public LiveData<AccountInfo> mSelectedAccount;
+    public LiveData<AllAccountsInfo> mAllAccountsInfo;
+
+    public KeyringModel(
+            KeyringService keyringService,
+            WootzWalletService wootzWalletService,
+            CryptoSharedActions wootzSharedActions) {
+        mKeyringService = keyringService;
+        mWootzWalletService = wootzWalletService;
+        mCryptoSharedActions = wootzSharedActions;
+
+        _mSelectedAccount = new MutableLiveData<>();
+        mSelectedAccount = _mSelectedAccount;
+        _mAllAccountsInfo = new MutableLiveData<>();
+        mAllAccountsInfo = _mAllAccountsInfo;
+        _mAccountInfos = new MutableLiveData<>(Collections.emptyList());
+        mAccountInfos = _mAccountInfos;
+    }
+
+    public void init() {
+        synchronized (mLock) {
+            if (mKeyringService == null) {
+                return;
+            }
+            mKeyringService.addObserver(this);
+        }
+    }
+
+    public void update() {
+        synchronized (mLock) {
+            if (mKeyringService == null) {
+                return;
+            }
+            mKeyringService.getAllAccounts(allAccounts -> {
+                _mAllAccountsInfo.postValue(allAccounts);
+                _mAccountInfos.postValue(Arrays.asList(allAccounts.accounts));
+                _mSelectedAccount.postValue(allAccounts.selectedAccount);
+            });
+        }
+    }
+
+    public void setSelectedAccount(AccountInfo accountInfoToSelect) {
+        synchronized (mLock) {
+            if (mKeyringService == null || accountInfoToSelect == null) {
+                return;
+            }
+            AccountInfo selectedAccount = _mSelectedAccount.getValue();
+            if (selectedAccount != null
+                    && WalletUtils.accountIdsEqual(selectedAccount, accountInfoToSelect)) {
+                return;
+            }
+
+            mKeyringService.setSelectedAccount(accountInfoToSelect.accountId,
+                    isAccountSelected -> { mCryptoSharedActions.updateCoinType(); });
+        }
+    }
+
+    public void resetService(KeyringService keyringService, WootzWalletService wootzWalletService) {
+        synchronized (mLock) {
+            mKeyringService = keyringService;
+            mWootzWalletService = wootzWalletService;
+        }
+        if (mKeyringService != null && mWootzWalletService != null) {
+            init();
+        }
+    }
+
+    public void getAccounts(Callbacks.Callback1<AccountInfo[]> callback1) {
+        mKeyringService.getAllAccounts(allAccounts -> { callback1.call(allAccounts.accounts); });
+    }
+
+    public void isWalletCreated(@NonNull final KeyringService.IsWalletCreated_Response callback) {
+        if (mKeyringService == null) {
+            callback.call(false);
+        } else {
+            mKeyringService.isWalletCreated(callback);
+        }
+    }
+
+    private void addAccountInternal(
+            @CoinType.EnumType int coinType,
+            @KeyringId.EnumType int keyringId,
+            String accountName,
+            Callbacks.Callback1<Boolean> callback) {
+        mKeyringService.addAccount(
+                coinType,
+                keyringId,
+                accountName,
+                result -> {
+                    handleAddAccountResult(result, callback);
+                });
+    }
+
+    public void addAccount(
+            @CoinType.EnumType int coinType,
+            String chainId,
+            String accountName,
+            Callbacks.Callback1<Boolean> callback) {
+        @KeyringId.EnumType int keyringId = AssetUtils.getKeyring(coinType, chainId);
+        if (accountName == null) {
+            LiveDataUtil.observeOnce(
+                    mAccountInfos,
+                    accounts -> {
+                        addAccountInternal(
+                                coinType,
+                                keyringId,
+                                WalletUtils.generateUniqueAccountName(
+                                        coinType, accounts.toArray(new AccountInfo[0])),
+                                callback);
+                    });
+        } else {
+            addAccountInternal(coinType, keyringId, accountName, callback);
+        }
+    }
+
+    public void isWalletLocked(@NonNull final Callbacks.Callback1<Boolean> callback) {
+        mKeyringService.isLocked(callback::call);
+    }
+
+    public void registerKeyringObserver(KeyringServiceObserverImpl observer) {
+        mKeyringService.addObserver(observer);
+    }
+
+    public AccountInfo getAccount(String address) {
+        List<AccountInfo> accountInfoList = mAccountInfos.getValue();
+        if (accountInfoList == null || accountInfoList.isEmpty()) return null;
+        for (AccountInfo accountInfo : accountInfoList) {
+            if (accountInfo.address.equals(address)) return accountInfo;
+        }
+        return null;
+    }
+
+    private void handleAddAccountResult(
+            AccountInfo result, @NonNull final Callbacks.Callback1<Boolean> callback) {
+        mCryptoSharedActions.updateCoinType();
+        mCryptoSharedActions.onNewAccountAdded();
+        callback.call(result != null);
+    }
+
+    /**
+     * Creates a new Wootz Wallet with a given password, showing only the collection of selected
+     * networks. One Ethereum and one Solana account will be created by default; Bitcoin account and
+     * Filecoin account will be created only if selected among available networks. Once the creation
+     * finishes the callback is notified with a string containing the recovery phrases.
+     *
+     * <p><b>Note:</b> This method must be always called from main UI thread.
+     *
+     * @param password Given password used to create the new Wootz Wallet.
+     * @param availableNetworks All available networks.
+     * @param selectedNetworks Collection of selected networks that will be shown.
+     * @param jsonRpcService JSON RPC service used to add and hide the networks.
+     * @param callback Callback fired once creation terminates passing a string containing the
+     *     recovery phrases.
+     */
+    @MainThread
+    public void createWallet(
+            @NonNull final String password,
+            @NonNull final Set<NetworkInfo> availableNetworks,
+            @NonNull final Set<NetworkInfo> selectedNetworks,
+            @NonNull final JsonRpcService jsonRpcService,
+            @NonNull final Callbacks.Callback1<String> callback) {
+        assertOnUiThread();
+        final Set<NetworkInfo> removeHiddenNetworks = new HashSet<>();
+        final Set<NetworkInfo> addHiddenNetworks = new HashSet<>();
+
+        MutableLiveData<Boolean> removeHiddenNetworksLiveData = new MutableLiveData<>();
+        MutableLiveData<Boolean> addHiddenNetworksLiveData = new MutableLiveData<>();
+
+        for (NetworkInfo networkInfo : availableNetworks) {
+            if (selectedNetworks.contains(networkInfo)) {
+                removeHiddenNetworks.add(networkInfo);
+            } else {
+                addHiddenNetworks.add(networkInfo);
+            }
+        }
+
+        // Subscribe observer only if are present hidden networks to remove.
+        if (!removeHiddenNetworks.isEmpty()) {
+            removeHiddenNetworksLiveData.observeForever(
+                    new Observer<>() {
+                        int countRemovedHiddenNetworks;
+
+                        @Override
+                        public void onChanged(Boolean success) {
+                            countRemovedHiddenNetworks++;
+                            if (countRemovedHiddenNetworks == removeHiddenNetworks.size()) {
+                                removeHiddenNetworksLiveData.removeObserver(this);
+
+                                if (!addHiddenNetworksLiveData.hasActiveObservers()) {
+                                    finalizeWalletCreation(password, selectedNetworks, callback);
+                                }
+                            }
+                        }
+                    });
+        }
+
+        // Subscribe observer only if are present hidden networks to add.
+        if (!addHiddenNetworks.isEmpty()) {
+            addHiddenNetworksLiveData.observeForever(
+                    new Observer<>() {
+                        int countAddedHiddenNetworks;
+
+                        @Override
+                        public void onChanged(Boolean success) {
+                            countAddedHiddenNetworks++;
+                            if (countAddedHiddenNetworks == addHiddenNetworks.size()) {
+                                addHiddenNetworksLiveData.removeObserver(this);
+
+                                if (!removeHiddenNetworksLiveData.hasActiveObservers()) {
+                                    finalizeWalletCreation(password, selectedNetworks, callback);
+                                }
+                            }
+                        }
+                    });
+        }
+
+        for (NetworkInfo networkInfo : removeHiddenNetworks) {
+            jsonRpcService.removeHiddenNetwork(
+                    networkInfo.coin,
+                    networkInfo.chainId,
+                    success -> {
+                        if (!success) {
+                            Log.w(
+                                    TAG,
+                                    String.format(
+                                            Locale.ENGLISH,
+                                            "Unable to remove network %s from hidden networks.",
+                                            networkInfo.chainName));
+                        }
+                        removeHiddenNetworksLiveData.setValue(success);
+                    });
+        }
+
+        for (NetworkInfo networkInfo : addHiddenNetworks) {
+            jsonRpcService.addHiddenNetwork(
+                    networkInfo.coin,
+                    networkInfo.chainId,
+                    success -> {
+                        if (!success) {
+                            Log.w(
+                                    TAG,
+                                    String.format(
+                                            Locale.ENGLISH,
+                                            "Unable to add network %s to hidden networks.",
+                                            networkInfo.chainName));
+                        }
+                        addHiddenNetworksLiveData.setValue(success);
+                    });
+        }
+    }
+
+    private void finalizeWalletCreation(
+            @NonNull final String password,
+            @NonNull final Set<NetworkInfo> selectedNetworks,
+            @NonNull final Callbacks.Callback1<String> callback) {
+        assertOnUiThread();
+        mKeyringService.createWallet(
+                password,
+                recoveryPhrases -> {
+                    final Set<NetworkInfo> createAccounts = new HashSet<>();
+
+                    for (NetworkInfo networkInfo : selectedNetworks) {
+                        // Create Bitcoin and Filecoin accounts if they have been selected.
+                        if (networkInfo.coin == CoinType.BTC || networkInfo.coin == CoinType.FIL) {
+                            createAccounts.add(networkInfo);
+                        }
+                    }
+
+                    if (createAccounts.isEmpty()) {
+                        callback.call(recoveryPhrases);
+                    } else {
+                        final MutableLiveData<Boolean> createAccountsLiveData =
+                                new MutableLiveData<>();
+
+                        createAccountsLiveData.observeForever(
+                                new Observer<>() {
+                                    int countCreatedAccounts;
+
+                                    @Override
+                                    public void onChanged(Boolean success) {
+                                        countCreatedAccounts++;
+                                        if (countCreatedAccounts == createAccounts.size()) {
+                                            createAccountsLiveData.removeObserver(this);
+                                            // Set ETH account by default as initial state.
+                                            selectEthAccount(recoveryPhrases, callback);
+                                        }
+                                    }
+                                });
+
+                        LiveDataUtil.observeOnce(
+                                mAccountInfos,
+                                accounts -> {
+                                    for (NetworkInfo networkInfo : createAccounts) {
+                                        String accountName =
+                                                WalletUtils.generateUniqueAccountName(
+                                                        networkInfo.coin,
+                                                        accounts.toArray(new AccountInfo[0]));
+                                        mKeyringService.addAccount(
+                                                networkInfo.coin,
+                                                AssetUtils.getKeyring(
+                                                        networkInfo.coin, networkInfo.chainId),
+                                                accountName,
+                                                accountInfo ->
+                                                        createAccountsLiveData.setValue(true));
+                                    }
+                                });
+                    }
+                });
+    }
+
+    private void selectEthAccount(
+            @NonNull final String recoveryPhrases,
+            @NonNull final Callbacks.Callback1<String> callback) {
+        mKeyringService.getAllAccounts(
+                allAccounts ->
+                        mKeyringService.setSelectedAccount(
+                                allAccounts.ethDappSelectedAccount.accountId,
+                                success -> callback.call(recoveryPhrases)));
+    }
+
+    @Override
+    public void walletCreated() {
+        update();
+    }
+
+    @Override
+    public void walletRestored() {
+        update();
+    }
+
+    @Override
+    public void walletReset() {
+        update();
+    }
+
+    @Override
+    public void locked() {
+        update();
+    }
+
+    @Override
+    public void unlocked() {
+        update();
+    }
+
+    @Override
+    public void backedUp() {
+        update();
+    }
+
+    @Override
+    public void accountsChanged() {
+        update();
+    }
+
+    @Override
+    public void accountsAdded(AccountInfo[] addedAccounts) {}
+
+    @Override
+    public void autoLockMinutesChanged() {}
+
+    @Override
+    public void selectedWalletAccountChanged(AccountInfo accountInfo) {
+        update();
+    }
+
+    @Override
+    public void selectedDappAccountChanged(
+            @CoinType.EnumType int coinType, AccountInfo accountInfo) {
+        update();
+    }
+
+    @Override
+    public void onConnectionError(MojoException e) {}
+
+    @Override
+    public void close() {}
+
+    @StringDef({WootzWalletConstants.FILECOIN_MAINNET, WootzWalletConstants.FILECOIN_TESTNET})
+    public @interface FilecoinNetworkType {}
+}

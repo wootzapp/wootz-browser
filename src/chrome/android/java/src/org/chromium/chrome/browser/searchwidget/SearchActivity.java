@@ -668,7 +668,7 @@ public class SearchActivity extends AsyncInitializationActivity
     private void setupKeyboardVisibilityListener() {
         final View contentView = findViewById(android.R.id.content);
         contentView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-            private boolean wasKeyboardOpen = false;
+            private boolean wasKeyboardOpen=false;
 
             @Override
             public void onGlobalLayout() {

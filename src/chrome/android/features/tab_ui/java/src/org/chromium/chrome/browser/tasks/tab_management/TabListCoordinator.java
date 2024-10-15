@@ -521,7 +521,7 @@ public class TabListCoordinator
                                 checkAwaitingLayout();
                             }
                         };
-                // layout.setStackFromEnd(ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled());
+
                 layout.setStackFromEnd(true);
                 mRecyclerView.setLayoutManager(layout);
             }

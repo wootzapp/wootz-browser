@@ -44,7 +44,7 @@ import org.chromium.wootz_wallet.mojom.JsonRpcService;
 import org.chromium.wootz_wallet.mojom.KeyringService;
 import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletProviderDelegateImplHelper;
@@ -57,7 +57,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.BalanceHelper;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletUtils;
 import org.chromium.chrome.browser.util.ConfigurationUtils;
-import org.chromium.components.embedder_support.util.WootzUrlConstants;
+// import org.chromium.components.embedder_support.util.WootzUrlConstants;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.url.GURL;
@@ -107,10 +107,10 @@ public class WootzWalletPanel implements DialogInterface {
             @NonNull final OnDismissListener onDismissListener,
             final boolean showExpandButton) {
         try {
-            mWalletModel = WootzActivity.getWootzActivity().getWalletModel();
+            mWalletModel = ChromeActivity.getChromeActivity().getWalletModel();
             // Update network model to use network per origin
             getNetworkModel().updateMode(NetworkModel.Mode.PANEL_MODE);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "WootzWalletPanel Constructor", e);
         }
 
@@ -121,7 +121,7 @@ public class WootzWalletPanel implements DialogInterface {
         mAnchorViewHost = anchorViewHost;
         mOnDismissListener = onDismissListener;
         mContext = mAnchorViewHost.getContext();
-        mActivity = WootzActivity.getChromeTabbedActivity();
+        mActivity = ChromeActivity.getChromeTabbedActivity();
 
         mDefaultNetworkObserver =
                 networkInfo -> {
@@ -241,28 +241,28 @@ public class WootzWalletPanel implements DialogInterface {
             dismiss();
         } else if (item.getItemId() == R.id.action_connected_sites) {
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 activity.openWootzConnectedSitesSettings();
                 dismiss();
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "handleMenuItemClick action_connected_sites " + e);
             }
         } else if (item.getItemId() == R.id.action_settings) {
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 activity.openWootzWalletSettings();
                 dismiss();
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "handleMenuItemClick action_settings " + e);
             }
         } else if (item.getItemId() == R.id.action_view_on_block_explorer) {
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 // TODO(apaymyshev): address might be null for bitcoin?
                 activity.viewOnBlockExplorer(mSelectedAccount.address,
                         mSelectedAccount.accountId.coin, mSelectedNetwork);
                 dismiss();
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "handleMenuItemClick action_view_on_block_explorer " + e);
             }
         } else if (item.getItemId() == R.id.action_help_center) {
@@ -359,13 +359,13 @@ public class WootzWalletPanel implements DialogInterface {
 
     private void updateSolanaConnected(AccountInfo selectedAccount) {
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             if (activity.getActivityTab() != null) {
                 WootzWalletProviderDelegateImplHelper.IsSolanaConnected(
                         activity.getActivityTab().getWebContents(), selectedAccount.address,
                         isConnected -> { onIsSolanaConnected(isConnected); });
             }
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "updateSolanaConnected " + e);
         }
     }
@@ -391,13 +391,15 @@ public class WootzWalletPanel implements DialogInterface {
         } else {
             mCvSolConnectionStatus.setVisibility(View.GONE);
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 mBtnConnectedStatus.setVisibility(View.GONE);
                 if (activity.getActivityTab() != null) {
                     GURL lastCommittedUrl =
                             activity.getActivityTab().getWebContents().getLastCommittedUrl();
-                    if (!lastCommittedUrl.getScheme().equals(WootzUrlConstants.WOOTZ_SCHEME)
-                            && !lastCommittedUrl.getScheme().equals(UrlConstants.CHROME_SCHEME)
+                    if (
+                        // !lastCommittedUrl.getScheme().equals(WootzUrlConstants.WOOTZ_SCHEME)
+                            // && 
+                            !lastCommittedUrl.getScheme().equals(UrlConstants.CHROME_SCHEME)
                             && !lastCommittedUrl.getScheme().equals(
                                     UrlConstants.CHROME_NATIVE_SCHEME)) {
                         mBtnConnectedStatus.setVisibility(View.VISIBLE);
@@ -405,7 +407,7 @@ public class WootzWalletPanel implements DialogInterface {
                                 isConnected ? R.drawable.ic_check_white : 0, 0, 0, 0);
                     }
                 }
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "updateConnectedState " + e);
             }
         }
@@ -427,9 +429,9 @@ public class WootzWalletPanel implements DialogInterface {
                     v -> {
                         dismiss();
                         try {
-                            WootzActivity activity = WootzActivity.getWootzActivity();
+                            ChromeActivity activity = ChromeActivity.getChromeActivity();
                             activity.openWootzWallet(false, false, false);
-                        } catch (WootzActivity.WootzActivityNotFoundException e) {
+                        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                             Log.e(TAG, "ExpandWalletImage", e);
                         }
                     });
@@ -457,11 +459,11 @@ public class WootzWalletPanel implements DialogInterface {
         mAccountChangeAnchor = mPopupView.findViewById(R.id.iv_dapps_panel_down_arrow_anchor);
         mAccountChangeAnchor.setOnClickListener(v -> {
             try {
-                WootzActivity activity = WootzActivity.getWootzActivity();
+                ChromeActivity activity = ChromeActivity.getChromeActivity();
                 Intent intent = new Intent(activity, AccountSelectorActivity.class);
                 intent.setAction(Intent.ACTION_VIEW);
                 activity.startActivity(intent);
-            } catch (WootzActivity.WootzActivityNotFoundException e) {
+            } catch (ChromeActivity.ChromeActivityNotFoundException e) {
                 Log.e(TAG, "setUpViews AccountChangeAnchor click " + e);
             }
         });
@@ -477,10 +479,10 @@ public class WootzWalletPanel implements DialogInterface {
 
     private final View.OnClickListener mOnConnectedAccountClick = v -> {
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             activity.openWootzWalletDAppsActivity(
                     WootzWalletDAppsActivity.ActivityType.CONNECT_ACCOUNT);
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "ConnectedAccountClick click " + e);
         }
     };

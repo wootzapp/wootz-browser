@@ -236,6 +236,8 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/ui/android/toolbar:java_resources",
       "//chrome/browser/ui/android/webid/internal:java_resources",
       "//chrome/browser/ui/messages/android:java_resources",
+      # "//components/wootz_wallet/common:mojom_java",
+      # "//components/wootz_wallet/common:mojom", # Jai
       "//components/autofill/android:autofill_java_resources",
       "//components/autofill/android:autofill_payments_java_resources",
       "//components/blocked_content/android:java_resources",
@@ -267,7 +269,11 @@ if (current_toolchain == default_toolchain) {
       "//components/webapps/browser/android:java_resources",
       "//content/public/android:content_java_resources",
       "//third_party/android_deps:material_design_java",
+      "//third_party/androidx:androidx_core_core_java",
       "//third_party/androidx:androidx_gridlayout_gridlayout_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_core_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_viewmodel_java",
       "//third_party/androidx:androidx_preference_preference_java",
     ]
 
@@ -516,6 +522,7 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/xsurface:java",
       "//chrome/browser/xsurface_provider:dependency_provider_impl_java",
       "//chrome/browser/xsurface_provider:java",
+      "//components/wootz_wallet/common:mojom_java",
       "//components/android_autofill/browser:java",
       "//components/autofill/android:autofill_features_java",
       "//components/autofill/android:autofill_java",
@@ -710,7 +717,10 @@ if (current_toolchain == default_toolchain) {
       "//third_party/androidx:androidx_gridlayout_gridlayout_java",
       "//third_party/androidx:androidx_interpolator_interpolator_java",
       "//third_party/androidx:androidx_lifecycle_lifecycle_common_java8_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_core_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_java",
       "//third_party/androidx:androidx_lifecycle_lifecycle_runtime_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_viewmodel_java",
       "//third_party/androidx:androidx_localbroadcastmanager_localbroadcastmanager_java",
       "//third_party/androidx:androidx_mediarouter_mediarouter_java",
       "//third_party/androidx:androidx_preference_preference_java",
@@ -732,6 +742,7 @@ if (current_toolchain == default_toolchain) {
       "//ui/gfx/geometry/mojom:mojom_java",
       "//url:gurl_java",
       "//url/mojom:url_mojom_gurl_java",
+      "//url/mojom:url_mojom_origin_java",
     ]
 
     deps += feed_deps
@@ -3821,6 +3832,14 @@ generate_jni("chrome_jni_headers") {
     "java/src/org/chromium/chrome/browser/webapps/WebApkUpdateDataFetcher.java",
     "java/src/org/chromium/chrome/browser/webapps/WebApkUpdateManager.java",
     "java/src/org/chromium/chrome/browser/webapps/WebappRegistry.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/AssetRatioServiceFactory.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/BlockchainRegistryFactory.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/SwapServiceFactory.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/WootzWalletProviderDelegateImplHelper.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/WootzWalletServiceFactory.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/fragments/dapps/ConnectAccountFragment.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/permission/WootzDappPermissionPromptDialog.java",
+    "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletNativeUtils.java",
   ]
 
   # Used for testing only, should not be shipped to end users.
@@ -3831,6 +3850,7 @@ generate_jni("chrome_jni_headers") {
   public_deps = [
     ":base_module_jni",
     "//chrome/browser/webid:jni_headers",
+    # "//chrome/browser/wootz_wallet", #BRAVE_WALLET   
   ]
 }
 

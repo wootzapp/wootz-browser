@@ -362,6 +362,12 @@ bool IsMemoryAllocatorDumpNameInAllowlist(const std::string& name) {
     return true;
   }
 
+  if (base::StartsWith(
+          name, "extensions/value_store/Extensions.Database.Open.WootzWallet/",
+          CompareCase::SENSITIVE)) {
+    return true;
+  }
+  
   if (base::StartsWith(name, "shared_memory/", CompareCase::SENSITIVE)) {
     for (size_t i = strlen("shared_memory/"); i < name.size(); i++)
       if (!base::IsHexDigit(name[i]))

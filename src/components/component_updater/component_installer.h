@@ -128,6 +128,7 @@ class ComponentInstallerPolicy {
   // network type changes from unmetered to metered during a download, there is
   // no guarantee that the transfer will be suspended or cancelled.
   virtual bool AllowUpdatesOnMeteredConnections() const;
+  virtual bool IsWootzComponent() const;     
 
   // Returns true if the component is allowed to update.
   // Defaults to |true|.
@@ -166,6 +167,7 @@ class ComponentInstaller final : public update_client::CrxInstaller {
 
   // Overrides from update_client::CrxInstaller.
   void OnUpdateError(int error) override;
+  bool IsWootzComponent() const override;     
 
   void Install(const base::FilePath& unpack_path,
                const std::string& public_key,
