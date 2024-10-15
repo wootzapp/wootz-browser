@@ -151,6 +151,7 @@ public class WootzWalletActivity extends WootzWalletBaseActivity implements OnNe
     @Override
     public void finishNativeInitialization() {
 
+
         super.finishNativeInitialization();
         mWalletOnboardingPagerAdapter =
                 new WalletOnboardingPagerAdapter(

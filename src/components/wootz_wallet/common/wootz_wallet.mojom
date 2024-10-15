@@ -953,6 +953,9 @@ interface KeyringService {
   // Creates a new wallet and encrypts it using the specified password
   CreateWallet(string password) => (string? mnemonic);
 
+  // Creates default accounts for Ethereum and Solana
+  CreateDefaultAccounts();
+
   // Obtains the mnemonic code words for an already existing wallet
   GetWalletMnemonic(string password) => (string? mnemonic);
 

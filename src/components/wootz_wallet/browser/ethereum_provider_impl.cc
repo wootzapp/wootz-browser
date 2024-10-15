@@ -1749,7 +1749,113 @@ void EthereumProviderImpl::Send(const std::string& method,
   delegate_->WalletInteractionDetected();
 }
 
+// void EthereumProviderImpl::RequestEthereumPermissions(
+//     RequestCallback callback,
+//     base::Value id,
+//     const std::string& method,
+//     const url::Origin& origin) {
+ 
+//  LOG(ERROR)<<"RequestEthereum JANGID1";
 
+//   DCHECK(delegate_);
+  
+//   LOG(ERROR)<<"RequestEthereum JANGID2"<<mojom::CoinType::ETH;
+
+//   // if (delegate_->IsPermissionDenied(mojom::CoinType::ETH)) {
+
+//   // LOG(ERROR)<<"RequestEthereum JANGID2"<<mojom::CoinType::ETH;
+
+//   //   OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
+//   //                                origin, RequestPermissionsError::kNone,
+//   //                                std::vector<std::string>());
+//   //   return;
+//   // }
+ 
+//  LOG(ERROR)<<"RequestEthereum JANGID3";
+
+//   std::vector<std::string> addresses;
+//   for (auto& account_info : keyring_service_->GetAllAccountInfos()) {
+//     if (account_info->account_id->coin == mojom::CoinType::ETH) {
+//       addresses.push_back(account_info->address);
+//     }
+//   }
+
+// LOG(ERROR) << "RequestEthereum addresses JANGID: addresses " 
+//            << base::JoinString(addresses, ", ");
+
+//   if (addresses.empty()) {
+//     if (!wallet_onboarding_shown_) {
+//       delegate_->ShowWalletOnboarding();
+//       wallet_onboarding_shown_ = true;
+//     }
+//     OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
+//                                  origin, RequestPermissionsError::kInternal,
+//                                  std::nullopt);
+//     return;
+//   }
+//     LOG(ERROR)<<"RequestEthereum IsLockedSync BEFORE JANGID2"<<keyring_service_->IsLockedSync();
+
+//   if (keyring_service_->IsLockedSync()) {
+
+//     LOG(ERROR)<<"RequestEthereum IsLockedSync AFTER JANGID2"<<keyring_service_->IsLockedSync();
+//     if (pending_request_ethereum_permissions_callback_) {
+//       OnRequestEthereumPermissions(
+//           std::move(callback), std::move(id), method, origin,
+//           RequestPermissionsError::kRequestInProgress, std::nullopt);
+
+//            LOG(ERROR)<<"RequestEthereum IsLockedSync OnRequestEthereumPermissions JANGID2";
+//       return;
+//     }
+//     pending_request_ethereum_permissions_callback_ = std::move(callback);
+//     pending_request_ethereum_permissions_id_ = std::move(id);
+//     pending_request_ethereum_permissions_method_ = method;
+//     pending_request_ethereum_permissions_origin_ = origin;
+//     keyring_service_->RequestUnlock();
+//     delegate_->ShowPanel();
+
+//     LOG(ERROR)<<"RequestEthereum IsLockedSync delegate_->ShowPanel(); JANGID2";
+//     return;
+//   }
+
+//   const auto allowed_accounts =
+//       delegate_->GetAllowedAccounts(mojom::CoinType::ETH, addresses);
+//   const bool success = allowed_accounts.has_value();
+// LOG(ERROR) << "RequestEthereum allowed_accounts JANGID: allowed_accounts only success "<<success; 
+
+
+// LOG(ERROR) << "RequestEthereum allowed_accounts JANGID: allowed_accounts only allowed accounts "; 
+// LOG(ERROR) << "RequestEthereum allowed_accounts JANGID: allowed_accounts only allowed accounts "<<allowed_accounts.has_value(); 
+
+
+// LOG(ERROR) << "RequestEthereum allowed_accounts JANGID: allowed_accounts " 
+//            << (allowed_accounts.has_value() 
+//                ? base::JoinString(*allowed_accounts, ", ")
+//                : "No accounts");
+
+//   if (!success) {
+//     OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
+//                                  origin, RequestPermissionsError::kInternal,
+//                                  std::nullopt);
+//     return;
+//   }
+
+// LOG(ERROR)<<"RequestEthereum else no accounts selected JANGID"<<"allowed_acoounts "<< (allowed_accounts.has_value() 
+//                ? base::JoinString(*allowed_accounts, ", ")
+//                : "No accounts");
+
+//   if (success && !allowed_accounts->empty()) {
+//     OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
+//                                  origin, RequestPermissionsError::kNone,
+//                                  allowed_accounts);
+//   } else {
+//     // Request accounts if no accounts are connected.
+//     delegate_->RequestPermissions(
+//         mojom::CoinType::ETH, addresses,
+//         base::BindOnce(&EthereumProviderImpl::OnRequestEthereumPermissions,
+//                        weak_factory_.GetWeakPtr(), std::move(callback),
+//                        std::move(id), method, origin));
+//   }
+// }
 
 void EthereumProviderImpl::RequestEthereumPermissions(
     RequestCallback callback,
