@@ -1,0 +1,61 @@
+# Copyright (c) 2024 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "digest"
+  epoch = "0.10"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/core_api.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/core_api/ct_variable.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/core_api/rt_variable.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/core_api/wrapper.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/core_api/xof_reader.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev/fixed.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev/mac.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev/rng.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev/variable.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/dev/xof.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/digest.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/digest-0.10.7/src/mac.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2018"
+  cargo_pkg_version = "0.10.7"
+  cargo_pkg_authors = "RustCrypto Developers"
+  cargo_pkg_name = "digest"
+  cargo_pkg_description =
+      "Traits for cryptographic hash functions and message authentication codes"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/block_buffer/v0_10:lib",
+    "//third_party/rust/crypto_common/v0_1:lib",
+    "//third_party/rust/subtle/v2:lib",
+  ]
+  features = [
+    "alloc",
+    "block-buffer",
+    "core-api",
+    "mac",
+    "std",
+    "subtle",
+  ]
+}

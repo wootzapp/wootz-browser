@@ -560,7 +560,8 @@ EXTERN_C __declspec(selectany) const GUID CHROME = {0xd2d578d9, 0x2936, 0x45b6, 
 //
 // Channel
 //
-#define WOOTZAPP_CHANNEL_SYSTEM 0x8
+
+#define CHROMEAPP_CHANNEL_SYSTEM 0x8
 
 //
 // Event Descriptors

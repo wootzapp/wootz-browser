@@ -53,12 +53,12 @@ class ShapeResult;
 //  ║ Paragraph with single run, requiring re-shape.      ║
 //  ╟─────────────────────────────────────────────────────╢
 //  ║ runs_ ╭───────────────────────────────────────────╮ ║
-//  ║   1:  │ "Now fax quiz Jack!" my brave ghost pled. │ ║
+//  ║   1:  │ "Now fax quiz Jack!" my wootz ghost pled. │ ║
 //  ║       ╰───────────────────────────────────────────╯ ║
 //  ║ lines ╭───────────────────────────────────────────╮ ║
 //  ║   1:  │ "Now fax quiz     -> view, run 1:  0-14   │ ║
 //  ║   1:  │ Jack!             -> new result/run       │ ║
-//  ║   2:  │ my brave ghost    -> view, run 1: 21-35   │ ║
+//  ║   2:  │ my wootz ghost    -> view, run 1: 21-35   │ ║
 //  ║   3:  │ pled.             -> view, run 1: 41-36   │ ║
 //  ║       ╰───────────────────────────────────────────╯ ║
 //  ╚═════════════════════════════════════════════════════╝

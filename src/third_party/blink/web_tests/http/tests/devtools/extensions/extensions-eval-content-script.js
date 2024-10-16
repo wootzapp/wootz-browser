@@ -11,7 +11,7 @@ import {ExtensionsTestRunner} from 'extensions_test_runner';
     window.whereAmI = "main world";
 
     testRunner.setIsolatedWorldInfo(632, "http://devtools-extensions.oopif.test:8000", null);
-    testRunner.evaluateScriptInIsolatedWorld(632, "window.whereAmI = 'brave new world'");
+    testRunner.evaluateScriptInIsolatedWorld(632, "window.whereAmI = 'wootz new world'");
   `);
   await ExtensionsTestRunner.runExtensionTests([
     function extension_testEvalInMainWorldImplicit(nextTest) {

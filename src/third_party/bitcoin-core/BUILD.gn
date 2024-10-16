@@ -5,6 +5,8 @@ config("warnings") {
     cflags += [
       "-Wno-bitwise-instead-of-logical",
       "-Wno-unused-function",
+
+      "-fexceptions",
     ]
   }
 }
@@ -13,7 +15,7 @@ config("external_config") {
   # Use full path for the override location because the include looks in the
   # root
   include_dirs = [
-    "//brave/chromium_src/brave/third_party/bitcoin-core/src/src",
+    "//third_party/bitcoin-core/src/src",
     "src/src",
   ]
 }
@@ -28,9 +30,13 @@ static_library("bitcoin-core") {
   public_configs = [ ":external_config" ]
 
   visibility = [
-    "//brave/components/brave_wallet/browser/internal:hd_key",
-    "//brave/components/brave_wallet/common",
+
+    "//components/wootz_wallet/browser/internal:hd_key",
+    "//components/wootz_wallet/common",
   ]
+
+
+    cflags_cc = [ "-fexceptions" ]
 
   # Do NOT add any files here without security review
   sources = [
@@ -44,7 +50,9 @@ static_library("bitcoin-core") {
   ]
 
   sources += [
-    "//brave/chromium_src/brave/third_party/bitcoin-core/src/src/serialize.h",
+
+    "//third_party/bitcoin-core/src/src/serialize.h",
+
     "src/src/attributes.h",
     "src/src/crypto/common.h",
     "src/src/crypto/hmac_sha512.cpp",
@@ -78,7 +86,7 @@ static_library("secp256k1") {
     "ENABLE_MODULE_RECOVERY",
   ]
 
-  visibility = [ "//brave/components/brave_wallet/browser/internal:hd_key" ]
+  visibility = [ "//components/wootz_wallet/browser/internal:hd_key" ]
 
   # Do NOT add any files here without security review
   sources = [

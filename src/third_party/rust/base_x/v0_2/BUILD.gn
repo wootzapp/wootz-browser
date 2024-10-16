@@ -1,0 +1,38 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "base_x"
+  epoch = "0.2"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/alphabet.rs",
+    "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/bigint.rs",
+    "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/decoder.rs",
+    "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/encoder.rs",
+    "//third_party/rust/chromium_crates_io/vendor/base-x-0.2.11/src/lib.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2015"
+  cargo_pkg_version = "0.2.11"
+  cargo_pkg_authors = "Alex R. <alexei.rudenko@gmail.com>"
+  cargo_pkg_name = "base-x"
+  cargo_pkg_description = "Encode/decode any base"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+}
