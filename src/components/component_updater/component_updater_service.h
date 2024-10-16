@@ -250,7 +250,7 @@ class OnDemandUpdater {
                               Priority priority,
                               Callback callback) = 0;
   virtual void OnDemandUpdate(const std::vector<std::string>& ids,        
-                              Priority priority, Callback callback);                             
+                              Priority priority, Callback callback) = 0;                             
                               
 };
 

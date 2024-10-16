@@ -1,0 +1,23 @@
+[package]
+name = "zcash_primitives"
+description = "Rust implementations of the Zcash primitives"
+authors = [
+    "Jack Grigg <jack@z.cash>",
+    "Kris Nuttycombe <kris@electriccoin.co>"
+]
+homepage = "https://github.com/zcash/librustzcash"
+version = "0.15.1"
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+orchard = { version = "0.8.0",  default-features = false }
+incrementalmerkletree = { version = "0.5.1",  features=["legacy-api"] }
+zcash_protocol = { version = "0.1.1", default-features = false }
+zcash_encoding = { version = "0.2.0", default-features = false }
+
+[lib]
+name = "zcash_primitives"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+

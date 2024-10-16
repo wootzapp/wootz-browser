@@ -1,0 +1,20 @@
+[package]
+name = "zcash_protocol"
+description = "Zcash protocol network constants and value types."
+authors = [
+    "Jack Grigg <jack@electriccoin.co>",
+    "Kris Nuttycombe <kris@nutty.land>",
+]
+homepage = "https://github.com/zcash/librustzcash"
+version = "0.1.1"
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+memuse = { version = "0.2.1",  default-features = false }
+
+[lib]
+name = "zcash_protocol"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+

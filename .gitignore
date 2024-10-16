@@ -5,3 +5,5 @@
 .gcs_entries
 .cipd/
 node_modules
+__pycache__/
+*.py[cod]

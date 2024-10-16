@@ -36,8 +36,6 @@ WootzRendererUpdater::WootzRendererUpdater(
     : profile_(profile),
       keyring_service_(keyring_service),
       local_state_(local_state) {
-
-  LOG(ERROR)<<"WootzRendererUpdater ANKIT1";    
   PrefService* pref_service = profile->GetPrefs();
   wootz_wallet_ethereum_provider_.Init(kDefaultEthereumWallet, pref_service);
   wootz_wallet_solana_provider_.Init(kDefaultSolanaWallet, pref_service);
@@ -66,8 +64,6 @@ WootzRendererUpdater::~WootzRendererUpdater() = default;
 
 void WootzRendererUpdater::InitializeRenderer(
     content::RenderProcessHost* render_process_host) {
-   
-    LOG(ERROR)<<"WootzRendererUpdater ANKIT2";
   auto renderer_configuration = GetRendererConfiguration(render_process_host);
   Profile* profile =
       Profile::FromBrowserContext(render_process_host->GetBrowserContext());
@@ -80,7 +76,6 @@ WootzRendererUpdater::GetRendererConfigurations() {
   std::vector<mojo::AssociatedRemote<wootz::mojom::WootzRendererConfiguration>>
       rv;
 
-      LOG(ERROR)<<"WootzRendererUpdater ANKIT3";
   for (content::RenderProcessHost::iterator it(
            content::RenderProcessHost::AllHostsIterator());
        !it.IsAtEnd(); it.Advance()) {
@@ -103,7 +98,6 @@ WootzRendererUpdater::GetRendererConfiguration(
     content::RenderProcessHost* render_process_host) {
   IPC::ChannelProxy* channel = render_process_host->GetChannel();
 
-  LOG(ERROR)<<"WootzRendererUpdater ANKIT4";
   if (!channel) {
     return mojo::AssociatedRemote<wootz::mojom::WootzRendererConfiguration>();
   }
@@ -116,16 +110,12 @@ WootzRendererUpdater::GetRendererConfiguration(
 }
 
 void WootzRendererUpdater::CheckActiveWalletAndMaybeUpdateRenderers() {
-
-  LOG(ERROR)<<"WootzRendererUpdater ANKIT5";
   if (CheckActiveWallet()) {
     UpdateAllRenderers();
   }
 }
 
 bool WootzRendererUpdater::CheckActiveWallet() {
-
-  LOG(ERROR)<<"WootzRendererUpdater ANKIT6";
   if (!keyring_service_) {
     return false;
   }
@@ -136,9 +126,6 @@ bool WootzRendererUpdater::CheckActiveWallet() {
 }
 
 void WootzRendererUpdater::UpdateAllRenderers() {
-
-  LOG(ERROR)<<"WootzRendererUpdater ANKIT7";
-
   auto renderer_configurations = GetRendererConfigurations();
   for (auto& renderer_configuration : renderer_configurations) {
     UpdateRenderer(&renderer_configuration);
@@ -149,8 +136,7 @@ void WootzRendererUpdater::UpdateRenderer(
     mojo::AssociatedRemote<wootz::mojom::WootzRendererConfiguration>*
         renderer_configuration) {
 
-          LOG(ERROR)<<"WootzRendererUpdater ANKIT8";
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS) // wootz we dont need metamask ext
   extensions::ExtensionRegistry* registry =
       extensions::ExtensionRegistry::Get(profile_);
   bool has_installed_metamask =
@@ -190,8 +176,6 @@ void WootzRendererUpdater::UpdateRenderer(
   bool allow_overwrite_window_solana_provider =
       default_solana_wallet ==
       wootz_wallet::mojom::DefaultWallet::WootzWalletPreferExtension;
-
-  LOG(ERROR)<<"renderer_configuration ANKIT:"<<install_window_wootz_ethereum_provider<<",install_window_ethereum_provider:"<<install_window_ethereum_provider<<",allow_overwrite_window_ethereum_provider:"<<allow_overwrite_window_ethereum_provider;
 
   (*renderer_configuration)
       ->SetConfiguration(wootz::mojom::DynamicParams::New(

@@ -5,6 +5,7 @@ config("warnings") {
     cflags += [
       "-Wno-bitwise-instead-of-logical",
       "-Wno-unused-function",
+      "-fvisibility=default",
       "-fexceptions",
     ]
   }
@@ -20,7 +21,11 @@ config("external_config") {
 }
 
 static_library("bitcoin-core") {
-  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs -= [ 
+    "//build/config/compiler:chromium_code",
+    "//build/config/compiler:no_exceptions"
+  ]
+
   configs += [
     "//build/config/compiler:no_chromium_code",
     ":warnings",
@@ -32,9 +37,6 @@ static_library("bitcoin-core") {
     "//components/wootz_wallet/browser/internal:hd_key",
     "//components/wootz_wallet/common",
   ]
-
-
-    cflags_cc = [ "-fexceptions" ]
     
   # Do NOT add any files here without security review
   sources = [
