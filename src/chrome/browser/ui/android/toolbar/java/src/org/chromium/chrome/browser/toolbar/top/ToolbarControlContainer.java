@@ -26,6 +26,9 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.content.res.ResourcesCompat;
+import android.util.Log;
+import android.widget.FrameLayout;
+import android.view.ViewGroup;
 
 import org.chromium.base.Callback;
 import org.chromium.base.TraceEvent;
@@ -140,7 +143,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             // changed the top margin to 0 so that app menu and toolbar will not have any gap b/w them
             int leftMargin = ViewUtils.dpToPx(getContext(), 16);
             int rightMargin = ViewUtils.dpToPx(getContext(), 16);
-            int bottomMargin = ViewUtils.dpToPx(getContext(), 16);
+            int bottomMargin = ViewUtils.dpToPx(getContext(), 0);
             params.setMargins(leftMargin, 0, rightMargin, bottomMargin); // left, top, right, bottom
             mToolbarContainer.setLayoutParams(params);
 
