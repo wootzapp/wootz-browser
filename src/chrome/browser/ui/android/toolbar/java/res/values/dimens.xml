@@ -35,7 +35,7 @@ found in the LICENSE file.
     <dimen name="menu_badge_translation_y">6dp</dimen>
 
     <!-- Bottom controls dimensions -->
-    <dimen name="bottom_controls_height">60dp</dimen>
+    <dimen name="bottom_controls_height">56dp</dimen>
     <dimen name="bottom_controls_margin">16dp</dimen>
 
     <!-- Custom Menu dimensions -->
