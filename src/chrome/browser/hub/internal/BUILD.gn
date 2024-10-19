@@ -78,6 +78,9 @@ android_resources("java_resources") {
     "android/res/layout/hub_pane_host_layout.xml",
     "android/res/layout/hub_toolbar_layout.xml",
     "android/res/values/dimens.xml",
+    "android/res/drawable/rounded_top_corners.xml",
+    "android/res/drawable/rounded_bottom_corners.xml",
+    "android/res/color/colors.xml",
   ]
 }
 

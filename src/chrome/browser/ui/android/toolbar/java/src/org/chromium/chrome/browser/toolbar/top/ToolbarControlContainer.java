@@ -150,7 +150,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
             // By Devendra(dkt)
             // Add border radius
-            float borderRadius = 80f; // You can adjust this value as needed
+            float borderRadius = 40f; // Adjusted by Sagar Jha
             mToolbarContainer.setClipToOutline(true);
             mToolbarContainer.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
