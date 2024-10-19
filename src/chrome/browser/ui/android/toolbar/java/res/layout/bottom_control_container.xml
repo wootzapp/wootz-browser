@@ -20,7 +20,6 @@ found in the LICENSE file.
         android:layout_marginStart="@dimen/bottom_controls_margin"
         android:clipChildren="true"
         android:clipToOutline="true"
-        android:padding="4dp"
         android:background="@drawable/bottom_control_rounded_bg" >
 
         <!-- <ImageView
