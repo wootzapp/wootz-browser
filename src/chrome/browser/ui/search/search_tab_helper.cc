@@ -139,16 +139,16 @@ SearchTabHelper::SearchTabHelper(content::WebContents* web_contents)
   DCHECK(search::IsInstantExtendedAPIEnabled());
 
   instant_service_ = InstantServiceFactory::GetForProfile(profile());
-  if (instant_service_)
-    instant_service_->AddObserver(this);
+  // if (instant_service_) // wootz
+  //   instant_service_->AddObserver(this);
 
   OmniboxTabHelper::CreateForWebContents(web_contents);
   OmniboxTabHelper::FromWebContents(web_contents)->AddObserver(this);
 }
 
 SearchTabHelper::~SearchTabHelper() {
-  if (instant_service_)
-    instant_service_->RemoveObserver(this);
+  // if (instant_service_) // wootz
+  //   instant_service_->RemoveObserver(this);
   if (auto* helper = OmniboxTabHelper::FromWebContents(&GetWebContents()))
     helper->RemoveObserver(this);
 }
@@ -308,8 +308,8 @@ bool SearchTabHelper::IsInputInProgress() const {
 }
 
 void SearchTabHelper::CloseNTPCustomizeChromeFeaturePromo() {
-  const base::Feature& customize_chrome_feature =
-      feature_engagement::kIPHDesktopCustomizeChromeRefreshFeature;
+  // const base::Feature& customize_chrome_feature =
+  //     feature_engagement::kIPHDesktopCustomizeChromeRefreshFeature; // wootz
   if (web_contents()->GetController().GetVisibleEntry()->GetURL() ==
       GURL(chrome::kChromeUINewTabPageURL)) {
     return;
@@ -317,9 +317,9 @@ void SearchTabHelper::CloseNTPCustomizeChromeFeaturePromo() {
   Browser* const browser = chrome::FindBrowserWithTab(web_contents());
   if (browser && browser->window() &&
       browser->tab_strip_model()->GetActiveWebContents() == web_contents()) {
-    browser->window()->CloseFeaturePromo(
-        customize_chrome_feature,
-        user_education::EndFeaturePromoReason::kAbortPromo);
+    // browser->window()->CloseFeaturePromo(
+    //     customize_chrome_feature,
+    //     user_education::EndFeaturePromoReason::kAbortPromo);
   }
 }
 

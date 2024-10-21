@@ -44,7 +44,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/lens/lens_overlay_controller.h"
+// #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/managed_ui.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
@@ -62,7 +62,7 @@
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-#include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
 #include "chrome/browser/ui/webui/inspect_ui.h"
@@ -780,14 +780,14 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
             browser_, web_app::WebAppInstallFlow::kCreateShortcut);
       }
 #else
-      web_app::CreateWebAppFromCurrentWebContents(
-          browser_, web_app::WebAppInstallFlow::kCreateShortcut);
+      // web_app::CreateWebAppFromCurrentWebContents( // wootz
+      //     browser_, web_app::WebAppInstallFlow::kCreateShortcut);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
       break;
     case IDC_INSTALL_PWA:
       base::RecordAction(base::UserMetricsAction("InstallWebAppFromMenu"));
-      web_app::CreateWebAppFromCurrentWebContents(
-          browser_, web_app::WebAppInstallFlow::kInstallSite);
+      // web_app::CreateWebAppFromCurrentWebContents( // wootz
+      //     browser_, web_app::WebAppInstallFlow::kInstallSite);
       break;
     case IDC_DEV_TOOLS:
       ToggleDevToolsWindow(browser_, DevToolsToggleAction::Show(),
@@ -880,14 +880,14 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       ShowWebStore(browser_, extension_urls::kAppMenuUtmSource);
       break;
     case IDC_PERFORMANCE:
-      if (base::FeatureList::IsEnabled(
-              performance_manager::features::kPerformanceControlsSidePanel)) {
-        SidePanelUI::GetSidePanelUIForBrowser(browser_)->Show(
-            SidePanelEntryId::kPerformance, SidePanelOpenTrigger::kAppMenu);
-      } else {
-        ShowSettingsSubPage(browser_->GetBrowserForOpeningWebUi(),
-                            chrome::kPerformanceSubPage);
-      }
+      // if (base::FeatureList::IsEnabled( // wootz
+      //         performance_manager::features::kPerformanceControlsSidePanel)) {
+      //   SidePanelUI::GetSidePanelUIForBrowser(browser_)->Show(
+      //       SidePanelEntryId::kPerformance, SidePanelOpenTrigger::kAppMenu);
+      // } else {
+      //   ShowSettingsSubPage(browser_->GetBrowserForOpeningWebUi(),
+      //                       chrome::kPerformanceSubPage);
+      // }
       break;
     case IDC_OPTIONS:
       ShowSettings(browser_->GetBrowserForOpeningWebUi());
@@ -896,9 +896,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       ShowSearchEngineSettings(browser_->GetBrowserForOpeningWebUi());
       break;
     case IDC_VIEW_PASSWORDS:
-      NavigateToManagePasswordsPage(
-          browser_->GetBrowserForOpeningWebUi(),
-          password_manager::ManagePasswordsReferrer::kChromeMenuItem);
+      // NavigateToManagePasswordsPage( // wootz
+      //     browser_->GetBrowserForOpeningWebUi(),
+      //     password_manager::ManagePasswordsReferrer::kChromeMenuItem);
       break;
     case IDC_CLEAR_BROWSING_DATA: {
       if (profile()->IsIncognitoProfile()) {
@@ -1020,8 +1020,8 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_WEB_APP_SETTINGS:
 #if !BUILDFLAG(IS_CHROMEOS)
       CHECK(browser_->app_controller());
-      ShowWebAppSettings(browser_, browser_->app_controller()->app_id(),
-                         web_app::AppSettingsPageEntryPoint::kBrowserCommand);
+      // ShowWebAppSettings(browser_, browser_->app_controller()->app_id(), // wootz
+      //                    web_app::AppSettingsPageEntryPoint::kBrowserCommand);
 #endif
       break;
     case IDC_WEB_APP_MENU_APP_INFO: {
@@ -1290,8 +1290,8 @@ void BrowserCommandController::InitCommandState() {
   command_updater_.UpdateCommandEnabled(IDC_USE_SYSTEM_TITLE_BAR,
                                         use_system_title_bar);
 #endif
-  command_updater_.UpdateCommandEnabled(IDC_OPEN_IN_PWA_WINDOW,
-                                        web_app::CanPopOutWebApp(profile()));
+  // command_updater_.UpdateCommandEnabled(IDC_OPEN_IN_PWA_WINDOW,
+  //                                       web_app::CanPopOutWebApp(profile()));
 
   // Page-related commands
   command_updater_.UpdateCommandEnabled(IDC_MANAGE_PASSWORDS_FOR_PAGE, true);
@@ -1445,9 +1445,9 @@ void BrowserCommandController::InitCommandState() {
                                           true);
   }
 
-  command_updater_.UpdateCommandEnabled(
-      IDC_CONTENT_CONTEXT_LENS_OVERLAY,
-      LensOverlayController::IsEnabled(browser_->profile()));
+  // command_updater_.UpdateCommandEnabled(
+  //     IDC_CONTENT_CONTEXT_LENS_OVERLAY,
+  //     LensOverlayController::IsEnabled(browser_->profile()));
 
 #if BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
   if (base::FeatureList::IsEnabled(
@@ -1592,8 +1592,8 @@ void BrowserCommandController::UpdateCommandsForTabState() {
 
   command_updater_.UpdateCommandEnabled(IDC_OPEN_FILE, CanOpenFile(browser_));
 
-  bool can_create_web_app = web_app::CanCreateWebApp(browser_);
-  command_updater_.UpdateCommandEnabled(IDC_INSTALL_PWA, can_create_web_app);
+  // bool can_create_web_app = web_app::CanCreateWebApp(browser_); // wootz
+  // command_updater_.UpdateCommandEnabled(IDC_INSTALL_PWA, can_create_web_app);
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
   if (base::FeatureList::IsEnabled(features::kShortcutsNotApps)) {
@@ -1604,8 +1604,8 @@ void BrowserCommandController::UpdateCommandsForTabState() {
                                           can_create_web_app);
   }
 #else
-  command_updater_.UpdateCommandEnabled(IDC_CREATE_SHORTCUT,
-                                        can_create_web_app);
+  // command_updater_.UpdateCommandEnabled(IDC_CREATE_SHORTCUT, // wootz
+  //                                       can_create_web_app);
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 
   UpdateCommandAndActionEnabled(IDC_SEND_TAB_TO_SELF, kActionSendTabToSelf,

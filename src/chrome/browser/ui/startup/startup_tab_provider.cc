@@ -157,21 +157,22 @@ bool IsChromeControlledNtpUrl(const GURL& url) {
 
 StartupTabs StartupTabProviderImpl::GetDistributionFirstRunTabs(
     StartupBrowserCreator* browser_creator) const {
-  if (!browser_creator)
+  // if (!browser_creator) // wootz
     return StartupTabs();
-  StartupTabs tabs = GetInitialPrefsTabsForState(
-      first_run::IsChromeFirstRun(), browser_creator->first_run_tabs_);
-  browser_creator->first_run_tabs_.clear();
-  return tabs;
+  // StartupTabs tabs = GetInitialPrefsTabsForState(
+  //     first_run::IsChromeFirstRun(), browser_creator->first_run_tabs_);
+  // browser_creator->first_run_tabs_.clear();
+  // return tabs;
 }
 
 StartupTabs StartupTabProviderImpl::GetResetTriggerTabs(
     Profile* profile) const {
-  auto* triggered_profile_resetter =
-      TriggeredProfileResetterFactory::GetForBrowserContext(profile);
-  bool has_reset_trigger = triggered_profile_resetter &&
-                           triggered_profile_resetter->HasResetTrigger();
-  return GetResetTriggerTabsForState(has_reset_trigger);
+  // auto* triggered_profile_resetter = // wootz
+  //     TriggeredProfileResetterFactory::GetForBrowserContext(profile);
+  // bool has_reset_trigger = triggered_profile_resetter &&
+  //                          triggered_profile_resetter->HasResetTrigger();
+  // return GetResetTriggerTabsForState(has_reset_trigger);
+  return StartupTabs();
 }
 
 StartupTabs StartupTabProviderImpl::GetPinnedTabs(

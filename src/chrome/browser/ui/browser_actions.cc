@@ -16,7 +16,7 @@
 #include "chrome/browser/ui/actions/chrome_actions.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/lens/lens_overlay_controller.h"
+// #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_coordinator.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
 #include "chrome/browser/ui/side_panel/companion/companion_utils.h"
@@ -139,78 +139,78 @@ void BrowserActions::InitializeBrowserActions() {
                         true)
             .Build());
   }
+// wootz
+//   if (features::IsReadAnythingEnabled()) {
+//     root_action_item_->AddChild(
+//         SidePanelAction(SidePanelEntryId::kReadAnything, IDS_READING_MODE_TITLE,
+//                         IDS_READING_MODE_TITLE, kMenuBookChromeRefreshIcon,
+//                         kActionSidePanelShowReadAnything, &(browser_.get()),
+//                         true)
+//             .Build());
+//   }
 
-  if (features::IsReadAnythingEnabled()) {
-    root_action_item_->AddChild(
-        SidePanelAction(SidePanelEntryId::kReadAnything, IDS_READING_MODE_TITLE,
-                        IDS_READING_MODE_TITLE, kMenuBookChromeRefreshIcon,
-                        kActionSidePanelShowReadAnything, &(browser_.get()),
-                        true)
-            .Build());
-  }
+//   if (user_notes::IsUserNotesEnabled()) {
+//     root_action_item_->AddChild(
+//         SidePanelAction(SidePanelEntryId::kUserNote, IDS_USER_NOTE_TITLE,
+//                         IDS_USER_NOTE_TITLE, kNoteOutlineIcon,
+//                         kActionSidePanelShowUserNote, &(browser_.get()), true)
+//             .Build());
+//   }
 
-  if (user_notes::IsUserNotesEnabled()) {
-    root_action_item_->AddChild(
-        SidePanelAction(SidePanelEntryId::kUserNote, IDS_USER_NOTE_TITLE,
-                        IDS_USER_NOTE_TITLE, kNoteOutlineIcon,
-                        kActionSidePanelShowUserNote, &(browser_.get()), true)
-            .Build());
-  }
+//   if (base::FeatureList::IsEnabled(
+//           performance_manager::features::kPerformanceControlsSidePanel)) {
+//     root_action_item_->AddChild(
+//         SidePanelAction(SidePanelEntryId::kPerformance, IDS_SHOW_PERFORMANCE,
+//                         IDS_SHOW_PERFORMANCE, kMemorySaverIcon,
+//                         kActionSidePanelShowPerformance, &(browser_.get()),
+//                         true)
+//             .Build());
+//   }
 
-  if (base::FeatureList::IsEnabled(
-          performance_manager::features::kPerformanceControlsSidePanel)) {
-    root_action_item_->AddChild(
-        SidePanelAction(SidePanelEntryId::kPerformance, IDS_SHOW_PERFORMANCE,
-                        IDS_SHOW_PERFORMANCE, kMemorySaverIcon,
-                        kActionSidePanelShowPerformance, &(browser_.get()),
-                        true)
-            .Build());
-  }
+//   if (LensOverlayController::IsEnabled(profile)) {
+//     actions::ActionItem::InvokeActionCallback callback =
+//         lens::LensOverlaySidePanelCoordinator::CreateSidePanelActionCallback(
+//             &(browser_.get()));
+//     const gfx::VectorIcon& icon =
+// #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+//         vector_icons::kGoogleLensMonochromeLogoIcon;
+// #else
+//         vector_icons::kSearchIcon;
+// #endif
+//     root_action_item_->AddChild(
+//         actions::ActionItem::Builder(callback)
+//             .SetActionId(kActionSidePanelShowLensOverlayResults)
+//             .SetText(std::u16string())
+//             .SetTooltipText(l10n_util::GetStringUTF16(
+//                 IDS_SIDE_PANEL_LENS_OVERLAY_TOOLBAR_TOOLTIP))
+//             .SetImage(ui::ImageModel::FromVectorIcon(
+//                 icon, ui::kColorIcon, ui::SimpleMenuModel::kDefaultIconSize))
+//             .SetProperty(actions::kActionItemPinnableKey, true)
+//             .Build());
+//   } else if (companion::IsCompanionFeatureEnabled()) {
+//     if (companion::IsSearchInCompanionSidePanelSupportedForProfile(
+//             profile,
+//             /*include_runtime_checks=*/false)) {
+//       actions::ActionItem* companion_action_item = root_action_item_->AddChild(
+//           SidePanelAction(
+//               SidePanelEntryId::kSearchCompanion,
+//               IDS_SIDE_PANEL_COMPANION_TITLE,
+//               IDS_SIDE_PANEL_COMPANION_TOOLBAR_TOOLTIP,
+// #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+//               vector_icons::
+//                   kGoogleSearchCompanionMonochromeLogoChromeRefreshIcon,
+// #else
+//               vector_icons::kSearchIcon,
+// #endif
+//               kActionSidePanelShowSearchCompanion, &(browser_.get()), true)
+//               .Build());
 
-  if (LensOverlayController::IsEnabled(profile)) {
-    actions::ActionItem::InvokeActionCallback callback =
-        lens::LensOverlaySidePanelCoordinator::CreateSidePanelActionCallback(
-            &(browser_.get()));
-    const gfx::VectorIcon& icon =
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-        vector_icons::kGoogleLensMonochromeLogoIcon;
-#else
-        vector_icons::kSearchIcon;
-#endif
-    root_action_item_->AddChild(
-        actions::ActionItem::Builder(callback)
-            .SetActionId(kActionSidePanelShowLensOverlayResults)
-            .SetText(std::u16string())
-            .SetTooltipText(l10n_util::GetStringUTF16(
-                IDS_SIDE_PANEL_LENS_OVERLAY_TOOLBAR_TOOLTIP))
-            .SetImage(ui::ImageModel::FromVectorIcon(
-                icon, ui::kColorIcon, ui::SimpleMenuModel::kDefaultIconSize))
-            .SetProperty(actions::kActionItemPinnableKey, true)
-            .Build());
-  } else if (companion::IsCompanionFeatureEnabled()) {
-    if (companion::IsSearchInCompanionSidePanelSupportedForProfile(
-            profile,
-            /*include_runtime_checks=*/false)) {
-      actions::ActionItem* companion_action_item = root_action_item_->AddChild(
-          SidePanelAction(
-              SidePanelEntryId::kSearchCompanion,
-              IDS_SIDE_PANEL_COMPANION_TITLE,
-              IDS_SIDE_PANEL_COMPANION_TOOLBAR_TOOLTIP,
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-              vector_icons::
-                  kGoogleSearchCompanionMonochromeLogoChromeRefreshIcon,
-#else
-              vector_icons::kSearchIcon,
-#endif
-              kActionSidePanelShowSearchCompanion, &(browser_.get()), true)
-              .Build());
-
-      companion_action_item->SetVisible(
-          companion::IsSearchInCompanionSidePanelSupportedForProfile(
-              profile,
-              /*include_runtime_checks=*/true));
-    }
-  }
+//       companion_action_item->SetVisible(
+//           companion::IsSearchInCompanionSidePanelSupportedForProfile(
+//               profile,
+//               /*include_runtime_checks=*/true));
+//     }
+//   }
 
   // Create the lens action item. The icon and text are set appropriately in the
   // lens side panel coordinator. They have default values here.
@@ -221,27 +221,27 @@ void BrowserActions::InitializeBrowserActions() {
           .Build());
 
   //------- Chrome Menu Actions --------//
-  root_action_item_->AddChild(
-      ChromeMenuAction(base::BindRepeating(
-                           [](Browser* browser, actions::ActionItem* item,
-                              actions::ActionInvocationContext context) {
-                             chrome::NewIncognitoWindow(browser->profile());
-                           },
-                           base::Unretained(&(browser_.get()))),
-                       kActionNewIncognitoWindow, IDS_NEW_INCOGNITO_WINDOW,
-                       IDS_NEW_INCOGNITO_WINDOW, kIncognitoRefreshMenuIcon)
-          .Build());
+//   root_action_item_->AddChild(
+//       ChromeMenuAction(base::BindRepeating(
+//                            [](Browser* browser, actions::ActionItem* item,
+//                               actions::ActionInvocationContext context) {
+//                              chrome::NewIncognitoWindow(browser->profile());
+//                            },
+//                            base::Unretained(&(browser_.get()))),
+//                        kActionNewIncognitoWindow, IDS_NEW_INCOGNITO_WINDOW,
+//                        IDS_NEW_INCOGNITO_WINDOW, kIncognitoRefreshMenuIcon)
+//           .Build());
 
-  root_action_item_->AddChild(
-      ChromeMenuAction(base::BindRepeating(
-                           [](Browser* browser, actions::ActionItem* item,
-                              actions::ActionInvocationContext context) {
-                             chrome::Print(browser);
-                           },
-                           base::Unretained(&(browser_.get()))),
-                       kActionPrint, IDS_PRINT, IDS_PRINT, kPrintMenuIcon)
-          .SetEnabled(chrome::CanPrint(&(browser_.get())))
-          .Build());
+//   root_action_item_->AddChild(
+//       ChromeMenuAction(base::BindRepeating(
+//                            [](Browser* browser, actions::ActionItem* item,
+//                               actions::ActionInvocationContext context) {
+//                              chrome::Print(browser);
+//                            },
+//                            base::Unretained(&(browser_.get()))),
+//                        kActionPrint, IDS_PRINT, IDS_PRINT, kPrintMenuIcon)
+//           .SetEnabled(chrome::CanPrint(&(browser_.get())))
+//           .Build());
 
   root_action_item_->AddChild(
       ChromeMenuAction(base::BindRepeating(

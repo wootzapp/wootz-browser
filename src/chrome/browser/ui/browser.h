@@ -817,7 +817,7 @@ class Browser : public TabStripModelObserver,
       content::EyeDropperListener* listener) override;
   void InitiatePreview(content::WebContents& web_contents,
                        const GURL& url) override;
-  // bool ShouldUseInstancedSystemMediaControls() const override;
+  bool ShouldUseInstancedSystemMediaControls() const; // wootz
   void DraggableRegionsChanged(
       const std::vector<blink::mojom::DraggableRegionPtr>& regions,
       content::WebContents* contents) override;

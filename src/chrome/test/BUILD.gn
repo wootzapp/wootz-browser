@@ -346,7 +346,7 @@ static_library("test_support") {
     "//chrome/browser/permissions",
     "//chrome/browser/policy/messaging_layer/proto:log_upload_event_proto",
     "//chrome/browser/policy/messaging_layer/storage_selector",
-    "//chrome/browser/ui:browser_element_identifiers",
+    # "//chrome/browser/ui:browser_element_identifiers",
     "//chrome/browser/ui/color:color_headers",
     "//chrome/browser/ui/webui:configs",
     "//chrome/common/search:mojo_bindings",

@@ -12,7 +12,7 @@ namespace headless {
 
 HeadlessModePolicyHandler::HeadlessModePolicyHandler()
     : policy::IntRangePolicyHandler(
-          policy::key::kHeadlessMode,
+          headless::prefs::kHeadlessMode, // wootz policy::key::kHeadlessMode,
           headless::prefs::kHeadlessMode,
           static_cast<int>(HeadlessModePolicy::HeadlessMode::kMinValue),
           static_cast<int>(HeadlessModePolicy::HeadlessMode::kMaxValue),

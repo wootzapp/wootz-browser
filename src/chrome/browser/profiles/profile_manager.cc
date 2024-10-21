@@ -122,10 +122,11 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #endif
 
+#include "chrome/browser/profiles/nuke_profile_directory_utils.h" //wootz
+
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/accessibility/live_caption/live_caption_controller_factory.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
-#include "chrome/browser/profiles/nuke_profile_directory_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -153,7 +154,7 @@
 #include "components/user_manager/user_type.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH) // wootz
 #include "chrome/browser/profiles/profile_statistics.h"
 #include "chrome/browser/profiles/profile_statistics_factory.h"
 #endif
@@ -1885,7 +1886,7 @@ void ProfileManager::OnProfileCreationStarted(Profile* profile,
   RegisterUnownedProfile(profile);
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) // wootz
 
 std::optional<base::FilePath> ProfileManager::FindLastActiveProfile(
     base::RepeatingCallback<bool(ProfileAttributesEntry*)> predicate) {

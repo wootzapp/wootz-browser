@@ -25,7 +25,7 @@ BASE_FEATURE(kAboutThisSiteAsyncFetching,
              "AboutThisSiteAsyncFetching",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) // wootz
 bool IsPersistentSidePanelEntryFeatureEnabled() {
   return IsAboutThisSiteFeatureEnabled() &&
          base::FeatureList::IsEnabled(

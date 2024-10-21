@@ -182,10 +182,10 @@ void StartupBrowserCreatorImpl::Launch(
                                             : OldLaunchMode::kToBeDecided);
   }
 
-  if (command_line_->HasSwitch(switches::kInstallChromeApp)) {
-    install_chrome_app::InstallChromeApp(
-        command_line_->GetSwitchValueASCII(switches::kInstallChromeApp));
-  }
+  // if (command_line_->HasSwitch(switches::kInstallChromeApp)) { // wootz
+  //   install_chrome_app::InstallChromeApp(
+  //       command_line_->GetSwitchValueASCII(switches::kInstallChromeApp));
+  // }
 
   // It's possible for there to be no browser window, e.g. if someone
   // specified a non-sensical combination of options
@@ -267,10 +267,10 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
     // will open as the foreground tab only if the remote content can be
     // retrieved successfully. This prevents needing to automatically close the
     // tab after opening it in the case where What's New does not load.
-    if (tab.url == whats_new::GetWebUIStartupURL()) {
-      whats_new::StartWhatsNewFetch(browser);
-      continue;
-    }
+    // if (tab.url == whats_new::GetWebUIStartupURL()) { // wootz
+    //   whats_new::StartWhatsNewFetch(browser);
+    //   continue;
+    // }
 
     // Headless mode is restricted to only one url in the command line, so
     // just grab the first one assuming it's the target.
@@ -365,8 +365,8 @@ StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
   bool promotional_tabs_enabled = true;
   const PrefService::Preference* enabled_pref = nullptr;
   PrefService* local_state = g_browser_process->local_state();
-  if (local_state)
-    enabled_pref = local_state->FindPreference(prefs::kPromotionalTabsEnabled);
+  // if (local_state) // wootz
+  //   enabled_pref = local_state->FindPreference(prefs::kPromotionalTabsEnabled);
   if (enabled_pref && enabled_pref->IsManaged()) {
     // Presentation is managed; obey the policy setting.
     promotional_tabs_enabled = enabled_pref->GetValue()->GetBool();
@@ -533,8 +533,8 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
       // always be the first foreground tab.
       if (!has_first_run_experience && reset_tabs.empty()) {
         StartupTabs new_features_tabs;
-        new_features_tabs = provider.GetNewFeaturesTabs(whats_new_enabled);
-        AppendTabs(new_features_tabs, &tabs);
+        // new_features_tabs = provider.GetNewFeaturesTabs(whats_new_enabled); // wootz
+        // AppendTabs(new_features_tabs, &tabs);
       } else if (whats_new_enabled) {
         whats_new::LogStartupType(whats_new::StartupType::kOverridden);
       }
@@ -558,7 +558,7 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
     // in |tabs|, and no additional tab will be required.
     if (privacy_sandbox_dialog_required &&
         launch_result == LaunchResult::kNormally) {
-      AppendTabs(provider.GetPrivacySandboxTabs(profile_, tabs), &tabs);
+      // AppendTabs(provider.GetPrivacySandboxTabs(profile_, tabs), &tabs); // wootz
     }
   }
 

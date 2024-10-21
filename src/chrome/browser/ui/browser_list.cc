@@ -14,7 +14,7 @@
 #include "base/ranges/algorithm.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/buildflags.h"
-#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+// #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/lifetime/termination_notification.h"
 #include "chrome/browser/profiles/profile.h"
@@ -125,7 +125,7 @@ void BrowserList::RemoveBrowser(Browser* browser) {
     // shutdown, because Browser::WindowClosing() already makes sure that the
     // SessionService is created and notified.
     browser_shutdown::NotifyAppTerminating();
-    chrome::OnAppExiting();
+    // chrome::OnAppExiting(); // wootz
   }
 }
 

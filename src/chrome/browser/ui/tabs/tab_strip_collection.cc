@@ -23,8 +23,8 @@ TabStripCollection::TabStripCollection() {
   unpinned_collection_ = static_cast<UnpinnedTabCollection*>(
       impl_->AddCollection(std::make_unique<UnpinnedTabCollection>(), 1));
 
-  pinned_collection_->OnReparented(this);
-  unpinned_collection_->OnReparented(this);
+  // pinned_collection_->OnReparented(this); // wootz
+  // unpinned_collection_->OnReparented(this);
 }
 
 TabStripCollection::~TabStripCollection() = default;
@@ -95,16 +95,17 @@ std::optional<size_t> TabStripCollection::GetIndexOfTabRecursive(
 
 std::unique_ptr<TabModel> TabStripCollection::RemoveTabAtIndexRecursive(
     size_t index) {
-  TabModel* tab_to_be_removed = GetTabAtIndexRecursive(index);
-  CHECK(tab_to_be_removed);
+  // TabModel* tab_to_be_removed = GetTabAtIndexRecursive(index); // wootz
+  // CHECK(tab_to_be_removed);
 
-  TabCollection* parent_collection =
-      tab_to_be_removed->GetParentCollection(GetPassKey());
-  std::unique_ptr<TabModel> removed_tab =
-      parent_collection->MaybeRemoveTab(tab_to_be_removed);
-  CHECK(removed_tab);
+  // TabCollection* parent_collection =
+  //     tab_to_be_removed->GetParentCollection(GetPassKey());
+  // std::unique_ptr<TabModel> removed_tab =
+  //     parent_collection->MaybeRemoveTab(tab_to_be_removed);
+  // CHECK(removed_tab);
 
-  return removed_tab;
+  // return removed_tab;
+  return std::unique_ptr<TabModel>();
 }
 
 std::optional<size_t> TabStripCollection::GetIndexOfCollection(
@@ -134,17 +135,17 @@ size_t TabStripCollection::TabCountRecursive() const {
 TabGroupTabCollection* TabStripCollection::CreateNewGroupCollectionForTab(
     const TabModel* tab_model,
     const tab_groups::TabGroupId& new_group) {
-  if (tab_model->GetParentCollection(GetPassKey()) == pinned_collection_) {
-    return unpinned_collection_->AddTabGroup(
-        std::make_unique<TabGroupTabCollection>(new_group), 0);
-  } else {
+  // if (tab_model->GetParentCollection(GetPassKey()) == pinned_collection_) { // wootz
+  //   return unpinned_collection_->AddTabGroup(
+  //       std::make_unique<TabGroupTabCollection>(new_group), 0);
+  // } else {
     return unpinned_collection_->AddTabGroup(
         std::make_unique<TabGroupTabCollection>(new_group),
         unpinned_collection_
                 ->GetDirectChildIndexOfCollectionContainingTab(tab_model)
                 .value() +
             1);
-  }
+  // }
 }
 
 }  // namespace tabs

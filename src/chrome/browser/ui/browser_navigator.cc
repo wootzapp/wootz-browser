@@ -181,61 +181,61 @@ std::pair<Browser*, int> GetBrowserAndTabForDisposition(
     const NavigateParams& params) {
   Profile* profile = params.initiating_profile;
 
-  if (params.open_pwa_window_if_possible) {
-    std::optional<webapps::AppId> app_id =
-        web_app::FindInstalledAppWithUrlInScope(profile, params.url,
-                                                /*window_only=*/true);
-    if (!app_id && params.force_open_pwa_window) {
-      // In theory |force_open_pwa_window| should only be set if we know a
-      // matching PWA is installed. However, we can reach here if
-      // WebAppRegistrary hasn't finished loading yet, which can happen if
-      // Chrome is launched with the URL of an isolated app as an argument.
-      // This isn't a supported way to launch isolated apps, so we can cancel
-      // the navigation, but if we want to support it in the future we'll need
-      // to block until WebAppRegistrar is loaded.
-      return {nullptr, -1};
-    }
-    if (app_id) {
-      // Reuse the existing browser for in-app same window navigations.
-      bool navigating_same_app =
-          params.browser &&
-          web_app::AppBrowserController::IsForWebApp(params.browser, *app_id);
-      if (navigating_same_app) {
-        if (params.disposition == WindowOpenDisposition::CURRENT_TAB) {
-          return {params.browser, -1};
-        }
+  // if (params.open_pwa_window_if_possible) { // wootz
+  //   std::optional<webapps::AppId> app_id =
+  //       web_app::FindInstalledAppWithUrlInScope(profile, params.url,
+  //                                               /*window_only=*/true);
+  //   if (!app_id && params.force_open_pwa_window) {
+  //     // In theory |force_open_pwa_window| should only be set if we know a
+  //     // matching PWA is installed. However, we can reach here if
+  //     // WebAppRegistrary hasn't finished loading yet, which can happen if
+  //     // Chrome is launched with the URL of an isolated app as an argument.
+  //     // This isn't a supported way to launch isolated apps, so we can cancel
+  //     // the navigation, but if we want to support it in the future we'll need
+  //     // to block until WebAppRegistrar is loaded.
+  //     return {nullptr, -1};
+  //   }
+  //   if (app_id) {
+  //     // Reuse the existing browser for in-app same window navigations.
+  //     bool navigating_same_app =
+  //         params.browser &&
+  //         web_app::AppBrowserController::IsForWebApp(params.browser, *app_id);
+  //     if (navigating_same_app) {
+  //       if (params.disposition == WindowOpenDisposition::CURRENT_TAB) {
+  //         return {params.browser, -1};
+  //       }
 
-        // If the browser window does not yet have any tabs, and we are
-        // attempting to add the first tab to it, allow for it to be reused.
-        bool navigating_new_tab =
-            params.disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
-            params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB;
-        bool browser_has_no_tabs =
-            params.browser && params.browser->tab_strip_model()->empty();
-        if (navigating_new_tab && browser_has_no_tabs) {
-          return {params.browser, -1};
-        }
-      }
-      // App popups are handled in the switch statement below.
-      if (params.disposition != WindowOpenDisposition::NEW_POPUP) {
-        // Open a new app window.
-        std::string app_name =
-            web_app::GenerateApplicationNameFromAppId(*app_id);
-        Browser* browser = nullptr;
-        if (Browser::GetCreationStatusForProfile(profile) ==
-            Browser::CreationStatus::kOk) {
-          // Installed PWAs are considered trusted.
-          Browser::CreateParams browser_params =
-              Browser::CreateParams::CreateForApp(
-                  app_name, /*trusted_source=*/true,
-                  params.window_features.bounds, profile, params.user_gesture);
-          browser_params.initial_origin_specified = GetOriginSpecified(params);
-          browser = Browser::Create(browser_params);
-        }
-        return {browser, -1};
-      }
-    }
-  }
+  //       // If the browser window does not yet have any tabs, and we are
+  //       // attempting to add the first tab to it, allow for it to be reused.
+  //       bool navigating_new_tab =
+  //           params.disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB ||
+  //           params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB;
+  //       bool browser_has_no_tabs =
+  //           params.browser && params.browser->tab_strip_model()->empty();
+  //       if (navigating_new_tab && browser_has_no_tabs) {
+  //         return {params.browser, -1};
+  //       }
+  //     }
+  //     // App popups are handled in the switch statement below.
+  //     if (params.disposition != WindowOpenDisposition::NEW_POPUP) {
+  //       // Open a new app window.
+  //       std::string app_name =
+  //           web_app::GenerateApplicationNameFromAppId(*app_id);
+  //       Browser* browser = nullptr;
+  //       if (Browser::GetCreationStatusForProfile(profile) ==
+  //           Browser::CreationStatus::kOk) {
+  //         // Installed PWAs are considered trusted.
+  //         Browser::CreateParams browser_params =
+  //             Browser::CreateParams::CreateForApp(
+  //                 app_name, /*trusted_source=*/true,
+  //                 params.window_features.bounds, profile, params.user_gesture);
+  //         browser_params.initial_origin_specified = GetOriginSpecified(params);
+  //         browser = Browser::Create(browser_params);
+  //       }
+  //       return {browser, -1};
+  //     }
+  //   }
+  // }
 
   switch (params.disposition) {
     case WindowOpenDisposition::SWITCH_TO_TAB:
@@ -342,7 +342,7 @@ std::pair<Browser*, int> GetBrowserAndTabForDisposition(
       // Coerce app-style if |source| represents an app.
       std::string app_name;
       if (!params.app_id.empty()) {
-        app_name = web_app::GenerateApplicationNameFromAppId(params.app_id);
+        // app_name = web_app::GenerateApplicationNameFromAppId(params.app_id); // wootz
       } else if (params.browser && !params.browser->app_name().empty()) {
         app_name = params.browser->app_name();
       }
@@ -529,8 +529,8 @@ class ScopedBrowserShower {
       if (params_->is_tab_modal_popup) {
         CHECK_EQ(params_->disposition, WindowOpenDisposition::NEW_POPUP);
         CHECK_NE(source_contents_, nullptr);
-        constrained_window::ShowModalDialog(window->GetNativeWindow(),
-                                            source_contents_);
+        // constrained_window::ShowModalDialog(window->GetNativeWindow(), // wootz
+        //                                     source_contents_);
       } else {
         window->Show();
       }
@@ -628,11 +628,11 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
   }
   DCHECK(params->initiating_profile);
 
-  if (source_browser &&
-      platform_util::IsBrowserLockedFullscreen(source_browser)) {
-    // Block any navigation requests in locked fullscreen mode.
-    return nullptr;
-  }
+  // if (source_browser && // wootz
+  //     platform_util::IsBrowserLockedFullscreen(source_browser)) {
+  //   // Block any navigation requests in locked fullscreen mode.
+  //   return nullptr;
+  // }
 
   // Open System Apps in their standalone window if necessary.
   // TODO(crbug.com/40136163): Remove this code after we integrate with intent
@@ -686,17 +686,17 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
 
   // Middle clicking a link to the home tab in a tabbed web app should open the
   // link in the home tab.
-  if (web_app::IsHomeTabUrl(source_browser, params->url)) {
-    source_browser->tab_strip_model()->ActivateTabAt(0);
-    // If the navigation URL is the same as the current home tab URL, skip the
-    // navigation.
-    if (source_browser->tab_strip_model()
-            ->GetActiveWebContents()
-            ->GetLastCommittedURL() == params->url) {
-      return nullptr;
-    }
-    params->disposition = WindowOpenDisposition::CURRENT_TAB;
-  }
+  // if (web_app::IsHomeTabUrl(source_browser, params->url)) { // wootz
+  //   source_browser->tab_strip_model()->ActivateTabAt(0);
+  //   // If the navigation URL is the same as the current home tab URL, skip the
+  //   // navigation.
+  //   if (source_browser->tab_strip_model()
+  //           ->GetActiveWebContents()
+  //           ->GetLastCommittedURL() == params->url) {
+  //     return nullptr;
+  //   }
+  //   params->disposition = WindowOpenDisposition::CURRENT_TAB;
+  // }
 
   // Picture-in-picture browser windows must have a source contents in order for
   // the window to function correctly. If we have no source contents to work
@@ -780,7 +780,7 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
     return nullptr;
   }
   if (params->force_open_pwa_window) {
-    CHECK(web_app::AppBrowserController::IsWebApp(params->browser));
+    // CHECK(web_app::AppBrowserController::IsWebApp(params->browser)); // wootz
   }
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   if (source_browser && source_browser != params->browser) {
@@ -904,8 +904,8 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
     // Save data needed for link capturing into apps that cannot otherwise be
     // inferred later in the navigation. These are only needed when the
     // navigation happens in a different tab to the link click.
-    apps::SetLinkCapturingSourceDisposition(contents_to_insert.get(),
-                                            params->disposition);
+    // apps::SetLinkCapturingSourceDisposition(contents_to_insert.get(), // wootz
+    //                                         params->disposition);
 #if BUILDFLAG(IS_CHROMEOS)
     if (source_browser && source_browser != params->browser &&
         source_browser->app_controller()) {

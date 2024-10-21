@@ -33,6 +33,7 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/background/background_contents.h"
 #include "chrome/browser/background/background_contents_service.h"
@@ -47,14 +48,14 @@
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "chrome/browser/devtools/devtools_window.h"
-#include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
+// #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
 #include "chrome/browser/download/bubble/download_display_controller.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/extension_ui_util.h"
 #include "chrome/browser/extensions/extension_util.h"
-#include "chrome/browser/extensions/tab_helper.h"
+// #include "chrome/browser/extensions/tab_helper.h"
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -143,7 +144,7 @@
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/unload_controller.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
+// #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
@@ -171,7 +172,7 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
-#include "components/custom_handlers/register_protocol_handler_permission_request.h"
+// #include "components/custom_handlers/register_protocol_handler_permission_request.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/infobars/content/content_infobar_manager.h"
@@ -626,11 +627,11 @@ Browser::Browser(const CreateParams& params)
   exclusive_access_manager_ = std::make_unique<ExclusiveAccessManager>(
       window_->GetExclusiveAccessContext());
 
-  if (window_->GetDownloadBubbleUIController()) {
-    window_->GetDownloadBubbleUIController()
-        ->GetDownloadDisplayController()
-        ->ListenToFullScreenChanges();
-  }
+  // if (window_->GetDownloadBubbleUIController()) {
+  //   window_->GetDownloadBubbleUIController()
+  //       ->GetDownloadDisplayController()
+  //       ->ListenToFullScreenChanges();
+  // }
 
   BrowserList::AddBrowser(this);
 }
@@ -1390,7 +1391,7 @@ void Browser::OnTabGroupChanged(const TabGroupChange& change) {
 
       if (saved_tab_group_keyed_service) {
         const tab_groups::SavedTabGroup* const saved_group =
-            saved_tab_group_keyed_service->model()->Get(change.group);
+            saved_tab_group_keyed_service->model()->Get(change.group.token());
         if (saved_group) {
           saved_guid = saved_group->saved_guid().AsLowercaseString();
         }
@@ -2019,7 +2020,7 @@ void Browser::WebContentsCreated(WebContents* source_contents,
   // requests for its initial navigation will start immediately. The WebContents
   // will later be inserted into this browser using Browser::Navigate via
   // AddNewContents.
-  TabHelpers::AttachTabHelpers(new_contents);
+  TabAndroid::AttachTabHelpers(new_contents);
 
   // Make the tab show up in the task manager.
   task_manager::WebContentsTags::CreateForTabContents(new_contents);
@@ -2300,10 +2301,10 @@ void Browser::RegisterProtocolHandler(
     base::ScopedClosureRunner fullscreen_block =
         web_contents->ForSecurityDropFullscreen();
 
-    permission_request_manager->AddRequest(
-        requesting_frame,
-        new custom_handlers::RegisterProtocolHandlerPermissionRequest(
-            registry, handler, url, std::move(fullscreen_block)));
+    // permission_request_manager->AddRequest(
+    //     requesting_frame,
+    //     new custom_handlers::RegisterProtocolHandlerPermissionRequest(
+    //         registry, handler, url, std::move(fullscreen_block)));
   }
 }
 

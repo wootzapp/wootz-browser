@@ -59,12 +59,12 @@
 #include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/user_notes/user_notes_controller.h"
-#include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
-#include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
-#include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-#include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
-#include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_tab_helper.h"
+// #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+// #include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
+// #include "chrome/browser/web_applications/web_app_provider.h"
+// #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/commerce/core/commerce_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -275,7 +275,7 @@ TabStripModel::TabStripModel(TabStripModelDelegate* delegate,
 
   if (group_model_factory)
     group_model_ = group_model_factory->Create(this);
-  scrubbing_metrics_.Init();
+  // scrubbing_metrics_.Init(); // wootz
 }
 
 TabStripModel::~TabStripModel() {
@@ -422,7 +422,7 @@ int TabStripModel::InsertDetachedTabAt(
     int add_types,
     std::optional<tab_groups::TabGroupId> group) {
   ReentrancyCheck reentrancy_check(&reentrancy_guard_);
-  tab->OnAddedToModel(this);
+  // tab->OnAddedToModel(this); // wootz
   return InsertTabAtImpl(index, std::move(tab), add_types, group);
 }
 
@@ -439,8 +439,8 @@ std::unique_ptr<content::WebContents> TabStripModel::DiscardWebContentsAt(
 
   TabStripSelectionChange selection(GetActiveWebContents(), selection_model_);
   WebContents* raw_new_contents = new_contents.get();
-  std::unique_ptr<WebContents> old_contents =
-      GetTabAtIndex(index)->DiscardContents(std::move(new_contents));
+  std::unique_ptr<WebContents> old_contents = std::unique_ptr<WebContents>(GetTabAtIndex(index)->contents()); // wootz
+      // GetTabAtIndex(index)->DiscardContents(std::move(new_contents));
 
   // When the active WebContents is replaced send out a selection notification
   // too. We do this as nearly all observers need to treat a replacement of the
@@ -484,10 +484,10 @@ TabStripModel::DetachWebContentsWithReasonAt(
                                       "trying to detach web contents.";
   WebContents* initially_active_web_contents =
       GetWebContentsAtImpl(active_index());
-  if (index == active_index() && !closing_all_) {
-    GetTabAtIndex(active_index())
-        ->WillEnterBackground(base::PassKey<TabStripModel>());
-  }
+  // if (index == active_index() && !closing_all_) { // wootz
+  //   GetTabAtIndex(active_index())
+  //       ->WillEnterBackground(base::PassKey<TabStripModel>());
+  // }
 
   DetachNotifications notifications(initially_active_web_contents,
                                     selection_model_);
@@ -588,7 +588,7 @@ std::unique_ptr<DetachedWebContents> TabStripModel::DetachWebContentsImpl(
   CHECK(empty() || selection_model_.active().has_value(),
         base::NotFatalUntil::M124);
 
-  old_data->OnRemovedFromModel();
+  // old_data->OnRemovedFromModel(); // wootz
   auto* contents = old_data->contents();
   return std::make_unique<DetachedWebContents>(
       index_before_any_removals, index_at_time_of_removal, std::move(old_data),
@@ -656,7 +656,7 @@ void TabStripModel::ActivateTabAt(int index,
   CHECK(ContainsIndex(index));
   TRACE_EVENT0("ui", "TabStripModel::ActivateTabAt");
 
-  scrubbing_metrics_.IncrementPressCount(user_gesture);
+  // scrubbing_metrics_.IncrementPressCount(user_gesture); // wootz
 
   ui::ListSelectionModel new_model = selection_model_;
   new_model.SetSelectedIndex(index);
@@ -1363,11 +1363,11 @@ bool TabStripModel::IsReadLaterSupportedForAny(
       ReadingListModelFactory::GetForBrowserContext(profile_);
   if (!model || !model->loaded())
     return false;
-  for (int index : indices) {
-    if (model->IsUrlSupported(
-            chrome::GetURLToBookmark(GetWebContentsAt(index))))
-      return true;
-  }
+  // for (int index : indices) { // wootz
+  //   if (model->IsUrlSupported(
+  //           chrome::GetURLToBookmark(GetWebContentsAt(index))))
+  //     return true;
+  // }
   return false;
 }
 
@@ -1494,13 +1494,15 @@ bool TabStripModel::IsContextMenuCommandEnabled(
       return true;
 
     case CommandAddNote: {
-      DCHECK(UserNotesController::IsUserNotesSupported(profile()));
+      // DCHECK(UserNotesController::IsUserNotesSupported(profile()));
       std::vector<int> indices = GetIndicesForCommand(context_index);
       if (indices.size() != 1) {
         return false;
       }
-      content::WebContents* web_contents = GetWebContentsAt(indices[0]);
-      return UserNotesController::IsUserNotesSupported(web_contents);
+      // wootz
+      // content::WebContents* web_contents = GetWebContentsAt(indices[0]);
+      // return UserNotesController::IsUserNotesSupported(web_contents);
+      return false;
     }
 
     case CommandAddToReadLater:
@@ -1548,7 +1550,7 @@ bool TabStripModel::IsContextMenuCommandEnabled(
 
     case CommandCloseAllTabs:
       DCHECK(delegate()->IsForWebApp());
-      DCHECK(web_app::HasPinnedHomeTab(this));
+      // DCHECK(web_app::HasPinnedHomeTab(this));
       return true;
 
     default:
@@ -1630,7 +1632,7 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
     }
 
     case CommandSendTabToSelf: {
-      send_tab_to_self::ShowBubble(GetWebContentsAt(context_index));
+      // send_tab_to_self::ShowBubble(GetWebContentsAt(context_index)); // wootz
       break;
     }
 
@@ -1704,9 +1706,9 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
     case CommandAddNote: {
       std::vector<int> indices = GetIndicesForCommand(context_index);
       DCHECK(indices.size() == 1);
-      Browser* browser =
-          chrome::FindBrowserWithTab(GetWebContentsAt(indices.front()));
-      UserNotesController::InitiateNoteCreationForTab(browser, indices.front());
+      // Browser* browser = // wootz
+      //     chrome::FindBrowserWithTab(GetWebContentsAt(indices.front()));
+      // UserNotesController::InitiateNoteCreationForTab(browser, indices.front());
       break;
     }
 
@@ -1795,18 +1797,18 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
 
     case CommandOrganizeTabs: {
       base::RecordAction(UserMetricsAction("TabContextMenu_OrganizeTabs"));
-      const Browser* const browser =
-          chrome::FindBrowserWithTab(GetWebContentsAt(context_index));
-      TabOrganizationService* const service =
-          TabOrganizationServiceFactory::GetForProfile(profile_);
-      CHECK(service);
-      UMA_HISTOGRAM_BOOLEAN("Tab.Organization.AllEntrypoints.Clicked", true);
-      UMA_HISTOGRAM_BOOLEAN("Tab.Organization.TabContextMenu.Clicked", true);
-      browser->window()->NotifyPromoFeatureUsed(features::kTabOrganization);
+      // const Browser* const browser = // wootz
+      //     chrome::FindBrowserWithTab(GetWebContentsAt(context_index));
+      // TabOrganizationService* const service =
+      //     TabOrganizationServiceFactory::GetForProfile(profile_);
+      // CHECK(service);
+      // UMA_HISTOGRAM_BOOLEAN("Tab.Organization.AllEntrypoints.Clicked", true);
+      // UMA_HISTOGRAM_BOOLEAN("Tab.Organization.TabContextMenu.Clicked", true);
+      // browser->window()->NotifyPromoFeatureUsed(features::kTabOrganization);
 
-      service->RestartSessionAndShowUI(
-          browser, TabOrganizationEntryPoint::kTabContextMenu,
-          GetWebContentsAt(context_index));
+      // service->RestartSessionAndShowUI(
+      //     browser, TabOrganizationEntryPoint::kTabContextMenu,
+      //     GetWebContentsAt(context_index));
       break;
     }
 
@@ -1818,10 +1820,10 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
           GetWebContentsesByIndices(GetIndicesForCommand(context_index));
       auto eligible_urls =
           commerce::GetListOfProductSpecsEligibleUrls(selected_web_contents);
-      Browser* browser =
-          chrome::FindBrowserWithTab(GetWebContentsAt(context_index));
-      chrome::OpenCommerceProductSpecificationsTab(browser, eligible_urls,
-                                                   indices.back());
+      // Browser* browser = // wootz
+      //     chrome::FindBrowserWithTab(GetWebContentsAt(context_index));
+      // chrome::OpenCommerceProductSpecificationsTab(browser, eligible_urls,
+      //                                              indices.back());
       break;
     }
 
@@ -1943,7 +1945,8 @@ void TabStripModel::ExecuteCloseTabsByIndicesCommand(
 }
 
 bool TabStripModel::WillContextMenuMuteSites(int index) {
-  return !chrome::AreAllSitesMuted(*this, GetIndicesForCommand(index));
+  // return !chrome::AreAllSitesMuted(*this, GetIndicesForCommand(index)); // wootz
+  return false;
 }
 
 bool TabStripModel::WillContextMenuPin(int index) {
@@ -2057,14 +2060,14 @@ void TabStripModel::ForgetOpener(WebContents* contents) {
   GetTabAtIndex(index)->set_opener(nullptr);
 }
 
-void TabStripModel::WriteIntoTrace(perfetto::TracedValue context) const {
-  auto dict = std::move(context).WriteDictionary();
-  dict.Add("active_index", active_index());
-  // TODO(b/335438706): Add tracing for collection infrastructure.
-  if (IsContentsDataVector()) {
-    dict.Add("tabs", GetContentsDataAsVector());
-  }
-}
+// void TabStripModel::WriteIntoTrace(perfetto::TracedValue context) const { // wootz
+//   auto dict = std::move(context).WriteDictionary();
+//   dict.Add("active_index", active_index());
+//   // TODO(b/335438706): Add tracing for collection infrastructure.
+//   if (IsContentsDataVector()) {
+//     dict.Add("tabs", GetContentsDataAsVector());
+//   }
+// }
 
 ///////////////////////////////////////////////////////////////////////////////
 // TabStripModel, private:
@@ -2151,8 +2154,8 @@ int TabStripModel::InsertTabAtImpl(
   // If there's already an active tab, and the new tab will become active, send
   // a notification.
   if (selection_model_.active().has_value() && active && !closing_all_) {
-    GetTabAtIndex(active_index())
-        ->WillEnterBackground(base::PassKey<TabStripModel>());
+    // GetTabAtIndex(active_index()) // wootz
+    //     ->WillEnterBackground(base::PassKey<TabStripModel>());
   }
 
   // Have to get the active contents before we monkey with the contents
@@ -2288,8 +2291,8 @@ bool TabStripModel::CloseWebContentses(
   for (size_t i = 0; i < items.size(); ++i) {
     int index = GetIndexOfWebContents(items[i]);
     if (index == active_index() && !closing_all_) {
-      GetTabAtIndex(active_index())
-          ->WillEnterBackground(base::PassKey<TabStripModel>());
+      // GetTabAtIndex(active_index())
+      //     ->WillEnterBackground(base::PassKey<TabStripModel>()); // wootz
     }
   }
 
@@ -2376,8 +2379,8 @@ TabStripSelectionChange TabStripModel::SetSelection(
 
   if (selection_model_.active().has_value() && new_model.active().has_value() &&
       selection_model_.active().value() != new_model.active().value()) {
-    GetTabAtIndex(active_index())
-        ->WillEnterBackground(base::PassKey<TabStripModel>());
+    // GetTabAtIndex(active_index())
+    //     ->WillEnterBackground(base::PassKey<TabStripModel>()); // wootz
   }
 
   // Validate that |new_model| only selects tabs that actually exist.
@@ -2410,13 +2413,13 @@ TabStripSelectionChange TabStripModel::SetSelection(
       if (base::FeatureList::IsEnabled(media::kEnableTabMuting)) {
         // Show the in-product help dialog pointing users to the tab mute button
         // if the user backgrounds an audible tab.
-        if (selection.old_contents &&
-            selection.old_contents->IsCurrentlyAudible()) {
-          Browser* browser = chrome::FindBrowserWithTab(selection.old_contents);
-          DCHECK(browser);
-          browser->window()->MaybeShowFeaturePromo(
-              feature_engagement::kIPHTabAudioMutingFeature);
-        }
+        // if (selection.old_contents &&           // wootz
+        //     selection.old_contents->IsCurrentlyAudible()) {
+        //   Browser* browser = chrome::FindBrowserWithTab(selection.old_contents);
+        //   DCHECK(browser);
+          // browser->window()->MaybeShowFeaturePromo(
+          //     feature_engagement::kIPHTabAudioMutingFeature);
+        // }
       }
     }
     TabStripModelChange change;
@@ -2554,8 +2557,8 @@ void TabStripModel::SendMoveNotificationForWebContents(
     bool select_after_move,
     WebContents* web_contents) {
   if (select_after_move && GetActiveWebContents() != web_contents) {
-    GetTabAtIndex(active_index())
-        ->WillEnterBackground(base::PassKey<TabStripModel>());
+    // GetTabAtIndex(active_index())
+    //     ->WillEnterBackground(base::PassKey<TabStripModel>()); // wootz
   }
   TabStripSelectionChange selection(GetActiveWebContents(), selection_model_);
 
@@ -2754,7 +2757,7 @@ void TabStripModel::AddTabsToGroupCollection(
 
     // Insert the tab into the group based on start_of_group.
     if (start_of_group) {
-      group_collection->AddTab(std::move(tab_model), 0);
+      // group_collection->AddTab(std::move(tab_model), 0); // wootz
     } else {
       group_collection->AppendTab(std::move(tab_model));
     }
@@ -3091,9 +3094,9 @@ void TabStripModel::SetSitesMuted(const std::vector<int>& indices,
     if (url.SchemeIs(content::kChromeUIScheme)) {
       // chrome:// URLs don't have content settings but can be muted, so just
       // mute the WebContents.
-      chrome::SetTabAudioMuted(web_contents, mute,
-                               TabMutedReason::CONTENT_SETTING_CHROME,
-                               std::string());
+      // chrome::SetTabAudioMuted(web_contents, mute, // wootz
+      //                          TabMutedReason::CONTENT_SETTING_CHROME,
+      //                          std::string());
     } else {
       Profile* profile =
           Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -3201,11 +3204,11 @@ void TabStripModel::OnActiveTabChanged(
       // It's possible this could be done with a separate TabStripModelObserver,
       // but then it would be possible for a different observer to jump in front
       // and modify the WebContents, so for now, do it here.
-      auto* const thumbnail_helper =
-          ThumbnailTabHelper::FromWebContents(old_contents);
-      if (thumbnail_helper) {
-        thumbnail_helper->CaptureThumbnailOnTabBackgrounded();
-      }
+      // auto* const thumbnail_helper = // wootz
+      //     ThumbnailTabHelper::FromWebContents(old_contents);
+      // if (thumbnail_helper) {
+      //   thumbnail_helper->CaptureThumbnailOnTabBackgrounded();
+      // }
 
       old_opener = GetOpenerOfWebContentsAt(index);
 
@@ -3236,17 +3239,17 @@ bool TabStripModel::PolicyAllowsTabClosing(
   if (!contents) {
     return true;
   }
-
-  web_app::WebAppProvider* provider =
-      web_app::WebAppProvider::GetForWebContents(contents);
-  // Can be null if there is no tab helper or app id.
-  const webapps::AppId* app_id = web_app::WebAppTabHelper::GetAppId(contents);
-  if (!app_id) {
+  // wootz
+  // web_app::WebAppProvider* provider =
+  //     web_app::WebAppProvider::GetForWebContents(contents);
+  // // Can be null if there is no tab helper or app id.
+  // const webapps::AppId* app_id = web_app::WebAppTabHelper::GetAppId(contents);
+  // if (!app_id) {
     return true;
-  }
+  // }
 
-  return !delegate()->IsForWebApp() ||
-         !provider->policy_manager().IsPreventCloseEnabled(*app_id);
+  // return !delegate()->IsForWebApp() ||
+  //        !provider->policy_manager().IsPreventCloseEnabled(*app_id);
 }
 
 int TabStripModel::DetermineInsertionIndex(ui::PageTransition transition,

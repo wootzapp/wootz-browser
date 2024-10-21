@@ -10,8 +10,8 @@ import("//mojo/public/tools/bindings/mojom.gni")
 import("//testing/test.gni")
 
 assert(!is_fuchsia, "Fuchsia shouldn't use anything in //chrome")
-assert(!is_android)
-assert(false)
+# assert(!is_android) // wootz
+
 source_set("web_applications") {
   sources = [
     "callback_utils.h",
@@ -994,190 +994,190 @@ group("unit_tests") {
   ]
 }
 
-source_set("web_applications_browser_tests") {
-  testonly = true
+# source_set("web_applications_browser_tests") {
+#   testonly = true
 
-  sources = [
-    "commands/compute_app_size_command_browsertest.cc",
-    "commands/externally_managed_install_command_browsertest.cc",
-    "commands/fetch_manifest_and_install_command_browsertest.cc",
-    "commands/install_from_info_command_browsertest.cc",
-    "commands/install_from_sync_command_browsertest.cc",
-    "commands/launch_web_app_command_browsertest.cc",
-    "commands/navigate_and_trigger_install_dialog_command_browsertest.cc",
-    "commands/update_protocol_handler_approval_command_browsertest.cc",
-    "isolated_web_apps/garbage_collect_storage_partitions_command_browsertest.cc",
-    "isolated_web_apps/get_isolated_web_app_browsing_data_command_browsertest.cc",
-    "isolated_web_apps/install_isolated_web_app_from_command_line_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_apply_update_command_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_browsing_data_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_csp_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_dev_tools_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_error_page_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_prepare_and_store_update_command_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_uninstall_browsertest.cc",
-    "isolated_web_apps/isolated_web_app_url_loader_factory_browsertest.cc",
-    "manifest_update_manager_browsertest.cc",
-    "policy/web_app_policy_manager_browsertest.cc",
-    "preinstalled_web_app_manager_browsertest.cc",
-    "preinstalled_web_apps_browsertest.cc",
-    "user_uninstalled_preinstalled_web_app_prefs_browsertest.cc",
-    "web_app_audio_focus_browsertest.cc",
-    "web_app_icon_manager_browsertest.cc",
-    "web_app_internals_browsertest.cc",
-    "web_app_origin_association_manager_browsertest.cc",
-    "web_app_scope_extensions_browsertest.cc",
-  ]
+#   sources = [
+#     "commands/compute_app_size_command_browsertest.cc",
+#     "commands/externally_managed_install_command_browsertest.cc",
+#     "commands/fetch_manifest_and_install_command_browsertest.cc",
+#     "commands/install_from_info_command_browsertest.cc",
+#     "commands/install_from_sync_command_browsertest.cc",
+#     "commands/launch_web_app_command_browsertest.cc",
+#     "commands/navigate_and_trigger_install_dialog_command_browsertest.cc",
+#     "commands/update_protocol_handler_approval_command_browsertest.cc",
+#     "isolated_web_apps/garbage_collect_storage_partitions_command_browsertest.cc",
+#     "isolated_web_apps/get_isolated_web_app_browsing_data_command_browsertest.cc",
+#     "isolated_web_apps/install_isolated_web_app_from_command_line_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_apply_update_command_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_browsing_data_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_csp_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_dev_tools_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_error_page_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_prepare_and_store_update_command_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_uninstall_browsertest.cc",
+#     "isolated_web_apps/isolated_web_app_url_loader_factory_browsertest.cc",
+#     "manifest_update_manager_browsertest.cc",
+#     "policy/web_app_policy_manager_browsertest.cc",
+#     "preinstalled_web_app_manager_browsertest.cc",
+#     "preinstalled_web_apps_browsertest.cc",
+#     "user_uninstalled_preinstalled_web_app_prefs_browsertest.cc",
+#     "web_app_audio_focus_browsertest.cc",
+#     "web_app_icon_manager_browsertest.cc",
+#     "web_app_internals_browsertest.cc",
+#     "web_app_origin_association_manager_browsertest.cc",
+#     "web_app_scope_extensions_browsertest.cc",
+#   ]
 
-  if (is_chromeos) {
-    sources += [
-      "commands/install_app_from_verified_manifest_command_browsertest.cc",
-      "migrations/adobe_express_oem_to_default_migration_browsertest.cc",
-      "web_app_run_on_os_login_manager_browsertest.cc",
+#   if (is_chromeos) {
+#     sources += [
+#       "commands/install_app_from_verified_manifest_command_browsertest.cc",
+#       "migrations/adobe_express_oem_to_default_migration_browsertest.cc",
+#       "web_app_run_on_os_login_manager_browsertest.cc",
 
-      # TODO(crbug.com/40274058): Support automatic IWA updates on other
-      # platforms.
-      "isolated_web_apps/isolated_web_app_update_manager_browsertest.cc",
-    ]
-  }
+#       # TODO(crbug.com/40274058): Support automatic IWA updates on other
+#       # platforms.
+#       "isolated_web_apps/isolated_web_app_update_manager_browsertest.cc",
+#     ]
+#   }
 
-  if (is_linux) {
-    sources += [
-      "os_integration/web_app_file_handler_registration_linux_browsertest.cc",
-    ]
-  }
+#   if (is_linux) {
+#     sources += [
+#       "os_integration/web_app_file_handler_registration_linux_browsertest.cc",
+#     ]
+#   }
 
-  if (is_chromeos_ash) {
-    sources += [ "isolated_web_apps/policy/isolated_web_app_policy_manager_ash_browsertest.cc" ]
-  }
+#   if (is_chromeos_ash) {
+#     sources += [ "isolated_web_apps/policy/isolated_web_app_policy_manager_ash_browsertest.cc" ]
+#   }
 
-  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+#   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
-  deps = [
-    ":web_applications",
-    ":web_applications_test_support",
-    "//base",
-    "//chrome/app:command_ids",
-    "//chrome/browser/apps/app_service",
-    "//chrome/browser/apps/app_service:app_registry_cache_waiter",
-    "//chrome/browser/apps/app_service:test_support",
-    "//chrome/browser/apps/link_capturing:test_support",
-    "//chrome/browser/browsing_data:constants",
-    "//chrome/browser/devtools:test_support",
-    "//chrome/browser/profiles:profile",
-    "//chrome/common:chrome_features",
-    "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
-    "//components/browsing_data/core",
-    "//components/embedder_support:embedder_support",
-    "//components/segmentation_platform/public:public",
-    "//components/segmentation_platform/public:test_support",
-    "//components/services/app_service",
-    "//components/site_engagement/content",
-    "//components/user_manager",
-    "//components/web_package",
-    "//components/web_package/test_support",
-    "//components/webapps/browser",
-    "//components/webapps/browser:test_support",
-    "//components/webapps/common",
-    "//components/webapps/services/web_app_origin_association/test:test_support",
-    "//content/public/browser",
-    "//ui/color",
-    "//ui/events/devices:test_support",
-    "//url",
-  ]
+#   deps = [
+#     ":web_applications",
+#     ":web_applications_test_support",
+#     "//base",
+#     "//chrome/app:command_ids",
+#     "//chrome/browser/apps/app_service",
+#     "//chrome/browser/apps/app_service:app_registry_cache_waiter",
+#     "//chrome/browser/apps/app_service:test_support",
+#     "//chrome/browser/apps/link_capturing:test_support",
+#     "//chrome/browser/browsing_data:constants",
+#     "//chrome/browser/devtools:test_support",
+#     "//chrome/browser/profiles:profile",
+#     "//chrome/common:chrome_features",
+#     "//chrome/test:test_support",
+#     "//chrome/test:test_support_ui",
+#     "//components/browsing_data/core",
+#     "//components/embedder_support:embedder_support",
+#     "//components/segmentation_platform/public:public",
+#     "//components/segmentation_platform/public:test_support",
+#     "//components/services/app_service",
+#     "//components/site_engagement/content",
+#     "//components/user_manager",
+#     "//components/web_package",
+#     "//components/web_package/test_support",
+#     "//components/webapps/browser",
+#     "//components/webapps/browser:test_support",
+#     "//components/webapps/common",
+#     "//components/webapps/services/web_app_origin_association/test:test_support",
+#     "//content/public/browser",
+#     "//ui/color",
+#     "//ui/events/devices:test_support",
+#     "//url",
+#   ]
 
-  if (is_chromeos_ash) {
-    deps += [
-      "//chrome/browser/ash:test_support",
-      "//chrome/browser/ash/system_web_apps/test_support",
-      "//chrome/browser/ash/system_web_apps/test_support:test_support_ui",
-    ]
-  }
+#   if (is_chromeos_ash) {
+#     deps += [
+#       "//chrome/browser/ash:test_support",
+#       "//chrome/browser/ash/system_web_apps/test_support",
+#       "//chrome/browser/ash/system_web_apps/test_support:test_support_ui",
+#     ]
+#   }
 
-  if (is_chromeos_lacros) {
-    deps += [
-      "//chrome/browser/web_applications/app_service:test_support",
-      "//chromeos/constants",
-      "//chromeos/lacros",
-      "//chromeos/startup",
-    ]
-  }
-}
+#   if (is_chromeos_lacros) {
+#     deps += [
+#       "//chrome/browser/web_applications/app_service:test_support",
+#       "//chromeos/constants",
+#       "//chromeos/lacros",
+#       "//chromeos/startup",
+#     ]
+#   }
+# }
 
-group("browser_tests") {
-  testonly = true
+# group("browser_tests") {
+#   testonly = true
 
-  deps = [ ":web_applications_browser_tests" ]
-}
+#   deps = [ ":web_applications_browser_tests" ]
+# }
 
 # On Lacros, these browser tests require Ash to be running.
-source_set("app_service_browser_tests") {
-  testonly = true
+# source_set("app_service_browser_tests") {
+#   testonly = true
 
-  sources = [ "preinstalled_web_app_migration_browsertest.cc" ]
+#   sources = [ "preinstalled_web_app_migration_browsertest.cc" ]
 
-  if (is_chromeos) {
-    sources += [ "chromeos_web_app_experiments_browsertest.cc" ]
-  }
+#   if (is_chromeos) {
+#     sources += [ "chromeos_web_app_experiments_browsertest.cc" ]
+#   }
 
-  # On Lacros, this test is added to the lacros_chrome_browsertests target.
-  if (!is_chromeos_lacros) {
-    sources += [ "externally_managed_app_manager_browsertest.cc" ]
-  }
+#   # On Lacros, this test is added to the lacros_chrome_browsertests target.
+#   if (!is_chromeos_lacros) {
+#     sources += [ "externally_managed_app_manager_browsertest.cc" ]
+#   }
 
-  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+#   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
-  deps = [
-    ":web_applications",
-    ":web_applications_test_support",
-    "//base",
-    "//chrome/browser/apps/app_service",
-    "//chrome/browser/apps/app_service:app_registry_cache_waiter",
-    "//chrome/browser/apps/link_capturing:test_support",
-    "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
-    "//components/webapps/browser",
-  ]
+#   deps = [
+#     ":web_applications",
+#     ":web_applications_test_support",
+#     "//base",
+#     "//chrome/browser/apps/app_service",
+#     "//chrome/browser/apps/app_service:app_registry_cache_waiter",
+#     "//chrome/browser/apps/link_capturing:test_support",
+#     "//chrome/test:test_support",
+#     "//chrome/test:test_support_ui",
+#     "//components/webapps/browser",
+#   ]
 
-  if (is_chromeos) {
-    deps += [ "//chromeos/constants:constants" ]
-  }
+#   if (is_chromeos) {
+#     deps += [ "//chromeos/constants:constants" ]
+#   }
 
-  if (is_chromeos_lacros) {
-    deps += [
-      "//chromeos/lacros:lacros",
-      "//chromeos/startup",
-    ]
-  }
-}
+#   if (is_chromeos_lacros) {
+#     deps += [
+#       "//chromeos/lacros:lacros",
+#       "//chromeos/startup",
+#     ]
+#   }
+# }
 
-source_set("interactive_ui_tests") {
-  testonly = true
+# source_set("interactive_ui_tests") {
+#   testonly = true
 
-  sources = [
-    "isolated_web_apps/isolated_web_app_interactive_uitest.cc",
-    "web_app_notifications_interactive_uitest.cc",
-  ]
+#   sources = [
+#     "isolated_web_apps/isolated_web_app_interactive_uitest.cc",
+#     "web_app_notifications_interactive_uitest.cc",
+#   ]
 
-  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+#   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
-  deps = [
-    ":web_applications",
-    ":web_applications_test_support",
-    "//chrome/app:command_ids",
-    "//chrome/test:test_support",
-    "//chrome/test:test_support_ui",
-    "//components/permissions:permissions",
-    "//components/webapps/browser",
-    "//components/webapps/common",
-    "//ui/base/idle:idle",
-    "//ui/base/idle:test_support",
-    "//ui/events/devices:test_support",
-  ]
+#   deps = [
+#     ":web_applications",
+#     ":web_applications_test_support",
+#     "//chrome/app:command_ids",
+#     "//chrome/test:test_support",
+#     "//chrome/test:test_support_ui",
+#     "//components/permissions:permissions",
+#     "//components/webapps/browser",
+#     "//components/webapps/common",
+#     "//ui/base/idle:idle",
+#     "//ui/base/idle:test_support",
+#     "//ui/events/devices:test_support",
+#   ]
 
-  if (is_mac) {
-    deps += [ "//chrome/browser/apps/app_shim" ]
-  }
-}
+#   if (is_mac) {
+#     deps += [ "//chrome/browser/apps/app_shim" ]
+#   }
+# }

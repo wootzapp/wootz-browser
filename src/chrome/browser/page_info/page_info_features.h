@@ -20,7 +20,7 @@ bool IsAboutThisSiteAsyncFetchingEnabled();
 // metadata in a TabHelper.
 BASE_DECLARE_FEATURE(kAboutThisSiteAsyncFetching);
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) // wootz
 // Returns true if kAboutThisSitePersistentSidePanelEntry and dependent
 // features are enabled.
 bool IsPersistentSidePanelEntryFeatureEnabled();

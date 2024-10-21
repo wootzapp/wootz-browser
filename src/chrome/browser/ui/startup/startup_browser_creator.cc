@@ -338,16 +338,16 @@ StartupProfileModeReason ShouldShowProfilePickerAtProcessLaunch(
 
   // Don't show the picker if a certain profile (or an incognito window in the
   // default profile) is explicitly requested.
-  if (profiles::IsGuestModeRequested(command_line,
-                                     g_browser_process->local_state(),
-                                     /*show_warning=*/false) ||
-      command_line.HasSwitch(switches::kIncognito) ||
-      has_command_line_specified_profile_directory) {
-    // TODO(crbug.com/40257919): The profile directory and guest mode
-    // were already tested in the calling function `GetStartupProfilePath()`.
-    // Consolidate these checks.
-    return StartupProfileModeReason::kIncognitoModeRequested;
-  }
+  // if (profiles::IsGuestModeRequested(command_line, // wootz
+  //                                    g_browser_process->local_state(),
+  //                                    /*show_warning=*/false) ||
+  //     command_line.HasSwitch(switches::kIncognito) ||
+  //     has_command_line_specified_profile_directory) {
+  //   // TODO(crbug.com/40257919): The profile directory and guest mode
+  //   // were already tested in the calling function `GetStartupProfilePath()`.
+  //   // Consolidate these checks.
+  //   return StartupProfileModeReason::kIncognitoModeRequested;
+  // }
 
   // Don't show the picker if an app is explicitly requested to open. This URL
   // param should be ideally paired with switches::kProfileDirectory but it's
@@ -399,15 +399,15 @@ StartupProfileModeReason ShouldShowProfilePickerAtProcessLaunch(
 // `profile_info.profile`.
 Profile* GetPrivateProfileIfRequested(const base::CommandLine& command_line,
                                       StartupProfileInfo profile_info) {
-  bool open_guest_profile = profiles::IsGuestModeRequested(
-      command_line, g_browser_process->local_state(),
-      /* show_warning= */ true);
-  if (open_guest_profile) {
-    Profile* profile = g_browser_process->profile_manager()->GetProfile(
-        ProfileManager::GetGuestProfilePath());
-    profile = profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-    return profile;
-  }
+  // bool open_guest_profile = profiles::IsGuestModeRequested( // wootz
+  //     command_line, g_browser_process->local_state(),
+  //     /* show_warning= */ true);
+  // if (open_guest_profile) {
+  //   Profile* profile = g_browser_process->profile_manager()->GetProfile(
+  //       ProfileManager::GetGuestProfilePath());
+  //   profile = profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  //   return profile;
+  // }
 
   if (profile_info.mode == StartupProfileMode::kProfilePicker) {
     // Profile not intended for direct usage, we can exit early.
@@ -434,8 +434,8 @@ StartupProfileInfo GetProfilePickerStartupProfileInfo() {
   // profile picker lives) also exists (or is creatable).
   // TODO(crbug.com/40205861): Remove unnecessary system profile check here.
   ProfileManager* profile_manager = g_browser_process->profile_manager();
-  if (!profile_manager->GetProfile(ProfileManager::GetSystemProfilePath()))
-    return {.profile = nullptr, .mode = StartupProfileMode::kError};
+  // if (!profile_manager->GetProfile(ProfileManager::GetSystemProfilePath())) // wootz
+  //   return {.profile = nullptr, .mode = StartupProfileMode::kError};
 
   return {.profile = nullptr, .mode = StartupProfileMode::kProfilePicker};
 }
@@ -827,9 +827,9 @@ bool StartupBrowserCreator::WasRestarted() {
   static bool was_restarted = false;
 
   if (!was_restarted_read_) {
-    PrefService* pref_service = g_browser_process->local_state();
-    was_restarted = pref_service->GetBoolean(prefs::kWasRestarted);
-    pref_service->SetBoolean(prefs::kWasRestarted, false);
+    // PrefService* pref_service = g_browser_process->local_state();
+    // was_restarted = pref_service->GetBoolean(prefs::kWasRestarted); // wootz
+    // pref_service->SetBoolean(prefs::kWasRestarted, false);
     was_restarted_read_ = true;
   }
   return was_restarted;
@@ -910,13 +910,13 @@ void StartupBrowserCreator::ClearLaunchedProfilesForTesting() {
 // static
 void StartupBrowserCreator::RegisterLocalStatePrefs(
     PrefRegistrySimple* registry) {
-  registry->RegisterBooleanPref(prefs::kPromotionalTabsEnabled, true);
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-  registry->RegisterBooleanPref(prefs::kCommandLineFlagSecurityWarningsEnabled,
-                                true);
-#endif
-  registry->RegisterBooleanPref(prefs::kSuppressUnsupportedOSWarning, false);
-  registry->RegisterBooleanPref(prefs::kWasRestarted, false);
+//   registry->RegisterBooleanPref(prefs::kPromotionalTabsEnabled, true); // wootz
+// #if !BUILDFLAG(IS_CHROMEOS_ASH)
+//   registry->RegisterBooleanPref(prefs::kCommandLineFlagSecurityWarningsEnabled,
+//                                 true);
+// #endif
+//   registry->RegisterBooleanPref(prefs::kSuppressUnsupportedOSWarning, false);
+//   registry->RegisterBooleanPref(prefs::kWasRestarted, false);
 
 #if BUILDFLAG(IS_WIN)
   registry->RegisterStringPref(prefs::kShortcutMigrationVersion, std::string());
@@ -928,7 +928,7 @@ void StartupBrowserCreator::RegisterProfilePrefs(PrefRegistrySimple* registry) {
   // Default to true so that existing users are not shown the Welcome page.
   // ProfileManager handles setting this to false for new profiles upon
   // creation.
-  registry->RegisterBooleanPref(prefs::kHasSeenWelcomePage, true);
+  // registry->RegisterBooleanPref(prefs::kHasSeenWelcomePage, true); // wootz
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   // This will be set for newly created profiles, and is used to indicate which
   // users went through onboarding with the current experiment group.
@@ -1571,13 +1571,13 @@ StartupProfilePathInfo GetStartupProfilePath(
 
   // If opening in Guest mode is requested, load the default profile so that
   // last opened profile would not trigger a user management dialog.
-  if (profiles::IsGuestModeRequested(command_line,
-                                     g_browser_process->local_state(),
-                                     /* show_warning= */ false)) {
-    // TODO(crbug.com/40157821): return a guest profile instead.
-    return {.path = profiles::GetDefaultProfileDir(user_data_dir),
-            .reason = StartupProfileModeReason::kGuestModeRequested};
-  }
+  // if (profiles::IsGuestModeRequested(command_line, // wootz
+  //                                    g_browser_process->local_state(),
+  //                                    /* show_warning= */ false)) {
+  //   // TODO(crbug.com/40157821): return a guest profile instead.
+  //   return {.path = profiles::GetDefaultProfileDir(user_data_dir),
+  //           .reason = StartupProfileModeReason::kGuestModeRequested};
+  // }
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
   if (chromeos::BrowserParamsProxy::Get()->SessionType() ==

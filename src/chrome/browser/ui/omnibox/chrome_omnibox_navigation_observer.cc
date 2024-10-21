@@ -7,7 +7,7 @@
 #include "base/functional/bind.h"
 #include "base/trace_event/typed_macros.h"
 #include "chrome/browser/autocomplete/shortcuts_backend_factory.h"
-#include "chrome/browser/intranet_redirect_detector.h"
+// #include "chrome/browser/intranet_redirect_detector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/omnibox/alternate_nav_infobar_delegate.h"
@@ -50,14 +50,15 @@ bool ResponseCodeIndicatesSuccess(int response_code) {
 // Returns true if |final_url| doesn't represent an ISP hijack of
 // |original_url|, based on the IntranetRedirectDetector's RedirectOrigin().
 bool IsValidNavigation(const GURL& original_url, const GURL& final_url) {
-  const GURL& redirect_url(IntranetRedirectDetector::RedirectOrigin());
-  return !redirect_url.is_valid() ||
-         net::registry_controlled_domains::SameDomainOrHost(
-             original_url, final_url,
-             net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES) ||
-         !net::registry_controlled_domains::SameDomainOrHost(
-             final_url, redirect_url,
-             net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
+  // const GURL& redirect_url(IntranetRedirectDetector::RedirectOrigin()); // wootz
+  // return !redirect_url.is_valid() ||
+  //        net::registry_controlled_domains::SameDomainOrHost(
+  //            original_url, final_url,
+  //            net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES) ||
+  //        !net::registry_controlled_domains::SameDomainOrHost(
+  //            final_url, redirect_url,
+  //            net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
+  return true;
 }
 
 // Returns true if |origin| is a http URL and |destination| is a https URL and

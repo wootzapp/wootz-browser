@@ -77,8 +77,8 @@
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
-#include "chrome/browser/ui/lens/lens_overlay_controller.h"
-#include "chrome/browser/ui/lens/lens_overlay_invocation_source.h"
+// #include "chrome/browser/ui/lens/lens_overlay_controller.h"
+// #include "chrome/browser/ui/lens/lens_overlay_invocation_source.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
@@ -648,38 +648,39 @@ const char kBackNavigationMenuIPHExperimentParamName[] = "x_experiment";
 
 void MaybeShowFeatureBackNavigationMenuPromo(Browser* browser,
                                              WebContents* web_contents) {
-  if (!base::FeatureList::IsEnabled(
-          feature_engagement::kIPHBackNavigationMenuFeature)) {
-    return;
-  }
+  // wootz
+  // if (!base::FeatureList::IsEnabled(
+  //         feature_engagement::kIPHBackNavigationMenuFeature)) {
+  //   return;
+  // }
 
-  bool should_show_feature_promo;
-  const ChainedBackNavigationTracker* tracker =
-      ChainedBackNavigationTracker::FromWebContents(web_contents);
-  CHECK(tracker);
-  switch (static_cast<BackNavigationMenuIPHTrigger>(
-      base::GetFieldTrialParamByFeatureAsInt(
-          feature_engagement::kIPHBackNavigationMenuFeature,
-          kBackNavigationMenuIPHExperimentParamName, 0))) {
-    case BackNavigationMenuIPHTrigger::kUserPerformsChainedBackNavigation:
-      should_show_feature_promo =
-          tracker->IsChainedBackNavigationRecentlyPerformed();
-      break;
+  // bool should_show_feature_promo;
+  // const ChainedBackNavigationTracker* tracker =
+  //     ChainedBackNavigationTracker::FromWebContents(web_contents);
+  // CHECK(tracker);
+  // switch (static_cast<BackNavigationMenuIPHTrigger>(
+  //     base::GetFieldTrialParamByFeatureAsInt(
+  //         feature_engagement::kIPHBackNavigationMenuFeature,
+  //         kBackNavigationMenuIPHExperimentParamName, 0))) {
+  //   case BackNavigationMenuIPHTrigger::kUserPerformsChainedBackNavigation:
+  //     should_show_feature_promo =
+  //         tracker->IsChainedBackNavigationRecentlyPerformed();
+  //     break;
 
-    case BackNavigationMenuIPHTrigger::
-        kUserPerformsChainedBackNavigationWithBackButton:
-      should_show_feature_promo =
-          tracker->IsBackButtonChainedBackNavigationRecentlyPerformed();
-      break;
-    default:
-      should_show_feature_promo = true;
-      break;
-  }
+  //   case BackNavigationMenuIPHTrigger::
+  //       kUserPerformsChainedBackNavigationWithBackButton:
+  //     should_show_feature_promo =
+  //         tracker->IsBackButtonChainedBackNavigationRecentlyPerformed();
+  //     break;
+  //   default:
+  //     should_show_feature_promo = true;
+  //     break;
+  // }
 
-  if (should_show_feature_promo) {
-    browser->window()->MaybeShowFeaturePromo(
-        feature_engagement::kIPHBackNavigationMenuFeature);
-  }
+  // if (should_show_feature_promo) {
+  //   browser->window()->MaybeShowFeaturePromo(
+  //       feature_engagement::kIPHBackNavigationMenuFeature);
+  // }
 }
 
 void GoBack(Browser* browser, WindowOpenDisposition disposition) {
@@ -1097,61 +1098,62 @@ void MoveTabsToNewWindow(Browser* browser,
         Browser::Create(Browser::CreateParams(browser->profile(), true));
   }
 
-  if (group.has_value()) {
-    tab_groups::SavedTabGroupKeyedService* const service =
-        tab_groups::SavedTabGroupServiceFactory::GetForProfile(
-            browser->profile());
-    if (service && service->model()->Contains(group.value())) {
-      // If the group we are looking to move is saved:
-      // 1) Stop listening to changes on it
-      // 2) Close the group in the browser
-      // 3) Open the group in a new browser and link it to the saved guid.
-      const base::Uuid& saved_guid =
-          service->model()->Get(group.value())->saved_guid();
+  // wootz
+  // if (group.has_value()) {
+  //   tab_groups::SavedTabGroupKeyedService* const service =
+  //       tab_groups::SavedTabGroupServiceFactory::GetForProfile(
+  //           browser->profile());
+  //   if (service && service->model()->Contains(group.value())) {
+  //     // If the group we are looking to move is saved:
+  //     // 1) Stop listening to changes on it
+  //     // 2) Close the group in the browser
+  //     // 3) Open the group in a new browser and link it to the saved guid.
+  //     const base::Uuid& saved_guid =
+  //         service->model()->Get(group.value())->saved_guid();
 
-      service->DisconnectLocalTabGroup(group.value());
-      browser->tab_strip_model()->CloseAllTabsInGroup(group.value());
-      service->OpenSavedTabGroupInBrowser(new_browser, saved_guid);
-      return;
-    }
+  //     service->DisconnectLocalTabGroup(group.value());
+  //     browser->tab_strip_model()->CloseAllTabsInGroup(group.value());
+  //     service->OpenSavedTabGroupInBrowser(new_browser, saved_guid);
+  //     return;
+  //   }
 
-    const tab_groups::TabGroupVisualData* old_visual_data =
-        browser->tab_strip_model()
-            ->group_model()
-            ->GetTabGroup(group.value())
-            ->visual_data();
-    tab_groups::TabGroupVisualData new_visual_data(old_visual_data->title(),
-                                                   old_visual_data->color(),
-                                                   false /* is_collapsed */);
+  //   const tab_groups::TabGroupVisualData* old_visual_data =
+  //       browser->tab_strip_model()
+  //           ->group_model()
+  //           ->GetTabGroup(group.value())
+  //           ->visual_data();
+  //   tab_groups::TabGroupVisualData new_visual_data(old_visual_data->title(),
+  //                                                  old_visual_data->color(),
+  //                                                  false /* is_collapsed */);
 
-    new_browser->tab_strip_model()->group_model()->AddTabGroup(group.value(),
-                                                               new_visual_data);
-  }
+  //   new_browser->tab_strip_model()->group_model()->AddTabGroup(group.value(),
+  //                                                              new_visual_data);
+  // }
 
-  int indices_size = tab_indices.size();
-  int active_index = browser->tab_strip_model()->active_index();
-  for (int i = 0; i < indices_size; i++) {
-    // Adjust tab index to account for tabs already moved.
-    int adjusted_index = tab_indices[i] - i;
-    bool pinned = browser->tab_strip_model()->IsTabPinned(adjusted_index);
-    std::unique_ptr<tabs::TabModel> tab_model =
-        browser->tab_strip_model()->DetachTabAtForInsertion(adjusted_index);
-    std::unique_ptr<content::WebContents> contents_move =
-        tabs::TabModel::DestroyAndTakeWebContents(std::move(tab_model));
+  // int indices_size = tab_indices.size();
+  // int active_index = browser->tab_strip_model()->active_index();
+  // for (int i = 0; i < indices_size; i++) {
+  //   // Adjust tab index to account for tabs already moved.
+  //   int adjusted_index = tab_indices[i] - i;
+  //   bool pinned = browser->tab_strip_model()->IsTabPinned(adjusted_index);
+  //   std::unique_ptr<tabs::TabModel> tab_model =
+  //       browser->tab_strip_model()->DetachTabAtForInsertion(adjusted_index);
+  //   std::unique_ptr<content::WebContents> contents_move =
+  //       tabs::TabModel::DestroyAndTakeWebContents(std::move(tab_model));
 
-    int add_types = pinned ? AddTabTypes::ADD_PINNED : 0;
-    // The last tab made active takes precedence, so activate the last active
-    // tab, with a fallback for the first tab (i == 0) if the active tab isn’t
-    // in the set of tabs being moved.
-    if (i == 0 || tab_indices[i] == active_index) {
-      add_types = add_types | AddTabTypes::ADD_ACTIVE;
-    }
+  //   int add_types = pinned ? AddTabTypes::ADD_PINNED : 0;
+  //   // The last tab made active takes precedence, so activate the last active
+  //   // tab, with a fallback for the first tab (i == 0) if the active tab isn’t
+  //   // in the set of tabs being moved.
+  //   if (i == 0 || tab_indices[i] == active_index) {
+  //     add_types = add_types | AddTabTypes::ADD_ACTIVE;
+  //   }
 
-    new_browser->tab_strip_model()->AddWebContents(std::move(contents_move), -1,
-                                                   ui::PAGE_TRANSITION_TYPED,
-                                                   add_types, group);
-  }
-  new_browser->window()->Show();
+  //   new_browser->tab_strip_model()->AddWebContents(std::move(contents_move), -1,
+  //                                                  ui::PAGE_TRANSITION_TYPED,
+  //                                                  add_types, group);
+  // }
+  // new_browser->window()->Show();
 }
 
 bool CanCloseTabsToRight(const Browser* browser) {
@@ -1427,8 +1429,8 @@ bool MoveTabToReadLater(Browser* browser, content::WebContents* web_contents) {
   model->AddOrReplaceEntry(url, base::UTF16ToUTF8(title),
                            reading_list::EntrySource::ADDED_VIA_CURRENT_APP,
                            /*estimated_read_time=*/base::TimeDelta());
-  browser->window()->MaybeShowFeaturePromo(
-      feature_engagement::kIPHReadingListDiscoveryFeature);
+  // browser->window()->MaybeShowFeaturePromo(
+  //     feature_engagement::kIPHReadingListDiscoveryFeature);
   base::UmaHistogramEnumeration(
       "ReadingList.BookmarkBarState.OnEveryAddToReadingList",
       browser->bookmark_bar_state());
@@ -1596,12 +1598,12 @@ void ShowTranslateBubble(Browser* browser) {
 }
 
 void ManagePasswordsForPage(Browser* browser) {
-  browser->window()->CloseFeaturePromo(
-      feature_engagement::kIPHPasswordsManagementBubbleAfterSaveFeature);
-  browser->window()->CloseFeaturePromo(
-      feature_engagement::kIPHPasswordsManagementBubbleDuringSigninFeature);
-  browser->window()->CloseFeaturePromo(
-      feature_engagement::kIPHPasswordManagerShortcutFeature);
+  // browser->window()->CloseFeaturePromo(
+  //     feature_engagement::kIPHPasswordsManagementBubbleAfterSaveFeature);
+  // browser->window()->CloseFeaturePromo(
+  //     feature_engagement::kIPHPasswordsManagementBubbleDuringSigninFeature);
+  // browser->window()->CloseFeaturePromo(
+  //     feature_engagement::kIPHPasswordManagerShortcutFeature);
   WebContents* web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
   ManagePasswordsUIController* controller =
@@ -2232,10 +2234,10 @@ void ExecLensOverlay(Browser* browser) {
       browser->tab_strip_model()->GetActiveWebContents();
   CHECK(web_contents);
 
-  LensOverlayController* const controller =
-      LensOverlayController::GetController(web_contents);
-  CHECK(controller);
-  controller->ShowUI(lens::LensOverlayInvocationSource::kAppMenu);
+  // LensOverlayController* const controller =
+  //     LensOverlayController::GetController(web_contents);
+  // CHECK(controller);
+  // controller->ShowUI(lens::LensOverlayInvocationSource::kAppMenu);
   browser->window()->NotifyPromoFeatureUsed(lens::features::kLensOverlay);
 }
 

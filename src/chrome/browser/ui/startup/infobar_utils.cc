@@ -44,13 +44,13 @@ bool ShouldShowBadFlagsSecurityWarnings() {
   if (!local_state)
     return true;
 
-  const auto* pref = local_state->FindPreference(
-      prefs::kCommandLineFlagSecurityWarningsEnabled);
-  DCHECK(pref);
+  // const auto* pref = local_state->FindPreference( // wootz
+  //     prefs::kCommandLineFlagSecurityWarningsEnabled);
+  // DCHECK(pref);
 
   // The warnings can only be disabled by policy. Default to show warnings.
-  if (pref->IsManaged())
-    return pref->GetValue()->GetBool();
+  // if (pref->IsManaged())
+  //   return pref->GetValue()->GetBool();
 #endif
   return true;
 }
@@ -159,11 +159,11 @@ void AddInfoBarsIfNecessary(Browser* browser,
     }
 
     if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
-      PrefService* local_state = g_browser_process->local_state();
-      if (!local_state ||
-          !local_state->GetBoolean(prefs::kSuppressUnsupportedOSWarning)) {
-        ObsoleteSystemInfoBarDelegate::Create(infobar_manager);
-      }
+      // PrefService* local_state = g_browser_process->local_state(); // wootz
+      // if (!local_state ||
+      //     !local_state->GetBoolean(prefs::kSuppressUnsupportedOSWarning)) {
+      //   ObsoleteSystemInfoBarDelegate::Create(infobar_manager);
+      // }
     }
 
 #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)

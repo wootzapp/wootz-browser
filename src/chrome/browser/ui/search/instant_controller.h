@@ -12,8 +12,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#error "Instant is only used on desktop";
+#if BUILDFLAG(IS_ANDROID) // wootz
+// #error "Instant is only used on desktop";
 #endif
 
 class Profile;

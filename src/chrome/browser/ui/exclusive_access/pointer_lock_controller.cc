@@ -74,10 +74,11 @@ void PointerLockController::RequestToLockPointer(WebContents* web_contents,
       return;
     }
   }
-  if (!base::FeatureList::IsEnabled(features::kKeyboardAndPointerLockPrompt)) {
-    LockPointer(web_contents->GetWeakPtr(), last_unlocked_by_target);
-    return;
-  }
+  // wootz
+  // if (!base::FeatureList::IsEnabled(features::kKeyboardAndPointerLockPrompt)) {
+  //   LockPointer(web_contents->GetWeakPtr(), last_unlocked_by_target);
+  //   return;
+  // }
   exclusive_access_manager()->permission_manager().QueuePermissionRequest(
       blink::PermissionType::POINTER_LOCK,
       base::BindOnce(&PointerLockController::LockPointer,

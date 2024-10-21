@@ -543,7 +543,8 @@ are declared in tools/grit/grit_rule.gni.
       </if>
 
        <!-- content area context menus. Android does not use it -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <message name="IDS_CONTENT_CONTEXT_INSPECTELEMENT" desc="The name of the Inspect Element command in the content area context menu">
           I&amp;nspect
         </message>
@@ -9566,7 +9567,8 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
 
       <!-- Strings for intent picker -->
-      <if expr="not is_android">
+      <!-- <if expr="not is_android"> -->
+      <if expr="is_android">
         <message name="IDS_TOOLTIP_INTENT_PICKER_ICON" desc="The tooltip for the intent picker bubble icon">
           To open this link, choose an app
         </message>

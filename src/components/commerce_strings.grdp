@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <grit-part>
   <!-- Desktop only -->
-  <if expr="not is_android and not is_ios">
+  <!-- <if expr="not is_android and not is_ios"> -->
+  <if expr="not is_ios">
     <!-- Discount consent strings -->
     <!-- TODO(crbug.com/40868354): Delete the following strings. -->
     <message name="IDS_DISCOUNT_CONTEXTUAL_CONSENT_TITLE" desc="The title shown on the consent bubble for getting discount.">

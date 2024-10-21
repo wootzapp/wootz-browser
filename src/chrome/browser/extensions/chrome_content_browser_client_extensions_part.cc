@@ -130,9 +130,10 @@ bool AllowServiceWorker(const GURL& scope,
                         const Extension* extension) {
   // Don't allow a service worker for an extension url with no extension (this
   // could happen in the case of, e.g., an unloaded extension).
+  LOG(ERROR) << "EXTS 1";
   if (!extension)
     return false;
-
+  LOG(ERROR) << "EXTS 2";
   // If an extension doesn't have a service worker-based background script, it
   // can register a service worker at any scope.
   if (!BackgroundInfo::IsServiceWorkerBased(extension)) {
@@ -154,6 +155,7 @@ bool AllowServiceWorker(const GURL& scope,
   // manifest can be registered at the root scope.
   const std::string& sw_script =
       BackgroundInfo::GetBackgroundServiceWorkerScript(extension);
+  LOG(ERROR) << "EXTS " << (script_url == extension->GetResourceURL(sw_script));
   return script_url == extension->GetResourceURL(sw_script);
 }
 

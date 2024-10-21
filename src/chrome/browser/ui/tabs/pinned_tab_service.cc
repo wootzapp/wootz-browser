@@ -5,7 +5,7 @@
 #include "chrome/browser/ui/tabs/pinned_tab_service.h"
 
 #include "base/functional/bind.h"
-#include "chrome/browser/lifetime/application_lifetime_desktop.h"
+// #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -13,9 +13,9 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 
 PinnedTabService::PinnedTabService(Profile* profile) : profile_(profile) {
-  closing_all_browsers_subscription_ = chrome::AddClosingAllBrowsersCallback(
-      base::BindRepeating(&PinnedTabService::OnClosingAllBrowsersChanged,
-                          base::Unretained(this)));
+  // closing_all_browsers_subscription_ = chrome::AddClosingAllBrowsersCallback( // wootz
+  //     base::BindRepeating(&PinnedTabService::OnClosingAllBrowsersChanged,
+  //                         base::Unretained(this)));
 
   for (Browser* browser : *BrowserList::GetInstance())
     OnBrowserAdded(browser);

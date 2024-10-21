@@ -121,7 +121,8 @@ int SadTab::GetTitle() {
 }
 
 int SadTab::GetErrorCodeFormatString() {
-  return IDS_SAD_TAB_ERROR_CODE;
+  return 0; // wootz
+  // return IDS_SAD_TAB_ERROR_CODE;
 }
 
 int SadTab::GetInfoMessage() {

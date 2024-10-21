@@ -278,7 +278,7 @@ class BubbleDialogDelegate::AnchorWidgetObserver : public WidgetObserver,
   AnchorWidgetObserver(BubbleDialogDelegate* owner, Widget* widget)
       : owner_(owner) {
     widget_observation_.Observe(widget);
-#if !BUILDFLAG(IS_MAC)
+#if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID) // wootz
     window_observation_.Observe(widget->GetNativeWindow());
 #endif
   }

@@ -13,8 +13,8 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/startup/startup_types.h"
 
-#if BUILDFLAG(IS_ANDROID)
-#error "Not used on Android"
+#if BUILDFLAG(IS_ANDROID) // wootz
+// #error "Not used on Android"
 #endif
 
 class BrowserList;

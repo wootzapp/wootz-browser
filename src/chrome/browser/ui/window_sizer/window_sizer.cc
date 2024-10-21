@@ -28,6 +28,9 @@
 #include "chrome/browser/ui/window_sizer/window_sizer_chromeos.h"
 #endif
 
+// wootz
+const int WindowSizer::kWindowMaxDefaultWidth = 1050;
+
 namespace {
 
 // Minimum height of the visible part of a window.

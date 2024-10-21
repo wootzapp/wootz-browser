@@ -187,12 +187,12 @@ void PrivacySandboxPromptHelper::DidFinishNavigation(
   // to open another one.
   if (auto* privacy_sandbox_service =
           PrivacySandboxServiceFactory::GetForProfile(profile())) {
-    if (privacy_sandbox_service->IsPromptOpenForBrowser(browser)) {
-      base::UmaHistogramEnumeration(kPrivacySandboxPromptHelperEventHistogram,
-                                    SettingsPrivacySandboxPromptHelperEvent::
-                                        kPromptAlreadyExistsForBrowser);
-      return;
-    }
+    // if (privacy_sandbox_service->IsPromptOpenForBrowser(browser)) { // wootz
+    //   base::UmaHistogramEnumeration(kPrivacySandboxPromptHelperEventHistogram,
+    //                                 SettingsPrivacySandboxPromptHelperEvent::
+    //                                     kPromptAlreadyExistsForBrowser);
+    //   return;
+    // }
   }
 
   // The PrivacySandbox prompt can always fit inside a normal tabbed window due

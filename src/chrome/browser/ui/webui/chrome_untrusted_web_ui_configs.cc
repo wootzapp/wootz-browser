@@ -9,7 +9,7 @@
 #include "content/public/browser/webui_config_map.h"
 #include "printing/buildflags/buildflags.h"
 
-#if defined(TOOLKIT_VIEWS)
+#if false && defined(TOOLKIT_VIEWS) // wootz
 #include "chrome/browser/ui/side_panel/companion/companion_utils.h"
 #include "chrome/browser/ui/webui/hats/hats_ui.h"
 #include "chrome/browser/ui/webui/side_panel/companion/companion_side_panel_untrusted_ui.h"
@@ -37,11 +37,11 @@ void RegisterChromeUntrustedWebUIConfigs() {
   ash::RegisterAshChromeUntrustedWebUIConfigs();
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-#if defined(TOOLKIT_VIEWS) || BUILDFLAG(ENABLE_PRINT_PREVIEW)
+#if false && defined(TOOLKIT_VIEWS) || BUILDFLAG(ENABLE_PRINT_PREVIEW) // wootz
   auto& map = content::WebUIConfigMap::GetInstance();
 #endif  // defined(TOOLKIT_VIEWS) || BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
-#if defined(TOOLKIT_VIEWS)
+#if false && defined(TOOLKIT_VIEWS) // wootz
   map.AddUntrustedWebUIConfig(
       std::make_unique<CompanionSidePanelUntrustedUIConfig>());
   map.AddUntrustedWebUIConfig(std::make_unique<lens::LensUntrustedUIConfig>());

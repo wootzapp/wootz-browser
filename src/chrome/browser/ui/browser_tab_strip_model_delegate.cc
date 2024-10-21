@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "build/build_config.h"
+#include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/reading_list/reading_list_model_factory.h"
@@ -22,7 +23,7 @@
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/tab_helpers.h"
+// #include "chrome/browser/ui/tab_helpers.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_keyed_service.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_service_factory.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
@@ -106,7 +107,7 @@ Browser* BrowserTabStripModelDelegate::CreateNewStripWithTabs(
 
 void BrowserTabStripModelDelegate::WillAddWebContents(
     content::WebContents* contents) {
-  TabHelpers::AttachTabHelpers(contents);
+  TabAndroid::AttachTabHelpers(contents);
 
   // Make the tab show up in the task manager.
   task_manager::WebContentsTags::CreateForTabContents(contents);
@@ -218,7 +219,7 @@ void BrowserTabStripModelDelegate::GroupAdded(
     return;
   }
 
-  if (saved_tab_group_service->model()->Contains(group)) {
+  if (saved_tab_group_service->model()->Contains(group.token())) {
     return;
   }
 
@@ -238,7 +239,7 @@ void BrowserTabStripModelDelegate::WillCloseGroup(
           browser_->profile());
 
   if (saved_tab_group_service &&
-      saved_tab_group_service->model()->Contains(group)) {
+      saved_tab_group_service->model()->Contains(group.token())) {
     saved_tab_group_service->DisconnectLocalTabGroup(group);
   }
 }

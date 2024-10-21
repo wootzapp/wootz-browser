@@ -267,7 +267,7 @@ class ProfileManager : public Profile::Delegate {
   AccountProfileMapper* GetAccountProfileMapper();
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) // wootz
   // Searches for the latest active profile that respects |predicate|, already
   // loaded preferably. Returns nullopt if no existing profile respects all the
   // conditions.
@@ -566,8 +566,8 @@ class ProfileManager : public Profile::Delegate {
   // default.
   bool logged_in_ = false;
 
-#if !BUILDFLAG(IS_ANDROID)
-  BrowserListObserver browser_list_observer_{this};
+#if BUILDFLAG(IS_ANDROID) // wootz
+  // BrowserListObserver browser_list_observer_{this};
 
   std::unique_ptr<DeleteProfileHelper> delete_profile_helper_;
 #endif  // !BUILDFLAG(IS_ANDROID)

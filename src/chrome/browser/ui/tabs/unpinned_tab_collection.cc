@@ -23,9 +23,9 @@ UnpinnedTabCollection::~UnpinnedTabCollection() = default;
 
 void UnpinnedTabCollection::AddTab(std::unique_ptr<TabModel> tab_model,
                                    size_t direct_child_index) {
-  TabModel* inserted_tab_model =
-      impl_->AddTab(std::move(tab_model), direct_child_index);
-  inserted_tab_model->OnReparented(this, GetPassKey());
+  // TabModel* inserted_tab_model = // wootz
+  //     impl_->AddTab(std::move(tab_model), direct_child_index);
+  // inserted_tab_model->OnReparented(this, GetPassKey()); 
 }
 
 void UnpinnedTabCollection::AddTabRecursive(
@@ -58,8 +58,8 @@ void UnpinnedTabCollection::AddTabRecursive(
       if (new_group_id.has_value() &&
           new_group_id.value() == group_collection->GetTabGroupId() &&
           index <= curr_index + num_of_tabs_in_sub_collection) {
-        return group_collection->AddTab(std::move(tab_model),
-                                        index - curr_index);
+        // return group_collection->AddTab(std::move(tab_model), // wootz
+        //                                 index - curr_index);
       } else {
         curr_index += num_of_tabs_in_sub_collection;
       }
@@ -94,7 +94,7 @@ tabs::TabModel* UnpinnedTabCollection::GetTabAtIndexRecursive(size_t index) {
           group_collection->TabCountRecursive();
 
       if (index < curr_index + num_of_tabs_in_sub_collection) {
-        return group_collection->GetTabAtIndex(index - curr_index);
+        // return group_collection->GetTabAtIndex(index - curr_index); // wootz
       } else {
         curr_index += num_of_tabs_in_sub_collection;
       }
@@ -120,17 +120,18 @@ void UnpinnedTabCollection::CloseTab(TabModel* tab_model) {
 std::optional<size_t>
 UnpinnedTabCollection::GetDirectChildIndexOfCollectionContainingTab(
     const TabModel* tab_model) const {
-  if (tab_model->GetParentCollection(GetPassKey()) == this) {
-    return GetIndexOfTab(tab_model).value();
-  } else {
-    TabCollection* parent_collection =
-        tab_model->GetParentCollection(GetPassKey());
-    while (parent_collection && !ContainsCollection(parent_collection)) {
-      parent_collection = parent_collection->GetParentCollection();
-    }
+  // if (tab_model->GetParentCollection(GetPassKey()) == this) { // wootz
+  //   return GetIndexOfTab(tab_model).value();
+  // } else {
+  //   TabCollection* parent_collection =
+  //       tab_model->GetParentCollection(GetPassKey());
+  //   while (parent_collection && !ContainsCollection(parent_collection)) {
+  //     parent_collection = parent_collection->GetParentCollection();
+  //   }
 
-    return GetIndexOfCollection(parent_collection);
-  }
+  //   return GetIndexOfCollection(parent_collection);
+  // }
+  return 0;
 }
 
 bool UnpinnedTabCollection::ContainsTab(TabModel* tab_model) const {
@@ -192,7 +193,7 @@ std::unique_ptr<TabModel> UnpinnedTabCollection::MaybeRemoveTab(
   }
 
   std::unique_ptr<TabModel> removed_tab_model = impl_->RemoveTab(tab_model);
-  removed_tab_model->OnReparented(nullptr, GetPassKey());
+  // removed_tab_model->OnReparented(nullptr, GetPassKey()); // wootz
   return removed_tab_model;
 }
 
