@@ -1066,5 +1066,9 @@
   "wootz": {
     "channel": "stable", 
     "contexts": ["privileged_extension", "webui"]
+  },
+  "helloWorld": {
+    "channel": "stable",
+    "contexts": ["privileged_extension", "webui"]
   }
 }
