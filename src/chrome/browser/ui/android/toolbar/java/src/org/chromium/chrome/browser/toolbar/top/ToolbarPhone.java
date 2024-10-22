@@ -2720,7 +2720,7 @@ public class ToolbarPhone extends ToolbarLayout
     private void updateLocationBarForSurfacePolishImpl(
             boolean statusIconBackgroundVisibility,
             boolean useDefaultUrlBarAndUrlActionContainerAppearance) {
-        mLocationBar.setStatusIconBackgroundVisibility(statusIconBackgroundVisibility);
+        mLocationBar.setStatusIconBackgroundVisibility(getToolbarDataProvider().getCurrentGurl().getScheme() == "chrome-extension");//statusIconBackgroundVisibility);
         mLocationBar.updateUrlBarTypeface(useDefaultUrlBarAndUrlActionContainerAppearance);
         mLocationBar.updateUrlBarHintTextColor(useDefaultUrlBarAndUrlActionContainerAppearance);
         mLocationBar.updateUrlActionContainerEndMargin(

@@ -73,7 +73,7 @@
 #include "chrome/browser/usb/usb_chooser_context_factory.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_loader_factory.h"
-#include "chrome/browser/web_applications/web_app_command_scheduler.h"
+// #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_paths.h"
@@ -424,8 +424,8 @@ ChromeExtensionsBrowserClient::GetControlledFrameEmbedderURLLoader(
     const url::Origin& app_origin,
     int frame_tree_node_id,
     content::BrowserContext* browser_context) {
-  return web_app::IsolatedWebAppURLLoaderFactory::CreateForFrame(
-      browser_context, app_origin, frame_tree_node_id);
+  // return web_app::IsolatedWebAppURLLoaderFactory::CreateForFrame(
+  //     browser_context, app_origin, frame_tree_node_id);
 }
 
 std::unique_ptr<ExtensionHostDelegate>
@@ -536,8 +536,9 @@ void ChromeExtensionsBrowserClient::RegisterBrowserInterfaceBindersForFrame(
 std::unique_ptr<RuntimeAPIDelegate>
 ChromeExtensionsBrowserClient::CreateRuntimeAPIDelegate(
     content::BrowserContext* context) const {
-  return std::unique_ptr<RuntimeAPIDelegate>(
-      new ChromeRuntimeAPIDelegate(context));
+  // return std::unique_ptr<RuntimeAPIDelegate>(
+  //     new ChromeRuntimeAPIDelegate(context));
+  return nullptr;
 }
 
 const ComponentExtensionResourceManager*
@@ -653,17 +654,18 @@ void ChromeExtensionsBrowserClient::AttachExtensionTaskManagerTag(
 scoped_refptr<update_client::UpdateClient>
 ChromeExtensionsBrowserClient::CreateUpdateClient(
     content::BrowserContext* context) {
-  std::optional<GURL> override_url;
-  GURL update_url = extension_urls::GetWebstoreUpdateUrl();
-  if (update_url != extension_urls::GetDefaultWebstoreUpdateUrl()) {
-    if (update_url.path() == kCrxUrlPath) {
-      override_url = update_url.GetWithEmptyPath().Resolve(kJsonUrlPath);
-    } else {
-      override_url = update_url;
-    }
-  }
-  return update_client::UpdateClientFactory(
-      ChromeUpdateClientConfig::Create(context, override_url));
+  // std::optional<GURL> override_url;
+  // GURL update_url = extension_urls::GetWebstoreUpdateUrl();
+  // if (update_url != extension_urls::GetDefaultWebstoreUpdateUrl()) {
+  //   if (update_url.path() == kCrxUrlPath) {
+  //     override_url = update_url.GetWithEmptyPath().Resolve(kJsonUrlPath);
+  //   } else {
+  //     override_url = update_url;
+  //   }
+  // }
+  // return update_client::UpdateClientFactory(
+  //     ChromeUpdateClientConfig::Create(context, override_url));
+  return nullptr;
 }
 
 std::unique_ptr<ScopedExtensionUpdaterKeepAlive>
@@ -696,10 +698,11 @@ void ChromeExtensionsBrowserClient::GetTabAndWindowIdForWebContents(
 }
 
 KioskDelegate* ChromeExtensionsBrowserClient::GetKioskDelegate() {
-  if (!kiosk_delegate_) {
-    kiosk_delegate_ = std::make_unique<ChromeKioskDelegate>();
-  }
-  return kiosk_delegate_.get();
+  // if (!kiosk_delegate_) {
+  //   kiosk_delegate_ = std::make_unique<ChromeKioskDelegate>();
+  // }
+  // return kiosk_delegate_.get();
+  return nullptr;
 }
 
 bool ChromeExtensionsBrowserClient::IsLockScreenContext(
@@ -797,44 +800,44 @@ void ChromeExtensionsBrowserClient::NotifyExtensionApiTabExecuteScript(
     content::BrowserContext* context,
     const ExtensionId& extension_id,
     const std::string& code) const {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(context));
-  if (!telemetry_service || !telemetry_service->enabled() ||
-      !base::FeatureList::IsEnabled(
-          safe_browsing::kExtensionTelemetryTabsExecuteScriptSignal)) {
-    return;
-  }
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(context));
+  // if (!telemetry_service || !telemetry_service->enabled() ||
+  //     !base::FeatureList::IsEnabled(
+  //         safe_browsing::kExtensionTelemetryTabsExecuteScriptSignal)) {
+  //   return;
+  // }
 
-  auto signal = std::make_unique<safe_browsing::TabsExecuteScriptSignal>(
-      extension_id, code);
-  telemetry_service->AddSignal(std::move(signal));
+  // auto signal = std::make_unique<safe_browsing::TabsExecuteScriptSignal>(
+  //     extension_id, code);
+  // telemetry_service->AddSignal(std::move(signal));
 }
 
 bool ChromeExtensionsBrowserClient::IsExtensionTelemetryServiceEnabled(
     content::BrowserContext* context) const {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(context));
-  return telemetry_service && telemetry_service->enabled();
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(context));
+  // return telemetry_service && telemetry_service->enabled();
 }
 
 void ChromeExtensionsBrowserClient::NotifyExtensionApiDeclarativeNetRequest(
     content::BrowserContext* context,
     const ExtensionId& extension_id,
     const std::vector<api::declarative_net_request::Rule>& rules) const {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(context));
-  if (!telemetry_service || !telemetry_service->enabled()) {
-    return;
-  }
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(context));
+  // if (!telemetry_service || !telemetry_service->enabled()) {
+  //   return;
+  // }
 
   // The telemetry service will consume and release the signal object inside the
   // `AddSignal()` call.
-  auto signal = std::make_unique<safe_browsing::DeclarativeNetRequestSignal>(
-      extension_id, rules);
-  telemetry_service->AddSignal(std::move(signal));
+  // auto signal = std::make_unique<safe_browsing::DeclarativeNetRequestSignal>(
+  //     extension_id, rules);
+  // telemetry_service->AddSignal(std::move(signal));
 }
 
 void ChromeExtensionsBrowserClient::
@@ -843,22 +846,22 @@ void ChromeExtensionsBrowserClient::
         const ExtensionId& extension_id,
         const GURL& request_url,
         const GURL& redirect_url) const {
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(context));
-  if (!telemetry_service || !telemetry_service->enabled() ||
-      !base::FeatureList::IsEnabled(
-          safe_browsing::
-              kExtensionTelemetryDeclarativeNetRequestActionSignal)) {
-    return;
-  }
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(context));
+  // if (!telemetry_service || !telemetry_service->enabled() ||
+  //     !base::FeatureList::IsEnabled(
+  //         safe_browsing::
+  //             kExtensionTelemetryDeclarativeNetRequestActionSignal)) {
+  //   return;
+  // }
 
   // The telemetry service will consume and release the signal object inside the
   // `AddSignal()` call.
-  auto signal = safe_browsing::DeclarativeNetRequestActionSignal::
-      CreateDeclarativeNetRequestRedirectActionSignal(extension_id, request_url,
-                                                      redirect_url);
-  telemetry_service->AddSignal(std::move(signal));
+  // auto signal = safe_browsing::DeclarativeNetRequestActionSignal::
+  //     CreateDeclarativeNetRequestRedirectActionSignal(extension_id, request_url,
+  //                                                     redirect_url);
+  // telemetry_service->AddSignal(std::move(signal));
 }
 
 void ChromeExtensionsBrowserClient::NotifyExtensionRemoteHostContacted(
@@ -866,36 +869,36 @@ void ChromeExtensionsBrowserClient::NotifyExtensionRemoteHostContacted(
     const ExtensionId& extension_id,
     const GURL& url) const {
   // Collect only if new interception feature is disabled to avoid duplicates.
-  if (base::FeatureList::IsEnabled(
-          safe_browsing::
-              kExtensionTelemetryInterceptRemoteHostsContactedInRenderer)) {
-    return;
-  }
+  // if (base::FeatureList::IsEnabled(
+  //         safe_browsing::
+  //             kExtensionTelemetryInterceptRemoteHostsContactedInRenderer)) {
+  //   return;
+  // }
 
-  safe_browsing::RemoteHostInfo::ProtocolType protocol =
-      safe_browsing::RemoteHostInfo::UNSPECIFIED;
-  if (base::FeatureList::IsEnabled(
-          safe_browsing::kExtensionTelemetryReportContactedHosts) &&
-      url.SchemeIsHTTPOrHTTPS()) {
-    protocol = safe_browsing::RemoteHostInfo::HTTP_HTTPS;
-  } else if (base::FeatureList::IsEnabled(
-                 safe_browsing::
-                     kExtensionTelemetryReportHostsContactedViaWebSocket) &&
-             url.SchemeIsWSOrWSS()) {
-    protocol = safe_browsing::RemoteHostInfo::WEBSOCKET;
-  } else {
-    return;
-  }
-  auto* telemetry_service =
-      safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
-          Profile::FromBrowserContext(context));
-  if (!telemetry_service || !telemetry_service->enabled()) {
-    return;
-  }
-  auto remote_host_signal =
-      std::make_unique<safe_browsing::RemoteHostContactedSignal>(extension_id,
-                                                                 url, protocol);
-  telemetry_service->AddSignal(std::move(remote_host_signal));
+  // safe_browsing::RemoteHostInfo::ProtocolType protocol =
+  //     safe_browsing::RemoteHostInfo::UNSPECIFIED;
+  // if (base::FeatureList::IsEnabled(
+  //         safe_browsing::kExtensionTelemetryReportContactedHosts) &&
+  //     url.SchemeIsHTTPOrHTTPS()) {
+  //   protocol = safe_browsing::RemoteHostInfo::HTTP_HTTPS;
+  // } else if (base::FeatureList::IsEnabled(
+  //                safe_browsing::
+  //                    kExtensionTelemetryReportHostsContactedViaWebSocket) &&
+  //            url.SchemeIsWSOrWSS()) {
+  //   protocol = safe_browsing::RemoteHostInfo::WEBSOCKET;
+  // } else {
+  //   return;
+  // }
+  // auto* telemetry_service =
+  //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
+  //         Profile::FromBrowserContext(context));
+  // if (!telemetry_service || !telemetry_service->enabled()) {
+  //   return;
+  // }
+  // auto remote_host_signal =
+  //     std::make_unique<safe_browsing::RemoteHostContactedSignal>(extension_id,
+  //                                                                url, protocol);
+  // telemetry_service->AddSignal(std::move(remote_host_signal));
 }
 
 // static
@@ -928,8 +931,8 @@ void ChromeExtensionsBrowserClient::GetFavicon(
     base::CancelableTaskTracker* tracker,
     base::OnceCallback<void(scoped_refptr<base::RefCountedMemory> bitmap_data)>
         callback) const {
-  favicon_util::GetFaviconForExtensionRequest(browser_context, extension, url,
-                                              tracker, std::move(callback));
+  // favicon_util::GetFaviconForExtensionRequest(browser_context, extension, url,
+  //                                             tracker, std::move(callback));
 }
 
 std::vector<content::BrowserContext*>
@@ -1043,19 +1046,19 @@ void ChromeExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
     bool in_memory,
     base::OnceCallback<void(std::optional<content::StoragePartitionConfig>)>
         callback) {
-  const GURL& owner_site_url = owner_site_instance->GetSiteURL();
-  if (owner_site_url.SchemeIs(chrome::kIsolatedAppScheme)) {
-    base::expected<web_app::IsolatedWebAppUrlInfo, std::string> url_info =
-        web_app::IsolatedWebAppUrlInfo::Create(owner_site_url);
-    DCHECK(url_info.has_value()) << url_info.error();
+  // const GURL& owner_site_url = owner_site_instance->GetSiteURL();
+  // if (owner_site_url.SchemeIs(chrome::kIsolatedAppScheme)) {
+  //   base::expected<web_app::IsolatedWebAppUrlInfo, std::string> url_info =
+  //       web_app::IsolatedWebAppUrlInfo::Create(owner_site_url);
+  //   DCHECK(url_info.has_value()) << url_info.error();
 
-    auto* profile = Profile::FromBrowserContext(browser_context);
-    auto* web_app_provider = web_app::WebAppProvider::GetForWebApps(profile);
-    CHECK(web_app_provider);
-    web_app_provider->scheduler().GetControlledFramePartition(
-        *url_info, partition_name, in_memory, std::move(callback));
-    return;
-  }
+  //   auto* profile = Profile::FromBrowserContext(browser_context);
+  //   // auto* web_app_provider = web_app::WebAppProvider::GetForWebApps(profile);
+  //   // CHECK(web_app_provider);
+  //   // web_app_provider->scheduler().GetControlledFramePartition(
+  //   //     *url_info, partition_name, in_memory, std::move(callback));
+  //   return;
+  // }
 
   ExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
       browser_context, owner_site_instance, partition_name, in_memory,

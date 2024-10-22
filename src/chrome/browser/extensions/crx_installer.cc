@@ -92,7 +92,7 @@ scoped_refptr<CrxInstaller> CrxInstaller::Create(
     ExtensionService* frontend,
     std::unique_ptr<ExtensionInstallPrompt> client) {
   return new CrxInstaller(frontend->AsExtensionServiceWeakPtr(),
-                          std::move(client), nullptr);
+                          std::move(client), nullptr); 
 }
 
 // static
@@ -1110,6 +1110,8 @@ void CrxInstaller::NotifyCrxInstallComplete(
         NOTREACHED_IN_MIGRATION();
         break;
     }
+
+    LOG(ERROR) << "CRXX ID " << extension_id;
   }
 
   InstallTrackerFactory::GetForBrowserContext(profile())->OnFinishCrxInstall(

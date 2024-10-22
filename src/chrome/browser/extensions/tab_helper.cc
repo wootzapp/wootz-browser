@@ -124,7 +124,7 @@ TabHelper::TabHelper(content::WebContents* web_contents)
   registry_observation_.Observe(
       ExtensionRegistry::Get(web_contents->GetBrowserContext()));
 
-  BookmarkManagerPrivateDragEventRouter::CreateForWebContents(web_contents);
+  // BookmarkManagerPrivateDragEventRouter::CreateForWebContents(web_contents);
 }
 
 void TabHelper::SetExtensionApp(const Extension* extension) {
@@ -266,18 +266,18 @@ void TabHelper::DidFinishNavigation(
   DisableBackForwardCacheIfNecessary(enabled_extensions, context,
                                      navigation_handle);
 
-  Browser* browser = chrome::FindBrowserWithTab(web_contents());
-  if (browser && (browser->is_type_app() || browser->is_type_app_popup())) {
-    const Extension* extension = registry->GetInstalledExtension(
-        web_app::GetAppIdFromApplicationName(browser->app_name()));
-    if (extension && AppLaunchInfo::GetFullLaunchURL(extension).is_valid()) {
-      DCHECK(extension->is_app());
-      SetExtensionApp(extension);
-    }
-  } else {
-    UpdateExtensionAppIcon(
-        enabled_extensions.GetExtensionOrAppByURL(navigation_handle->GetURL()));
-  }
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents());
+  // if (browser && (browser->is_type_app() || browser->is_type_app_popup())) {
+  //   const Extension* extension = registry->GetInstalledExtension(
+  //       web_app::GetAppIdFromApplicationName(browser->app_name()));
+  //   if (extension && AppLaunchInfo::GetFullLaunchURL(extension).is_valid()) {
+  //     DCHECK(extension->is_app());
+  //     SetExtensionApp(extension);
+  //   }
+  // } else {
+  //   UpdateExtensionAppIcon(
+  //       enabled_extensions.GetExtensionOrAppByURL(navigation_handle->GetURL()));
+  // }
 
   // Reset the `reload_required_` data member, since a page navigation acts as a
   // page refresh.

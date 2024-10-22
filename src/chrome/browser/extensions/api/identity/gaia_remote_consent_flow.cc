@@ -56,24 +56,24 @@ GaiaRemoteConsentFlow::~GaiaRemoteConsentFlow() {
 }
 
 void GaiaRemoteConsentFlow::Start() {
-  if (!web_flow_) {
-    web_flow_ =
-        std::make_unique<WebAuthFlow>(this, profile_, resolution_data_.url,
-                                      WebAuthFlow::INTERACTIVE, user_gesture_);
-  }
+  // if (!web_flow_) {
+  //   web_flow_ =
+  //       std::make_unique<WebAuthFlow>(this, profile_, resolution_data_.url,
+  //                                     WebAuthFlow::INTERACTIVE, user_gesture_);
+  // }
 
-  network::mojom::CookieManager* cookie_manager =
-      GetCookieManagerForPartition();
-  net::CookieOptions options;
-  for (const auto& cookie : resolution_data_.cookies) {
-    cookie_manager->SetCanonicalCookie(
-        cookie,
-        net::cookie_util::SimulatedCookieSource(cookie, url::kHttpsScheme),
-        options, network::mojom::CookieManager::SetCanonicalCookieCallback());
-  }
+  // network::mojom::CookieManager* cookie_manager =
+  //     GetCookieManagerForPartition();
+  // net::CookieOptions options;
+  // for (const auto& cookie : resolution_data_.cookies) {
+  //   cookie_manager->SetCanonicalCookie(
+  //       cookie,
+  //       net::cookie_util::SimulatedCookieSource(cookie, url::kHttpsScheme),
+  //       options, network::mojom::CookieManager::SetCanonicalCookieCallback());
+  // }
 
-  web_flow_->Start();
-  web_flow_started_ = true;
+  // web_flow_->Start();
+  // web_flow_started_ = true;
 }
 
 void GaiaRemoteConsentFlow::ReactToConsentResult(
@@ -141,10 +141,10 @@ void GaiaRemoteConsentFlow::GaiaRemoteConsentFlowFailed(Failure failure) {
 }
 
 void GaiaRemoteConsentFlow::DetachWebAuthFlow() {
-  if (!web_flow_)
-    return;
+  // if (!web_flow_)
+  //   return;
 
-  web_flow_.release()->DetachDelegateAndDelete();
+  // web_flow_.release()->DetachDelegateAndDelete();
 }
 
 void GaiaRemoteConsentFlow::OnNavigationFinished(

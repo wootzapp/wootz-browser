@@ -8,9 +8,10 @@
 
 namespace segmentation_platform::features {
 
-BASE_FEATURE(kSegmentationPlatformFeature,
+BASE_FEATURE(kSegmentationPlatformFeature, "SegmentationPlatform"
              "SegmentationPlatform",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
+            //  base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSegmentationPlatformUkmEngine,
              "SegmentationPlatformUkmEngine",

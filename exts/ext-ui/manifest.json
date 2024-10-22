@@ -1,0 +1,10 @@
+{
+    "manifest_version": 3,
+    "name": "Simple UI Extension",
+    "version": "1.0",
+    "description": "A simple Chromium extension with UI in index.html",
+    "action": {
+      "default_popup": "index.html",
+      "default_title": "Click to open the UI"
+    }
+}

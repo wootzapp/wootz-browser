@@ -2745,6 +2745,11 @@ Called by update_extension_histograms.py.-->
   <int value="1887" label="PASSWORDSPRIVATE_DISCONNECTCLOUDAUTHENTICATOR"/>
   <int value="1888" label="PASSWORDSPRIVATE_ISCONNECTEDTOCLOUDAUTHENTICATOR"/>
   <int value="1889" label="WEBSTOREPRIVATE_GETMV2DEPRECATIONSTATUS"/>
+  <int value="1890" label="WOOTZ_INFO"/>
+  <int value="1891" label="HELLOWORLD_SAYHELLO"/>
+  <int value="1892" label="WOOTZ_HELLOWORLD"/>
+  <int value="1893" label="WOOTZ_SHOWCONSENTDIALOGANDMAYBESTARTSERVICE"/>
+  <int value="1894" label="WOOTZ_SHOWDIALOG"/>
 </enum>
 
 <enum name="ExtensionInstallationCrxInstallError">

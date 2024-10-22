@@ -272,7 +272,8 @@ void OmniboxAPI::OnTemplateURLsLoaded() {
 
 template <>
 void BrowserContextKeyedAPIFactory<OmniboxAPI>::DeclareFactoryDependencies() {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(ExtensionPrefsFactory::GetInstance());
   DependsOn(TemplateURLServiceFactory::GetInstance());
 }

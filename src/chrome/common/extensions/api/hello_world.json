@@ -1,0 +1,23 @@
+[
+  {
+    "namespace": "helloWorld",
+    "description": "A simple API that says hello.",
+    "functions": [
+      {
+        "name": "sayHello",
+        "type": "function",
+        "description": "Returns a greeting message",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "type": "string",
+              "name": "result"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

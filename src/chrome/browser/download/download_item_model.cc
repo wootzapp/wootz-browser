@@ -407,8 +407,9 @@ bool DownloadItemModel::ShouldRemoveFromShelfWhenComplete() const {
       // TODO(crbug.com/40129365): The logic for deciding opening behavior
       // should
       //                          be in a central location.
-      return (download_crx_util::IsTrustedExtensionDownload(profile(),
-                                                            *download_) ||
+      return (download_crx_util::IsExtensionDownload(*download_) ||
+      // return (download_crx_util::IsTrustedExtensionDownload(profile(),
+      //                                                       *download_) ||
               download_->IsTemporary() || download_->GetOpenWhenComplete() ||
               download_->ShouldOpenFileBasedOnExtension());
 
@@ -433,7 +434,8 @@ bool DownloadItemModel::ShouldRemoveFromShelfWhenComplete() const {
 
 bool DownloadItemModel::ShouldShowDownloadStartedAnimation() const {
   return !download_->IsSavePackageDownload() &&
-         !download_crx_util::IsTrustedExtensionDownload(profile(), *download_);
+        !download_crx_util::IsExtensionDownload(*download_);
+        //  !download_crx_util::IsTrustedExtensionDownload(profile(), *download_);
 }
 
 bool DownloadItemModel::ShouldShowInShelf() const {

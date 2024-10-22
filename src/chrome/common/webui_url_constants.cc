@@ -94,11 +94,11 @@ const char kChromeUIAccessCodeCastHost[] = "access-code-cast";
 const char kChromeUIAccessCodeCastURL[] = "chrome://access-code-cast/";
 const char kChromeUIDataSharingInternalsHost[] = "data-sharing-internals";
 const char kChromeUIExtensionIconHost[] = "extension-icon";
-const char kChromeUIExtensionIconURL[] = "chrome://extension-icon/";
+const char kChromeUIExtensionIconURL[] = "wootzapp://extension-icon/";
 const char kChromeUIExtensionsHost[] = "extensions";
 const char kChromeUIExtensionsInternalsHost[] = "extensions-internals";
-const char kChromeUIExtensionsInternalsURL[] = "chrome://extensions-internals";
-const char kChromeUIExtensionsURL[] = "chrome://extensions/";
+const char kChromeUIExtensionsInternalsURL[] = "wootzapp://extensions-internals";
+const char kChromeUIExtensionsURL[] = "wootzapp://extensions/";
 const char kChromeUIFamilyLinkUserInternalsHost[] =
     "family-link-user-internals";
 const char kChromeUIFaviconHost[] = "favicon";
@@ -329,9 +329,9 @@ const char kChromeUISuggestInternalsHost[] = "suggest-internals";
 const char kChromeUISuggestInternalsURL[] = "chrome://suggest-internals/";
 const char kChromeUIWebAppInternalsHost[] = "web-app-internals";
 const char kChromeUIWebAppInternalsURL[] = "chrome://web-app-internals";
-const char kChromeUIWebUITestHost[] = "webui-test";
 const char kChromeUIUntrustedWebUITestURL[] = "chrome-untrusted://webui-test/";
 #endif
+const char kChromeUIWebUITestHost[] = "webui-test";
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Keep alphabetized.

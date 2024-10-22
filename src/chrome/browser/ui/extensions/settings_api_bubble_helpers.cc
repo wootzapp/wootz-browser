@@ -12,7 +12,7 @@
 #include "chrome/browser/extensions/settings_api_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/controlled_home_bubble_delegate.h"
 #include "chrome/browser/ui/extensions/extension_settings_overridden_dialog.h"
 #include "chrome/browser/ui/extensions/extensions_container.h"
@@ -149,8 +149,8 @@ void MaybeShowExtensionControlledNewTabPage(
     return;
 
   // Acknowledge existing extensions if necessary.
-  if (g_acknowledge_existing_ntp_extensions)
-    AcknowledgePreExistingNtpExtensions(browser->profile());
+  // if (g_acknowledge_existing_ntp_extensions)
+  //   AcknowledgePreExistingNtpExtensions(browser->profile());
 
   // Jump through a series of hoops to see if the web contents is pointing to
   // an extension-controlled NTP.
@@ -172,19 +172,19 @@ void MaybeShowExtensionControlledNewTabPage(
   if (ntp_url != active_url)
     return;  // Not being overridden by an extension.
 
-  Profile* const profile = browser->profile();
+  // Profile* const profile = browser->profile();
 
-  std::optional<ExtensionSettingsOverriddenDialog::Params> params =
-      settings_overridden_params::GetNtpOverriddenParams(profile);
-  if (!params)
-    return;
+  // std::optional<ExtensionSettingsOverriddenDialog::Params> params =
+  //     settings_overridden_params::GetNtpOverriddenParams(profile);
+  // if (!params)
+  //   return;
 
-  auto dialog = std::make_unique<ExtensionSettingsOverriddenDialog>(
-      std::move(*params), profile);
-  if (!dialog->ShouldShow())
-    return;
+  // auto dialog = std::make_unique<ExtensionSettingsOverriddenDialog>(
+  //     std::move(*params), profile);
+  // if (!dialog->ShouldShow())
+  //   return;
 
-  ShowSettingsOverriddenDialog(std::move(dialog), browser);
+  // ShowSettingsOverriddenDialog(std::move(dialog), browser);
 }
 
 }  // namespace extensions

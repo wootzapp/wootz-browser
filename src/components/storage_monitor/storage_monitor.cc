@@ -54,8 +54,8 @@ void StorageMonitor::ReceiverImpl::MarkInitialized() {
 
 // static
 void StorageMonitor::Create() {
-  delete g_storage_monitor;
-  g_storage_monitor = CreateInternal();
+  // delete g_storage_monitor;
+  // g_storage_monitor = CreateInternal();
 }
 
 // static

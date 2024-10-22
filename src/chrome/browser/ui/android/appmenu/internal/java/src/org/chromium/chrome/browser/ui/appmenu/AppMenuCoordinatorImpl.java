@@ -15,6 +15,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
+import org.chromium.ui.base.WindowAndroid;
 import androidx.fragment.app.FragmentManager;
 /** A UI coordinator the app menu. */
 class AppMenuCoordinatorImpl implements AppMenuCoordinator {
@@ -73,7 +74,8 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
             View hardwareButtonAnchorView,
             Supplier<Rect> appRect,
             FragmentManager fragmentManager,
-            int itemRowHeight) {  // Add this parameter
+            int itemRowHeight,
+            WindowAndroid windowAndroid) {  // Add this parameter
         mContext = context;
         mButtonDelegate = buttonDelegate;
         mAppMenuDelegate = appMenuDelegate;
@@ -89,7 +91,8 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
                         hardwareButtonAnchorView,
                         appRect,
                         fragmentManager,
-                        itemRowHeight);  // Pass the itemRowHeight
+                        itemRowHeight,
+                        windowAndroid);  // Pass the itemRowHeight
     }
 
     @Override

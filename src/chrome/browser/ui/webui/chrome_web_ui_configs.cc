@@ -97,7 +97,7 @@ void RegisterChromeWebUIConfigs() {
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  map.AddWebUIConfig(std::make_unique<extensions::ExtensionsUIConfig>());
+  // map.AddWebUIConfig(std::make_unique<extensions::ExtensionsUIConfig>());
 #endif  // !BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)

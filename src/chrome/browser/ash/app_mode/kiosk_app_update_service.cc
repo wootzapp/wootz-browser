@@ -160,8 +160,9 @@ KioskAppUpdateServiceFactory::KioskAppUpdateServiceFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
               .Build()) {
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 KioskAppUpdateServiceFactory::~KioskAppUpdateServiceFactory() = default;

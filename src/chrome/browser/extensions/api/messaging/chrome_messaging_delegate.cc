@@ -168,6 +168,7 @@ ChromeMessagingDelegate::CreateReceiverForNativeApp(
     const std::string& native_app_name,
     bool allow_user_level,
     std::string* error_out) {
+#if 0
   DCHECK(error_out);
   gfx::NativeView native_view =
       source ? source->GetNativeView() : gfx::NativeView();
@@ -178,6 +179,8 @@ ChromeMessagingDelegate::CreateReceiverForNativeApp(
     return nullptr;
   return std::make_unique<NativeMessagePort>(channel_delegate, receiver_port_id,
                                              std::move(native_host));
+#endif
+  return nullptr;
 }
 
 void ChromeMessagingDelegate::QueryIncognitoConnectability(

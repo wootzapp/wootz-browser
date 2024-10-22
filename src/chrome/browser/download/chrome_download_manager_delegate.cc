@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 #include <utility>
-
+#include "base/logging.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -829,35 +829,45 @@ bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
     DownloadItem* item,
     content::DownloadOpenDelayedCallback callback) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (download_crx_util::IsExtensionDownload(*item) &&
-      !extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
-    scoped_refptr<CrxInstaller> installer(
-        download_crx_util::CreateCrxInstaller(profile_, *item));
+  if (download_crx_util::IsExtensionDownload(*item)) {// &&
+      //!extensions::WebstoreInstaller::GetAssociatedApproval(*item)) {
+    // std::string origin = item->GetURL().spec();
+    // LOG(INFO) << "WOOTZ: Downloading Extension" << origin;
+    // if(origin.find("https://devt75.github.io/extensions_test") != std::string::npos) {
+      // LOG(INFO) << "WOOTZ: Downloading Extension is from test origin";
+      scoped_refptr<CrxInstaller> installer(
+          download_crx_util::CreateCrxInstaller(profile_, *item));
 
-    if (download_crx_util::OffStoreInstallAllowedByPrefs(profile_, *item)) {
-      installer->set_off_store_install_allow_reason(
-          CrxInstaller::OffStoreInstallAllowedBecausePref);
-    }
+      // if (download_crx_util::OffStoreInstallAllowedByPrefs(profile_, *item)) {
+        installer->set_off_store_install_allow_reason(
+            CrxInstaller::OffStoreInstallAllowedBecausePref);
+      // }
 
-    auto token = base::UnguessableToken::Create();
-    running_crx_installs_[token] = installer;
+      auto token = base::UnguessableToken::Create();
+      running_crx_installs_[token] = installer;
 
-    installer->AddInstallerCallback(base::BindOnce(
-        &ChromeDownloadManagerDelegate::OnInstallerDone,
-        weak_ptr_factory_.GetWeakPtr(), token, std::move(callback)));
+      installer->AddInstallerCallback(base::BindOnce(
+          &ChromeDownloadManagerDelegate::OnInstallerDone,
+          weak_ptr_factory_.GetWeakPtr(), token, std::move(callback)));
 
-    if (extensions::UserScript::IsURLUserScript(item->GetURL(),
-                                                item->GetMimeType())) {
-      installer->InstallUserScript(item->GetFullPath(), item->GetURL());
-    } else {
-      installer->InstallCrx(item->GetFullPath());
-    }
+      // if (extensions::UserScript::IsURLUserScript(item->GetURL(),
+      //                                             item->GetMimeType())) {
+      //   installer->InstallUserScript(item->GetFullPath(), item->GetURL());
+      // } else {
+        installer->set_allow_silent_install(true);
+        installer->InstallCrx(item->GetFullPath());
+      // }
 
-    // The status text and percent complete indicator will change now
-    // that we are installing a CRX.  Update observers so that they pick
-    // up the change.
-    item->UpdateObservers();
-    return false;
+      // The status text and percent complete indicator will change now
+      // that we are installing a CRX.  Update observers so that they pick
+      // up the change.
+      item->UpdateObservers();
+      return false;
+    // }
+    // else {
+      // LOG(INFO) << "WOOTZ: Downloading Extension is not from test origin";
+      // return true;
+    // }
   }
 #endif
 

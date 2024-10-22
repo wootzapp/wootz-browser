@@ -174,7 +174,8 @@ void IdentityAPI::FireOnAccountSignInChanged(const std::string& gaia_id,
 
 template <>
 void BrowserContextKeyedAPIFactory<IdentityAPI>::DeclareFactoryDependencies() {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 
   DependsOn(ChromeSigninClientFactory::GetInstance());
   DependsOn(IdentityManagerFactory::GetInstance());

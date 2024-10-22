@@ -102,7 +102,7 @@
 #include "chrome/browser/sync/glue/extension_model_type_controller.h"
 #include "chrome/browser/sync/glue/extension_setting_model_type_controller.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_sync_bridge.h"
+// #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
@@ -407,32 +407,32 @@ ChromeSyncClient::CreateModelTypeControllers(
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
     // Extension sync is enabled by default.
-    controllers.push_back(std::make_unique<ExtensionModelTypeController>(
-        syncer::EXTENSIONS, model_type_store_factory,
-        GetSyncableServiceForType(syncer::EXTENSIONS), dump_stack,
-        ExtensionModelTypeController::DelegateMode::kLegacyFullSyncModeOnly,
-        profile_));
+    // controllers.push_back(std::make_unique<ExtensionModelTypeController>(
+    //     syncer::EXTENSIONS, model_type_store_factory,
+    //     GetSyncableServiceForType(syncer::EXTENSIONS), dump_stack,
+    //     ExtensionModelTypeController::DelegateMode::kLegacyFullSyncModeOnly,
+    //     profile_));
 
-    // Extension setting sync is enabled by default.
-    controllers.push_back(std::make_unique<ExtensionSettingModelTypeController>(
-        syncer::EXTENSION_SETTINGS, model_type_store_factory,
-        extensions::settings_sync_util::GetSyncableServiceProvider(
-            profile_, syncer::EXTENSION_SETTINGS),
-        dump_stack,
-        ExtensionSettingModelTypeController::DelegateMode::
-            kLegacyFullSyncModeOnly,
-        profile_));
+    // // Extension setting sync is enabled by default.
+    // controllers.push_back(std::make_unique<ExtensionSettingModelTypeController>(
+    //     syncer::EXTENSION_SETTINGS, model_type_store_factory,
+    //     extensions::settings_sync_util::GetSyncableServiceProvider(
+    //         profile_, syncer::EXTENSION_SETTINGS),
+    //     dump_stack,
+    //     ExtensionSettingModelTypeController::DelegateMode::
+    //         kLegacyFullSyncModeOnly,
+    //     profile_));
 
-    if (IsAppSyncEnabled(profile_)) {
-      controllers.push_back(CreateAppsModelTypeController());
+    // if (IsAppSyncEnabled(profile_)) {
+    //   controllers.push_back(CreateAppsModelTypeController());
 
-      controllers.push_back(CreateAppSettingsModelTypeController(sync_service));
+    //   controllers.push_back(CreateAppSettingsModelTypeController(sync_service));
 
-      if (web_app::AreWebAppsEnabled(profile_) &&
-          web_app::WebAppProvider::GetForWebApps(profile_)) {
-        controllers.push_back(CreateWebAppsModelTypeController());
-      }
-    }
+    //   if (web_app::AreWebAppsEnabled(profile_) &&
+    //       web_app::WebAppProvider::GetForWebApps(profile_)) {
+    //     controllers.push_back(CreateWebAppsModelTypeController());
+    //   }
+    // }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 #if BUILDFLAG(IS_ANDROID)
@@ -706,18 +706,18 @@ ChromeSyncClient::GetControllerDelegateForModelType(syncer::ModelType type) {
       return browser_sync::UserEventServiceFactory::GetForProfile(profile_)
           ->GetControllerDelegate();
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-    case syncer::WEB_APPS: {
-      auto* provider = web_app::WebAppProvider::GetForWebApps(profile_);
+    // case syncer::WEB_APPS: {
+    //   auto* provider = web_app::WebAppProvider::GetForWebApps(profile_);
 
-      // CreateWebAppsModelTypeController(), and therefore this code, should
-      // never be called when GetForWebApps() returns nullptr.
-      DCHECK(provider);
-      DCHECK(web_app::AreWebAppsEnabled(profile_));
+    //   // CreateWebAppsModelTypeController(), and therefore this code, should
+    //   // never be called when GetForWebApps() returns nullptr.
+    //   DCHECK(provider);
+    //   DCHECK(web_app::AreWebAppsEnabled(profile_));
 
-      return provider->sync_bridge_unsafe()
-          .change_processor()
-          ->GetControllerDelegate();
-    }
+    //   return provider->sync_bridge_unsafe()
+    //       .change_processor()
+    //       ->GetControllerDelegate();
+    // }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 #if BUILDFLAG(IS_ANDROID)
     case syncer::WEB_APKS: {
@@ -831,7 +831,7 @@ void ChromeSyncClient::RegisterTrustedVaultAutoUpgradeSyntheticFieldTrial(
       variations::SyntheticTrialAnnotationMode::kCurrentLog);
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if false && BUILDFLAG(ENABLE_EXTENSIONS)
 std::unique_ptr<syncer::ModelTypeController>
 ChromeSyncClient::CreateAppsModelTypeController() {
   auto delegate_mode =
