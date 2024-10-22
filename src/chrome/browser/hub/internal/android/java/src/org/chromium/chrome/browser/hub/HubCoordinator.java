@@ -8,10 +8,19 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.graphics.Outline;
+import android.view.ViewOutlineProvider;
+import android.util.TypedValue;
+import android.graphics.Path;  
+
+
 
 import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+// import gen._chrome._android._chrome_java__assetres.srcjar.R;
+
+//import java.nio.file.Path;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier;
@@ -39,7 +48,8 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
     private final @NonNull HubPaneHostCoordinator mHubPaneHostCoordinator;
     private final @NonNull HubLayoutController mHubLayoutController;
     private final @NonNull ObservableSupplierImpl<Boolean> mHandleBackPressSupplier;
-
+    private final @NonNull HubPaneHostView hubPaneHostView;
+    private final @NonNull HubToolbarView hubToolbarView;
     /**
      * Generic callback that invokes {@link #updateHandleBackPressSupplier()}. This can be cast to
      * an arbitrary {@link Callback} and the provided value is discarded.
@@ -85,7 +95,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mMainHubParent = LayoutInflater.from(context).inflate(R.layout.hub_layout, null);
         mContainerView.addView(mMainHubParent);
 
-        HubToolbarView hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
+        hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
         // This might be causing crash whenever you click on Tabswitcher on a native incognito new tab page
         // float borderRadius = 80f;
         // hubToolbarView.setClipToOutline(true);
@@ -99,7 +109,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mHubToolbarCoordinator =
                 new HubToolbarCoordinator(hubToolbarView, paneManager, menuButtonCoordinator);
 
-        HubPaneHostView hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
+        hubPaneHostView = mContainerView.findViewById(R.id.hub_pane_host);
         mHubPaneHostCoordinator =
                 new HubPaneHostCoordinator(hubPaneHostView, paneManager.getFocusedPaneSupplier());
                 if (true) {
@@ -125,6 +135,8 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
                 .addObserver(castCallback(mBackPressStateChangeCallback));
 
         updateHandleBackPressSupplier();
+        setupViewForHubPaneHostView();
+        setupViewForHubToolbarView();
     }
 
     /** Removes the hub from the layout tree and cleans up resources. */
@@ -210,5 +222,59 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
     private <T> Callback<T> castCallback(Callback callback) {
         return (Callback<T>) callback;
+    }
+
+    private void setupViewForHubPaneHostView() {
+        hubPaneHostView.setClipToOutline(true); 
+        hubPaneHostView.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                float radius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, view.getResources().getDisplayMetrics());
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                outline.setConvexPath(createRoundedRectPath(view.getWidth(), view.getHeight(), radius));
+            }
+        });
+    }
+
+    private void setupViewForHubToolbarView() {
+        hubToolbarView.setClipToOutline(true); 
+        hubToolbarView.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                float radius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24, view.getResources().getDisplayMetrics());
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                outline.setConvexPath(createRoundedRectPathForHubToolbarView(view.getWidth(), view.getHeight(), radius));
+            }
+        });
+    }
+
+    private android.graphics.Path createRoundedRectPath(int width, int height, float radius) {
+        android.graphics.Path path = new android.graphics.Path();
+        path.moveTo(0, radius); 
+        path.lineTo(0, height); 
+        path.lineTo(width, height); 
+        path.lineTo(width, radius); 
+        path.quadTo(width, 0, width - radius, 0); 
+        path.lineTo(radius, 0);
+        path.quadTo(0, 0, 0, radius);
+        path.close();
+        return path;
+    }
+    
+    private android.graphics.Path createRoundedRectPathForHubToolbarView(int width, int height, float radius) {
+        android.graphics.Path path = new android.graphics.Path();
+        path.moveTo(0, height - radius);    
+        path.lineTo(0, 0);
+        path.lineTo(width, 0);
+        path.lineTo(width, height-radius);
+        path.quadTo(width, height, width - radius, height);
+        path.lineTo(radius, height);
+        path.quadTo(0, height, 0, height - radius);
+        path.close();
+        return path;
     }
 }

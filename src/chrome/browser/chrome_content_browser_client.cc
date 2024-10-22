@@ -1802,12 +1802,12 @@ ChromeContentBrowserClient::GetStoragePartitionConfigForSite(
   // In general, those use cases aren't considered part of the user's normal
   // browsing activity.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  // if (site.SchemeIs(extensions::kExtensionScheme)) {
-  //   // The host in an extension site URL is the extension_id.
-  //   CHECK(site.has_host());
-  //   return extensions::util::GetStoragePartitionConfigForExtensionId(
-  //       site.host(), browser_context);
-  // }
+  if (site.SchemeIs(extensions::kExtensionScheme)) {
+    // The host in an extension site URL is the extension_id.
+    CHECK(site.has_host());
+    return extensions::util::GetStoragePartitionConfigForExtensionId(
+        site.host(), browser_context);
+  }
 
   // if (content::SiteIsolationPolicy::ShouldUrlUseApplicationIsolationLevel(
   //         browser_context, site)) {

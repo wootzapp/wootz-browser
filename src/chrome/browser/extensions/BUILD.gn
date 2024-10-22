@@ -433,6 +433,8 @@ static_library("extensions") {
     # "api/webstore_private/webstore_private_api.h",
     "api/wootz/wootz_api.cc",
     "api/wootz/wootz_api.h",
+    "api/hello_world/hello_world_api.cc",
+    "api/hello_world/hello_world_api.h",
     "blocklist.cc",
     "blocklist.h",
     "blocklist_check.cc",

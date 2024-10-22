@@ -21,6 +21,27 @@
               }
             ]
           }
+        },
+        {
+          "name": "helloWorld",
+          "type": "function",
+          "description": "Returns greeting message",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "string",
+                "name": "result"
+              }
+            ]
+          }
+        },
+        {
+          "name": "showDialog",
+          "type": "function",
+          "description": "Shows the consent dialog and starts the service if consent is given",
+          "parameters": []
         }
       ],
       "events": []
