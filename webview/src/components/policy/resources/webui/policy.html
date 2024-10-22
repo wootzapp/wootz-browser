@@ -1,0 +1,119 @@
+<!doctype html>
+<html dir="$i18n{textdirection}" lang="$i18n{language}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<title>$i18n{title}</title>
+
+<link rel="stylesheet" href="./policy.css">
+<link rel="stylesheet" href="./policy_shared_vars.css">
+<link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
+
+</head>
+
+<body>
+  <header>
+    <div id="topbar" class="header-row">
+      <div id="left-content" class="topbar-item">
+        <div id="topbar-brand">
+          <if expr="not is_android and not is_ios">
+            <div id="topbar-brand-logo"></div>
+          </if>
+          <h1 id="topbar-title">$i18n{title}</h1>
+        </div>
+      </div>
+      <div id="middle-content" class="topbar-item">
+        <div id="search-field-container">
+          <div id="search-field-icon"></div>
+          <input id="search-field-input" type="search"
+            placeholder="$i18n{filterPlaceholder}"
+            aria-label="$i18n{filterPlaceholder}" incremental>
+        </div>
+      </div>
+      <div id="right-content" class="topbar-item"></div>
+    </div>
+    <div class="header-row action-header-row">
+      <div class="action-row-buttons">
+        <button id="reload-policies" class="action-row-button">
+          $i18n{reloadPolicies}
+        </button>
+        <div id="more-actions-dropdown" role="button" aria-haspopup="true">
+          <button
+            id="more-actions-button" class="action-row-button"
+            aria-haspopup="true">
+            $i18n{moreActions}
+            <div id="dropdown-icon"></div>
+          </button>
+          <div
+            id="more-actions-list" class="more-actions-visibility" role="menu">
+              <button id="export-policies" role="menuitem">
+                $i18n{exportPoliciesJSON}
+              </button>
+              <button id="copy-policies" role="menuitem">
+                $i18n{copyPoliciesJSON}
+              </button>
+              <if expr="not is_chromeos">
+                <button id="upload-report" role="menuitem">
+                  $i18n{uploadReport}
+                </button>
+              </if>
+              <a href="chrome://policy/logs" id="view-logs" role="menuitem">
+                $i18n{viewLogs}
+              </a>
+          </div>
+        </div>
+      </div>
+      <div id="show-unset-container" class="show-unset-checkbox">
+        <label>
+          <input id="show-unset" type="checkbox">
+          <span>$i18n{showUnset}</span>
+        </label>
+      </div>
+    </div>
+  </header>
+  <main id="policy-ui">
+    <if expr="not is_android and not is_ios">
+      <section id="promotion-banner-section" class="banner-section" hidden>
+        <div id="promotion-banner-section" class="banner-section-container">
+          <div id="promotion-icon" class="promotion-icon-container" aria-hidden="true">
+            <picture>
+              <source srcset="chrome://resources/images/dark/promotion_banner_dark.svg"
+                  media="(prefers-color-scheme: dark)">
+              <img src="chrome://resources/images/promotion_banner_light.svg">
+            </picture>
+          </div>
+          <div id="banner-actions" class="banner-actions-container">
+            <div id="promotion-main-text" class="promotion-main-text-container">
+              <div id="promotion-banner-title" class="banner-title">
+                $i18n{promotionBannerTitle}
+              </div>
+              <div id="promotion-banner-description" class="banner-description">
+                $i18n{promotionBannerDesc}
+              </div>
+              <a
+                  id="promotion-redirect-button"
+                  class="blue-pill-button"
+                  href="https://admin.google.com?utm_source=chrome_policy_promotion">
+                  $i18n{promotionBannerBtn}
+              </a>
+            </div>
+              <button id="promotion-dismiss-button" class="dismiss-button" aria-hidden="true">
+                <div id="close-icon-container"></div>
+              </button>
+          </div>
+        </div>
+      </section>
+    </if>
+    <section id="status-section" class="status-box-section" hidden>
+      <h3>$i18n{status}</h3>
+      <div id="status-box-container"></div>
+    </section>
+    <section id="main-section" class="empty">
+      <!--  This is where policy tables get dynamically added. -->
+    </section>
+  </main>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+</body>
+
+<script type="module" src="policy.js"></script>
+</html>
