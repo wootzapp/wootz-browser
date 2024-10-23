@@ -819,7 +819,8 @@ void ActivityLog::OnExtensionSystemReady() {
 
 template <>
 void BrowserContextKeyedAPIFactory<ActivityLog>::DeclareFactoryDependencies() {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(ExtensionRegistryFactory::GetInstance());
 }
 

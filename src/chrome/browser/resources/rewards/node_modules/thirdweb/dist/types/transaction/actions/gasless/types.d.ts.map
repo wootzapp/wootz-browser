@@ -1,1 +1,0 @@
-{"version":3,"file":"types.d.ts","sourceRoot":"","sources":["../../../../../src/transaction/actions/gasless/types.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,yBAAyB,CAAC;AAC/D,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,uBAAuB,CAAC;AAC3D,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,6BAA6B,CAAC;AAEvE;;;;;;;;;;;GAWG;AACH,MAAM,MAAM,cAAc,GACtB,aAAa,GACb,mBAAmB,GACnB,eAAe,CAAC"}

@@ -116,12 +116,12 @@ ExtensionFunction::ResponseAction SystemPrivateGetUpdateStatusFunction::Run() {
       NOTREACHED_IN_MIGRATION();
   }
 #else
-  if (UpgradeDetector::GetInstance()->notify_upgrade()) {
-    state = kNeedRestartState;
-    download_progress = 1;
-  } else {
-    state = kNotAvailableState;
-  }
+  // if (UpgradeDetector::GetInstance()->notify_upgrade()) {
+  //   state = kNeedRestartState;
+  //   download_progress = 1;
+  // } else {
+  //   state = kNotAvailableState;
+  // }
 #endif
 
   base::Value::Dict dict;

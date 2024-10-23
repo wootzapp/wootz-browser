@@ -29,13 +29,13 @@ void CreateAndAddHTMLSource(Profile* profile, const std::string& host_name) {
   else if (host_name == chrome::kChromeUIExtensionsHost)
     page_title = l10n_util::GetStringUTF16(IDS_EXTENSIONS_TOOLBAR_TITLE);
   else if (host_name == password_manager::kChromeUIPasswordManagerHost)
-    page_title = l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_UI_TITLE);
+    page_title = std::u16string();//l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_UI_TITLE);
   else
     page_title = base::UTF8ToUTF16(host_name);
 
   source->AddString("pageTitle", page_title);
-  std::u16string page_heading = l10n_util::GetStringFUTF16(
-      IDS_PAGE_NOT_AVAILABLE_FOR_GUEST_HEADING, page_title);
+  std::u16string page_heading = u"Page not available";//l10n_util::GetStringFUTF16(
+      // IDS_PAGE_NOT_AVAILABLE_FOR_GUEST_HEADING, page_title);
   source->AddString("pageHeading", page_heading);
 
   source->SetDefaultResource(IDR_PAGE_NOT_AVAILABLE_FOR_GUEST_APP_HTML);

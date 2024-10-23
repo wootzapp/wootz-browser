@@ -17,7 +17,7 @@
 #include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
-#include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
+// #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/permissions/active_tab_permission_granter.h"
 #include "chrome/browser/extensions/permissions/permissions_updater.h"
@@ -26,7 +26,7 @@
 #include "chrome/browser/extensions/tab_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/extensions_dialogs.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "components/crx_file/id_util.h"
@@ -129,12 +129,12 @@ ExtensionAction::ShowAction ExtensionActionRunner::RunAction(
     //    granted for one tab shouldn't persist on that side panel across tab
     //    changes.
     // TODO(crbug.com/40904917): Evaluate if this is the best course of action.
-    SidePanelService* side_panel_service =
-        SidePanelService::Get(browser_context_);
-    if (side_panel_service &&
-        side_panel_service->HasSidePanelActionForTab(*extension, tab_id)) {
-      return ExtensionAction::ShowAction::kToggleSidePanel;
-    }
+    // SidePanelService* side_panel_service =
+    //     SidePanelService::Get(browser_context_);
+    // if (side_panel_service &&
+    //     side_panel_service->HasSidePanelActionForTab(*extension, tab_id)) {
+    //   return ExtensionAction::ShowAction::kToggleSidePanel;
+    // }
   }
 
   if (grant_tab_permissions) {
@@ -411,32 +411,32 @@ void ExtensionActionRunner::LogUMA() const {
 
 void ExtensionActionRunner::ShowReloadPageBubble(
     const std::vector<ExtensionId>& extension_ids) {
-  // For testing, simulate the bubble being accepted by directly invoking the
-  // callback, or rejected by skipping the callback.
-  if (accept_bubble_for_testing_.has_value()) {
-    if (*accept_bubble_for_testing_) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE,
-          base::BindOnce(&ExtensionActionRunner::OnReloadPageBubbleAccepted,
-                         weak_factory_.GetWeakPtr()));
-    }
-    return;
-  }
+  // // For testing, simulate the bubble being accepted by directly invoking the
+  // // callback, or rejected by skipping the callback.
+  // if (accept_bubble_for_testing_.has_value()) {
+  //   if (*accept_bubble_for_testing_) {
+  //     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  //         FROM_HERE,
+  //         base::BindOnce(&ExtensionActionRunner::OnReloadPageBubbleAccepted,
+  //                        weak_factory_.GetWeakPtr()));
+  //   }
+  //   return;
+  // }
 
-  // TODO(emiliapaz): Consider showing the dialog as a modal if container
-  // doesn't exist. Currently we get the extension's icon via the action
-  // controller from the container, so the container must exist.
-  Browser* browser = chrome::FindBrowserWithTab(web_contents());
-  ExtensionsContainer* const extensions_container =
-      browser ? browser->window()->GetExtensionsContainer() : nullptr;
-  if (!extensions_container) {
-    return;
-  }
+  // // TODO(emiliapaz): Consider showing the dialog as a modal if container
+  // // doesn't exist. Currently we get the extension's icon via the action
+  // // controller from the container, so the container must exist.
+  // Browser* browser = chrome::FindBrowserWithTab(web_contents());
+  // ExtensionsContainer* const extensions_container =
+  //     browser ? browser->window()->GetExtensionsContainer() : nullptr;
+  // if (!extensions_container) {
+  //   return;
+  // }
 
-  ShowReloadPageDialog(
-      browser, extension_ids,
-      base::BindOnce(&ExtensionActionRunner::OnReloadPageBubbleAccepted,
-                     weak_factory_.GetWeakPtr()));
+  // ShowReloadPageDialog(
+  //     browser, extension_ids,
+  //     base::BindOnce(&ExtensionActionRunner::OnReloadPageBubbleAccepted,
+  //                    weak_factory_.GetWeakPtr()));
 }
 
 void ExtensionActionRunner::OnReloadPageBubbleAccepted() {

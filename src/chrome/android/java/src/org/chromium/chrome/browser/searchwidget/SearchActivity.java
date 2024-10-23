@@ -97,6 +97,10 @@ import android.view.ViewTreeObserver;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.ViewCompat;
 import android.util.Log;
+import android.content.Context;
+import android.view.inputmethod.InputMethodManager;
+import android.os.Handler;
+//import java.util.logging.Handler;
 
 /** Queries the user's default search engine and shows autocomplete suggestions. */
 public class SearchActivity extends AsyncInitializationActivity
@@ -643,6 +647,7 @@ public class SearchActivity extends AsyncInitializationActivity
     public void onResume() {
         super.onResume();
         recalculateOmniboxAlignment();
+        new android.os.Handler().postDelayed(() -> recalculateOmniboxAlignment(), 100);
     }
 
     @Override
@@ -650,6 +655,8 @@ public class SearchActivity extends AsyncInitializationActivity
         super.onPause();
         updateWhitePatchVisibility(false);
         recalculateOmniboxAlignment();
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(getWindow().getDecorView().getWindowToken(), 0);
     }
 
     private void recalculateOmniboxAlignment() {

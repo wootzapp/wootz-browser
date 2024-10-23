@@ -74,7 +74,7 @@ declare_args() {
   # Build with C++ RTTI enabled. Chromium builds without RTTI by default,
   # but some sanitizers are known to require it, like CFI diagnostics
   # and UBsan variants.
-  use_rtti = use_cfi_diag || is_ubsan_vptr || is_ubsan_security
+  use_rtti = true #use_cfi_diag || is_ubsan_vptr || is_ubsan_security
 
   # AFDO (Automatic Feedback Directed Optimizer) is a form of profile-guided
   # optimization that GCC supports. It used by ChromeOS in their official

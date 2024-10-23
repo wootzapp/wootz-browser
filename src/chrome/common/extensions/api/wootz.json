@@ -1,0 +1,50 @@
+[
+    {
+      "namespace": "wootz",
+      "description": "Wootz browser api",
+      "compiler_options": {
+        "implemented_in": "chrome/browser/extensions/api/wootz/wootz_api.h"
+      },
+      "types": [],
+      "functions": [
+        {
+          "name": "info",
+          "type": "function",
+          "description": "Gets wootz browser info",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "string",
+                "name": "result"
+              }
+            ]
+          }
+        },
+        {
+          "name": "helloWorld",
+          "type": "function",
+          "description": "Returns greeting message",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "string",
+                "name": "result"
+              }
+            ]
+          }
+        },
+        {
+          "name": "showDialog",
+          "type": "function",
+          "description": "Shows the consent dialog and starts the service if consent is given",
+          "parameters": []
+        }
+      ],
+      "events": []
+    }
+]
+  

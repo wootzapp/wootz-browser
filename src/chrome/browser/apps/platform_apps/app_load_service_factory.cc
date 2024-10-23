@@ -40,8 +40,9 @@ AppLoadServiceFactory::AppLoadServiceFactory()
   DependsOn(extensions::ExtensionPrefsFactory::GetInstance());
   DependsOn(extensions::ExtensionRegistryFactory::GetInstance());
   DependsOn(extensions::ExtensionHostRegistry::GetFactory());
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }
 
 AppLoadServiceFactory::~AppLoadServiceFactory() = default;

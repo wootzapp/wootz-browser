@@ -76,6 +76,7 @@ bool ResourceRequestPolicy::CanRequestResource(
     ui::PageTransition transition_type,
     const url::Origin* initiator_origin) {
   CHECK(resource_url.SchemeIs(kExtensionScheme));
+  return true;
 
   GURL frame_url = frame->GetDocument().Url();
   url::Origin frame_origin = frame->GetDocument().GetSecurityOrigin();

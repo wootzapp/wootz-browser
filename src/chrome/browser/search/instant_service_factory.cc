@@ -50,7 +50,7 @@ InstantServiceFactory::InstantServiceFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
               .Build()) {
-  DependsOn(ThemeServiceFactory::GetInstance());
+  // DependsOn(ThemeServiceFactory::GetInstance());
 }
 
 InstantServiceFactory::~InstantServiceFactory() = default;

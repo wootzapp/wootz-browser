@@ -298,10 +298,11 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(WebDataServiceFactory::GetInstance());
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  DependsOn(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
-  DependsOn(extensions::StorageFrontend::GetFactoryInstance());
-  DependsOn(web_app::WebAppProviderFactory::GetInstance());
+  // if (extensions::ExtensionsBrowserClient::Get())
+  //   DependsOn(
+  //       extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  // DependsOn(extensions::StorageFrontend::GetFactoryInstance());
+  // DependsOn(web_app::WebAppProviderFactory::GetInstance());
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   DependsOn(app_list::AppListSyncableServiceFactory::GetInstance());

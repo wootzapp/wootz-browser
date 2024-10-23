@@ -47,7 +47,7 @@ BASE_FEATURE(kAllowSharedArrayBuffersUnconditionally,
 
 BASE_FEATURE(kAllowWithholdingExtensionPermissionsOnInstall,
              "AllowWithholdingExtensionPermissionsOnInstall",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT); // wootz patch
 
 BASE_FEATURE(kAvoidEarlyExtensionScriptContextCreation,
              "AvoidEarlyExtensionScriptContextCreation",

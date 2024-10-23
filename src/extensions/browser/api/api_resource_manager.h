@@ -385,8 +385,9 @@ template <class T>
 struct BrowserContextFactoryDependencies<ApiResourceManager<T>> {
   static void DeclareFactoryDependencies(
       BrowserContextKeyedAPIFactory<ApiResourceManager<T>>* factory) {
-    factory->DependsOn(
-        ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+    if (extensions::ExtensionsBrowserClient::Get())
+      factory->DependsOn(
+          ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
     factory->DependsOn(ExtensionRegistryFactory::GetInstance());
     factory->DependsOn(ProcessManagerFactory::GetInstance());
   }

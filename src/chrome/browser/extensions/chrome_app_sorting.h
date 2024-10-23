@@ -17,9 +17,9 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/web_applications/web_app_install_manager.h"
 #include "chrome/browser/web_applications/web_app_install_manager_observer.h"
-#include "chrome/browser/web_applications/web_app_registrar.h"
-#include "chrome/browser/web_applications/web_app_registrar_observer.h"
-#include "chrome/browser/web_applications/web_app_sync_bridge.h"
+// #include "chrome/browser/web_applications/web_app_registrar.h"
+// #include "chrome/browser/web_applications/web_app_registrar_observer.h"
+// #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "components/sync/model/string_ordinal.h"
 #include "components/webapps/common/web_app_id.h"
 #include "extensions/browser/app_sorting.h"
@@ -37,7 +37,7 @@ namespace extensions {
 
 class ChromeAppSorting : public AppSorting,
                          public ExtensionRegistryObserver,
-                         public web_app::WebAppRegistrarObserver,
+                        //  public web_app::WebAppRegistrarObserver,
                          public web_app::WebAppInstallManagerObserver {
  public:
   explicit ChromeAppSorting(content::BrowserContext* browser_context);
@@ -86,9 +86,9 @@ class ChromeAppSorting : public AppSorting,
   void OnWebAppInstallManagerDestroyed() override;
 
   // web_app::WebAppRegistrarObserver:
-  void OnWebAppsWillBeUpdatedFromSync(
-      const std::vector<const web_app::WebApp*>& updated_apps_state) override;
-  void OnAppRegistrarDestroyed() override;
+//   void OnWebAppsWillBeUpdatedFromSync(
+//       const std::vector<const web_app::WebApp*>& updated_apps_state) override;
+//   void OnAppRegistrarDestroyed() override;
 
  private:
   // The StringOrdinal is the app launch ordinal and the string is the extension
@@ -186,14 +186,14 @@ class ChromeAppSorting : public AppSorting,
       nullptr;
   raw_ptr<const web_app::WebAppRegistrar, AcrossTasksDanglingUntriaged>
       web_app_registrar_ = nullptr;
-  raw_ptr<web_app::WebAppSyncBridge, AcrossTasksDanglingUntriaged>
-      web_app_sync_bridge_ = nullptr;
-  base::ScopedObservation<web_app::WebAppRegistrar,
-                          web_app::WebAppRegistrarObserver>
-      app_registrar_observation_{this};
-  base::ScopedObservation<web_app::WebAppInstallManager,
-                          web_app::WebAppInstallManagerObserver>
-      install_manager_observation_{this};
+//   raw_ptr<web_app::WebAppSyncBridge, AcrossTasksDanglingUntriaged>
+//       web_app_sync_bridge_ = nullptr;
+//   base::ScopedObservation<web_app::WebAppRegistrar,
+//                           web_app::WebAppRegistrarObserver>
+//       app_registrar_observation_{this};
+//   base::ScopedObservation<web_app::WebAppInstallManager,
+//                           web_app::WebAppInstallManagerObserver>
+//       install_manager_observation_{this};
 
   // A map of all the StringOrdinal page ordinals mapping to the collections of
   // app launch ordinals that exist on that page. This is used for mapping

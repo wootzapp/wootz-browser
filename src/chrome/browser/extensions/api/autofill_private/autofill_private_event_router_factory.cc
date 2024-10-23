@@ -37,7 +37,8 @@ AutofillPrivateEventRouterFactory::AutofillPrivateEventRouterFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(autofill::PersonalDataManagerFactory::GetInstance());
   DependsOn(SyncServiceFactory::GetInstance());
 }

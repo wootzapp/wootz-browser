@@ -176,7 +176,7 @@ class TabGridViewBinder {
             updateColorForActionButton(
                     view,
                     model.get(TabProperties.IS_INCOGNITO),
-                    model.get(TabProperties.IS_SELECTED));
+                    false);
         } else if (TabProperties.ACCESSIBILITY_DELEGATE == propertyKey) {
             view.setAccessibilityDelegate(model.get(TabProperties.ACCESSIBILITY_DELEGATE));
         } else if (TabProperties.SHOPPING_PERSISTED_TAB_DATA_FETCHER == propertyKey) {
@@ -212,7 +212,7 @@ class TabGridViewBinder {
             updateColorForActionButton(
                     view,
                     model.get(TabProperties.IS_INCOGNITO),
-                    model.get(TabProperties.IS_SELECTED));
+                    false);
         } else if (TabProperties.ACTION_BUTTON_DESCRIPTION_STRING == propertyKey) {
             view.fastFindViewById(R.id.action_button)
                     .setContentDescription(
@@ -411,7 +411,7 @@ class TabGridViewBinder {
     private static void updateColor(
             ViewLookupCachingFrameLayout rootView, boolean isIncognito, boolean isSelected) {
         View cardView = rootView.fastFindViewById(R.id.card_view);
-        TextView titleView = (TextView) rootView.fastFindViewById(R.id.tab_title);
+        // TextView titleView = (TextView) rootView.fastFindViewById(R.id.tab_title);
         TabThumbnailView thumbnail =
                 (TabThumbnailView) rootView.fastFindViewById(R.id.tab_thumbnail);
         ChromeImageView backgroundView =
@@ -423,8 +423,8 @@ class TabGridViewBinder {
                         cardView.getContext(), isIncognito, isSelected);
         ViewCompat.setBackgroundTintList(cardView, ColorStateList.valueOf(backgroundColor));
 
-        titleView.setTextColor(
-                TabUiThemeUtils.getTitleTextColor(titleView.getContext(), isIncognito, isSelected));
+        // titleView.setTextColor(
+        //         TabUiThemeUtils.getTitleTextColor(titleView.getContext(), isIncognito, isSelected));
 
         thumbnail.updateThumbnailPlaceholder(isIncognito, isSelected);
 

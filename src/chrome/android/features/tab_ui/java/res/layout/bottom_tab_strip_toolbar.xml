@@ -26,6 +26,7 @@ found in the LICENSE file.
                 android:id="@+id/toolbar_left_button"
                 style="@style/BottomToolbarButton"
                 android:src="@drawable/ic_expand_less_black_24dp"
+                android:gravity="top"
                 app:tint="@color/default_icon_color_tint_list"
                 tools:ignore="ContentDescription" />
             <FrameLayout
@@ -36,6 +37,7 @@ found in the LICENSE file.
             <org.chromium.ui.widget.ChromeImageView
                 android:id="@+id/toolbar_right_button"
                 style="@style/BottomToolbarButton"
+                android:gravity="top"
                 android:src="@drawable/plus"
                 app:tint="@color/default_icon_color_tint_list"
                 tools:ignore="ContentDescription" />

@@ -314,7 +314,7 @@ void BrowserProcessImpl::Init() {
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  extensions::AppWindowClient::Set(ChromeAppWindowClient::GetInstance());
+  // extensions::AppWindowClient::Set(ChromeAppWindowClient::GetInstance());
 
   extension_event_router_forwarder_ =
       base::MakeRefCounted<extensions::EventRouterForwarder>();
@@ -323,8 +323,8 @@ void BrowserProcessImpl::Init() {
 
   extensions_browser_client_ =
       std::make_unique<extensions::ChromeExtensionsBrowserClient>();
-  extensions_browser_client_->AddAPIProvider(
-      std::make_unique<chrome_apps::ChromeAppsBrowserAPIProvider>());
+  // extensions_browser_client_->AddAPIProvider(
+  //     std::make_unique<chrome_apps::ChromeAppsBrowserAPIProvider>());
   extensions_browser_client_->AddAPIProvider(
       std::make_unique<
           controlled_frame::ControlledFrameExtensionsBrowserAPIProvider>());
@@ -991,10 +991,10 @@ DownloadStatusUpdater* BrowserProcessImpl::download_status_updater() {
 
 MediaFileSystemRegistry* BrowserProcessImpl::media_file_system_registry() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  if (!media_file_system_registry_)
-    media_file_system_registry_ = std::make_unique<MediaFileSystemRegistry>();
-  return media_file_system_registry_.get();
-#else
+//   if (!media_file_system_registry_)
+//     media_file_system_registry_ = std::make_unique<MediaFileSystemRegistry>();
+//   return media_file_system_registry_.get();
+// #else
   return NULL;
 #endif
 }

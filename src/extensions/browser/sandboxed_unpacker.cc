@@ -309,6 +309,7 @@ bool SandboxedUnpacker::CreateTempDirectory() {
 void SandboxedUnpacker::StartWithCrx(const CRXFileInfo& crx_info) {
   // We assume that we are started on the thread that the client wants us
   // to do file IO on.
+  LOG(ERROR) << "INSTALLING CRX " << crx_info.extension_id << " " << crx_info.path.AsUTF8Unsafe();
   DCHECK(unpacker_io_task_runner_->RunsTasksInCurrentSequence());
   client_->OnStageChanged(InstallationStage::kVerification);
   std::string expected_hash;
