@@ -46,7 +46,8 @@ void DependencyManager::AddComponent(KeyedServiceBaseFactory* component) {
          "Ensure.*KeyedServiceFactoriesBuilt().";
 #endif  // DCHECK_IS_ON()
 
-  if (false && disallow_factory_registration_) {
+#if 0 // wootz DCHECK silencing
+  if (disallow_factory_registration_) {
     SCOPED_CRASH_KEY_STRING32("KeyedServiceFactories", "factory_name",
                               component->name());
     base::debug::DumpWithoutCrashing();
@@ -61,6 +62,7 @@ void DependencyManager::AddComponent(KeyedServiceBaseFactory* component) {
            "`EnsureBrowserContextKeyedServiceFactoriesBuilt()` function to "
            "properly register your factory.";
   }
+#endif
 
   dependency_graph_.AddNode(component);
 }
