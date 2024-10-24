@@ -773,7 +773,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   //       profile, web_contents);
   // }
 
-  // extensions::WebNavigationTabObserver::CreateForWebContents(web_contents);
+  extensions::WebNavigationTabObserver::CreateForWebContents(web_contents);
   // if (web_app::AreWebAppsEnabled(profile)) {
   //   web_app::WebAppTabHelper::CreateForWebContents(web_contents);
   // }

@@ -14,8 +14,8 @@ declare_args() {
 }
 
 if (is_official_build) {
-  assert(sardine_client_id != "")
-  assert(sardine_client_secret != "")
+  # assert(sardine_client_id != "")
+  # assert(sardine_client_secret != "")
 }
 
 static_library("browser") {

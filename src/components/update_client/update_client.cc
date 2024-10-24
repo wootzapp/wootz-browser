@@ -130,6 +130,8 @@ void UpdateClientImpl::CheckForUpdate(
     bool is_foreground,
     Callback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  // wootz disable crx updates
+  return;
   RunOrEnqueueTask(base::MakeRefCounted<TaskCheckForUpdate>(
       update_engine_.get(), id, std::move(crx_data_callback),
       crx_state_change_callback, is_foreground,

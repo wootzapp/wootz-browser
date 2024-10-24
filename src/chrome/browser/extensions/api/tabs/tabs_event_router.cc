@@ -19,6 +19,7 @@
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
@@ -32,6 +33,9 @@
 #include "extensions/common/mojom/context_type.mojom.h"
 #include "extensions/common/mojom/event_dispatcher.mojom-forward.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 
 using base::Value;
 using content::WebContents;
@@ -97,13 +101,14 @@ bool WillDispatchTabCreatedEvent(
 }  // namespace
 
 TabsEventRouter::TabEntry::TabEntry(TabsEventRouter* router,
-                                    content::WebContents* contents)
-    : WebContentsObserver(contents),
+                                    TabAndroid* tab)
+    : WebContentsObserver(tab->web_contents()),
+      tab_(tab),
       complete_waiting_on_load_(false),
       was_audible_(false),
-      was_muted_(contents->IsAudioMuted()),
+      was_muted_(tab->web_contents()->IsAudioMuted()),
       router_(router) {
-  auto* audible_helper = RecentlyAudibleHelper::FromWebContents(contents);
+  auto* audible_helper = RecentlyAudibleHelper::FromWebContents(tab->web_contents());
   was_audible_ = audible_helper->WasRecentlyAudible();
 }
 
@@ -163,21 +168,21 @@ void TabsEventRouter::TabEntry::WebContentsDestroyed() {
   // happens in the case of a devtools WebContents that is opened in window,
   // docked, then closed.
   // Warning: |this| will be deleted after this call.
-  router_->UnregisterForTabNotifications(web_contents());
+  router_->UnregisterForTabNotifications(tab_);
 }
 
 TabsEventRouter::TabsEventRouter(Profile* profile)
     : profile_(profile), browser_tab_strip_tracker_(this, this) {
   DCHECK(!profile->IsOffTheRecord());
 
-  BrowserList::AddObserver(this);
+  // BrowserList::AddObserver(this);
   browser_tab_strip_tracker_.Init();
 
-  tab_manager_scoped_observation_.Observe(g_browser_process->GetTabManager());
+  // tab_manager_scoped_observation_.Observe(g_browser_process->GetTabManager());
 }
 
 TabsEventRouter::~TabsEventRouter() {
-  BrowserList::RemoveObserver(this);
+  // BrowserList::RemoveObserver(this);
 }
 
 bool TabsEventRouter::ShouldTrackBrowser(Browser* browser) {
@@ -185,14 +190,14 @@ bool TabsEventRouter::ShouldTrackBrowser(Browser* browser) {
          ExtensionTabUtil::BrowserSupportsTabs(browser);
 }
 
-void TabsEventRouter::OnBrowserSetLastActive(Browser* browser) {
-  TabsWindowsAPI* tabs_window_api = TabsWindowsAPI::Get(profile_);
-  if (tabs_window_api) {
-    tabs_window_api->windows_event_router()->OnActiveWindowChanged(
-        browser ? browser->extension_window_controller() : nullptr);
-  }
+void TabsEventRouter::OnBrowserSetLastActive(Browser* browser) { // wip
+  // TabsWindowsAPI* tabs_window_api = TabsWindowsAPI::Get(profile_);
+  // if (tabs_window_api) {
+  //   tabs_window_api->windows_event_router()->OnActiveWindowChanged(
+  //       browser ? browser->extension_window_controller() : nullptr);
+  // }
 }
-
+/*
 void TabsEventRouter::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
@@ -271,6 +276,102 @@ void TabsEventRouter::TabGroupedStateChanged(
   changed_property_names.insert(tabs_constants::kGroupIdKey);
   DispatchTabUpdatedEvent(contents, std::move(changed_property_names));
 }
+*/
+
+void TabsEventRouter::RegisterTabObserver() {
+    if (!TabModelList::models().empty()) {
+        OnTabModelAdded();
+    } else {
+        TabModelList::AddObserver(this);
+    }
+}
+
+void TabsEventRouter::OnTabModelAdded() {
+    if (observed_tab_model_)
+        return;
+    // The assumption is that there can be at most one non-off-the-record tab
+    // model. Observe it if it exists.
+    for (TabModel* model : TabModelList::models()) {
+        if (!model->IsOffTheRecord()) {
+            observed_tab_model_ = model;
+            observed_tab_model_->AddObserver(this);
+            break;
+        }
+    }
+}
+
+void TabsEventRouter::OnTabModelRemoved() {
+    if (!observed_tab_model_)
+        return;
+
+    for (TabModel* model : TabModelList::models()) {
+        if (observed_tab_model_ == model)
+            return;
+    }
+    observed_tab_model_ = nullptr;
+}
+
+void TabsEventRouter::DidSelectTab(TabAndroid* tab, TabModel::TabSelectionType type, int last_id) {
+  LOG(INFO) << "tabs_event_router.cc: DidSelectTab: entry";
+  WebContents* contents = tab->web_contents();
+  DCHECK(contents);
+  if (!contents) {
+    LOG(INFO) << "tabs_event_router.cc: DidSelectTab: web_contents: nullptr";
+    return;
+  }
+
+  last_tab_id_ = tab->GetAndroidId();
+
+  if (!GetTabEntry(tab)) {
+    TabModel* tab_model = TabModelList::GetTabModelForTabAndroid(tab);
+    DispatchTabInsertedAt(tab_model,
+                          tab,
+                          tab->GetAndroidId(),
+                          tab_model->GetActiveWebContents() == contents);
+  } else {
+    // If the tab is already registered, do nothing
+  }
+}
+
+void TabsEventRouter::DidAddTab(TabAndroid* tab, TabModel::TabLaunchType type) {
+  LOG(INFO) << "tabs_event_router.cc: DidAddTab: entry";
+  DCHECK(tab->web_contents());
+  TabModel* tab_model = TabModelList::GetTabModelForTabAndroid(tab);
+  DispatchTabInsertedAt(tab_model,
+                        tab,
+                        tab->GetAndroidId(),
+                        tab_model->GetActiveWebContents() == tab->web_contents());
+}
+
+void TabsEventRouter::WillCloseTab(TabAndroid* tab) {
+  LOG(INFO) << "tabs_event_router.cc: WillCloseTab: entry";
+  TabModel* tab_model = TabModelList::GetTabModelForTabAndroid(tab);
+  DispatchTabClosingAt(tab_model,
+                       tab,
+                       tab->GetAndroidId());
+}
+
+void TabsEventRouter::TabRemoved(TabAndroid* tab) {
+  LOG(INFO) << "tabs_event_router.cc: TabRemoved: entry";
+  TabModel* tab_model = TabModelList::GetTabModelForTabAndroid(tab);
+  DispatchTabDetachedAt(tab,
+                        tab->GetAndroidId(),
+                        tab_model->GetActiveWebContents() == tab->web_contents());
+}
+
+void TabsEventRouter::DidMoveTab(TabAndroid* tab, int new_index, int last_index) {
+//   LOG(INFO) << "tabs_event_router.cc: DidMoveTab: entry";
+  DispatchTabMoved(tab, last_tab_id_, new_index);
+}
+
+void TabsEventRouter::RestoreCompleted() {
+  LOG(INFO) << "tabs_event_router.cc: RestoreCompleted: entry";
+  TabModel* tab_model = TabModelList::GetCurrentTabModel();
+  for (int i = 0; i < tab_model->GetTabCount(); ++i) {
+    DCHECK(tab_model->GetTabAt(i));
+    DidAddTab(tab_model->GetTabAt(i), TabModel::TabLaunchType::FROM_RESTORE);
+  }
+}
 
 void TabsEventRouter::OnZoomControllerDestroyed(
     zoom::ZoomController* zoom_controller) {
@@ -339,21 +440,22 @@ void TabsEventRouter::OnAutoDiscardableStateChange(WebContents* contents,
   DispatchTabUpdatedEvent(contents, std::move(changed_property_names));
 }
 
-void TabsEventRouter::DispatchTabInsertedAt(TabStripModel* tab_strip_model,
-                                            WebContents* contents,
+void TabsEventRouter::DispatchTabInsertedAt(TabModel* tab_model,
+                                            TabAndroid* tab,
                                             int index,
                                             bool active) {
-  if (!GetTabEntry(contents)) {
+  WebContents* contents = tab->web_contents();
+  if (!GetTabEntry(tab)) {
     // We've never seen this tab, send create event as long as we're not in the
     // constructor.
     if (browser_tab_strip_tracker_.is_processing_initial_browsers())
-      RegisterForTabNotifications(contents);
+      RegisterForTabNotifications(tab);
     else
-      TabCreatedAt(contents, index, active);
+      TabCreatedAt(tab, index, active);
     return;
   }
 
-  int tab_id = ExtensionTabUtil::GetTabId(contents);
+  int tab_id = tab->GetAndroidId();
   base::Value::List args;
   args.Append(tab_id);
 
@@ -363,15 +465,16 @@ void TabsEventRouter::DispatchTabInsertedAt(TabStripModel* tab_strip_model,
   object_args.Set(tabs_constants::kNewPositionKey, Value(index));
   args.Append(std::move(object_args));
 
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  Profile* profile = GetProfileFromBrowserContext(contents);
   DispatchEvent(profile, events::TABS_ON_ATTACHED,
                 api::tabs::OnAttached::kEventName, std::move(args),
                 EventRouter::USER_GESTURE_UNKNOWN);
 }
 
-void TabsEventRouter::DispatchTabClosingAt(TabStripModel* tab_strip_model,
-                                           WebContents* contents,
+void TabsEventRouter::DispatchTabClosingAt(TabModel* tab_model,
+                                           TabAndroid* tab,
                                            int index) {
+  WebContents* contents = tab->web_contents();
   int tab_id = ExtensionTabUtil::GetTabId(contents);
 
   base::Value::List args;
@@ -380,22 +483,22 @@ void TabsEventRouter::DispatchTabClosingAt(TabStripModel* tab_strip_model,
   base::Value::Dict object_args;
   object_args.Set(tabs_constants::kWindowIdKey,
                   ExtensionTabUtil::GetWindowIdOfTab(contents));
-  object_args.Set(tabs_constants::kWindowClosing,
-                  tab_strip_model->closing_all());
+  object_args.Set(tabs_constants::kWindowClosing, false);
   args.Append(std::move(object_args));
 
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  Profile* profile = GetProfileFromBrowserContext(contents);
   DispatchEvent(profile, events::TABS_ON_REMOVED,
                 api::tabs::OnRemoved::kEventName, std::move(args),
                 EventRouter::USER_GESTURE_UNKNOWN);
 
-  UnregisterForTabNotifications(contents);
+  UnregisterForTabNotifications(tab);
 }
 
-void TabsEventRouter::DispatchTabDetachedAt(WebContents* contents,
+void TabsEventRouter::DispatchTabDetachedAt(TabAndroid* tab,
                                             int index,
                                             bool was_active) {
-  if (!GetTabEntry(contents)) {
+  WebContents* contents = tab->web_contents();
+  if (!GetTabEntry(tab)) {
     // The tab was removed. Don't send detach event.
     return;
   }
@@ -409,7 +512,7 @@ void TabsEventRouter::DispatchTabDetachedAt(WebContents* contents,
   object_args.Set(tabs_constants::kOldPositionKey, index);
   args.Append(std::move(object_args));
 
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  Profile* profile = GetProfileFromBrowserContext(contents);
   DispatchEvent(profile, events::TABS_ON_DETACHED,
                 api::tabs::OnDetached::kEventName, std::move(args),
                 EventRouter::USER_GESTURE_UNKNOWN);
@@ -417,6 +520,7 @@ void TabsEventRouter::DispatchTabDetachedAt(WebContents* contents,
 
 void TabsEventRouter::DispatchActiveTabChanged(WebContents* old_contents,
                                                WebContents* new_contents) {
+  NOTREACHED();
   base::Value::List args;
   int tab_id = ExtensionTabUtil::GetTabId(new_contents);
   args.Append(tab_id);
@@ -482,9 +586,10 @@ void TabsEventRouter::DispatchTabSelectionChanged(
                 EventRouter::USER_GESTURE_UNKNOWN);
 }
 
-void TabsEventRouter::DispatchTabMoved(WebContents* contents,
+void TabsEventRouter::DispatchTabMoved(TabAndroid* tab,
                                        int from_index,
                                        int to_index) {
+  WebContents* contents = tab->web_contents();
   base::Value::List args;
   args.Append(ExtensionTabUtil::GetTabId(contents));
 
@@ -495,7 +600,7 @@ void TabsEventRouter::DispatchTabMoved(WebContents* contents,
   object_args.Set(tabs_constants::kToIndexKey, to_index);
   args.Append(std::move(object_args));
 
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  Profile* profile = GetProfileFromBrowserContext(contents);
   DispatchEvent(profile, events::TABS_ON_MOVED, api::tabs::OnMoved::kEventName,
                 std::move(args), EventRouter::USER_GESTURE_UNKNOWN);
 }
@@ -515,16 +620,17 @@ void TabsEventRouter::DispatchTabReplacedAt(WebContents* old_contents,
                 events::TABS_ON_REPLACED, api::tabs::OnReplaced::kEventName,
                 std::move(args), EventRouter::USER_GESTURE_UNKNOWN);
 
-  UnregisterForTabNotifications(old_contents);
+  // UnregisterForTabNotifications(old_contents);
 
-  if (!GetTabEntry(new_contents))
-    RegisterForTabNotifications(new_contents);
+  // if (!GetTabEntry(new_contents))
+  //   RegisterForTabNotifications(new_contents);
 }
 
-void TabsEventRouter::TabCreatedAt(WebContents* contents,
+void TabsEventRouter::TabCreatedAt(TabAndroid* tab,
                                    int index,
                                    bool active) {
-  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  WebContents* contents = tab->web_contents();
+  Profile* profile = GetProfileFromBrowserContext(contents);
   auto event = std::make_unique<Event>(events::TABS_ON_CREATED,
                                        api::tabs::OnCreated::kEventName,
                                        base::Value::List(), profile);
@@ -533,7 +639,7 @@ void TabsEventRouter::TabCreatedAt(WebContents* contents,
       base::BindRepeating(&WillDispatchTabCreatedEvent, contents, active);
   EventRouter::Get(profile)->BroadcastEvent(std::move(event));
 
-  RegisterForTabNotifications(contents);
+  RegisterForTabNotifications(tab);
 }
 
 void TabsEventRouter::TabUpdated(TabEntry* entry,
@@ -601,34 +707,46 @@ void TabsEventRouter::DispatchTabUpdatedEvent(
   EventRouter::Get(profile)->BroadcastEvent(std::move(event));
 }
 
-void TabsEventRouter::RegisterForTabNotifications(WebContents* contents) {
-  favicon_scoped_observations_.AddObservation(
-      favicon::ContentFaviconDriver::FromWebContents(contents));
-  zoom_scoped_observations_.AddObservation(
-      ZoomController::FromWebContents(contents));
+void TabsEventRouter::RegisterForTabNotifications(TabAndroid* tab) {
+  // favicon_scoped_observations_.AddObservation(
+  //     favicon::ContentFaviconDriver::FromWebContents(contents));
+  // zoom_scoped_observations_.AddObservation(
+  //     ZoomController::FromWebContents(contents));
 
-  int tab_id = ExtensionTabUtil::GetTabId(contents);
+  // int tab_id = ExtensionTabUtil::GetTabId(contents);
+  if (!tab->web_contents())
+    return;
+
+  int tab_id = tab->GetAndroidId();
   DCHECK(tab_entries_.find(tab_id) == tab_entries_.end());
-  tab_entries_[tab_id] = std::make_unique<TabEntry>(this, contents);
+  tab_entries_[tab_id] = std::make_unique<TabEntry>(this, tab);
 }
 
-void TabsEventRouter::UnregisterForTabNotifications(WebContents* contents) {
-  if (auto* zoom_controller = ZoomController::FromWebContents(contents);
-      zoom_scoped_observations_.IsObservingSource(zoom_controller)) {
-    zoom_scoped_observations_.RemoveObservation(zoom_controller);
-  }
-  favicon_scoped_observations_.RemoveObservation(
-      favicon::ContentFaviconDriver::FromWebContents(contents));
+void TabsEventRouter::UnregisterForTabNotifications(TabAndroid* tab) {
+  // if (auto* zoom_controller = ZoomController::FromWebContents(contents);
+  //     zoom_scoped_observations_.IsObservingSource(zoom_controller)) {
+  //   zoom_scoped_observations_.RemoveObservation(zoom_controller);
+  // }
+  // favicon_scoped_observations_.RemoveObservation(
+  //     favicon::ContentFaviconDriver::FromWebContents(contents));
 
-  int tab_id = ExtensionTabUtil::GetTabId(contents);
+  // int tab_id = ExtensionTabUtil::GetTabId(contents);
+  int tab_id = tab->GetAndroidId();
   int removed_count = tab_entries_.erase(tab_id);
   DCHECK_GT(removed_count, 0);
 }
 
-TabsEventRouter::TabEntry* TabsEventRouter::GetTabEntry(WebContents* contents) {
-  const auto it = tab_entries_.find(ExtensionTabUtil::GetTabId(contents));
+TabsEventRouter::TabEntry* TabsEventRouter::GetTabEntry(TabAndroid* tab) {
+  const auto it = tab_entries_.find(tab->GetAndroidId());
 
   return it == tab_entries_.end() ? nullptr : it->second.get();
+}
+
+Profile* TabsEventRouter::GetProfileFromBrowserContext(WebContents* contents) {
+  if (contents)
+    return Profile::FromBrowserContext(contents->GetBrowserContext());
+  else
+    return ProfileManager::GetActiveUserProfile();
 }
 
 }  // namespace extensions

@@ -72,6 +72,7 @@ void Unpacker::Verify(const std::vector<uint8_t>& pk_hash,
   if (!pk_hash.empty()) {
     required_keys.push_back(pk_hash);
   }
+  LOG(ERROR) << "UPDATER VERIFY";
   const crx_file::VerifierResult result = crx_file::Verify(
       path_, crx_format, required_keys, std::vector<uint8_t>(), &public_key_,
       /*crx_id=*/nullptr, &compressed_verified_contents_);

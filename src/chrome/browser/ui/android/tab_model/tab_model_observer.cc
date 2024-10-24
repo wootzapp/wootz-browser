@@ -12,7 +12,7 @@ TabModelObserver::TabModelObserver() {}
 TabModelObserver::~TabModelObserver() {}
 
 void TabModelObserver::DidSelectTab(TabAndroid* tab,
-                                    TabModel::TabSelectionType type) {}
+                                    TabModel::TabSelectionType type, int last_id) {}
 
 void TabModelObserver::WillCloseTab(TabAndroid* tab) {}
 
@@ -44,3 +44,5 @@ void TabModelObserver::AllTabsPendingClosure(
 void TabModelObserver::AllTabsClosureCommitted() {}
 
 void TabModelObserver::TabRemoved(TabAndroid* tab) {}
+
+void TabModelObserver::RestoreCompleted() {}

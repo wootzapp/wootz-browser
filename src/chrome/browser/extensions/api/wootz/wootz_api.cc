@@ -57,4 +57,13 @@ ExtensionFunction::ResponseAction WootzInfoFunction::Run() {
 
     return RespondNow(WithArguments(json_string));
 }
+
+ExtensionFunction::ResponseAction WootzLogFunction::Run() {
+  if (args().size() != 1)
+      return RespondNow(NoArguments());
+
+  LOG(ERROR) << "CONSOLE.LOG: " << args()[0];
+
+  return RespondNow(NoArguments());
+}
 }  // namespace extensions

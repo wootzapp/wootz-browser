@@ -43,6 +43,8 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/extensions/api/tabs.h"
 #include "chrome/common/url_constants.h"
@@ -705,6 +707,34 @@ bool ExtensionTabUtil::GetTabStripModel(const WebContents* web_contents,
 
   return false;
 }
+
+bool ExtensionTabUtil::GetTabModel(const WebContents* web_contents,
+                                        TabModel** tab_model,
+                                        int* tab_index) {
+  DCHECK(web_contents);
+  DCHECK(tab_index);
+
+  for (TabModel* tab_model_it : TabModelList::models()) {
+    if (tab_model_it->IsActiveModel()) {
+      int index = -1;
+      for (int i = 0; i < tab_model_it->GetTabCount(); i++) {
+        if (web_contents == tab_model_it->GetWebContentsAt(i)) {
+          index = i;
+          break;
+        }
+      }
+      if (index != -1) {
+        if (tab_model)
+          *tab_model = tab_model_it;
+        *tab_index = index;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 
 bool ExtensionTabUtil::GetDefaultTab(Browser* browser,
                                      WebContents** contents,

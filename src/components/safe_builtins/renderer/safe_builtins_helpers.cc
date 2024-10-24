@@ -127,31 +127,22 @@ v8::MaybeLocal<v8::Value> LoadScriptWithSafeBuiltins(
       context->GetIsolate(), gin::StringToV8(context->GetIsolate(), script)));
   // Wrapping script in function(...) {...}
   v8::Local<v8::Value> func_as_value = RunScript(context, wrapped_source);
-  LOG(ERROR) << " Inside LoadScriptWithSafeBuiltins - JAGADESH";
   if (func_as_value.IsEmpty() || func_as_value->IsUndefined()) {
     std::string message = base::StringPrintf("Bad source");
     web_frame->AddMessageToConsole(
         blink::WebConsoleMessage(blink::mojom::ConsoleMessageLevel::kError,
                                  blink::WebString::FromUTF8(message)));
 
-  LOG(ERROR) << " Inside LoadScriptWithSafeBuiltins 2- JAGADESH";
     return v8::MaybeLocal<v8::Value>();
   }
 
   v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_as_value);
-
-  LOG(ERROR) << " Inside LoadScriptWithSafeBuiltins 3- JAGADESH";
-
   SafeBuiltins safe_builtins(context);
 
-  LOG(ERROR) << " Inside LoadScriptWithSafeBuiltins 4 - JAGADESH";
   // These must match the argument order in WrapSource.
   v8::Local<v8::Value> args[] = {
       safe_builtins.GetFunctionOverride(), safe_builtins.GetObjekt(),
       safe_builtins.GetFunction(), safe_builtins.GetArray()};
-
-
-  LOG(ERROR) << " Inside LoadScriptWithSafeBuiltins 5 - JAGADESH";
 
   return SafeCallFunction(web_frame, context, func, std::size(args), args);
 }

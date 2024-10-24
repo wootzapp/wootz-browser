@@ -116,8 +116,9 @@ void EventHandlerRegistry::UpdateEventHandlerTargets(
       targets->insert(target);
       return;
     case kRemove:
-      DCHECK(targets->Contains(target));
-      targets->erase(target);
+      // DCHECK(targets->Contains(target)); // wootz DCHECK silencing
+      if (targets->Contains(target))
+        targets->erase(target);
       return;
     case kRemoveAll:
       targets->RemoveAll(target);

@@ -129,3 +129,12 @@ bool TabModelList::IsOffTheRecordSessionActive() {
 const TabModelList::TabModelVector& TabModelList::models() {
   return tab_model_list_.Get().models_;
 }
+
+TabModel* TabModelList::GetCurrentTabModel() {
+  for (TabModel* tab_model : TabModelList::models()) {
+    if (tab_model->IsActiveModel())
+      return tab_model;
+  }
+
+  return nullptr;
+}

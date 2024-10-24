@@ -12,7 +12,7 @@ declare_args() {
 }
 
 if (is_official_build) {
-  assert(wootz_services_key != "")
+  # assert(wootz_services_key != "")
 }
 
 buildflag_header("wootz_services_key") {

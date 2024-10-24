@@ -31,26 +31,19 @@ DOMFeaturePolicy::DOMFeaturePolicy(ExecutionContext* context)
 
 bool DOMFeaturePolicy::allowsFeature(ScriptState* script_state,
                                      const String& feature) const {
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
   ExecutionContext* execution_context =
       script_state ? ExecutionContext::From(script_state) : nullptr;
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
 
   UseCounter::Count(execution_context,
                     IsIFramePolicy()
                         ? WebFeature::kFeaturePolicyJSAPIAllowsFeatureIFrame
                         : WebFeature::kFeaturePolicyJSAPIAllowsFeatureDocument);
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
 
   if (FeatureAvailable(feature, execution_context)) {
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
     bool is_isolated_context =
         execution_context && execution_context->IsIsolatedContext();
     auto feature_name =
         GetDefaultFeatureNameMap(is_isolated_context).at(feature);
-  LOG(ERROR)<< "allowsFeature DEVJANGID";                                    
-
     return GetPolicy()->IsFeatureEnabled(feature_name);
   }
 

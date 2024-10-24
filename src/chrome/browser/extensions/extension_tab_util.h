@@ -23,6 +23,7 @@ class ChromeExtensionFunctionDetails;
 class ExtensionFunction;
 class GURL;
 class Profile;
+class TabModel;
 class TabStripModel;
 namespace content {
 class BrowserContext;
@@ -162,6 +163,9 @@ class ExtensionTabUtil {
   // Gets the |tab_strip_model| and |tab_index| for the given |web_contents|.
   static bool GetTabStripModel(const content::WebContents* web_contents,
                                TabStripModel** tab_strip_model,
+                               int* tab_index);
+  static bool GetTabModel(const content::WebContents* web_contents,
+                               TabModel** tab_model,
                                int* tab_index);
   static bool GetDefaultTab(Browser* browser,
                             content::WebContents** contents,

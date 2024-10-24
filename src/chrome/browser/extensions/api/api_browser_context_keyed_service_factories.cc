@@ -142,7 +142,7 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::VerifyTrustAPI::GetFactoryInstance();
 #endif
   extensions::WebAuthenticationProxyAPI::GetFactoryInstance();
-  // extensions::WebNavigationAPI::GetFactoryInstance();
+  extensions::WebNavigationAPI::GetFactoryInstance();
   // extensions::WebrtcAudioPrivateEventService::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS)
   extensions::WMDesksPrivateEventsAPI::GetFactoryInstance();

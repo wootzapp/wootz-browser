@@ -25,7 +25,7 @@ class TabModelObserver {
   virtual ~TabModelObserver();
 
   // Called when a |tab| is selected.
-  virtual void DidSelectTab(TabAndroid* tab, TabModel::TabSelectionType type);
+  virtual void DidSelectTab(TabAndroid* tab, TabModel::TabSelectionType type, int last_id);
 
   // Called when a |tab| starts closing.
   virtual void WillCloseTab(TabAndroid* tab);
@@ -70,6 +70,8 @@ class TabModelObserver {
   // Called after a tab has been removed. At this point the tab is no longer in
   // the TabModel.
   virtual void TabRemoved(TabAndroid* tab);
+
+  virtual void RestoreCompleted();
 };
 
 #endif  // CHROME_BROWSER_UI_ANDROID_TAB_MODEL_TAB_MODEL_OBSERVER_H_

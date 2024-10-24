@@ -21,6 +21,19 @@
               }
             ]
           }
+        },
+        {
+          "name": "log",
+          "type": "function",
+          "description": "Log to browser debug logs",
+          "parameters": [{
+            "type": "string",
+            "name": "log"
+          }],
+          "returns_async": {
+            "name": "callback",
+            "parameters": []
+          }
         }
       ],
       "events": []

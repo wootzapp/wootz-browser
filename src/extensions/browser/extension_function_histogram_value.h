@@ -1950,6 +1950,7 @@ enum HistogramValue {
   PASSWORDSPRIVATE_ISCONNECTEDTOCLOUDAUTHENTICATOR = 1888,
   WEBSTOREPRIVATE_GETMV2DEPRECATIONSTATUS = 1889,
   WOOTZ_INFO = 1890,
+  WOOTZ_LOG = 1890,
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

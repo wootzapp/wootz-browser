@@ -162,8 +162,6 @@ EthereumProviderImpl::EthereumProviderImpl(
       eth_block_tracker_(json_rpc_service_),
       eth_logs_tracker_(json_rpc_service_),
       prefs_(prefs) {
-
-  LOG(ERROR)<<"ETHEREUM IMPL HELLO";      
   DCHECK(json_rpc_service_);
   json_rpc_service_->AddObserver(
       rpc_observer_receiver_.BindNewPipeAndPassRemote());
@@ -2096,31 +2094,14 @@ EthereumProviderImpl::GetAllowedAccounts(bool include_accounts_when_locked) {
   //   filtered_accounts = FilterAccounts(*allowed_accounts, selected_account);
   // }
 
-  LOG(ERROR) << "INSIDE filter accounts of BEFORE getallowedaccounts JANGID " 
-             << (filtered_accounts.empty() ? "no-accounts" : 
-                 base::JoinString(base::make_span(filtered_accounts), ","));
-
   if (true) {
     filtered_accounts = FilterAccounts(*allowed_accounts, selected_account);
-
-    
     
     filtered_accounts.clear();
     if (selected_account && !selected_account->address.empty()) {
       filtered_accounts.push_back(base::ToLowerASCII(selected_account->address));
     }
-
-
-    LOG(ERROR) << "INSIDE filter accounts of INSIDE getallowedaccounts JANGID " 
-               << (filtered_accounts.empty() ? "no-accounts" : 
-                   base::JoinString(base::make_span(filtered_accounts), ","));
-        LOG(ERROR) << "INSIDE selected accounts of INSIDE getallowedaccounts JANGID " 
-               << (selected_account ? selected_account->address : "no-account");
   }
-
-  LOG(ERROR) << "INSIDE filter accounts of AFTER getallowedaccounts JANGID " 
-             << (filtered_accounts.empty() ? "no-accounts" : 
-                 base::JoinString(base::make_span(filtered_accounts), ","));
 
   return filtered_accounts;
 }
@@ -2164,9 +2145,6 @@ void EthereumProviderImpl::GetAllowedAccountsInternal(
 }
 
 void EthereumProviderImpl::UpdateKnownAccounts() {
-
-   LOG(ERROR) << "JANGID: EthereumProviderImpl::UpdateKnownAccounts called";
-
   const auto allowed_accounts = GetAllowedAccounts(false);
   if (!allowed_accounts) {
     return;
@@ -2235,9 +2213,7 @@ mojom::AccountIdPtr EthereumProviderImpl::FindAccountByAddress(
 
 void EthereumProviderImpl::Init(
     ::mojo::PendingRemote<mojom::EventsListener> events_listener) {
-  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
   if (!events_listener_.is_bound()) {
-  LOG(ERROR)<<"EthereumProviderImpl Init DANIYAL";    
     events_listener_.Bind(std::move(events_listener));
   }
 

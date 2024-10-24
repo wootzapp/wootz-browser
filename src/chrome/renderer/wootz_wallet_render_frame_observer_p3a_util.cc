@@ -31,7 +31,6 @@ WootzWalletRenderFrameObserverP3AUtil::
 void WootzWalletRenderFrameObserverP3AUtil::ReportJSProviders(
     content::RenderFrame* render_frame,
     const wootz::mojom::DynamicParams& dynamic_params) {
-        LOG(ERROR)<<"ReportJSProviders";    
   CHECK(render_frame);
   if (!EnsureConnected(render_frame)) {
     return;

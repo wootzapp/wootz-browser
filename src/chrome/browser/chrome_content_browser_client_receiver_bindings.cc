@@ -342,12 +342,8 @@ void ChromeContentBrowserClient::BindMediaServiceReceiver(
 void ChromeContentBrowserClient::RegisterReceiverBindingsForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
-
-  LOG(ERROR)<<"WOOTZAPP ETHEREUM IMPL HELLO ANKIT";    
   chrome::internal::PopulateChromeFrameBinders(map, render_frame_host);
   chrome::internal::PopulateChromeWebUIFrameBinders(map, render_frame_host);
-
-
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
   map->Add<spellcheck::mojom::SpellCheckHost>(base::BindRepeating(

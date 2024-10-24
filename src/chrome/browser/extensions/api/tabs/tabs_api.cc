@@ -147,7 +147,7 @@ using content::NavigationEntry;
 using content::OpenURLParams;
 using content::Referrer;
 using content::WebContents;
-using tabs::TabModel;
+// using tabs::TabModel;
 using zoom::ZoomController;
 
 namespace extensions {

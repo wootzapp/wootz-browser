@@ -55,7 +55,7 @@ void TabModelObserverJniBridge::DidSelectTab(JNIEnv* env,
   CHECK(tab);
   TabModel::TabSelectionType type = GetTabSelectionType(env, jtype);
   for (auto& observer : observers_) {
-    observer.DidSelectTab(tab, type);
+    observer.DidSelectTab(tab, type, last_id);
   }
 }
 
