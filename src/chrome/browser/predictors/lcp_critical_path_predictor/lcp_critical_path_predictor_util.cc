@@ -730,9 +730,9 @@ std::vector<GURL> PredictFetchedFontUrls(const LcppStat& stat) {
   // Workaround: we cannot use UmaHistogramEnumeration because
   // connection_type is defined with old C enum, and setting kValue causes
   // namespace conflict.
-  base::UmaHistogramEnumeration(
-      "Blink.LCPP.FontFetch.Enabled.ConnectionType", connection_type,
-      net::NetworkChangeNotifier::ConnectionType::CONNECTION_LAST);
+  // base::UmaHistogramEnumeration( // wootz DCHECK silencer
+  //     "Blink.LCPP.FontFetch.Enabled.ConnectionType", connection_type,
+  //     net::NetworkChangeNotifier::ConnectionType::CONNECTION_LAST);
   return font_urls;
 }
 

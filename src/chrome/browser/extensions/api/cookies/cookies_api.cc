@@ -646,40 +646,42 @@ void CookiesRemoveFunction::RemoveCookieCallback(uint32_t /* num_deleted */) {
 }
 
 ExtensionFunction::ResponseAction CookiesGetAllCookieStoresFunction::Run() {
+#if 0 // wootz ext patch
   Profile* original_profile = Profile::FromBrowserContext(browser_context());
   DCHECK(original_profile);
   base::Value::List original_tab_ids;
   Profile* incognito_profile = nullptr;
   base::Value::List incognito_tab_ids;
-  // if (include_incognito_information() &&
-  //     original_profile->HasPrimaryOTRProfile()) {
-  //   incognito_profile =
-  //       original_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
-  // }
-  // DCHECK(original_profile != incognito_profile);
+  if (include_incognito_information() &&
+      original_profile->HasPrimaryOTRProfile()) {
+    incognito_profile =
+        original_profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  }
+  DCHECK(original_profile != incognito_profile);
 
-  // // Iterate through all browser instances, and for each browser,
-  // // add its tab IDs to either the regular or incognito tab ID list depending
-  // // whether the browser is regular or incognito.
-  // for (Browser* browser : *BrowserList::GetInstance()) {
-  //   if (browser->profile() == original_profile) {
-  //     cookies_helpers::AppendToTabIdList(browser, original_tab_ids);
-  //   } else if (browser->profile() == incognito_profile) {
-  //     cookies_helpers::AppendToTabIdList(browser, incognito_tab_ids);
-  //   }
-  // }
-  // // Return a list of all cookie stores with at least one open tab.
-  // std::vector<api::cookies::CookieStore> cookie_stores;
-  // if (!original_tab_ids.empty()) {
-  //   cookie_stores.push_back(cookies_helpers::CreateCookieStore(
-  //       original_profile, std::move(original_tab_ids)));
-  // }
-  // if (incognito_profile && !incognito_tab_ids.empty()) {
-  //   cookie_stores.push_back(cookies_helpers::CreateCookieStore(
-  //       incognito_profile, std::move(incognito_tab_ids)));
-  // }
-  // return RespondNow(ArgumentList(
-  //     api::cookies::GetAllCookieStores::Results::Create(cookie_stores)));
+  // Iterate through all browser instances, and for each browser,
+  // add its tab IDs to either the regular or incognito tab ID list depending
+  // whether the browser is regular or incognito.
+  for (Browser* browser : *BrowserList::GetInstance()) {
+    if (browser->profile() == original_profile) {
+      cookies_helpers::AppendToTabIdList(browser, original_tab_ids);
+    } else if (browser->profile() == incognito_profile) {
+      cookies_helpers::AppendToTabIdList(browser, incognito_tab_ids);
+    }
+  }
+  // Return a list of all cookie stores with at least one open tab.
+  std::vector<api::cookies::CookieStore> cookie_stores;
+  if (!original_tab_ids.empty()) {
+    cookie_stores.push_back(cookies_helpers::CreateCookieStore(
+        original_profile, std::move(original_tab_ids)));
+  }
+  if (incognito_profile && !incognito_tab_ids.empty()) {
+    cookie_stores.push_back(cookies_helpers::CreateCookieStore(
+        incognito_profile, std::move(incognito_tab_ids)));
+  }
+  return RespondNow(ArgumentList(
+      api::cookies::GetAllCookieStores::Results::Create(cookie_stores)));
+#endif
   return RespondNow(Error("not implemented"));
 }
 

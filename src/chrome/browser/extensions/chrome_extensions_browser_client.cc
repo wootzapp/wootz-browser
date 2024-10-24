@@ -135,8 +135,8 @@ namespace extensions {
 
 namespace {
 
-const char kCrxUrlPath[] = "/service/update2/crx";
-const char kJsonUrlPath[] = "/service/update2/json";
+// const char kCrxUrlPath[] = "/service/update2/crx";
+// const char kJsonUrlPath[] = "/service/update2/json";
 
 // If true, the extensions client will behave as though there is always a
 // new chrome update.
@@ -423,9 +423,10 @@ mojo::PendingRemote<network::mojom::URLLoaderFactory>
 ChromeExtensionsBrowserClient::GetControlledFrameEmbedderURLLoader(
     const url::Origin& app_origin,
     int frame_tree_node_id,
-    content::BrowserContext* browser_context) {
+    content::BrowserContext* browser_context) { // wootz urlloader for webaps
   // return web_app::IsolatedWebAppURLLoaderFactory::CreateForFrame(
   //     browser_context, app_origin, frame_tree_node_id);
+  return mojo::PendingRemote<network::mojom::URLLoaderFactory>();
 }
 
 std::unique_ptr<ExtensionHostDelegate>
@@ -820,6 +821,7 @@ bool ChromeExtensionsBrowserClient::IsExtensionTelemetryServiceEnabled(
   //     safe_browsing::ExtensionTelemetryServiceFactory::GetForProfile(
   //         Profile::FromBrowserContext(context));
   // return telemetry_service && telemetry_service->enabled();
+  return false;
 }
 
 void ChromeExtensionsBrowserClient::NotifyExtensionApiDeclarativeNetRequest(

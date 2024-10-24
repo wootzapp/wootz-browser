@@ -78,6 +78,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   CHECK(resource_url.SchemeIs(kExtensionScheme));
   return true;
 
+#if 0
   GURL frame_url = frame->GetDocument().Url();
   url::Origin frame_origin = frame->GetDocument().GetSecurityOrigin();
 
@@ -209,6 +210,7 @@ bool ResourceRequestPolicy::CanRequestResource(
   }
 
   return true;
+#endif
 }
 
 }  // namespace extensions

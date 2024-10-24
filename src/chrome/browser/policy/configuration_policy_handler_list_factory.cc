@@ -2172,7 +2172,7 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
 };
 // clang-format on
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if 0 && BUILDFLAG(ENABLE_EXTENSIONS) // wootz silence warning
 void GetExtensionAllowedTypesMap(
     std::vector<std::unique_ptr<StringMappingListPolicyHandler::MappingEntry>>*
         result) {

@@ -148,6 +148,7 @@ std::pair<base::FilePath, base::Time> ReadResourceFilePathAndLastModifiedTime(
   return std::make_pair(file_path, last_modified_time);
 }
 
+#if 0
 bool ExtensionCanLoadInIncognito(bool is_main_frame,
                                  const Extension* extension,
                                  bool extension_enabled_in_incognito) {
@@ -161,6 +162,7 @@ bool ExtensionCanLoadInIncognito(bool is_main_frame,
   // and an incognito tab prevents that.
   return IncognitoInfo::IsSplitMode(extension);
 }
+#endif
 
 // Returns true if an chrome-extension:// resource should be allowed to load.
 // Pass true for |is_incognito| only for incognito profiles and not Chrome OS
@@ -176,7 +178,8 @@ bool AllowExtensionResourceLoad(const network::ResourceRequest& request,
                                 bool extension_enabled_in_incognito,
                                 const ExtensionSet& extensions,
                                 const ProcessMap& process_map) {
-  return true;
+  return true; // wootz allow ext resources
+#if 0
   const bool is_main_frame =
       destination == network::mojom::RequestDestination::kDocument;
   if (is_incognito &&
@@ -226,6 +229,7 @@ bool AllowExtensionResourceLoad(const network::ResourceRequest& request,
 
   // No special exceptions for cross-process loading. Block the load.
   return false;
+#endif
 }
 
 // Returns true if the given URL references an icon in the given extension.

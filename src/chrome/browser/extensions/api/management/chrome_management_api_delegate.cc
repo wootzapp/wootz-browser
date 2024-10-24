@@ -307,32 +307,33 @@ class ChromeAppForLinkDelegate : public extensions::AppForLinkDelegate {
   base::CancelableTaskTracker cancelable_task_tracker_;
 };
 
+#if 0
 void LaunchWebApp(const webapps::AppId& app_id, Profile* profile) {
   // Look at prefs to find the right launch container. If the user has not set a
   // preference, the default launch value will be returned.
   // TODO(crbug.com/40098656): Make AppLaunchParams launch container Optional or
   // add a "default" launch container enum value.
-  // auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
-  // DCHECK(provider);
-  // std::optional<web_app::mojom::UserDisplayMode> display_mode =
-  //     provider->registrar_unsafe().GetAppUserDisplayMode(app_id);
-  // auto launch_container = apps::LaunchContainer::kLaunchContainerWindow;
-  // if (display_mode == web_app::mojom::UserDisplayMode::kBrowser) {
-  //   launch_container = apps::LaunchContainer::kLaunchContainerTab;
-  // }
+  auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
+  DCHECK(provider);
+  std::optional<web_app::mojom::UserDisplayMode> display_mode =
+      provider->registrar_unsafe().GetAppUserDisplayMode(app_id);
+  auto launch_container = apps::LaunchContainer::kLaunchContainerWindow;
+  if (display_mode == web_app::mojom::UserDisplayMode::kBrowser) {
+    launch_container = apps::LaunchContainer::kLaunchContainerTab;
+  }
 
-  // if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
-  //   // If the profile doesn't have an App Service Proxy available, that means
-  //   // this extension has been explicitly permitted to run in an incognito
-  //   // context. Treat this as if the extension is running in the original
-  //   // profile, so it is allowed to access apps in the original profile.
-  //   profile = profile->GetOriginalProfile();
-  // }
+  if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
+    // If the profile doesn't have an App Service Proxy available, that means
+    // this extension has been explicitly permitted to run in an incognito
+    // context. Treat this as if the extension is running in the original
+    // profile, so it is allowed to access apps in the original profile.
+    profile = profile->GetOriginalProfile();
+  }
 
-  // apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
-  //     apps::AppLaunchParams(app_id, launch_container,
-  //                           WindowOpenDisposition::NEW_FOREGROUND_TAB,
-  //                           apps::LaunchSource::kFromManagementApi));
+  apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
+      apps::AppLaunchParams(app_id, launch_container,
+                            WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                            apps::LaunchSource::kFromManagementApi));
 }
 
 void OnWebAppInstallCompleted(InstallOrLaunchWebAppCallback callback,
@@ -344,39 +345,40 @@ void OnWebAppInstallCompleted(InstallOrLaunchWebAppCallback callback,
   std::move(callback).Run(result);
 }
 
-// void OnWebAppInstallabilityChecked(
-//     base::WeakPtr<Profile> profile,
-//     InstallOrLaunchWebAppCallback callback,
-//     std::unique_ptr<content::WebContents> web_contents,
-//     InstallableCheckResult result,
-//     std::optional<webapps::AppId> app_id) {
-//   if (!profile) {
-//     return;
-//   }
-//   switch (result) {
-//     case InstallableCheckResult::kAlreadyInstalled:
-//       DCHECK(app_id);
-//       LaunchWebApp(*app_id, profile.get());
-//       std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
-//       return;
-//     case InstallableCheckResult::kNotInstallable:
-//       std::move(callback).Run(InstallOrLaunchWebAppResult::kInvalidWebApp);
-//       return;
-//     case InstallableCheckResult::kInstallable:
-//       content::WebContents* containing_contents = web_contents.get();
-//       chrome::ScopedTabbedBrowserDisplayer displayer(profile.get());
-//       const GURL& url = web_contents->GetLastCommittedURL();
-//       chrome::AddWebContents(displayer.browser(), nullptr,
-//                              std::move(web_contents), url,
-//                              WindowOpenDisposition::NEW_FOREGROUND_TAB,
-//                              blink::mojom::WindowFeatures());
-//       web_app::CreateWebAppFromManifest(
-//           containing_contents, webapps::WebappInstallSource::MANAGEMENT_API,
-//           base::BindOnce(&OnWebAppInstallCompleted, std::move(callback)));
-//       return;
-//   }
-//   NOTREACHED_IN_MIGRATION();
-// }
+void OnWebAppInstallabilityChecked(
+    base::WeakPtr<Profile> profile,
+    InstallOrLaunchWebAppCallback callback,
+    std::unique_ptr<content::WebContents> web_contents,
+    InstallableCheckResult result,
+    std::optional<webapps::AppId> app_id) {
+  if (!profile) {
+    return;
+  }
+  switch (result) {
+    case InstallableCheckResult::kAlreadyInstalled:
+      DCHECK(app_id);
+      LaunchWebApp(*app_id, profile.get());
+      std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
+      return;
+    case InstallableCheckResult::kNotInstallable:
+      std::move(callback).Run(InstallOrLaunchWebAppResult::kInvalidWebApp);
+      return;
+    case InstallableCheckResult::kInstallable:
+      content::WebContents* containing_contents = web_contents.get();
+      chrome::ScopedTabbedBrowserDisplayer displayer(profile.get());
+      const GURL& url = web_contents->GetLastCommittedURL();
+      chrome::AddWebContents(displayer.browser(), nullptr,
+                             std::move(web_contents), url,
+                             WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                             blink::mojom::WindowFeatures());
+      web_app::CreateWebAppFromManifest(
+          containing_contents, webapps::WebappInstallSource::MANAGEMENT_API,
+          base::BindOnce(&OnWebAppInstallCompleted, std::move(callback)));
+      return;
+  }
+  NOTREACHED_IN_MIGRATION();
+}
+#endif
 
 extensions::SupervisedUserExtensionsDelegate*
 GetSupervisedUserExtensionsDelegateFromContext(

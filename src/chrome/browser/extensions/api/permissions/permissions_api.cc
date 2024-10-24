@@ -32,14 +32,14 @@ using permissions_api_helpers::UnpackPermissionSetResult;
 
 namespace {
 
-const char kBlockedByEnterprisePolicy[] =
-    "Permissions are blocked by enterprise policy.";
+// const char kBlockedByEnterprisePolicy[] =
+//     "Permissions are blocked by enterprise policy.";
 const char kCantRemoveRequiredPermissionsError[] =
     "You cannot remove required permissions.";
 const char kNotInManifestPermissionsError[] =
     "Only permissions specified in the manifest may be requested.";
-const char kUserGestureRequiredError[] =
-    "This function must be called during a user gesture";
+// const char kUserGestureRequiredError[] =
+//     "This function must be called during a user gesture";
 
 PermissionsRequestFunction::DialogAction g_dialog_action =
     PermissionsRequestFunction::DialogAction::kDefault;

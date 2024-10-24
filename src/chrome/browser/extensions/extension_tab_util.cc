@@ -98,29 +98,29 @@ enum class NavigationScheme {
   kMaxValue = kOther,
 };
 
+#if 0
 Browser* CreateBrowser(Profile* profile, bool user_gesture) {
-  // if (Browser::GetCreationStatusForProfile(profile) !=
-  //     Browser::CreationStatus::kOk) {
-  //   return nullptr;
-  // }
+  if (Browser::GetCreationStatusForProfile(profile) !=
+      Browser::CreationStatus::kOk) {
+    return nullptr;
+  }
 
-  // Browser::CreateParams params(Browser::TYPE_NORMAL, profile, user_gesture);
-  // return Browser::Create(params);
-  return nullptr;
+  Browser::CreateParams params(Browser::TYPE_NORMAL, profile, user_gesture);
+  return Browser::Create(params);
 }
 
 Browser* CreateAndShowBrowser(Profile* profile,
                               bool user_gesture,
                               std::string* error) {
-  // Browser* browser = CreateBrowser(profile, user_gesture);
-  // if (!browser) {
-  //   *error = tabs_constants::kBrowserWindowNotAllowed;
-  //   return nullptr;
-  // }
-  // browser->window()->Show();
-  // return browser;
-  return nullptr;
+  Browser* browser = CreateBrowser(profile, user_gesture);
+  if (!browser) {
+    *error = tabs_constants::kBrowserWindowNotAllowed;
+    return nullptr;
+  }
+  browser->window()->Show();
+  return browser;
 }
+#endif
 
 // Use this function for reporting a tab id to an extension. It will
 // take care of setting the id to TAB_ID_NONE if necessary (for
@@ -384,24 +384,25 @@ Browser* ExtensionTabUtil::GetBrowserInProfileWithId(
     int window_id,
     bool also_match_incognito_profile,
     std::string* error_message) {
+#if 0
   Profile* incognito_profile =
       also_match_incognito_profile
           ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/false)
           : nullptr;
-  // for (Browser* browser : *BrowserList::GetInstance()) {
-  //   if ((browser->profile() == profile ||
-  //        browser->profile() == incognito_profile) &&
-  //       ExtensionTabUtil::GetWindowId(browser) == window_id &&
-  //       browser->window()) {
-  //     return browser;
-  //   }
-  // }
+  for (Browser* browser : *BrowserList::GetInstance()) {
+    if ((browser->profile() == profile ||
+         browser->profile() == incognito_profile) &&
+        ExtensionTabUtil::GetWindowId(browser) == window_id &&
+        browser->window()) {
+      return browser;
+    }
+  }
 
-  // if (error_message) {
-  //   *error_message = ErrorUtils::FormatErrorMessage(
-  //       tabs_constants::kWindowNotFoundError, base::NumberToString(window_id));
-  // }
-
+  if (error_message) {
+    *error_message = ErrorUtils::FormatErrorMessage(
+        tabs_constants::kWindowNotFoundError, base::NumberToString(window_id));
+  }
+#endif
   return nullptr;
 }
 
@@ -741,32 +742,34 @@ bool ExtensionTabUtil::GetTabById(int tab_id,
   }
 
   Profile* profile = Profile::FromBrowserContext(browser_context);
+#if 0
   Profile* incognito_profile =
       include_incognito
           ? (profile ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/false)
                      : nullptr)
           : nullptr;
-  // for (Browser* target_browser : *BrowserList::GetInstance()) {
-  //   if (target_browser->profile() == profile ||
-  //       target_browser->profile() == incognito_profile) {
-  //     TabStripModel* target_tab_strip = target_browser->tab_strip_model();
-  //     for (int i = 0; i < target_tab_strip->count(); ++i) {
-  //       WebContents* target_contents = target_tab_strip->GetWebContentsAt(i);
-  //       if (sessions::SessionTabHelper::IdForTab(target_contents).id() ==
-  //           tab_id) {
-  //         if (browser)
-  //           *browser = target_browser;
-  //         if (tab_strip)
-  //           *tab_strip = target_tab_strip;
-  //         if (contents)
-  //           *contents = target_contents;
-  //         if (tab_index)
-  //           *tab_index = i;
-  //         return true;
-  //       }
-  //     }
-  //   }
-  // }
+  for (Browser* target_browser : *BrowserList::GetInstance()) {
+    if (target_browser->profile() == profile ||
+        target_browser->profile() == incognito_profile) {
+      TabStripModel* target_tab_strip = target_browser->tab_strip_model();
+      for (int i = 0; i < target_tab_strip->count(); ++i) {
+        WebContents* target_contents = target_tab_strip->GetWebContentsAt(i);
+        if (sessions::SessionTabHelper::IdForTab(target_contents).id() ==
+            tab_id) {
+          if (browser)
+            *browser = target_browser;
+          if (tab_strip)
+            *tab_strip = target_tab_strip;
+          if (contents)
+            *contents = target_contents;
+          if (tab_index)
+            *tab_index = i;
+          return true;
+        }
+      }
+    }
+  }
+#endif
 
   if (base::FeatureList::IsEnabled(blink::features::kPrerender2InNewTab)) {
     // Prerendering tab is not visible and it cannot be in `TabStripModel`, if
@@ -846,19 +849,21 @@ ExtensionTabUtil::GetAllActiveWebContentsForContext(
     bool include_incognito) {
   std::vector<content::WebContents*> active_contents;
 
+#if 0
   Profile* profile = Profile::FromBrowserContext(browser_context);
   Profile* incognito_profile =
       include_incognito
           ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/false)
           : nullptr;
-  // for (Browser* target_browser : *BrowserList::GetInstance()) {
-  //   if (target_browser->profile() == profile ||
-  //       target_browser->profile() == incognito_profile) {
-  //     TabStripModel* target_tab_strip = target_browser->tab_strip_model();
+  for (Browser* target_browser : *BrowserList::GetInstance()) {
+    if (target_browser->profile() == profile ||
+        target_browser->profile() == incognito_profile) {
+      TabStripModel* target_tab_strip = target_browser->tab_strip_model();
 
-  //     active_contents.push_back(target_tab_strip->GetActiveWebContents());
-  //   }
-  // }
+      active_contents.push_back(target_tab_strip->GetActiveWebContents());
+    }
+  }
+#endif
 
   return active_contents;
 }

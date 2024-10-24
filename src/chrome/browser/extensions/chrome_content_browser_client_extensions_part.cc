@@ -782,9 +782,11 @@ bool ChromeContentBrowserClientExtensionsPart::
     return false;
   }
 
+#if 0 // wootz ext TODO
   const Extension* extension =
       registry->enabled_extensions().GetByID(site_url.host());
-  // extension_webkit_preferences::SetPreferences(extension, web_prefs);
+  extension_webkit_preferences::SetPreferences(extension, web_prefs);
+#endif
   return true;
 }
 

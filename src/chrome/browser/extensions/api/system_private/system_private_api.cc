@@ -39,8 +39,8 @@ const char kDownloadProgressKey[] = "downloadProgress";
 const char kStateKey[] = "state";
 
 // System update states.
-const char kNotAvailableState[] = "NotAvailable";
-const char kNeedRestartState[] = "NeedRestart";
+// const char kNotAvailableState[] = "NotAvailable";
+// const char kNeedRestartState[] = "NeedRestart";
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 const char kUpdatingState[] = "Updating";

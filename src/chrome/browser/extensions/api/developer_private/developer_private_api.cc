@@ -137,8 +137,8 @@ namespace {
 const char kCannotUpdateChildAccountProfileSettingsError[] =
     "Cannot change settings for a child account profile.";
 const char kNoSuchExtensionError[] = "No such extension.";
-const char kRequiresUserGestureError[] =
-    "This action requires a user gesture.";
+// const char kRequiresUserGestureError[] =
+//     "This action requires a user gesture.";
 const char kCouldNotShowSelectFileDialogError[] =
     "Could not show a file chooser.";
 const char kFileSelectionCanceled[] =
@@ -157,8 +157,8 @@ const char kCannotRepairPolicyExtension[] =
     "Cannot repair a policy-installed extension.";
 const char kCannotChangeHostPermissions[] =
     "Cannot change host permissions for the given extension.";
-const char kCannotSetPinnedWithoutAction[] =
-    "Cannot set pinned action state for an extension with no action.";
+// const char kCannotSetPinnedWithoutAction[] =
+//     "Cannot set pinned action state for an extension with no action.";
 const char kInvalidHost[] = "Invalid host.";
 const char kInvalidLazyBackgroundPageParameter[] =
     "isServiceWorker can not be set for lazy background page based extensions.";
@@ -901,16 +901,18 @@ const Extension* DeveloperPrivateAPIFunction::GetEnabledExtensionById(
 DeveloperPrivateAutoUpdateFunction::~DeveloperPrivateAutoUpdateFunction() {}
 
 ExtensionFunction::ResponseAction DeveloperPrivateAutoUpdateFunction::Run() {
+#if 0 // wootz ext patch
   ExtensionUpdater* updater =
       ExtensionSystem::Get(browser_context())->extension_service()->updater();
-  // if (updater) {
-  //   ExtensionUpdater::CheckParams params;
-  //   params.fetch_priority = DownloadFetchPriority::kForeground;
-  //   params.install_immediately = true;
-  //   params.callback =
-  //       base::BindOnce(&DeveloperPrivateAutoUpdateFunction::OnComplete, this);
-  //   updater->CheckNow(std::move(params));
-  // }
+  if (updater) {
+    ExtensionUpdater::CheckParams params;
+    params.fetch_priority = DownloadFetchPriority::kForeground;
+    params.install_immediately = true;
+    params.callback =
+        base::BindOnce(&DeveloperPrivateAutoUpdateFunction::OnComplete, this);
+    updater->CheckNow(std::move(params));
+  }
+#endif
   return RespondLater();
 }
 
@@ -2676,6 +2678,7 @@ DeveloperPrivateRemoveMultipleExtensionsFunction::Run() {
     }
   }
 
+#if 0 // wootz ext patch
   if (accept_bubble_for_testing_.has_value()) {
     if (*accept_bubble_for_testing_) {
       OnDialogAccepted();
@@ -2690,20 +2693,20 @@ DeveloperPrivateRemoveMultipleExtensionsFunction::Run() {
     CHECK_IS_TEST();
     parent = nullptr;
   } else {
-    parent = nullptr;
-    // parent = chrome::FindBrowserWithTab(GetSenderWebContents())
-    //              ->window()
-    //              ->GetNativeWindow();
+    parent = chrome::FindBrowserWithTab(GetSenderWebContents())
+                 ->window()
+                 ->GetNativeWindow();
   }
 
-  // ShowExtensionMultipleUninstallDialog(
-  //     profile_, parent, extension_ids_,
-  //     base::BindOnce(
-  //         &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogAccepted,
-  //         this),
-  //     base::BindOnce(
-  //         &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogCancelled,
-  //         this));
+  ShowExtensionMultipleUninstallDialog(
+      profile_, parent, extension_ids_,
+      base::BindOnce(
+          &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogAccepted,
+          this),
+      base::BindOnce(
+          &DeveloperPrivateRemoveMultipleExtensionsFunction::OnDialogCancelled,
+          this));
+#endif
   return RespondLater();
 }
 

@@ -331,7 +331,6 @@ const char kChromeUIWebAppInternalsHost[] = "web-app-internals";
 const char kChromeUIWebAppInternalsURL[] = "chrome://web-app-internals";
 const char kChromeUIUntrustedWebUITestURL[] = "chrome-untrusted://webui-test/";
 #endif
-const char kChromeUIWebUITestHost[] = "webui-test";
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 // Keep alphabetized.

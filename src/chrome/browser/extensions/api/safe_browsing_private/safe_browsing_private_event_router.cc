@@ -68,6 +68,7 @@ namespace extensions {
 
 namespace {
 
+#if 0
 const char16_t kMaskedUsername[] = u"*****";
 
 safe_browsing::EventResult GetEventResultFromThreatType(
@@ -157,6 +158,7 @@ void AddTriggeredRuleInfoToUrlFilteringInterstitialEvent(
   event.Set(extensions::SafeBrowsingPrivateEventRouter::kKeyTriggeredRuleInfo,
             std::move(triggered_rule_info));
 }
+#endif
 
 std::string MalwareRuleToThreatType(const std::string& rule_name) {
   if (rule_name == "uws") {
@@ -191,6 +193,7 @@ std::string DangerTypeToThreatType(download::DownloadDangerType danger_type) {
   }
 }
 
+#if 0
 // Do a best-effort masking of `username`. If it's an email address (such as
 // foo@example.com), everything before @ should be masked. Otherwise, the entire
 // username should be masked.
@@ -229,6 +232,7 @@ std::unique_ptr<url_matcher::URLMatcher> CreateURLMatcherForOptInEvent(
 bool IsOptInEventEnabled(url_matcher::URLMatcher* matcher, const GURL& url) {
   return matcher && !matcher->MatchURL(url).empty();
 }
+#endif
 
 }  // namespace
 

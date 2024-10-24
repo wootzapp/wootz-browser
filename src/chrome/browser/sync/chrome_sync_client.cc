@@ -195,7 +195,7 @@ syncer::ModelTypeSet GetDisabledCommonDataTypes() {
   return {};
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if 0 && BUILDFLAG(ENABLE_EXTENSIONS) // wootz silence warning
 // App sync is enabled by default, with the exception of Lacros secondary
 // profiles.
 bool IsAppSyncEnabled(Profile* profile) {

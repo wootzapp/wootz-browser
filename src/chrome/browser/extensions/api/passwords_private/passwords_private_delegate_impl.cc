@@ -260,21 +260,23 @@ std::u16string GetMessageForBiometricAuthenticationBeforeFillingSetting(
 
 #endif
 
+#if 0 // wootz ext
 void MaybeShowProfileSwitchIPH(Profile* profile) {
 #if !BUILDFLAG(IS_CHROMEOS)
   Browser* launched_app = web_app::AppBrowserController::FindForWebApp(
       *profile, web_app::kPasswordManagerAppId);
 
   ProfileManager* profile_manager = g_browser_process->profile_manager();
-  // Try to show promo only if there is profile menu button and there are
-  // multiple profiles.
-  // if (launched_app && launched_app->app_controller() &&
-  //     launched_app->app_controller()->HasProfileMenuButton() &&
-  //     profile_manager && profile_manager->GetNumberOfProfiles() > 1) {
-  //   launched_app->window()->MaybeShowProfileSwitchIPH();
-  // }
+  Try to show promo only if there is profile menu button and there are
+  multiple profiles.
+  if (launched_app && launched_app->app_controller() &&
+      launched_app->app_controller()->HasProfileMenuButton() &&
+      profile_manager && profile_manager->GetNumberOfProfiles() > 1) {
+    launched_app->window()->MaybeShowProfileSwitchIPH();
+  }
 #endif
 }
+#endif
 
 // Returns a passkey model instance if the feature is enabled.
 webauthn::PasskeyModel* MaybeGetPasskeyModel(Profile* profile) {

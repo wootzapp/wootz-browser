@@ -6165,6 +6165,7 @@ void AddChromeSchemeFactories(
     content::WebContents* web_contents,
     const extensions::Extension* extension,
     ChromeContentBrowserClient::NonNetworkURLLoaderFactoryMap* factories) {
+#if 0 // wootz disable Instant
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   // InstantService* instant_service =
@@ -6173,16 +6174,17 @@ void AddChromeSchemeFactories(
   // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
   // public api and to embed most-visited tiles
   // (chrome-search://most-visited/title.html).
-  //
+  
   // InstantService might be null for some irregular profiles, e.g. the System
   // Profile.
-  // if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
-  //   factories->emplace(
-  //       chrome::kChromeSearchScheme,
-  //       content::CreateWebUIURLLoaderFactory(
-  //           frame_host, chrome::kChromeSearchScheme,
-  //           /*allowed_webui_hosts=*/base::flat_set<std::string>()));
-  // }
+  if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
+    factories->emplace(
+        chrome::kChromeSearchScheme,
+        content::CreateWebUIURLLoaderFactory(
+            frame_host, chrome::kChromeSearchScheme,
+            /*allowed_webui_hosts=*/base::flat_set<std::string>()));
+  }
+#endif
 
   extensions::ChromeExtensionWebContentsObserver* web_observer =
       extensions::ChromeExtensionWebContentsObserver::FromWebContents(

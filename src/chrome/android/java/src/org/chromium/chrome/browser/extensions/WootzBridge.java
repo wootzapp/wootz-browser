@@ -11,7 +11,7 @@ import org.chromium.content_public.browser.WebContents;
 
 @JNINamespace("extensions")
 public class WootzBridge {
-
+/* 
     @CalledByNative
     private static void showDialog(WebContents webContents) {
         Context context = ActivityUtils.getActivityFromWebContents(webContents);
@@ -21,4 +21,5 @@ public class WootzBridge {
             .setPositiveButton("OK", null)
             .show();
     }
+*/
 }

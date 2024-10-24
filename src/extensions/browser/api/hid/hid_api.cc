@@ -23,8 +23,8 @@ using device::HidDeviceFilter;
 
 namespace {
 
-const char kErrorPermissionDenied[] = "Permission to access device was denied.";
-const char kErrorInvalidDeviceId[] = "Invalid HID device ID.";
+// const char kErrorPermissionDenied[] = "Permission to access device was denied.";
+// const char kErrorInvalidDeviceId[] = "Invalid HID device ID.";
 const char kErrorFailedToOpenDevice[] = "Failed to open HID device.";
 const char kErrorConnectionNotFound[] = "Connection not established.";
 const char kErrorTransfer[] = "Transfer failed.";
@@ -35,21 +35,23 @@ base::Value::Dict PopulateHidConnection(int connection_id) {
   return connection_value.ToValue();
 }
 
+#if 0
 void ConvertHidDeviceFilter(const hid::DeviceFilter& input,
                             HidDeviceFilter* output) {
-  // if (input.vendor_id) {
-  //   output->SetVendorId(*input.vendor_id);
-  // }
-  // if (input.product_id) {
-  //   output->SetProductId(*input.product_id);
-  // }
-  // if (input.usage_page) {
-  //   output->SetUsagePage(*input.usage_page);
-  // }
-  // if (input.usage) {
-  //   output->SetUsage(*input.usage);
-  // }
+  if (input.vendor_id) {
+    output->SetVendorId(*input.vendor_id);
+  }
+  if (input.product_id) {
+    output->SetProductId(*input.product_id);
+  }
+  if (input.usage_page) {
+    output->SetUsagePage(*input.usage_page);
+  }
+  if (input.usage) {
+    output->SetUsage(*input.usage);
+  }
 }
+#endif
 
 }  // namespace
 

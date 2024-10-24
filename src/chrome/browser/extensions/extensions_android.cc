@@ -13,7 +13,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "base/android/jni_android.h"
 #include "chrome/android/chrome_jni_headers/Extensions_jni.h"
-#include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+// #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "base/threading/thread_restrictions.h"
 
 using base::android::ScopedJavaLocalRef;

@@ -96,6 +96,7 @@ bool IsEmailForm(const autofill::FormStructure& form) {
          !has_name_or_address_field;
 }
 
+#if 0
 // Returns `true` if `form_signature`'s form is in `forms` and is an email form.
 bool ContainsEmailFormWithSignature(
     const std::map<autofill::FormGlobalId,
@@ -113,6 +114,7 @@ bool ContainsEmailFormWithSignature(
   }
   return false;
 }
+#endif
 
 FastCheckoutDelegateImpl* GetDelegate(autofill::AutofillManager& manager) {
   auto& bam = static_cast<autofill::BrowserAutofillManager&>(manager);
@@ -604,27 +606,29 @@ void FastCheckoutClientImpl::UpdateFillingStates() {
 void FastCheckoutClientImpl::A11yAnnounce(
     autofill::FormSignature form_signature,
     bool is_credit_card_form) {
+#if 0 // wootz extensions patch
   if (is_credit_card_form) {
     if (autofill::CreditCard* credit_card = GetSelectedCreditCard()) {
-      // accessibility_service_->Announce(l10n_util::GetStringFUTF16(
-      //     IDS_FAST_CHECKOUT_A11Y_CREDIT_CARD_FORM_FILLED,
-      //     credit_card->HasNonEmptyValidNickname()
-      //         ? credit_card->nickname()
-      //         : credit_card->NetworkAndLastFourDigits()));
+      accessibility_service_->Announce(l10n_util::GetStringFUTF16(
+          IDS_FAST_CHECKOUT_A11Y_CREDIT_CARD_FORM_FILLED,
+          credit_card->HasNonEmptyValidNickname()
+              ? credit_card->nickname()
+              : credit_card->NetworkAndLastFourDigits()));
     }
     return;
   }
 
   if (ContainsEmailFormWithSignature(autofill_manager_->form_structures(),
                                      form_signature)) {
-    // accessibility_service_->Announce(
-    //     l10n_util::GetStringUTF16(IDS_FAST_CHECKOUT_A11Y_EMAIL_FILLED));
+    accessibility_service_->Announce(
+        l10n_util::GetStringUTF16(IDS_FAST_CHECKOUT_A11Y_EMAIL_FILLED));
   } else if (autofill::AutofillProfile* autofill_profile =
                  GetSelectedAutofillProfile()) {
-    // accessibility_service_->Announce(l10n_util::GetStringFUTF16(
-    //     IDS_FAST_CHECKOUT_A11Y_ADDRESS_FORM_FILLED,
-    //     base::UTF8ToUTF16(autofill_profile->profile_label())));
+    accessibility_service_->Announce(l10n_util::GetStringFUTF16(
+        IDS_FAST_CHECKOUT_A11Y_ADDRESS_FORM_FILLED,
+        base::UTF8ToUTF16(autofill_profile->profile_label())));
   }
+#endif
 }
 
 void FastCheckoutClientImpl::OnAutofillManagerDestroyed(

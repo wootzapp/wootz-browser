@@ -179,6 +179,8 @@ static std::string TerminationStatusToString(base::TerminationStatus status) {
       return "crashed";
     case base::TERMINATION_STATUS_LAUNCH_FAILED:
       return "failed to launch";
+    case base::TERMINATION_STATUS_OOM_PROTECTED:
+      return "oom protected";
 #if BUILDFLAG(IS_WIN)
     case base::TERMINATION_STATUS_INTEGRITY_FAILURE:
       return "integrity failure";

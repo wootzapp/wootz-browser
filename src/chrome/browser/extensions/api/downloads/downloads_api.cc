@@ -545,6 +545,7 @@ void GetManagers(content::BrowserContext* context,
   }
 }
 
+#if 0 // wootz ext patch
 // Set |service| to the on-record DownloadCoreService, |incognito_service| to
 // the off-record DownloadCoreService if one exists and is requested via
 // |include_incognito|. This should work regardless of whether |context| is
@@ -578,6 +579,7 @@ void MaybeSetUiEnabled(DownloadCoreService* service,
                                                                enabled);
   }
 }
+#endif
 
 DownloadItem* GetDownload(content::BrowserContext* context,
                           bool include_incognito,

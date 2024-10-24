@@ -79,13 +79,14 @@ class ChromeComponentExtensionResourceManager::Data {
 };
 
 ChromeComponentExtensionResourceManager::Data::Data() {
+#if 0 // wootz ext ignore webstore resources
   static const webui::ResourcePath kExtraComponentExtensionResources[] = {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
     {"web_store/webstore_icon_128.png", IDR_WEBSTORE_APP_ICON_128},
     {"web_store/webstore_icon_16.png", IDR_WEBSTORE_APP_ICON_16},
 #else
-    // {"web_store/webstore_icon_128.png", IDR_WEBSTORE_ICON},
-    // {"web_store/webstore_icon_16.png", IDR_WEBSTORE_ICON_16},
+    {"web_store/webstore_icon_128.png", IDR_WEBSTORE_ICON},
+    {"web_store/webstore_icon_16.png", IDR_WEBSTORE_ICON_16},
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -104,6 +105,7 @@ ChromeComponentExtensionResourceManager::Data::Data() {
 #endif  // BUILDFLAG(ENABLE_INK)
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   };
+#endif
 
   AddComponentResourceEntries(kComponentExtensionResources,
                               kComponentExtensionResourcesSize);

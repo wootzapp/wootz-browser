@@ -1219,22 +1219,24 @@ void ExtensionService::PostActivateExtension(
   // ExtensionRegistryObserver. See http://crbug.com/355029.
   UpdateActiveExtensionsInCrashReporter();
 
+#if 0
   const PermissionsData* permissions_data = extension->permissions_data();
 
   // If the extension has permission to load chrome://favicon/ resources we need
   // to make sure that the FaviconSource is registered with the
   // ChromeURLDataManager.
-  // if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIFaviconURL))) {
-  //   content::URLDataSource::Add(
-  //       profile_, std::make_unique<FaviconSource>(
-  //                     profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
-  // }
+  if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIFaviconURL))) {
+    content::URLDataSource::Add(
+        profile_, std::make_unique<FaviconSource>(
+                      profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
+  }
 
-  // Same for chrome://theme/ resources.
-  // if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
-  //   content::URLDataSource::Add(profile_,
-  //                               std::make_unique<ThemeSource>(profile_));
-  // }
+  Same for chrome://theme/ resources.
+  if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
+    content::URLDataSource::Add(profile_,
+                                std::make_unique<ThemeSource>(profile_));
+  }
+#endif
 }
 
 // TODO(michaelpg): Group with other ExtensionRegistrar::Delegate overrides

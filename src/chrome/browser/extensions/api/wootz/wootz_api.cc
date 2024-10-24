@@ -23,7 +23,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+// #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_contents.h"
@@ -76,7 +76,9 @@ ExtensionFunction::ResponseAction WootzHelloWorldFunction::Run() {
   return RespondNow(WithArguments(json_string));
 }
 
+[[maybe_unused]]
 ExtensionFunction::ResponseAction WootzShowDialogFunction::Run() {
+#if 0
     JNIEnv* env = base::android::AttachCurrentThread();
     
     content::WebContents* web_contents = GetSenderWebContents();
@@ -85,6 +87,7 @@ ExtensionFunction::ResponseAction WootzShowDialogFunction::Run() {
     }
 
     Java_WootzBridge_showDialog(env, web_contents->GetJavaWebContents());
+#endif
     return RespondNow(NoArguments());
 }
 

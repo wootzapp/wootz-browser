@@ -46,3 +46,8 @@
 -keep class org.chromium.chrome.browser.extensions.Extensions { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionInfo { *; }
+-keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog$Natives { *; }
+-keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog {
+    public static native org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog.Natives get();
+}
+-keepattributes InnerClasses
