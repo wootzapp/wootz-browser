@@ -69,6 +69,7 @@ autofill::AutofillField* GetFieldToFill(
   return nullptr;
 }
 
+#if 0
 bool IsNameOrAddress(autofill::FieldTypeGroup type_group) {
   return type_group == autofill::FieldTypeGroup::kName ||
          type_group == autofill::FieldTypeGroup::kAddress;
@@ -96,7 +97,6 @@ bool IsEmailForm(const autofill::FormStructure& form) {
          !has_name_or_address_field;
 }
 
-#if 0
 // Returns `true` if `form_signature`'s form is in `forms` and is an email form.
 bool ContainsEmailFormWithSignature(
     const std::map<autofill::FormGlobalId,

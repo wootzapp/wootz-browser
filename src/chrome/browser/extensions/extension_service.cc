@@ -2187,6 +2187,7 @@ void ExtensionService::RenderProcessHostDestroyed(
 }
 
 int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
+#if 0
   bool is_update_from_same_type = false;
   {
     const Extension* existing_extension =
@@ -2220,7 +2221,7 @@ int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
                ? disable_reason::DISABLE_USER_ACTION
                : disable_reasons;
   }
-#if 0
+
   if (ExternalInstallManager::IsPromptingEnabled()) {
     // External extensions are initially disabled. We prompt the user before
     // enabling them. Hosted apps are excepted because they are not dangerous
