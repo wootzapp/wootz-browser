@@ -5,7 +5,7 @@
 import("//extensions/buildflags/buildflags.gni")
 
 assert(enable_extensions)
-
+assert(!is_android)
 source_set("platform_apps") {
   sources = [
     "app_load_service.cc",
@@ -53,13 +53,13 @@ source_set("platform_apps") {
     "//build:chromeos_buildflags",
     "//chrome/app:command_ids",
     "//chrome/browser:browser_process",
-    "//chrome/browser/apps/app_service",
+    # "//chrome/browser/apps/app_service",
     "//chrome/browser/extensions",
-    "//chrome/browser/media/router/discovery",
+    # "//chrome/browser/media/router/discovery",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/sharing/proto:proto",
-    "//chrome/browser/web_applications",
-    "//chrome/browser/web_applications/extensions",
+    # "//chrome/browser/web_applications",
+    # "//chrome/browser/web_applications/extensions",
     "//chrome/common",
     "//components/crx_file",
     "//components/keyed_service/content",

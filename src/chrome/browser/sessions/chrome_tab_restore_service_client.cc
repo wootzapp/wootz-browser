@@ -95,8 +95,8 @@ std::string ChromeTabRestoreServiceClient::GetExtensionAppIDForTab(
   std::string app_id;
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  app_id = apps::GetAppIdForWebContents(
-      static_cast<sessions::ContentLiveTab*>(tab)->web_contents());
+  // app_id = apps::GetAppIdForWebContents(
+  //     static_cast<sessions::ContentLiveTab*>(tab)->web_contents());
 #endif
 
   return app_id;
@@ -137,7 +137,7 @@ void ChromeTabRestoreServiceClient::GetLastSession(
 }
 
 void ChromeTabRestoreServiceClient::OnTabRestored(const GURL& url) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  apps::RecordExtensionAppLaunchOnTabRestored(profile_, url);
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+// #if BUILDFLAG(ENABLE_EXTENSIONS)
+//   apps::RecordExtensionAppLaunchOnTabRestored(profile_, url);
+// #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 }

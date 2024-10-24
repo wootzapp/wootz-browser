@@ -36,7 +36,8 @@ InstallTrackerFactory::InstallTrackerFactory()
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
-  DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   DependsOn(ExtensionPrefsFactory::GetInstance());
 }
 

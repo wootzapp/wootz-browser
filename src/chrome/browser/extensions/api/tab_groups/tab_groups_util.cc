@@ -35,9 +35,9 @@ int GetGroupId(const tab_groups::TabGroupId& id) {
 }
 
 int GetWindowIdOfGroup(const tab_groups::TabGroupId& id) {
-  Browser* browser = chrome::FindBrowserWithGroup(id, nullptr);
-  if (browser)
-    return browser->session_id().id();
+  // Browser* browser = chrome::FindBrowserWithGroup(id, nullptr);
+  // if (browser)
+  //   return browser->session_id().id();
   return -1;
 }
 
@@ -56,18 +56,19 @@ api::tab_groups::TabGroup CreateTabGroupObject(
 
 std::optional<api::tab_groups::TabGroup> CreateTabGroupObject(
     const tab_groups::TabGroupId& id) {
-  Browser* browser = chrome::FindBrowserWithGroup(id, nullptr);
-  if (!browser)
-    return std::nullopt;
+  // Browser* browser = chrome::FindBrowserWithGroup(id, nullptr);
+  // if (!browser)
+  //   return std::nullopt;
 
-  CHECK(browser->tab_strip_model()->SupportsTabGroups());
-  TabGroupModel* group_model = browser->tab_strip_model()->group_model();
-  const tab_groups::TabGroupVisualData* visual_data =
-      group_model->GetTabGroup(id)->visual_data();
+  // CHECK(browser->tab_strip_model()->SupportsTabGroups());
+  // TabGroupModel* group_model = browser->tab_strip_model()->group_model();
+  // const tab_groups::TabGroupVisualData* visual_data =
+  //     group_model->GetTabGroup(id)->visual_data();
 
-  DCHECK(visual_data);
+  // DCHECK(visual_data);
 
-  return CreateTabGroupObject(id, *visual_data);
+  // return CreateTabGroupObject(id, *visual_data);
+  return std::nullopt;
 }
 
 bool GetGroupById(int group_id,
@@ -77,41 +78,41 @@ bool GetGroupById(int group_id,
                   tab_groups::TabGroupId* id,
                   const tab_groups::TabGroupVisualData** visual_data,
                   std::string* error) {
-  if (group_id == -1)
-    return false;
+  // if (group_id == -1)
+  //   return false;
 
-  Profile* profile = Profile::FromBrowserContext(browser_context);
-  Profile* incognito_profile =
-      include_incognito && profile->HasPrimaryOTRProfile()
-          ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
-          : nullptr;
-  for (Browser* target_browser : *BrowserList::GetInstance()) {
-    if (target_browser->profile() == profile ||
-        target_browser->profile() == incognito_profile) {
-      TabStripModel* target_tab_strip = target_browser->tab_strip_model();
-      if (!target_tab_strip->SupportsTabGroups())
-        continue;
-      for (tab_groups::TabGroupId target_group :
-           target_tab_strip->group_model()->ListTabGroups()) {
-        if (GetGroupId(target_group) == group_id) {
-          if (browser)
-            *browser = target_browser;
-          if (id)
-            *id = target_group;
-          if (visual_data) {
-            *visual_data = target_tab_strip->group_model()
-                               ->GetTabGroup(target_group)
-                               ->visual_data();
-          }
-          return true;
-        }
-      }
-    }
-  }
+  // Profile* profile = Profile::FromBrowserContext(browser_context);
+  // Profile* incognito_profile =
+  //     include_incognito && profile->HasPrimaryOTRProfile()
+  //         ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
+  //         : nullptr;
+  // for (Browser* target_browser : *BrowserList::GetInstance()) {
+  //   if (target_browser->profile() == profile ||
+  //       target_browser->profile() == incognito_profile) {
+  //     TabStripModel* target_tab_strip = target_browser->tab_strip_model();
+  //     if (!target_tab_strip->SupportsTabGroups())
+  //       continue;
+  //     for (tab_groups::TabGroupId target_group :
+  //          target_tab_strip->group_model()->ListTabGroups()) {
+  //       if (GetGroupId(target_group) == group_id) {
+  //         if (browser)
+  //           *browser = target_browser;
+  //         if (id)
+  //           *id = target_group;
+  //         if (visual_data) {
+  //           *visual_data = target_tab_strip->group_model()
+  //                              ->GetTabGroup(target_group)
+  //                              ->visual_data();
+  //         }
+  //         return true;
+  //       }
+  //     }
+  //   }
+  // }
 
-  *error =
-      ErrorUtils::FormatErrorMessage(tab_groups_constants::kGroupNotFoundError,
-                                     base::NumberToString(group_id));
+  // *error =
+  //     ErrorUtils::FormatErrorMessage(tab_groups_constants::kGroupNotFoundError,
+  //                                    base::NumberToString(group_id));
   return false;
 }
 
@@ -191,7 +192,8 @@ bool IsGroupSaved(tab_groups::TabGroupId tab_group_id,
   if (!saved_tab_group_service) {
     return false;
   }
-  return saved_tab_group_service->model()->Contains(tab_group_id);
+  // return saved_tab_group_service->model()->Contains(tab_group_id);
+  return false;
 }
 
 }  // namespace tab_groups_util

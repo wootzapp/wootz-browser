@@ -372,6 +372,19 @@
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
         // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 
+// wootz load exts import
+#include "chrome/browser/extensions/extension_service.h"
+#include "extensions/common/api/extension_action/action_info.h"
+#include "extensions/browser/extension_action_manager.h"
+#include "chrome/browser/profiles/profile.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/common/extension.h"
+#include "extensions/common/file_util.h"
+#include "extensions/common/extension_paths.h"
+#include "extensions/browser/extension_registry.h"
+#include "base/files/file_path.h"
+#include "base/path_service.h"
+
 namespace {
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
     BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
@@ -1255,7 +1268,7 @@ void ChromeBrowserMainParts::PreProfileInit() {
 
   media::AudioManager::SetGlobalAppName(
       l10n_util::GetStringUTF8(IDS_SHORT_PRODUCT_NAME));
-
+  LOG(ERROR) << "pre profile init";
   for (auto& chrome_extra_part : chrome_extra_parts_)
     chrome_extra_part->PreProfileInit();
 
@@ -1286,7 +1299,7 @@ void ChromeBrowserMainParts::PreProfileInit() {
 #endif  // BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  SetChromeAppModalDialogManagerDelegate();
+  // SetChromeAppModalDialogManagerDelegate();
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   media_router::ChromeMediaRouterFactory::DoPlatformInit();
@@ -1389,6 +1402,28 @@ void ChromeBrowserMainParts::PostProfileInit(Profile* profile,
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 }
 
+void GetExtensionPopupUrl(Profile* profile, const std::string& extension_id) {
+    // Get the extension from the registry
+    const extensions::Extension* extension = extensions::ExtensionRegistry::Get(profile)
+                                             ->GetExtensionById(extension_id, extensions::ExtensionRegistry::ENABLED);
+    if (!extension) {
+        LOG(ERROR) << "Extension not found.";
+        return;
+    }
+
+    // Get the action info for the extension (contains browser/page action info)
+    const extensions::ActionInfo* action_info = extensions::ActionInfo::GetExtensionActionInfo(extension);
+    if (!action_info || action_info->default_popup_url.is_empty()) {
+        LOG(ERROR) << "WOOTZ No popup URL for this extension.";
+        return;
+    }
+
+    // Retrieve the popup URL
+    GURL popup_url = action_info->default_popup_url;
+
+    LOG(INFO) << "WOOTZ Popup URL: " << popup_url.spec();
+}
+
 void ChromeBrowserMainParts::PreBrowserStart() {
   TRACE_EVENT0("startup", "ChromeBrowserMainParts::PreBrowserStart");
   for (auto& chrome_extra_part : chrome_extra_parts_)
@@ -1442,13 +1477,40 @@ void ChromeBrowserMainParts::PostBrowserStart() {
                                   base::Unretained(web_usb_detector_.get())));
   }
 #endif
-
   // At this point, StartupBrowserCreator::Start has run creating initial
   // browser windows and tabs, but no progress has been made in loading
   // content as the main message loop hasn't started processing tasks yet.
   // We setup to observe to the initial page load here to defer running
   // task posted via PostAfterStartupTask until its complete.
   AfterStartupTaskUtils::StartMonitoringStartup();
+
+  LOG(INFO) << "WOOTZ: loading ext";
+  base::FilePath extension_path("/data/local/tmp/ext-test");
+  Profile* profile = ProfileManager::GetActiveUserProfile();
+
+  if (profile) {
+      LOG(INFO) << "WOOTZ: profile ok";
+      extensions::ExtensionService* extension_service =
+          extensions::ExtensionSystem::Get(profile)->extension_service();
+
+      std::string error;
+      scoped_refptr<const extensions::Extension> extension =
+          extensions::file_util::LoadExtension(extension_path,
+                                                extensions::mojom::ManifestLocation::kUnpacked,
+                                                extensions::Extension::NO_FLAGS,
+                                                &error);
+
+      if (extension) {
+          extension_service->AddExtension(extension.get());
+          extension_service->EnableExtension(extension->id());
+          LOG(INFO) << "WOOTZ: loaded ext from " << extension_path.value();
+          GetExtensionPopupUrl(profile, extension.get()->id());
+      } else {
+          LOG(ERROR) << "WOOTZ: failed to load ext: " << error;
+      }
+  } else {
+      LOG(ERROR) << "WOOTZ: profile error";
+  }
 }
 
 int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {

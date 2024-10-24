@@ -41,9 +41,9 @@ bool CpuInfoProvider::QueryInfo() {
     info_.processors.emplace_back();
   }
   // Initialize the ProcessorInfos, or return an empty array if that fails.
-  if (!QueryCpuTimePerProcessor(&info_.processors)) {
-    info_.processors.clear();
-  }
+  // if (!QueryCpuTimePerProcessor(&info_.processors)) {
+  //   info_.processors.clear();
+  // }
 
 #if BUILDFLAG(IS_CHROMEOS)
   using CPUTemperatureInfo =

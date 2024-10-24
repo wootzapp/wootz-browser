@@ -1335,7 +1335,8 @@ storage::SpecialStoragePolicy* ProfileImpl::GetSpecialStoragePolicy() {
 content::PlatformNotificationService*
 ProfileImpl::GetPlatformNotificationService() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  return PlatformNotificationServiceFactory::GetForProfile(this);
+  // return PlatformNotificationServiceFactory::GetForProfile(this);
+  return nullptr;
 }
 
 content::PushMessagingService* ProfileImpl::GetPushMessagingService() {
@@ -1381,7 +1382,8 @@ content::BackgroundSyncController* ProfileImpl::GetBackgroundSyncController() {
 }
 
 content::ContentIndexProvider* ProfileImpl::GetContentIndexProvider() {
-  return ContentIndexProviderFactory::GetForProfile(this);
+  // return ContentIndexProviderFactory::GetForProfile(this);
+  return nullptr;
 }
 
 content::FederatedIdentityApiPermissionContextDelegate*

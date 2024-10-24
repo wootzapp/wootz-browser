@@ -28,7 +28,7 @@ ChromeExtensionHostDelegate::~ChromeExtensionHostDelegate() {}
 void ChromeExtensionHostDelegate::OnExtensionHostCreated(
     content::WebContents* web_contents) {
   PrefsTabHelper::CreateForWebContents(web_contents);
-  apps::AudioFocusWebContentsObserver::CreateForWebContents(web_contents);
+  // apps::AudioFocusWebContentsObserver::CreateForWebContents(web_contents);
 }
 
 void ChromeExtensionHostDelegate::OnMainFrameCreatedForBackgroundPage(

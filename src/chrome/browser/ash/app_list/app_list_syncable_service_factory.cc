@@ -71,8 +71,9 @@ AppListSyncableServiceFactory::AppListSyncableServiceFactory()
   VLOG(1) << "AppListSyncableServiceFactory()";
   typedef std::set<BrowserContextKeyedServiceFactory*> FactorySet;
   FactorySet dependent_factories;
-  dependent_factories.insert(
-      extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
+  if (extensions::ExtensionsBrowserClient::Get())
+    dependent_factories.insert(
+        extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   dependent_factories.insert(ArcAppListPrefsFactory::GetInstance());
   dependent_factories.insert(apps::AppServiceProxyFactory::GetInstance());
   dependent_factories.insert(

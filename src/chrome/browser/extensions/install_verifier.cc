@@ -139,9 +139,10 @@ bool InstallVerifier::NeedsVerification(const Extension& extension,
 // static
 bool InstallVerifier::IsFromStore(const Extension& extension,
                                   content::BrowserContext* context) {
-  return extension.from_webstore() ||
-         ExtensionManagementFactory::GetForBrowserContext(context)
-             ->UpdatesFromWebstore(extension);
+  return false;
+  // return extension.from_webstore() ||
+  //        ExtensionManagementFactory::GetForBrowserContext(context)
+  //            ->UpdatesFromWebstore(extension);
 }
 
 void InstallVerifier::Init() {

@@ -26,21 +26,21 @@
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window.h"
+// #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
 #include "chrome/browser/ui/tab_helpers.h"
-#include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+// #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
 #include "chrome/browser/web_applications/extension_status_utils.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
-#include "chrome/browser/web_applications/web_app_command_scheduler.h"
+// #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
+// #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_manager.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
-#include "chrome/browser/web_applications/web_app_install_utils.h"
+// #include "chrome/browser/web_applications/web_app_install_utils.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_registrar.h"
+// #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/extension_metrics.h"
@@ -76,126 +76,126 @@ using InstallOrLaunchWebAppCallback =
     extensions::ManagementAPIDelegate::InstallOrLaunchWebAppCallback;
 using InstallOrLaunchWebAppResult =
     extensions::ManagementAPIDelegate::InstallOrLaunchWebAppResult;
-using InstallableCheckResult = web_app::InstallableCheckResult;
+// using InstallableCheckResult = web_app::InstallableCheckResult;
 
-class ManagementSetEnabledFunctionInstallPromptDelegate
-    : public extensions::InstallPromptDelegate {
- public:
-  ManagementSetEnabledFunctionInstallPromptDelegate(
-      content::WebContents* web_contents,
-      content::BrowserContext* browser_context,
-      const extensions::Extension* extension,
-      base::OnceCallback<void(bool)> callback)
-      : install_prompt_(new ExtensionInstallPrompt(web_contents)),
-        callback_(std::move(callback)) {
-    ExtensionInstallPrompt::PromptType type =
-        ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
-            browser_context, extension);
-    install_prompt_->ShowDialog(
-        base::BindOnce(&ManagementSetEnabledFunctionInstallPromptDelegate::
-                           OnInstallPromptDone,
-                       weak_factory_.GetWeakPtr()),
-        extension, nullptr,
-        std::make_unique<ExtensionInstallPrompt::Prompt>(type),
-        ExtensionInstallPrompt::GetDefaultShowDialogCallback());
-  }
+// class ManagementSetEnabledFunctionInstallPromptDelegate
+//     : public extensions::InstallPromptDelegate {
+//  public:
+//   ManagementSetEnabledFunctionInstallPromptDelegate(
+//       content::WebContents* web_contents,
+//       content::BrowserContext* browser_context,
+//       const extensions::Extension* extension,
+//       base::OnceCallback<void(bool)> callback)
+//       : install_prompt_(new ExtensionInstallPrompt(web_contents)),
+//     //     callback_(std::move(callback)) {
+//     // ExtensionInstallPrompt::PromptType type =
+//     //     ExtensionInstallPrompt::GetReEnablePromptTypeForExtension(
+//     //         browser_context, extension);
+//     // install_prompt_->ShowDialog(
+//     //     base::BindOnce(&ManagementSetEnabledFunctionInstallPromptDelegate::
+//     //                        OnInstallPromptDone,
+//     //                    weak_factory_.GetWeakPtr()),
+//     //     extension, nullptr,
+//     //     std::make_unique<ExtensionInstallPrompt::Prompt>(type),
+//     //     ExtensionInstallPrompt::GetDefaultShowDialogCallback());
+//   }
 
-  ManagementSetEnabledFunctionInstallPromptDelegate(
-      const ManagementSetEnabledFunctionInstallPromptDelegate&) = delete;
-  ManagementSetEnabledFunctionInstallPromptDelegate& operator=(
-      const ManagementSetEnabledFunctionInstallPromptDelegate&) = delete;
+//   ManagementSetEnabledFunctionInstallPromptDelegate(
+//       const ManagementSetEnabledFunctionInstallPromptDelegate&) = delete;
+//   ManagementSetEnabledFunctionInstallPromptDelegate& operator=(
+//       const ManagementSetEnabledFunctionInstallPromptDelegate&) = delete;
 
-  ~ManagementSetEnabledFunctionInstallPromptDelegate() override {}
+//   ~ManagementSetEnabledFunctionInstallPromptDelegate() override {}
 
- private:
-  void OnInstallPromptDone(
-      ExtensionInstallPrompt::DoneCallbackPayload payload) {
-    // This dialog doesn't support the "withhold permissions" checkbox.
-    DCHECK_NE(
-        payload.result,
-        ExtensionInstallPrompt::Result::ACCEPTED_WITH_WITHHELD_PERMISSIONS);
-    std::move(callback_).Run(payload.result ==
-                             ExtensionInstallPrompt::Result::ACCEPTED);
-  }
+//  private:
+//   void OnInstallPromptDone(
+//       ExtensionInstallPrompt::DoneCallbackPayload payload) {
+//     // This dialog doesn't support the "withhold permissions" checkbox.
+//     DCHECK_NE(
+//         payload.result,
+//         ExtensionInstallPrompt::Result::ACCEPTED_WITH_WITHHELD_PERMISSIONS);
+//     std::move(callback_).Run(payload.result ==
+//                              ExtensionInstallPrompt::Result::ACCEPTED);
+//   }
 
-  // Used for prompting to re-enable items with permissions escalation updates.
-  std::unique_ptr<ExtensionInstallPrompt> install_prompt_;
+//   // Used for prompting to re-enable items with permissions escalation updates.
+//   std::unique_ptr<ExtensionInstallPrompt> install_prompt_;
 
-  base::OnceCallback<void(bool)> callback_;
+//   base::OnceCallback<void(bool)> callback_;
 
-  base::WeakPtrFactory<ManagementSetEnabledFunctionInstallPromptDelegate>
-      weak_factory_{this};
-};
+//   base::WeakPtrFactory<ManagementSetEnabledFunctionInstallPromptDelegate>
+//       weak_factory_{this};
+// };
 
-class ManagementUninstallFunctionUninstallDialogDelegate
-    : public extensions::ExtensionUninstallDialog::Delegate,
-      public extensions::UninstallDialogDelegate {
- public:
-  ManagementUninstallFunctionUninstallDialogDelegate(
-      extensions::ManagementUninstallFunctionBase* function,
-      const extensions::Extension* target_extension,
-      bool show_programmatic_uninstall_ui)
-      : function_(function) {
-    ChromeExtensionFunctionDetails details(function);
-    extension_uninstall_dialog_ = extensions::ExtensionUninstallDialog::Create(
-        Profile::FromBrowserContext(function->browser_context()),
-        details.GetNativeWindowForUI(), this);
-    bool uninstall_from_webstore =
-        (function->extension() &&
-         function->extension()->id() == extensions::kWebStoreAppId) ||
-        function->source_url().DomainIs(
-            extension_urls::GetNewWebstoreLaunchURL().host());
-    extensions::UninstallSource source;
-    extensions::UninstallReason reason;
-    if (uninstall_from_webstore) {
-      source = extensions::UNINSTALL_SOURCE_CHROME_WEBSTORE;
-      reason = extensions::UNINSTALL_REASON_CHROME_WEBSTORE;
-    } else if (function->source_context_type() ==
-               extensions::mojom::ContextType::kWebUi) {
-      source = extensions::UNINSTALL_SOURCE_CHROME_EXTENSIONS_PAGE;
-      // TODO: Update this to a new reason; it shouldn't be lumped in with
-      // other uninstalls if it's from the chrome://extensions page.
-      reason = extensions::UNINSTALL_REASON_MANAGEMENT_API;
-    } else {
-      source = extensions::UNINSTALL_SOURCE_EXTENSION;
-      reason = extensions::UNINSTALL_REASON_MANAGEMENT_API;
-    }
-    if (show_programmatic_uninstall_ui) {
-      extension_uninstall_dialog_->ConfirmUninstallByExtension(
-          target_extension, function->extension(), reason, source);
-    } else {
-      extension_uninstall_dialog_->ConfirmUninstall(target_extension, reason,
-                                                    source);
-    }
-  }
+// class ManagementUninstallFunctionUninstallDialogDelegate
+//     : public extensions::ExtensionUninstallDialog::Delegate,
+//       public extensions::UninstallDialogDelegate {
+//  public:
+//   ManagementUninstallFunctionUninstallDialogDelegate(
+//       extensions::ManagementUninstallFunctionBase* function,
+//       const extensions::Extension* target_extension,
+//       bool show_programmatic_uninstall_ui)
+//       : function_(function) {
+//     ChromeExtensionFunctionDetails details(function);
+//     extension_uninstall_dialog_ = extensions::ExtensionUninstallDialog::Create(
+//         Profile::FromBrowserContext(function->browser_context()),
+//         details.GetNativeWindowForUI(), this);
+//     bool uninstall_from_webstore =
+//         (function->extension() &&
+//          function->extension()->id() == extensions::kWebStoreAppId) ||
+//         function->source_url().DomainIs(
+//             extension_urls::GetNewWebstoreLaunchURL().host());
+//     extensions::UninstallSource source;
+//     extensions::UninstallReason reason;
+//     if (uninstall_from_webstore) {
+//       source = extensions::UNINSTALL_SOURCE_CHROME_WEBSTORE;
+//       reason = extensions::UNINSTALL_REASON_CHROME_WEBSTORE;
+//     } else if (function->source_context_type() ==
+//                extensions::mojom::ContextType::kWebUi) {
+//       source = extensions::UNINSTALL_SOURCE_CHROME_EXTENSIONS_PAGE;
+//       // TODO: Update this to a new reason; it shouldn't be lumped in with
+//       // other uninstalls if it's from the chrome://extensions page.
+//       reason = extensions::UNINSTALL_REASON_MANAGEMENT_API;
+//     } else {
+//       source = extensions::UNINSTALL_SOURCE_EXTENSION;
+//       reason = extensions::UNINSTALL_REASON_MANAGEMENT_API;
+//     }
+//     if (show_programmatic_uninstall_ui) {
+//       extension_uninstall_dialog_->ConfirmUninstallByExtension(
+//           target_extension, function->extension(), reason, source);
+//     } else {
+//       extension_uninstall_dialog_->ConfirmUninstall(target_extension, reason,
+//                                                     source);
+//     }
+//   }
 
-  ManagementUninstallFunctionUninstallDialogDelegate(
-      const ManagementUninstallFunctionUninstallDialogDelegate&) = delete;
-  ManagementUninstallFunctionUninstallDialogDelegate& operator=(
-      const ManagementUninstallFunctionUninstallDialogDelegate&) = delete;
+//   ManagementUninstallFunctionUninstallDialogDelegate(
+//       const ManagementUninstallFunctionUninstallDialogDelegate&) = delete;
+//   ManagementUninstallFunctionUninstallDialogDelegate& operator=(
+//       const ManagementUninstallFunctionUninstallDialogDelegate&) = delete;
 
-  ~ManagementUninstallFunctionUninstallDialogDelegate() override {}
+//   ~ManagementUninstallFunctionUninstallDialogDelegate() override {}
 
-  // ExtensionUninstallDialog::Delegate implementation.
-  void OnExtensionUninstallDialogClosed(bool did_start_uninstall,
-                                        const std::u16string& error) override {
-    function_->OnExtensionUninstallDialogClosed(did_start_uninstall, error);
-  }
+//   // ExtensionUninstallDialog::Delegate implementation.
+//   void OnExtensionUninstallDialogClosed(bool did_start_uninstall,
+//                                         const std::u16string& error) override {
+//     function_->OnExtensionUninstallDialogClosed(did_start_uninstall, error);
+//   }
 
- private:
-  raw_ptr<extensions::ManagementUninstallFunctionBase> function_;
-  std::unique_ptr<extensions::ExtensionUninstallDialog>
-      extension_uninstall_dialog_;
-};
+//  private:
+//   raw_ptr<extensions::ManagementUninstallFunctionBase> function_;
+//   std::unique_ptr<extensions::ExtensionUninstallDialog>
+//       extension_uninstall_dialog_;
+// };
 
-void OnGenerateAppForLinkCompleted(
-    extensions::ManagementGenerateAppForLinkFunction* function,
-    const webapps::AppId& app_id,
-    webapps::InstallResultCode code) {
-  const bool install_success =
-      code == webapps::InstallResultCode::kSuccessNewInstall;
-  function->FinishCreateWebApp(app_id, install_success);
-}
+// void OnGenerateAppForLinkCompleted(
+//     extensions::ManagementGenerateAppForLinkFunction* function,
+//     const webapps::AppId& app_id,
+//     webapps::InstallResultCode code) {
+//   const bool install_success =
+//       code == webapps::InstallResultCode::kSuccessNewInstall;
+//   function->FinishCreateWebApp(app_id, install_success);
+// }
 
 class ChromeAppForLinkDelegate : public extensions::AppForLinkDelegate {
  public:
@@ -222,87 +222,88 @@ class ChromeAppForLinkDelegate : public extensions::AppForLinkDelegate {
     }
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-    auto web_app_info = std::make_unique<web_app::WebAppInstallInfo>();
-    web_app_info->title = base::UTF8ToUTF16(title);
-    web_app_info->start_url = launch_url;
-    web_app_info->display_mode = web_app::DisplayMode::kBrowser;
-    web_app_info->user_display_mode = web_app::mojom::UserDisplayMode::kBrowser;
+    // auto web_app_info = std::make_unique<web_app::WebAppInstallInfo>();
+    // web_app_info->title = base::UTF8ToUTF16(title);
+    // web_app_info->start_url = launch_url;
+    // web_app_info->display_mode = web_app::DisplayMode::kBrowser;
+    // web_app_info->user_display_mode = web_app::mojom::UserDisplayMode::kBrowser;
 
-    if (!image_result.image.IsEmpty()) {
-      web_app_info->icon_bitmaps.any[image_result.image.Width()] =
-          image_result.image.AsBitmap();
-    }
+    // if (!image_result.image.IsEmpty()) {
+    //   web_app_info->icon_bitmaps.any[image_result.image.Width()] =
+    //       image_result.image.AsBitmap();
+    // }
 
-    auto* provider = web_app::WebAppProvider::GetForWebApps(
-        Profile::FromBrowserContext(context));
+    // auto* provider = web_app::WebAppProvider::GetForWebApps(
+    //     Profile::FromBrowserContext(context));
 
-    provider->scheduler().InstallFromInfoWithParams(
-        std::move(web_app_info),
-        /*overwrite_existing_manifest_fields=*/false,
-        webapps::WebappInstallSource::MANAGEMENT_API,
-        base::BindOnce(OnGenerateAppForLinkCompleted,
-                       base::RetainedRef(function)),
-        web_app::WebAppInstallParams());
+    // provider->scheduler().InstallFromInfoWithParams(
+    //     std::move(web_app_info),
+    //     /*overwrite_existing_manifest_fields=*/false,
+    //     webapps::WebappInstallSource::MANAGEMENT_API,
+    //     base::BindOnce(OnGenerateAppForLinkCompleted,
+    //                    base::RetainedRef(function)),
+    //     web_app::WebAppInstallParams());
   }
 
   extensions::api::management::ExtensionInfo CreateExtensionInfoFromWebApp(
       const extensions::ExtensionId& app_id,
       content::BrowserContext* context) override {
-    auto* provider = web_app::WebAppProvider::GetForWebApps(
-        Profile::FromBrowserContext(context));
-    DCHECK(provider);
-    const web_app::WebAppRegistrar& registrar = provider->registrar_unsafe();
+  //   auto* provider = web_app::WebAppProvider::GetForWebApps(
+  //       Profile::FromBrowserContext(context));
+  //   DCHECK(provider);
+  //   const web_app::WebAppRegistrar& registrar = provider->registrar_unsafe();
 
-    extensions::api::management::ExtensionInfo info;
-    info.id = app_id;
-    info.name = registrar.GetAppShortName(app_id);
-    info.enabled = registrar.IsLocallyInstalled(app_id);
-    info.install_type =
-        extensions::api::management::ExtensionInstallType::kOther;
-    info.is_app = true;
-    info.type = extensions::api::management::ExtensionType::kHostedApp;
-    info.app_launch_url = registrar.GetAppStartUrl(app_id).spec();
+  //   extensions::api::management::ExtensionInfo info;
+  //   info.id = app_id;
+  //   info.name = registrar.GetAppShortName(app_id);
+  //   info.enabled = registrar.IsLocallyInstalled(app_id);
+  //   info.install_type =
+  //       extensions::api::management::ExtensionInstallType::kOther;
+  //   info.is_app = true;
+  //   info.type = extensions::api::management::ExtensionType::kHostedApp;
+  //   info.app_launch_url = registrar.GetAppStartUrl(app_id).spec();
 
-    info.icons.emplace();
-    std::vector<apps::IconInfo> manifest_icons =
-        registrar.GetAppIconInfos(app_id);
-    info.icons->reserve(manifest_icons.size());
-    for (const apps::IconInfo& web_app_icon_info : manifest_icons) {
-      extensions::api::management::IconInfo icon_info;
-      if (web_app_icon_info.square_size_px)
-        icon_info.size = *web_app_icon_info.square_size_px;
-      icon_info.url = web_app_icon_info.url.spec();
-      info.icons->push_back(std::move(icon_info));
-    }
+  //   info.icons.emplace();
+  //   std::vector<apps::IconInfo> manifest_icons =
+  //       registrar.GetAppIconInfos(app_id);
+  //   info.icons->reserve(manifest_icons.size());
+  //   for (const apps::IconInfo& web_app_icon_info : manifest_icons) {
+  //     extensions::api::management::IconInfo icon_info;
+  //     if (web_app_icon_info.square_size_px)
+  //       icon_info.size = *web_app_icon_info.square_size_px;
+  //     icon_info.url = web_app_icon_info.url.spec();
+  //     info.icons->push_back(std::move(icon_info));
+  //   }
 
-    switch (registrar.GetAppDisplayMode(app_id)) {
-      case web_app::DisplayMode::kBrowser:
-        info.launch_type =
-            extensions::api::management::LaunchType::kOpenAsRegularTab;
-        break;
-      case web_app::DisplayMode::kMinimalUi:
-      case web_app::DisplayMode::kStandalone:
-        info.launch_type =
-            extensions::api::management::LaunchType::kOpenAsWindow;
-        break;
-      case web_app::DisplayMode::kFullscreen:
-        info.launch_type =
-            extensions::api::management::LaunchType::kOpenFullScreen;
-        break;
-      // These modes are not supported by the extension app backend.
-      case web_app::DisplayMode::kWindowControlsOverlay:
-      case web_app::DisplayMode::kTabbed:
-      case web_app::DisplayMode::kBorderless:
-      case web_app::DisplayMode::kPictureInPicture:
-      case web_app::DisplayMode::kUndefined:
-        info.launch_type = extensions::api::management::LaunchType::kNone;
-        break;
-    }
+  //   switch (registrar.GetAppDisplayMode(app_id)) {
+  //     case web_app::DisplayMode::kBrowser:
+  //       info.launch_type =
+  //           extensions::api::management::LaunchType::kOpenAsRegularTab;
+  //       break;
+  //     case web_app::DisplayMode::kMinimalUi:
+  //     case web_app::DisplayMode::kStandalone:
+  //       info.launch_type =
+  //           extensions::api::management::LaunchType::kOpenAsWindow;
+  //       break;
+  //     case web_app::DisplayMode::kFullscreen:
+  //       info.launch_type =
+  //           extensions::api::management::LaunchType::kOpenFullScreen;
+  //       break;
+  //     // These modes are not supported by the extension app backend.
+  //     case web_app::DisplayMode::kWindowControlsOverlay:
+  //     case web_app::DisplayMode::kTabbed:
+  //     case web_app::DisplayMode::kBorderless:
+  //     case web_app::DisplayMode::kPictureInPicture:
+  //     case web_app::DisplayMode::kUndefined:
+  //       info.launch_type = extensions::api::management::LaunchType::kNone;
+  //       break;
+  //   }
 
-    return info;
+  //   return info;
+    return extensions::api::management::ExtensionInfo();
   }
 
-  // Used for favicon loading tasks.
+  // // Used for favicon loading tasks.
   base::CancelableTaskTracker cancelable_task_tracker_;
 };
 
@@ -311,27 +312,27 @@ void LaunchWebApp(const webapps::AppId& app_id, Profile* profile) {
   // preference, the default launch value will be returned.
   // TODO(crbug.com/40098656): Make AppLaunchParams launch container Optional or
   // add a "default" launch container enum value.
-  auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
-  DCHECK(provider);
-  std::optional<web_app::mojom::UserDisplayMode> display_mode =
-      provider->registrar_unsafe().GetAppUserDisplayMode(app_id);
-  auto launch_container = apps::LaunchContainer::kLaunchContainerWindow;
-  if (display_mode == web_app::mojom::UserDisplayMode::kBrowser) {
-    launch_container = apps::LaunchContainer::kLaunchContainerTab;
-  }
+  // auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
+  // DCHECK(provider);
+  // std::optional<web_app::mojom::UserDisplayMode> display_mode =
+  //     provider->registrar_unsafe().GetAppUserDisplayMode(app_id);
+  // auto launch_container = apps::LaunchContainer::kLaunchContainerWindow;
+  // if (display_mode == web_app::mojom::UserDisplayMode::kBrowser) {
+  //   launch_container = apps::LaunchContainer::kLaunchContainerTab;
+  // }
 
-  if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
-    // If the profile doesn't have an App Service Proxy available, that means
-    // this extension has been explicitly permitted to run in an incognito
-    // context. Treat this as if the extension is running in the original
-    // profile, so it is allowed to access apps in the original profile.
-    profile = profile->GetOriginalProfile();
-  }
+  // if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
+  //   // If the profile doesn't have an App Service Proxy available, that means
+  //   // this extension has been explicitly permitted to run in an incognito
+  //   // context. Treat this as if the extension is running in the original
+  //   // profile, so it is allowed to access apps in the original profile.
+  //   profile = profile->GetOriginalProfile();
+  // }
 
-  apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
-      apps::AppLaunchParams(app_id, launch_container,
-                            WindowOpenDisposition::NEW_FOREGROUND_TAB,
-                            apps::LaunchSource::kFromManagementApi));
+  // apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
+  //     apps::AppLaunchParams(app_id, launch_container,
+  //                           WindowOpenDisposition::NEW_FOREGROUND_TAB,
+  //                           apps::LaunchSource::kFromManagementApi));
 }
 
 void OnWebAppInstallCompleted(InstallOrLaunchWebAppCallback callback,
@@ -343,39 +344,39 @@ void OnWebAppInstallCompleted(InstallOrLaunchWebAppCallback callback,
   std::move(callback).Run(result);
 }
 
-void OnWebAppInstallabilityChecked(
-    base::WeakPtr<Profile> profile,
-    InstallOrLaunchWebAppCallback callback,
-    std::unique_ptr<content::WebContents> web_contents,
-    InstallableCheckResult result,
-    std::optional<webapps::AppId> app_id) {
-  if (!profile) {
-    return;
-  }
-  switch (result) {
-    case InstallableCheckResult::kAlreadyInstalled:
-      DCHECK(app_id);
-      LaunchWebApp(*app_id, profile.get());
-      std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
-      return;
-    case InstallableCheckResult::kNotInstallable:
-      std::move(callback).Run(InstallOrLaunchWebAppResult::kInvalidWebApp);
-      return;
-    case InstallableCheckResult::kInstallable:
-      content::WebContents* containing_contents = web_contents.get();
-      chrome::ScopedTabbedBrowserDisplayer displayer(profile.get());
-      const GURL& url = web_contents->GetLastCommittedURL();
-      chrome::AddWebContents(displayer.browser(), nullptr,
-                             std::move(web_contents), url,
-                             WindowOpenDisposition::NEW_FOREGROUND_TAB,
-                             blink::mojom::WindowFeatures());
-      web_app::CreateWebAppFromManifest(
-          containing_contents, webapps::WebappInstallSource::MANAGEMENT_API,
-          base::BindOnce(&OnWebAppInstallCompleted, std::move(callback)));
-      return;
-  }
-  NOTREACHED_IN_MIGRATION();
-}
+// void OnWebAppInstallabilityChecked(
+//     base::WeakPtr<Profile> profile,
+//     InstallOrLaunchWebAppCallback callback,
+//     std::unique_ptr<content::WebContents> web_contents,
+//     InstallableCheckResult result,
+//     std::optional<webapps::AppId> app_id) {
+//   if (!profile) {
+//     return;
+//   }
+//   switch (result) {
+//     case InstallableCheckResult::kAlreadyInstalled:
+//       DCHECK(app_id);
+//       LaunchWebApp(*app_id, profile.get());
+//       std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
+//       return;
+//     case InstallableCheckResult::kNotInstallable:
+//       std::move(callback).Run(InstallOrLaunchWebAppResult::kInvalidWebApp);
+//       return;
+//     case InstallableCheckResult::kInstallable:
+//       content::WebContents* containing_contents = web_contents.get();
+//       chrome::ScopedTabbedBrowserDisplayer displayer(profile.get());
+//       const GURL& url = web_contents->GetLastCommittedURL();
+//       chrome::AddWebContents(displayer.browser(), nullptr,
+//                              std::move(web_contents), url,
+//                              WindowOpenDisposition::NEW_FOREGROUND_TAB,
+//                              blink::mojom::WindowFeatures());
+//       web_app::CreateWebAppFromManifest(
+//           containing_contents, webapps::WebappInstallSource::MANAGEMENT_API,
+//           base::BindOnce(&OnWebAppInstallCompleted, std::move(callback)));
+//       return;
+//   }
+//   NOTREACHED_IN_MIGRATION();
+// }
 
 extensions::SupervisedUserExtensionsDelegate*
 GetSupervisedUserExtensionsDelegateFromContext(
@@ -402,34 +403,34 @@ bool ChromeManagementAPIDelegate::LaunchAppFunctionDelegate(
   // returned.
   // TODO(crbug.com/40098656): Make AppLaunchParams launch container Optional or
   // add a "default" launch container enum value.
-  apps::LaunchContainer launch_container =
-      GetLaunchContainer(extensions::ExtensionPrefs::Get(context), extension);
-  Profile* profile = Profile::FromBrowserContext(context);
+  // apps::LaunchContainer launch_container =
+  //     GetLaunchContainer(extensions::ExtensionPrefs::Get(context), extension);
+  // Profile* profile = Profile::FromBrowserContext(context);
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   if (extensions::IsExtensionUnsupportedDeprecatedApp(profile,
                                                       extension->id())) {
     return false;
   }
 #endif
-  if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
-    // If the profile doesn't have an App Service Proxy available, that means
-    // this extension has been explicitly permitted to run in an incognito
-    // context. Treat this as if the extension is running in the original
-    // profile, so it is allowed to access apps in the original profile.
-    profile = profile->GetOriginalProfile();
-  }
-  apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
-      apps::AppLaunchParams(extension->id(), launch_container,
-                            WindowOpenDisposition::NEW_FOREGROUND_TAB,
-                            apps::LaunchSource::kFromManagementApi));
+  // if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile)) {
+  //   // If the profile doesn't have an App Service Proxy available, that means
+  //   // this extension has been explicitly permitted to run in an incognito
+  //   // context. Treat this as if the extension is running in the original
+  //   // profile, so it is allowed to access apps in the original profile.
+  //   profile = profile->GetOriginalProfile();
+  // }
+  // apps::AppServiceProxyFactory::GetForProfile(profile)->LaunchAppWithParams(
+  //     apps::AppLaunchParams(extension->id(), launch_container,
+  //                           WindowOpenDisposition::NEW_FOREGROUND_TAB,
+  //                           apps::LaunchSource::kFromManagementApi));
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   ash::DemoSession::RecordAppLaunchSourceIfInDemoMode(
       ash::DemoSession::AppLaunchSource::kExtensionApi);
 #endif
 
-  extensions::RecordAppLaunchType(extension_misc::APP_LAUNCH_EXTENSION_API,
-                                  extension->GetType());
+  // extensions::RecordAppLaunchType(extension_misc::APP_LAUNCH_EXTENSION_API,
+  //                                 extension->GetType());
   return true;
 }
 
@@ -450,8 +451,9 @@ ChromeManagementAPIDelegate::SetEnabledFunctionDelegate(
     content::BrowserContext* browser_context,
     const extensions::Extension* extension,
     base::OnceCallback<void(bool)> callback) const {
-  return std::make_unique<ManagementSetEnabledFunctionInstallPromptDelegate>(
-      web_contents, browser_context, extension, std::move(callback));
+  // return std::make_unique<ManagementSetEnabledFunctionInstallPromptDelegate>(
+  //     web_contents, browser_context, extension, std::move(callback));
+  return nullptr;
 }
 
 std::unique_ptr<extensions::UninstallDialogDelegate>
@@ -459,28 +461,29 @@ ChromeManagementAPIDelegate::UninstallFunctionDelegate(
     extensions::ManagementUninstallFunctionBase* function,
     const extensions::Extension* target_extension,
     bool show_programmatic_uninstall_ui) const {
-  return std::unique_ptr<extensions::UninstallDialogDelegate>(
-      new ManagementUninstallFunctionUninstallDialogDelegate(
-          function, target_extension, show_programmatic_uninstall_ui));
+  // return std::unique_ptr<extensions::UninstallDialogDelegate>(
+      // new ManagementUninstallFunctionUninstallDialogDelegate(
+      //     function, target_extension, show_programmatic_uninstall_ui));
+      return nullptr;
 }
 
 bool ChromeManagementAPIDelegate::CreateAppShortcutFunctionDelegate(
     extensions::ManagementCreateAppShortcutFunction* function,
     const extensions::Extension* extension,
     std::string* error) const {
-  Browser* browser = chrome::FindBrowserWithProfile(
-      Profile::FromBrowserContext(function->browser_context()));
-  if (!browser) {
-    // Shouldn't happen if we have user gesture.
-    *error = extension_management_api_constants::kNoBrowserToCreateShortcut;
-    return false;
-  }
+  // Browser* browser = chrome::FindBrowserWithProfile(
+  //     Profile::FromBrowserContext(function->browser_context()));
+  // if (!browser) {
+  //   // Shouldn't happen if we have user gesture.
+  //   *error = extension_management_api_constants::kNoBrowserToCreateShortcut;
+  //   return false;
+  // }
 
-  chrome::ShowCreateChromeAppShortcutsDialog(
-      browser->window()->GetNativeWindow(), browser->profile(), extension,
-      base::BindOnce(&extensions::ManagementCreateAppShortcutFunction::
-                         OnCloseShortcutPrompt,
-                     function));
+  // chrome::ShowCreateChromeAppShortcutsDialog(
+  //     browser->window()->GetNativeWindow(), browser->profile(), extension,
+  //     base::BindOnce(&extensions::ManagementCreateAppShortcutFunction::
+  //                        OnCloseShortcutPrompt,
+  //                    function));
 
   return true;
 }
@@ -510,8 +513,9 @@ ChromeManagementAPIDelegate::GenerateAppForLinkFunctionDelegate(
 
 bool ChromeManagementAPIDelegate::CanContextInstallWebApps(
     content::BrowserContext* context) const {
-  return web_app::AreWebAppsUserInstallable(
-      Profile::FromBrowserContext(context));
+  // return web_app::AreWebAppsUserInstallable(
+  //     Profile::FromBrowserContext(context));
+  return false;
 }
 
 void ChromeManagementAPIDelegate::InstallOrLaunchReplacementWebApp(
@@ -527,30 +531,30 @@ void ChromeManagementAPIDelegate::InstallOrLaunchReplacementWebApp(
   }
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-  Profile* profile = Profile::FromBrowserContext(context);
-  auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
-  DCHECK(provider);
+  // Profile* profile = Profile::FromBrowserContext(context);
+  // auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
+  // DCHECK(provider);
 
-  // Launch the app if web_app_url happens to match start_url. If not, the app
-  // could still be installed with different start_url.
-  if (provider->registrar_unsafe().IsLocallyInstalled(web_app_url)) {
-    LaunchWebApp(
-        web_app::GenerateAppId(/*manifest_id=*/std::nullopt, web_app_url),
-        profile);
-    std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
-    return;
-  }
+  // // Launch the app if web_app_url happens to match start_url. If not, the app
+  // // could still be installed with different start_url.
+  // if (provider->registrar_unsafe().IsLocallyInstalled(web_app_url)) {
+  //   LaunchWebApp(
+  //       web_app::GenerateAppId(/*manifest_id=*/std::nullopt, web_app_url),
+  //       profile);
+  //   std::move(callback).Run(InstallOrLaunchWebAppResult::kSuccess);
+  //   return;
+  // }
 
-  std::unique_ptr<content::WebContents> web_contents =
-      content::WebContents::Create(content::WebContents::CreateParams(profile));
-  web_app::CreateWebAppInstallTabHelpers(web_contents.get());
+  // std::unique_ptr<content::WebContents> web_contents =
+  //     content::WebContents::Create(content::WebContents::CreateParams(profile));
+  // web_app::CreateWebAppInstallTabHelpers(web_contents.get());
 
-  base::WeakPtr<content::WebContents> web_contents_ptr =
-      web_contents->GetWeakPtr();
-  provider->scheduler().FetchInstallabilityForChromeManagement(
-      web_app_url, web_contents_ptr,
-      base::BindOnce(&OnWebAppInstallabilityChecked, profile->GetWeakPtr(),
-                     std::move(callback), std::move(web_contents)));
+  // base::WeakPtr<content::WebContents> web_contents_ptr =
+  //     web_contents->GetWeakPtr();
+  // provider->scheduler().FetchInstallabilityForChromeManagement(
+  //     web_app_url, web_contents_ptr,
+  //     base::BindOnce(&OnWebAppInstallabilityChecked, profile->GetWeakPtr(),
+  //                    std::move(callback), std::move(web_contents)));
 }
 
 void ChromeManagementAPIDelegate::EnableExtension(
@@ -612,8 +616,9 @@ GURL ChromeManagementAPIDelegate::GetIconURL(
     int icon_size,
     ExtensionIconSet::Match match,
     bool grayscale) const {
-  return extensions::ExtensionIconSource::GetIconURL(extension, icon_size,
-                                                     match, grayscale);
+  // return extensions::ExtensionIconSource::GetIconURL(extension, icon_size,
+  //                                                    match, grayscale);
+  return GURL();
 }
 
 GURL ChromeManagementAPIDelegate::GetEffectiveUpdateURL(

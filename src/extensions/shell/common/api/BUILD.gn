@@ -5,8 +5,8 @@
 import("//extensions/buildflags/buildflags.gni")
 import("//tools/json_schema_compiler/json_features.gni")
 
-assert(enable_extensions,
-       "Cannot depend on extensions because enable_extensions=false.")
+# assert(enable_extensions,
+      #  "Cannot depend on extensions because enable_extensions=false.")
 
 # TODO(devlin): Enforce visibility restrictions on more of these targets?
 

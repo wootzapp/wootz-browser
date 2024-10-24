@@ -224,53 +224,53 @@ void ChromeRuntimeAPIDelegate::ReloadExtension(
 bool ChromeRuntimeAPIDelegate::CheckForUpdates(
     const extensions::ExtensionId& extension_id,
     UpdateCheckCallback callback) {
-  ExtensionSystem* system = ExtensionSystem::Get(browser_context_);
-  extensions::ExtensionService* service = system->extension_service();
-  ExtensionUpdater* updater = service->updater();
-  if (!updater) {
-    return false;
-  }
+  // ExtensionSystem* system = ExtensionSystem::Get(browser_context_);
+  // extensions::ExtensionService* service = system->extension_service();
+  // ExtensionUpdater* updater = service->updater();
+  // if (!updater) {
+  //   return false;
+  // }
 
-  UpdateCheckInfo& info = update_check_info_[extension_id];
+  // UpdateCheckInfo& info = update_check_info_[extension_id];
 
-  // If not enough time has elapsed, or we have 10 or more outstanding calls,
-  // return a status of throttled.
-  if (info.backoff->ShouldRejectRequest() || info.callbacks.size() >= 10) {
-    UpdateCheckResult result = UpdateCheckResult(
-        extensions::api::runtime::RequestUpdateCheckStatus::kThrottled, "");
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), std::move(result)));
-  } else {
-    info.callbacks.push_back(std::move(callback));
+  // // If not enough time has elapsed, or we have 10 or more outstanding calls,
+  // // return a status of throttled.
+  // if (info.backoff->ShouldRejectRequest() || info.callbacks.size() >= 10) {
+  //   UpdateCheckResult result = UpdateCheckResult(
+  //       extensions::api::runtime::RequestUpdateCheckStatus::kThrottled, "");
+  //   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  //       FROM_HERE, base::BindOnce(std::move(callback), std::move(result)));
+  // } else {
+  //   info.callbacks.push_back(std::move(callback));
 
-    extensions::ExtensionUpdater::CheckParams params;
-    params.ids = {extension_id};
-    params.update_found_callback =
-        base::BindRepeating(&ChromeRuntimeAPIDelegate::OnExtensionUpdateFound,
-                            base::Unretained(this));
-    params.callback =
-        base::BindOnce(&ChromeRuntimeAPIDelegate::UpdateCheckComplete,
-                       base::Unretained(this), extension_id);
-    updater->CheckNow(std::move(params));
-  }
+  //   extensions::ExtensionUpdater::CheckParams params;
+  //   params.ids = {extension_id};
+  //   params.update_found_callback =
+  //       base::BindRepeating(&ChromeRuntimeAPIDelegate::OnExtensionUpdateFound,
+  //                           base::Unretained(this));
+  //   params.callback =
+  //       base::BindOnce(&ChromeRuntimeAPIDelegate::UpdateCheckComplete,
+  //                      base::Unretained(this), extension_id);
+  //   updater->CheckNow(std::move(params));
+  // }
   return true;
 }
 
 void ChromeRuntimeAPIDelegate::OpenURL(const GURL& uninstall_url) {
   Profile* profile = Profile::FromBrowserContext(browser_context_);
-  Browser* browser = chrome::FindLastActiveWithProfile(profile);
-  if (!browser) {
-    browser = Browser::Create(Browser::CreateParams(profile, false));
-  }
-  if (!browser) {
-    return;
-  }
+  // Browser* browser = chrome::FindLastActiveWithProfile(profile);
+  // if (!browser) {
+  //   browser = Browser::Create(Browser::CreateParams(profile, false));
+  // }
+  // if (!browser) {
+  //   return;
+  // }
 
-  NavigateParams params(browser, uninstall_url,
-                        ui::PAGE_TRANSITION_CLIENT_REDIRECT);
-  params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-  params.user_gesture = false;
-  Navigate(&params);
+  // NavigateParams params(profile, uninstall_url,
+  //                       ui::PAGE_TRANSITION_CLIENT_REDIRECT);
+  // params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  // params.user_gesture = false;
+  // Navigate(&params);
 }
 
 bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
@@ -285,6 +285,8 @@ bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
     info->os = extensions::api::runtime::PlatformOs::kLinux;
   } else if (strcmp(os, "openbsd") == 0) {
     info->os = extensions::api::runtime::PlatformOs::kOpenbsd;
+  }  else if (strcmp(os, "android") == 0) {
+    info->os = extensions::api::runtime::PlatformOs::kAndroid;
   } else {
     NOTREACHED_IN_MIGRATION() << "Platform not supported: " << os;
     return false;

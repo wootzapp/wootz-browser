@@ -1062,5 +1062,13 @@
   "wmDesksPrivate": {
     "dependencies": ["permission:wmDesksPrivate"],
     "contexts": ["privileged_extension"]
+  },
+  "wootz": {
+    "channel": "stable", 
+    "contexts": ["privileged_extension", "webui"]
+  },
+  "helloWorld": {
+    "channel": "stable",
+    "contexts": ["privileged_extension", "webui"]
   }
 }

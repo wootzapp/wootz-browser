@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/logging.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
@@ -27,6 +28,7 @@
 #include "crypto/secure_util.h"
 #include "crypto/sha2.h"
 #include "crypto/signature_verifier.h"
+#include "base/android/content_uri_utils.h"
 
 namespace crx_file {
 
@@ -237,7 +239,13 @@ VerifierResult Verify(
     std::vector<uint8_t>* compressed_verified_contents) {
   std::string public_key_local;
   std::string crx_id_local;
-  base::File file(crx_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
+  base::File file;
+  if (crx_path.IsContentUri()) {
+      file = base::OpenContentUriForRead(crx_path);
+  } else {
+      file = base::File(crx_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
+  }
+
   if (!file.IsValid())
     return VerifierResult::ERROR_FILE_NOT_READABLE;
 
@@ -290,6 +298,8 @@ VerifierResult Verify(
     *public_key = public_key_local;
   if (crx_id)
     *crx_id = crx_id_local;
+
+  LOG(ERROR) << "CRX ID " << crx_id_local;
   return diff ? VerifierResult::OK_DELTA : VerifierResult::OK_FULL;
 }
 
