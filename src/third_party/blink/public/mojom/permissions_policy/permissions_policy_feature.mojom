@@ -247,6 +247,7 @@ enum PermissionsPolicyFeature {
   // accept given device id.
   kSpeakerSelection = 118,
 
+  kEthereum = 4096, kSolana = 4097,
   // Don't change assigned numbers of any item, and don't reuse removed slots.
   // Add new features at the end of the enum.
   // Also, run update_permissions_policy_enum.py in

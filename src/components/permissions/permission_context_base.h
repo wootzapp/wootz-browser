@@ -2,6 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+
+// Jai - Starts
+#ifndef WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
+#define WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
+
+#include "base/functional/callback.h"
+
+namespace permissions {
+class PermissionContextBase;
+using PermissionContextBase_WootzImpl = PermissionContextBase;
+class PermissionLifetimeManager;
+}  // namespace permissions
+
+#define PermissionContextBase PermissionContextBase_ChromiumImpl
+#define PermissionDecided virtual PermissionDecided
+#define WOOTZ_PERMISSION_CONTEXT_BASE_H_              \
+  friend PermissionContextBase_WootzImpl;             \
+                                                      \
+ protected:                                           \
+  base::RepeatingCallback<PermissionLifetimeManager*( \
+      content::BrowserContext*)>                      \
+      permission_lifetime_manager_factory_;
+#define CleanUpRequest virtual CleanUpRequest
+
+// Jai - ends
+
+
 #ifndef COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
 #define COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
 
@@ -146,6 +173,9 @@ class PermissionContextBase : public content_settings::Observer {
     return content_settings_type_;
   }
 
+// Jai
+WOOTZ_PERMISSION_CONTEXT_BASE_H_
+
  protected:
   virtual ContentSetting GetPermissionStatusInternal(
       content::RenderFrameHost* render_frame_host,
@@ -259,3 +289,82 @@ class PermissionContextBase : public content_settings::Observer {
 }  // namespace permissions
 
 #endif  // COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
+
+// Jai - Starts
+
+#undef WOOTZ_PERMISSION_CONTEXT_BASE_H_
+#undef CleanUpRequest
+#undef PermissionDecided
+#undef PermissionContextBase
+
+#include <map>
+
+namespace permissions {
+
+class PermissionContextBase : public PermissionContextBase_ChromiumImpl {
+ public:
+  PermissionContextBase(
+      content::BrowserContext* browser_context,
+      ContentSettingsType content_settings_type,
+      blink::mojom::PermissionsPolicyFeature permissions_policy_feature);
+
+  ~PermissionContextBase() override;
+
+  void SetPermissionLifetimeManagerFactory(
+      const base::RepeatingCallback<
+          PermissionLifetimeManager*(content::BrowserContext*)>& factory);
+
+  void DecidePermission(permissions::PermissionRequestData request_data,
+                        BrowserPermissionCallback callback) override;
+
+  bool IsPendingGroupedRequestsEmptyForTesting();
+
+ private:
+  /**
+   * This class is map to one PermissionManager::RequestPermissions request,
+   * sub-requests will be kept in requests_.
+   * Chromium does not expect multiple sub-requests for a same permission type,
+   * this class is created to support tracking multiple sub-requests
+   * for each RequestPermissions request. It will clear all pending
+   * sub-requests for one RequestPermissions request after all of its
+   * sub-requests are finished.
+   */
+  class GroupedPermissionRequests {
+   public:
+    GroupedPermissionRequests();
+    ~GroupedPermissionRequests();
+
+    using GroupedRequests =
+        std::vector<std::pair<std::unique_ptr<PermissionRequest>,
+                              BrowserPermissionCallback>>;
+
+    bool IsDone() const;
+    void AddRequest(std::pair<std::unique_ptr<PermissionRequest>,
+                              BrowserPermissionCallback> request);
+    BrowserPermissionCallback GetNextCallback();
+    void RequestFinished();
+
+    const GroupedRequests& Requests() const { return requests_; }
+
+   private:
+    GroupedRequests requests_;
+    size_t finished_request_count_ = 0;
+    size_t next_callback_index_ = 0;
+  };
+
+  void PermissionDecided(const PermissionRequestID& id,
+                         const GURL& requesting_origin,
+                         const GURL& embedding_origin,
+                         ContentSetting content_setting,
+                         bool is_one_time,
+                         bool is_final_decision) override;
+  void CleanUpRequest(const PermissionRequestID& id) override; // Note: Latest Chromium have addtional param |embedded_permission_element_initiated|.
+
+  std::map<std::string, std::unique_ptr<GroupedPermissionRequests>>
+      pending_grouped_requests_;
+};
+
+}  // namespace permissions
+
+#endif // WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
+// Jai - ends

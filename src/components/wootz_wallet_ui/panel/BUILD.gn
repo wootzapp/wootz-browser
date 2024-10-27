@@ -1,0 +1,25 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+
+import("//components/common/typescript.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+
+transpile_web_ui("wootz_wallet_panel_ui") {
+  entry_points = [ [
+        "wootz_wallet_panel",
+        rebase_path("wallet_panel.tsx"),
+      ] ]
+  resource_name = "wootz_wallet_panel"
+  deps = [
+    "//components/wootz_wallet/common:mojom_js",
+    "//components/wootz_wallet/common:preprocess_mojo",
+  ]
+}
+
+pack_web_resources("wootz_wallet_panel_generated") {
+  resource_name = "wootz_wallet_panel"
+  output_dir = "$root_gen_dir/components/wootz_wallet_panel/resources"
+  deps = [ ":wootz_wallet_panel_ui" ]
+}

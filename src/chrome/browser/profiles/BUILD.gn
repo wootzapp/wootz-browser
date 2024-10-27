@@ -14,6 +14,10 @@ source_set("profiles") {
     "incognito_helpers.h",
     "profile_key.cc",
     "profile_key.h",
+    "wootz_renderer_updater.cc",
+    "wootz_renderer_updater.h",
+    "wootz_renderer_updater_factory.cc",
+    "wootz_renderer_updater_factory.h",
   ]
 
   if (is_android) {

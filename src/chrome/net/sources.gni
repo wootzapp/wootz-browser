@@ -1,0 +1,12 @@
+# Copyright (c) 2019 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
+wootz_net_sources = [
+  "//chrome/net/decentralized_dns/constants.h",
+  "//chrome/net/http/partitioned_host_state_map.cc",
+  "//chrome/net/http/partitioned_host_state_map.h",
+  "//chrome/net/proxy_resolution/proxy_config_service_tor.cc",
+  "//chrome/net/proxy_resolution/proxy_config_service_tor.h",
+]

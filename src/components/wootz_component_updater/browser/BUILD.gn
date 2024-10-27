@@ -1,0 +1,53 @@
+# Copyright (c) 2022 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//extensions/buildflags/buildflags.gni")
+
+static_library("browser") {
+  sources = [
+    "wootz_component.cc",
+    "wootz_component.h",
+    "wootz_component_installer.cc",
+    "wootz_component_installer.h",
+    "wootz_component_updater_delegate.cc",
+    "wootz_component_updater_delegate.h",
+    "wootz_on_demand_updater.cc",
+    "wootz_on_demand_updater.h",
+    "dat_file_util.cc",
+    "dat_file_util.h",
+    "features.cc",
+    "features.h",
+    "local_data_files_observer.cc",
+    "local_data_files_observer.h",
+    "local_data_files_service.cc",
+    "local_data_files_service.h",
+    "switches.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/component_updater:component_updater",
+    "//components/crx_file",
+    "//components/prefs",
+    "//components/update_client",
+    "//crypto",
+  ]
+}
+
+source_set("test_support") {
+  testonly = true
+
+  sources = [
+    "mock_on_demand_updater.cc",
+    "mock_on_demand_updater.h",
+  ]
+
+  deps = [
+    ":browser",
+    "//base",
+    "//components/component_updater",
+    "//testing/gmock",
+  ]
+}

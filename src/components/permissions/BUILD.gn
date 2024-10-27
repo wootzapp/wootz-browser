@@ -4,6 +4,7 @@
 
 import("//device/vr/buildflags/buildflags.gni")
 import("//services/device/public/cpp/geolocation/buildflags.gni")
+import("//components/permissions/sources.gni")
 
 source_set("permissions_common") {
   sources = [
@@ -158,6 +159,8 @@ source_set("permissions") {
   if (!is_android) {
     deps += [ "//components/guest_view/browser" ]
   }
+  sources += wootz_components_permissions_sources 
+  deps += wootz_components_permissions_deps  
   if (is_android) {
     sources += [
       "android/android_permission_util.cc",

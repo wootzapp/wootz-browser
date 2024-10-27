@@ -25,7 +25,7 @@ Preinstalled web apps are configured in two ways:
 
 The icon bitmaps bundled with the configs are not suitable to include in an open
 source repository and are stored in an internal repo:
-https://chrome-internal.googlesource.com/chrome/components/default_apps.git
+https://chrome-internal.googlesource.com/components/default_apps.git
 
 This internal repo only gets checked out for internal Chromium checkouts.
 
@@ -39,7 +39,7 @@ Icons are packaged into the build via:
 
 C++ configs which are not suitable to include in an open source repository are
 stored in the same internal repo as icons (see [Icons](#Icons)):
-https://chrome-internal.googlesource.com/chrome/components/default_apps.git
+https://chrome-internal.googlesource.com/components/default_apps.git
 
 This internal repo only gets checked out for internal Chromium checkouts.
 

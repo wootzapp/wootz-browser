@@ -1,0 +1,21 @@
+# Copyright 2022 The Wootz Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//tools/grit/grit_rule.gni")
+
+wootz_grit_resource_id_target = "//chrome/resources:wootz_resource_ids"
+wootz_grit_resource_id_file =
+    get_label_info(wootz_grit_resource_id_target, "target_gen_dir") +
+    "/wootz_resource_ids"
+
+template("wootz_grit") {
+  grit(target_name) {
+    forward_variables_from(invoker, "*")
+    resource_ids = wootz_grit_resource_id_file
+    if (!defined(deps)) {
+      deps = []
+    }
+    deps += [ wootz_grit_resource_id_target ]
+  }
+}

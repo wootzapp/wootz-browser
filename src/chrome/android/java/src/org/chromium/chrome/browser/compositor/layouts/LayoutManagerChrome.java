@@ -312,7 +312,6 @@ public class LayoutManagerChrome extends LayoutManagerImpl
     @Override
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
         boolean move_top_toolbar = true;
-        // boolean move_top_toolbar = ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled();
         return new ToolbarSwipeHandler(supportSwipeDown && !move_top_toolbar,
                                        supportSwipeDown && move_top_toolbar);
     }
@@ -585,36 +584,40 @@ public class LayoutManagerChrome extends LayoutManagerImpl
         public void onSwipeUpdated(MotionEvent current, float tx, float ty, float dx, float dy) {
             if (mToolbarSwipeLayout == null) return;
 
-            // By Sagar Jha
-            // To Enable the toolbar scroll.
-            //return ;
+            // By DevJangid
+            // To Disable the toolbar scroll.
+            return ;
+    
+            // float x = current.getRawX() * mPxToDp;
+            // float y = current.getRawY() * mPxToDp;
+            // dx *= mPxToDp;
+            // dy *= mPxToDp;
+            // tx *= mPxToDp;
+            // ty *= mPxToDp;
 
-            float x = current.getRawX() * mPxToDp;
-            float y = current.getRawY() * mPxToDp;
-            dx *= mPxToDp;
-            dy *= mPxToDp;
-            tx *= mPxToDp;
-            ty *= mPxToDp;
-            // If scroll direction has been computed, send the event to super.
-            if (mScrollDirection != ScrollDirection.UNKNOWN) {
-                mToolbarSwipeLayout.swipeUpdated(time(), x, y, dx, dy, tx, ty);
-                return;
-            }
-            mScrollDirection = computeScrollDirection(dx, dy);
-            if (mScrollDirection == ScrollDirection.UNKNOWN) return;
-            if (mScrollDirection == ScrollDirection.UP) { //enabled the swipe down feature by default - Sagar Jha
-                RecordUserAction.record("MobileToolbarSwipeOpenStackView");
-                showLayout(LayoutType.TAB_SWITCHER, true);
-            } else if (mSupportSwipeUp
-                       && mScrollDirection == ScrollDirection.UP
-                       && false) {
-            } else if (false) {
-                showLayout(LayoutType.TAB_SWITCHER, true);
-            } else if (mScrollDirection == ScrollDirection.LEFT
-                    || mScrollDirection == ScrollDirection.RIGHT) {
-                startShowing(mToolbarSwipeLayout, true);
-            }
-            mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);
+            // // If scroll direction has been computed, send the event to super.
+            // if (mScrollDirection != ScrollDirection.UNKNOWN) {
+            //     mToolbarSwipeLayout.swipeUpdated(time(), x, y, dx, dy, tx, ty);
+            //     return;
+            // }
+
+            // mScrollDirection = computeScrollDirection(dx, dy);
+            // if (mScrollDirection == ScrollDirection.UNKNOWN) return;
+
+            // if (mSupportSwipeDown && mScrollDirection == ScrollDirection.DOWN) {
+            //     RecordUserAction.record("MobileToolbarSwipeOpenStackView");
+            //     showLayout(LayoutType.TAB_SWITCHER, true);
+            // } else if (mSupportSwipeUp
+            //            && mScrollDirection == ScrollDirection.UP
+            //            && false) {
+            // } else if (false) {
+            //     showLayout(LayoutType.TAB_SWITCHER, true);
+            // } else if (mScrollDirection == ScrollDirection.LEFT
+            //         || mScrollDirection == ScrollDirection.RIGHT) {
+            //     startShowing(mToolbarSwipeLayout, true);
+            // }
+
+            // mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);
         }
 
         @Override

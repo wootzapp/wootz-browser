@@ -1,0 +1,26 @@
+# Copyright (c) 2022 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+static_library("time_period_storage") {
+  sources = [
+    "daily_storage.cc",
+    "daily_storage.h",
+    "iso_weekly_storage.cc",
+    "iso_weekly_storage.h",
+    "monthly_storage.cc",
+    "monthly_storage.h",
+    "time_period_storage.cc",
+    "time_period_storage.h",
+    "weekly_event_storage.cc",
+    "weekly_event_storage.h",
+    "weekly_storage.cc",
+    "weekly_storage.h",
+  ]
+
+  deps = [
+    "//base:base",
+    "//components/prefs",
+  ]
+}

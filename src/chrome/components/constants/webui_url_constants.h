@@ -29,21 +29,21 @@ inline constexpr char kWootzNewTabJS[] = "wootz_new_tab.js";
 inline constexpr char kWootzNewsInternalsHost[] = "news-internals";
 inline constexpr char kWootzUIAdblockURL[] = "chrome://adblock/";
 inline constexpr char kWootzUIWebcompatReporterURL[] = "chrome://webcompat/";
-inline constexpr char kWootzUIWalletURL[] = "chrome://wallet/";
+inline constexpr char kWootzUIWalletURL[] = "wootzapp://wallet/";
 inline constexpr char kWootzUIWalletOnboardingURL[] =
-    "wootz://wallet/crypto/onboarding";
+    "wootzapp://wallet/crypto/onboarding";
 inline constexpr char kWootzUIWalletAccountCreationURL[] =
-    "wootz://wallet/crypto/accounts/add-account/create/";
+    "wootzapp://wallet/crypto/accounts/add-account/create/";
 inline constexpr char kWootzUIWalletPanelURL[] =
-    "chrome://wallet-panel.top-chrome/";
+    "wootzapp://wallet-panel.top-chrome/";
 inline constexpr char kWalletPanelHost[] = "wallet-panel.top-chrome";
 inline constexpr char kVPNPanelURL[] =
     "chrome-untrusted://vpn-panel.top-chrome/";
 inline constexpr char kVPNPanelHost[] = "vpn-panel.top-chrome";
-inline constexpr char kWootzUIWalletPageURL[] = "chrome://wallet/";
+inline constexpr char kWootzUIWalletPageURL[] = "wootzapp://wallet/";
 inline constexpr char kWalletPageHost[] = "wallet";
-inline constexpr char kExtensionSettingsURL[] = "wootz://settings/extensions";
-inline constexpr char kWalletSettingsURL[] = "wootz://settings/wallet";
+inline constexpr char kExtensionSettingsURL[] = "wootzapp://settings/extensions";
+inline constexpr char kWalletSettingsURL[] = "wootzapp://settings/wallet";
 inline constexpr char kWootzSyncPath[] = "wootzSync";
 inline constexpr char kWootzSyncSetupPath[] = "wootzSync/setup";
 inline constexpr char kTorInternalsHost[] = "tor-internals";

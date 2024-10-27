@@ -1,0 +1,12 @@
+Name: sha3
+URL: https://crates.io/crates/sha3
+Description: Pure Rust implementation of SHA-3, a family of Keccak-based hash functions
+including the SHAKE family of eXtendable-Output Functions (XOFs), as well as
+the accelerated variant TurboSHAKE
+
+Version: 0.10.8
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/sha3-0.10.8/LICENSE-APACHE
+Revision: fee340a78dc88c7400adf8ff7713625343da6878

@@ -1,0 +1,404 @@
+// Copyright (c) 2024 The Wootz Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import * as React from 'react'
+import { EntityId } from '@reduxjs/toolkit'
+import Dropdown from '@brave/leo/react/dropdown'
+
+// Types
+import {
+  LedgerDerivationPath,
+  SolDerivationPaths,
+  TrezorDerivationPath,
+  TrezorDerivationPaths
+} from '../../../common/hardware/types'
+import {
+  WootzWallet,
+  FilecoinNetwork,
+  HardwareVendor
+} from '../../../constants/types'
+import {
+  HardwareWalletDerivationPathLocaleMapping,
+  HardwareWalletDerivationPathsMapping,
+  SolHardwareWalletDerivationPathLocaleMapping
+} from './hardware_wallet_connect.types'
+
+// Utils
+import { getLocale } from '../../../../common/locale'
+
+import {
+  useGetNetworksRegistryQuery //
+} from '../../../common/slices/api.slice'
+import { makeNetworkAsset } from '../../../options/asset-options'
+import {
+  networkEntityAdapter //
+} from '../../../common/slices/entities/network.entity'
+import {
+  getPathForEthLedgerIndex,
+  getPathForSolLedgerIndex,
+  getPathForTrezorIndex
+} from '../../../utils/derivation_path_utils'
+
+// Components
+import { SearchBar } from '../../shared/search-bar/index'
+import { NetworkFilterSelector } from '../network-filter-selector'
+import { AccountListItem } from './account_list_item'
+
+// Styles
+import {
+  DisclaimerText,
+  DisclaimerWrapper
+} from '../popup-modals/add-account-modal/style'
+import {
+  ButtonsContainer,
+  HardwareWalletAccountsListContainer,
+  SelectRow,
+  SelectWrapper,
+  LoadingWrapper,
+  LoadIcon,
+  NoSearchResultText,
+  AccountListContainer,
+  AccountListHeader,
+  AccountListContent,
+  DropdownLabel,
+  HelpLink
+} from './hardware_wallet_connect.styles'
+import {
+  ContinueButton //
+} from '../../../page/screens/onboarding/onboarding.style'
+import { Row } from '../../shared/style'
+
+interface Props {
+  hardwareWallet: HardwareVendor
+  accounts: WootzWallet.HardwareWalletAccount[]
+  preAddedHardwareWalletAccounts: WootzWallet.AccountInfo[]
+  onLoadMore: () => void
+  selectedDerivationPaths: string[]
+  setSelectedDerivationPaths: (paths: string[]) => void
+  selectedDerivationScheme: string
+  setSelectedDerivationScheme: (scheme: string) => void
+  onAddAccounts: () => void
+  filecoinNetwork: FilecoinNetwork
+  onChangeFilecoinNetwork: (network: FilecoinNetwork) => void
+  coin: WootzWallet.CoinType
+}
+
+export const HardwareWalletAccountsList = ({
+  accounts,
+  preAddedHardwareWalletAccounts,
+  hardwareWallet,
+  selectedDerivationScheme,
+  setSelectedDerivationScheme,
+  setSelectedDerivationPaths,
+  selectedDerivationPaths,
+  onLoadMore,
+  onAddAccounts,
+  filecoinNetwork,
+  onChangeFilecoinNetwork,
+  coin
+}: Props) => {
+  // queries
+  const { data: networksRegistry } = useGetNetworksRegistryQuery()
+
+  // state
+  const [filteredAccountList, setFilteredAccountList] = React.useState<
+    WootzWallet.HardwareWalletAccount[]
+  >([])
+  const [isLoadingMore, setIsLoadingMore] = React.useState<boolean>(false)
+  const [selectedNetworkId, setSelectedNetworkId] = React.useState<EntityId>(
+    coin === WootzWallet.CoinType.ETH
+      ? WootzWallet.MAINNET_CHAIN_ID
+      : coin === WootzWallet.CoinType.SOL
+      ? WootzWallet.SOLANA_MAINNET
+      : WootzWallet.FILECOIN_MAINNET
+  )
+
+  // memos
+  const accountNativeAsset = React.useMemo(() => {
+    if (!networksRegistry) {
+      return undefined
+    }
+    return makeNetworkAsset(networksRegistry.entities[selectedNetworkId])
+  }, [networksRegistry, selectedNetworkId])
+
+  const networksSubset = React.useMemo(() => {
+    if (!networksRegistry) {
+      return []
+    }
+    return networksRegistry.visibleIdsByCoinType[coin].map(
+      (id) => networksRegistry.entities[id] as WootzWallet.NetworkInfo
+    )
+  }, [networksRegistry, coin])
+
+  // computed
+  const ethDerivationPathsEnum =
+    HardwareWalletDerivationPathsMapping[hardwareWallet]
+  const solDerivationPathsEnum = SolHardwareWalletDerivationPathLocaleMapping
+
+  // methods
+  const onSelectAccountCheckbox =
+    (account: WootzWallet.HardwareWalletAccount) => () => {
+      const { derivationPath } = account
+      const isSelected = selectedDerivationPaths.includes(derivationPath)
+      const updatedPaths = isSelected
+        ? selectedDerivationPaths.filter((path) => path !== derivationPath)
+        : [...selectedDerivationPaths, derivationPath]
+      setSelectedDerivationPaths(updatedPaths)
+    }
+
+  const filterAccountList = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const search = event?.target?.value || ''
+    if (search === '') {
+      setFilteredAccountList(accounts)
+    } else {
+      const filteredList = accounts.filter((account) => {
+        return (
+          account.address.toLowerCase() === search.toLowerCase() ||
+          account.address.toLowerCase().startsWith(search.toLowerCase())
+        )
+      })
+      setFilteredAccountList(filteredList)
+    }
+  }
+
+  const onClickLoadMore = () => {
+    setIsLoadingMore(true)
+    onLoadMore()
+  }
+
+  const isPreAddedAccount = React.useCallback(
+    (account: WootzWallet.HardwareWalletAccount) => {
+      return preAddedHardwareWalletAccounts.some(
+        (e) => e.address === account.address
+      )
+    },
+    [preAddedHardwareWalletAccounts]
+  )
+
+  const onSelectNetwork = React.useCallback(
+    (n: WootzWallet.NetworkInfo): void => {
+      setSelectedNetworkId(networkEntityAdapter.selectId(n))
+      if (coin === WootzWallet.CoinType.FIL) {
+        onChangeFilecoinNetwork(n.chainId as FilecoinNetwork)
+      }
+    },
+    [coin, onChangeFilecoinNetwork]
+  )
+
+  const getPathValue = (
+    path: string
+  ): LedgerDerivationPath | TrezorDerivationPath => {
+    return ethDerivationPathsEnum[path as keyof typeof ethDerivationPathsEnum]
+  }
+
+  const getDerivationPathLabel = (
+    pathValue: LedgerDerivationPath | TrezorDerivationPath
+  ): string => {
+    const pathLocale = HardwareWalletDerivationPathLocaleMapping[pathValue]
+    const isTrezorPath = pathValue === TrezorDerivationPaths.Default
+    const devicePath = isTrezorPath
+      ? getPathForTrezorIndex(undefined, pathValue)
+      : getPathForEthLedgerIndex(undefined, pathValue)
+
+    return `${pathLocale} "${devicePath}"`
+  }
+
+  const onChangeDerivationScheme = (value?: string) => {
+    if (value) {
+      setSelectedDerivationScheme(value)
+    }
+  }
+
+  // effects
+  React.useEffect(() => {
+    setFilteredAccountList(accounts)
+    setIsLoadingMore(false)
+  }, [accounts])
+
+  React.useEffect(() => {
+    if (selectedNetworkId) {
+      return
+    }
+    if (!networksRegistry) {
+      return
+    }
+
+    // set network dropdown default value
+    setSelectedNetworkId(networksRegistry.visibleIdsByCoinType[coin][0])
+  }, [networksRegistry, coin, selectedNetworkId])
+
+  // render
+  return (
+    <>
+      <SelectRow>
+        <SelectWrapper>
+          <NetworkFilterSelector
+            networkListSubset={networksSubset}
+            selectedNetwork={networksRegistry?.entities[selectedNetworkId]}
+            onSelectNetwork={onSelectNetwork}
+            disableAllAccountsOption
+            isV2
+          />
+          {coin === WootzWallet.CoinType.ETH ? (
+            <Dropdown
+              value={selectedDerivationScheme}
+              onChange={(e) => onChangeDerivationScheme(e.value)}
+            >
+              <Row
+                width='100%'
+                justifyContent='space-between'
+                slot='label'
+              >
+                <DropdownLabel>{getLocale('wootzWalletHDPath')}</DropdownLabel>
+                <HelpLink
+                  href='https://support.wootz.com/hc/en-us/categories/360001059151-Wootz-Wallet'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                >
+                  {getLocale('wootzWalletHelpCenter')}
+                </HelpLink>
+              </Row>
+              <div slot='value'>
+                {getDerivationPathLabel(
+                  selectedDerivationScheme as
+                    | LedgerDerivationPath
+                    | TrezorDerivationPath
+                )}
+              </div>
+              {Object.keys(ethDerivationPathsEnum).map((path) => {
+                const pathValue = getPathValue(path)
+
+                return (
+                  <leo-option
+                    value={pathValue}
+                    key={pathValue}
+                  >
+                    {getDerivationPathLabel(pathValue)}
+                  </leo-option>
+                )
+              })}
+            </Dropdown>
+          ) : null}
+          {coin === WootzWallet.CoinType.SOL ? (
+            <Dropdown
+              value={selectedDerivationScheme}
+              onChange={(e) => onChangeDerivationScheme(e.value)}
+            >
+              <div slot='value'>
+                {
+                  solDerivationPathsEnum[
+                    selectedDerivationScheme as SolDerivationPaths
+                  ]
+                }{' '}
+                {`"${getPathForSolLedgerIndex(
+                  undefined,
+                  selectedDerivationScheme as SolDerivationPaths
+                )}"`}
+              </div>
+              {Object.keys(solDerivationPathsEnum).map((path) => {
+                const pathLocale =
+                  solDerivationPathsEnum[path as SolDerivationPaths]
+                return (
+                  <leo-option
+                    value={path}
+                    key={path}
+                  >
+                    {pathLocale}{' '}
+                    {`"${getPathForSolLedgerIndex(
+                      undefined,
+                      path as SolDerivationPaths
+                    )}"`}
+                  </leo-option>
+                )
+              })}
+            </Dropdown>
+          ) : null}
+        </SelectWrapper>
+      </SelectRow>
+      {coin !== WootzWallet.CoinType.FIL && (
+        <DisclaimerWrapper>
+          <DisclaimerText>
+            {getLocale('wootzWalletSwitchHDPathTextHardwareWallet')}
+          </DisclaimerText>
+        </DisclaimerWrapper>
+      )}
+      <SearchBar
+        placeholder={getLocale('wootzWalletSearchScannedAccounts')}
+        action={filterAccountList}
+        isV2
+      />
+      <HardwareWalletAccountsListContainer>
+        {accounts.length === 0 && (
+          <LoadingWrapper>
+            <LoadIcon size={'big'} />
+          </LoadingWrapper>
+        )}
+
+        {accounts.length > 0 && filteredAccountList.length === 0 && (
+          <NoSearchResultText>
+            {getLocale('wootzWalletConnectHardwareSearchNothingFound')}
+          </NoSearchResultText>
+        )}
+
+        {accountNativeAsset &&
+          accounts.length > 0 &&
+          filteredAccountList.length > 0 && (
+            <AccountListContainer>
+              <AccountListHeader>
+                <div>{getLocale('wootzWalletSubviewAccount')}</div>
+                <div>{getLocale('wootzWalletBalance')}</div>
+                <div>{getLocale('wootzWalletAddAccountConnect')}</div>
+              </AccountListHeader>
+              <AccountListContent>
+                {filteredAccountList.map((account) => {
+                  const isPreAdded = isPreAddedAccount(account)
+
+                  return (
+                    <AccountListItem
+                      key={account.derivationPath}
+                      balanceAsset={accountNativeAsset}
+                      account={account}
+                      selected={
+                        selectedDerivationPaths.includes(
+                          account.derivationPath
+                        ) || isPreAdded
+                      }
+                      disabled={isPreAdded}
+                      onSelect={onSelectAccountCheckbox(account)}
+                    />
+                  )
+                })}
+              </AccountListContent>
+            </AccountListContainer>
+          )}
+      </HardwareWalletAccountsListContainer>
+      <ButtonsContainer>
+        <ContinueButton
+          onClick={onClickLoadMore}
+          isLoading={isLoadingMore}
+          isDisabled={
+            isLoadingMore ||
+            accounts.length === 0 ||
+            selectedDerivationScheme === SolDerivationPaths.Bip44Root
+          }
+        >
+          {isLoadingMore
+            ? getLocale('wootzWalletLoadingMoreAccountsHardwareWallet')
+            : getLocale('wootzWalletLoadMoreAccountsHardwareWallet')}
+        </ContinueButton>
+        <ContinueButton
+          onClick={onAddAccounts}
+          isDisabled={
+            accounts.length === 0 || selectedDerivationPaths.length === 0
+          }
+        >
+          {getLocale('wootzWalletButtonContinue')}
+        </ContinueButton>
+      </ButtonsContainer>
+    </>
+  )
+}
+
+export default HardwareWalletAccountsList

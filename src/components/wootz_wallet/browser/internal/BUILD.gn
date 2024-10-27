@@ -1,0 +1,49 @@
+# Copyright (c) 2023 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//components/wootz_wallet/common/config.gni")
+
+source_set("hd_key") {
+  sources = [
+    "hd_key.cc",
+    "hd_key.h",
+    "hd_key_ed25519.cc",
+    "hd_key_ed25519.h",
+  ]
+
+  visibility = [
+    "//components/wootz_wallet/browser:hd_keyring",
+    "//components/wootz_wallet/browser/test:wootz_wallet_unit_tests",
+  ]
+
+  deps = [
+    "//base",
+    "//components/wootz_wallet/common",
+    "//third_party/bitcoin-core",
+    "//third_party/bitcoin-core:secp256k1",
+    "//chrome/vendor/bat-native-tweetnacl:tweetnacl",
+    "//crypto",
+    "//third_party/boringssl",
+  ]
+
+  public_deps = [ "//components/wootz_wallet/rust:rust_lib" ]
+  if (enable_orchard) {
+    sources += [
+      "hd_key_zip32.cc",
+      "hd_key_zip32.h",
+    ]
+    deps += [ "//components/wootz_wallet/browser/zcash/rust" ]
+  }
+}
+
+if (enable_orchard) {
+  source_set("orchard_bundle") {
+    sources = [
+      "orchard_bundle_manager.cc",
+      "orchard_bundle_manager.h",
+    ]
+    deps = [ "//components/wootz_wallet/browser/zcash/rust" ]
+  }
+}

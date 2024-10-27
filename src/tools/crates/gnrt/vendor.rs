@@ -96,7 +96,7 @@ fn vendor_impl(args: VendorCommandArgs, paths: &paths::ChromiumPaths) -> Result<
         if config.resolve.remove_crates.contains(&p.name) {
             println!("Generating placeholder for removed crate {}-{}", p.name, p.version);
             placeholder_crate(p, &nodes, paths, &config)?;
-        } else if !dirs.contains(&crate_dir) {
+        } else if !dirs.contains(&crate_dir) && p.source.is_some() {
             println!("Downloading {}-{}", p.name, p.version);
             download_crate(&p.name, &p.version, paths)?;
             let skip_patches = match &args.no_patches {
@@ -266,7 +266,7 @@ fn apply_patches(
     let crate_dir = vendor_dir.join(format!("{name}-{version}"));
 
     let mut patches = Vec::new();
-    let Ok(patch_dir) = std::fs::read_dir(paths.third_party_cargo_root.join("patches").join(name))
+    let Ok(patch_dir) = std::fs::read_dir(paths.third_party_cargo_root.join("patches").join(format!("{name}-{version}")))
     else {
         // No patches for this crate.
         return Ok(());

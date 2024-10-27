@@ -42,7 +42,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
 import org.chromium.base.CommandLine;
 import org.chromium.base.IntentUtils;
-// import org.chromium.base.Log;
+import org.chromium.base.Log;
 import org.chromium.base.MemoryPressureListener;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
@@ -258,7 +258,7 @@ import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
-import android.util.Log;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
@@ -267,8 +267,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
-
-import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 /**
  * This is the main activity for ChromeMobile when not running in document mode. All the tabs are
@@ -2210,33 +2208,9 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
         initHub();
     }
-    // this commented code should be removed
-    // private Runnable createBottomSheetRunnable() {
-    //     return () -> {
-    //     //     runOnUiThread(() -> {
-    //             try {
-    //                 BottomSheetDialog bsd = new BottomSheetDialog(ChromeTabbedActivity.this);
-    //                 bsd.setContentView(R.layout.bottom_sheet_menu_layout);
-    //                 // bsd.setCancelable(true);
-    //                 // bsd.setCanceledOnTouchOutside(true);
-    //                 bsd.show();
-    //                 Log.d("touched","ChromeTabbed -> RootUiCoordinator -> ToolbarManager -> BottomSheet Should open");
-    //             } catch (Exception e) {
-    //                 Log.e("touched", "Error creating BottomSheetDialog", e);
-    //             }
-    //         // });
-    //     };
-    // }
-
-    private BottomSheetDialog bsd;
 
     @Override
     protected RootUiCoordinator createRootUiCoordinator() {
-        // this commented code should be removed
-        // bsd = new BottomSheetDialog(ChromeTabbedActivity.this);
-        // bsd.setContentView(R.layout.bottom_sheet_menu_layout);
-        // bsd.setCancelable(true);
-        // bsd.setCanceledOnTouchOutside(true);
         return new TabbedRootUiCoordinator(
                 this,
                 this::onOmniboxFocusChanged,
@@ -2288,17 +2262,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 getSavedInstanceState(),
                 mMultiInstanceManager,
                 getHubOverviewColorSupplier(),
-                getBaseChromeLayout(),
-                () -> {
-                    try {
-                        // bsd.show();
-                        Log.d("touched","ChromeTabbed -> RootUiCoordinator -> ToolbarManager -> BottomSheet Should open");
-                    } catch (Exception e) {
-                        Log.e("touched", "Error creating BottomSheetDialog", e);
-                    }
-                }
-                // createBottomSheetRunnable()
-                );
+                getBaseChromeLayout());
     }
 
     @Override
@@ -4098,9 +4062,4 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     });
         }
     }
-
-    // private void showBottomMenu(){
-    //     BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(ContextUtils.getApplicationContext().)
-    // }
-
 }

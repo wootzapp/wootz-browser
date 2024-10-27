@@ -1,0 +1,17 @@
+# Copyright (c) 2022 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
+wootz_browser_wootz_wallet_deps =
+    [ "//components/wootz_wallet/browser:pref_names" ]
+
+wootz_browser_wootz_wallet_sources = []
+if (!is_android) {
+  wootz_browser_wootz_wallet_sources += [
+    "//chrome/browser/wootz_wallet/notifications/wallet_notification_service.cc",
+    "//chrome/browser/wootz_wallet/notifications/wallet_notification_service.h",
+    "//chrome/browser/wootz_wallet/notifications/wallet_notification_service_factory.cc",
+    "//chrome/browser/wootz_wallet/notifications/wallet_notification_service_factory.h",
+  ]
+}

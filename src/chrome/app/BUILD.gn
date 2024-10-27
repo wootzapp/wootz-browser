@@ -135,6 +135,24 @@ grit("branded_strings") {
   }
 }
 
+grit("wootz_generated_resources_grit"){
+
+  source = "wootz_generated_resources.grd"
+  output_dir = "$root_gen_dir/chrome"
+  outputs = [
+    "grit/wootz_generated_resources.h",
+
+    # This is needed for the includes and not the localized messages
+    "wootz_generated_resources.pak",
+  ]
+
+  # foreach(locale, all_chrome_locales) {
+  #   outputs += [ "wootz_generated_resources_$locale.pak" ]
+  # }
+
+  resource_ids = "//chrome/resources/resource_ids.spec"
+}
+
 static_library("test_support") {
   testonly = true
   visibility = [ "//chrome/test:test_support" ]

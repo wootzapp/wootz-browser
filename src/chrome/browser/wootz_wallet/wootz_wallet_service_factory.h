@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_
-#define WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_
+#ifndef CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_
+#define CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_
 
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -40,8 +40,9 @@ class WootzWalletServiceFactory : public BrowserContextKeyedServiceFactory {
       content::BrowserContext* context) const override;
   content::BrowserContext* GetBrowserContextToUse(
       content::BrowserContext* context) const override;
+  bool ServiceIsNULLWhileTesting() const override;
 };
 
 }  // namespace wootz_wallet
 
-#endif  // WOOTZ_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_
+#endif  // CHROME_BROWSER_WOOTZ_WALLET_WOOTZ_WALLET_SERVICE_FACTORY_H_

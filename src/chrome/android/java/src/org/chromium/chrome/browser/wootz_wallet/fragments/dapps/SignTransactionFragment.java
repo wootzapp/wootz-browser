@@ -37,7 +37,7 @@ import org.chromium.wootz_wallet.mojom.SignTransactionRequest;
 import org.chromium.wootz_wallet.mojom.SolanaInstruction;
 import org.chromium.wootz_wallet.mojom.SolanaTxData;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletDAppsActivity.ActivityType;
 import org.chromium.chrome.browser.wootz_wallet.adapters.FragmentNavigationItemAdapter;
@@ -50,7 +50,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.TransactionUtils;
 import org.chromium.chrome.browser.wootz_wallet.util.Utils;
 import org.chromium.chrome.browser.wootz_wallet.util.WalletConstants;
 import org.chromium.chrome.browser.util.LiveDataUtil;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,9 +112,9 @@ public class SignTransactionFragment extends BaseDAppsBottomSheetDialogFragment 
         mSignTransactionRequests = Collections.emptyList();
         mSignAllTransactionRequests = Collections.emptyList();
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onCreate " + e);
         }
     }
@@ -348,7 +348,7 @@ public class SignTransactionFragment extends BaseDAppsBottomSheetDialogFragment 
         }
         assert (fromAccountId.coin == CoinType.SOL);
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             activity.getWalletModel().getKeyringModel().getAccounts(accountInfos -> {
                 AccountInfo accountInfo = Utils.findAccount(accountInfos, fromAccountId);
                 if (accountInfo == null) {
@@ -361,7 +361,7 @@ public class SignTransactionFragment extends BaseDAppsBottomSheetDialogFragment 
                 String accountText = accountInfo.name + "\n" + accountInfo.address;
                 mAccountName.setText(accountText);
             });
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "updateAccount " + e);
         }
     }

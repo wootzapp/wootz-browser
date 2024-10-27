@@ -69,6 +69,10 @@ class CrxUpdateService : public ComponentUpdateService,
                       Priority priority,
                       Callback callback) override;
 
+  void OnDemandUpdate(const std::vector<std::string>& ids,
+                      Priority priority,
+                      Callback callback) override;
+
  private:
   void Start();
   void Stop();

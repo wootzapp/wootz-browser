@@ -19,7 +19,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import org.chromium.base.Log;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.domain.WalletModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.AddAccountActivity;
 import org.chromium.chrome.browser.wootz_wallet.adapters.CreateAccountAdapter;
@@ -56,11 +56,11 @@ public class CreateAccountBottomSheetFragment extends BottomSheetDialogFragment
         super.onViewCreated(view, savedInstanceState);
         mSupportedCryptoAccounts.clear();
         try {
-            WootzActivity activity = WootzActivity.getWootzActivity();
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
             mWalletModel = activity.getWalletModel();
             mSupportedCryptoAccounts =
                     mWalletModel.getCryptoModel().getSupportedCryptoAccountTypes();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "onViewCreated " + e);
         }
         mRvAccounts = view.findViewById(R.id.fragment_create_account_rv);

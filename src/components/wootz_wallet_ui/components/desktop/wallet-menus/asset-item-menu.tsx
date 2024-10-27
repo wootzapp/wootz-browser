@@ -1,0 +1,210 @@
+// Copyright (c) 2023 The Wootz Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import * as React from 'react'
+import { useHistory } from 'react-router'
+
+// Types
+import { WootzWallet, WalletRoutes } from '../../../constants/types'
+
+// Queries
+import {
+  useGetOnRampAssetsQuery,
+  useUpdateUserAssetVisibleMutation //
+} from '../../../common/slices/api.slice'
+
+// Hooks
+import {
+  useMultiChainSellAssets //
+} from '../../../common/hooks/use-multi-chain-sell-assets'
+
+// Utils
+import { getLocale } from '../../../../common/locale'
+import Amount from '../../../utils/amount'
+import {
+  makeDepositFundsRoute,
+  makeFundWalletRoute,
+  makeSendRoute,
+  makeSwapOrBridgeRoute
+} from '../../../utils/routes-utils'
+import { getAssetIdKey } from '../../../utils/asset-utils'
+
+// Components
+import {
+  SellAssetModal //
+} from '../popup-modals/sell-asset-modal/sell-asset-modal'
+
+// Styled Components
+import {
+  StyledWrapper,
+  PopupButton,
+  PopupButtonText,
+  ButtonIcon
+} from './wellet-menus.style'
+
+const coinSupportsSwap = (coin: WootzWallet.CoinType) => {
+  return [WootzWallet.CoinType.ETH, WootzWallet.CoinType.SOL].includes(coin)
+}
+
+interface Props {
+  asset: WootzWallet.BlockchainToken
+  assetBalance: string
+  account?: WootzWallet.AccountInfo
+  onClickEditToken?: () => void
+}
+
+export const AssetItemMenu = (props: Props) => {
+  const { asset, assetBalance, account, onClickEditToken } = props
+
+  // routing
+  const history = useHistory()
+
+  // State
+  const [showSellModal, setShowSellModal] = React.useState<boolean>(false)
+
+  // Queries
+  const { data: { allAssetOptions: allBuyAssetOptions } = {} } =
+    useGetOnRampAssetsQuery()
+  const [updateUserAssetVisible] = useUpdateUserAssetVisibleMutation()
+
+  // Hooks
+  const {
+    selectedSellAsset,
+    setSelectedSellAsset,
+    sellAmount,
+    setSellAmount,
+    openSellAssetLink,
+    checkIsAssetSellSupported
+  } = useMultiChainSellAssets()
+
+  // Memos
+  const isAssetsBalanceZero = React.useMemo(() => {
+    return new Amount(assetBalance).isZero()
+  }, [assetBalance])
+
+  const isBuySupported = React.useMemo(() => {
+    if (!allBuyAssetOptions || isAssetsBalanceZero) {
+      return false
+    }
+    return allBuyAssetOptions.some(
+      (buyableAsset) =>
+        buyableAsset.symbol.toLowerCase() === asset.symbol.toLowerCase()
+    )
+  }, [asset.symbol, allBuyAssetOptions, isAssetsBalanceZero])
+
+  const isSwapSupported = coinSupportsSwap(asset.coin) && account !== undefined
+
+  const isSellSupported = React.useMemo(() => {
+    return account !== undefined && checkIsAssetSellSupported(asset)
+  }, [account, checkIsAssetSellSupported, asset])
+
+  // Methods
+  const onClickBuy = React.useCallback(() => {
+    history.push(makeFundWalletRoute(getAssetIdKey(asset)))
+  }, [asset, history])
+
+  const onClickSend = React.useCallback(() => {
+    if (account) {
+      history.push(makeSendRoute(asset, account))
+    } else {
+      history.push(WalletRoutes.Send)
+    }
+  }, [account, history, asset])
+
+  const onClickSwap = React.useCallback(() => {
+    if (account) {
+      history.push(
+        makeSwapOrBridgeRoute({
+          fromToken: asset,
+          fromAccount: account,
+          routeType: 'swap'
+        })
+      )
+    }
+  }, [account, history, asset])
+
+  const onClickDeposit = React.useCallback(() => {
+    history.push(makeDepositFundsRoute(getAssetIdKey(asset)))
+  }, [asset, history])
+
+  const onClickSell = React.useCallback(() => {
+    setSelectedSellAsset(asset)
+    setShowSellModal(true)
+  }, [setSelectedSellAsset, asset])
+
+  const onOpenSellAssetLink = React.useCallback(() => {
+    openSellAssetLink({
+      sellAsset: selectedSellAsset
+    })
+  }, [openSellAssetLink, selectedSellAsset])
+
+  const onClickHide = React.useCallback(async () => {
+    await updateUserAssetVisible({
+      token: asset,
+      isVisible: false
+    }).unwrap()
+  }, [updateUserAssetVisible, asset])
+
+  return (
+    <StyledWrapper yPosition={42}>
+      {isBuySupported && (
+        <PopupButton onClick={onClickBuy}>
+          <ButtonIcon name='coins-alt1' />
+          <PopupButtonText>{getLocale('wootzWalletBuy')}</PopupButtonText>
+        </PopupButton>
+      )}
+      {!isAssetsBalanceZero && (
+        <PopupButton onClick={onClickSend}>
+          <ButtonIcon name='send' />
+          <PopupButtonText>{getLocale('wootzWalletSend')}</PopupButtonText>
+        </PopupButton>
+      )}
+      {isSwapSupported && !isAssetsBalanceZero && (
+        <PopupButton onClick={onClickSwap}>
+          <ButtonIcon name='currency-exchange' />
+          <PopupButtonText>{getLocale('wootzWalletSwap')}</PopupButtonText>
+        </PopupButton>
+      )}
+      <PopupButton onClick={onClickDeposit}>
+        <ButtonIcon name='money-bag-coins' />
+        <PopupButtonText>
+          {getLocale('wootzWalletAccountsDeposit')}
+        </PopupButtonText>
+      </PopupButton>
+      {isSellSupported && (
+        <PopupButton onClick={onClickSell}>
+          <ButtonIcon name='usd-circle' />
+          <PopupButtonText>{getLocale('wootzWalletSell')}</PopupButtonText>
+        </PopupButton>
+      )}
+      {onClickEditToken && (
+        <PopupButton onClick={onClickEditToken}>
+          <ButtonIcon name='edit-pencil' />
+          <PopupButtonText>
+            {getLocale('wootzWalletAllowSpendEditButton')}
+          </PopupButtonText>
+        </PopupButton>
+      )}
+      <PopupButton onClick={onClickHide}>
+        <ButtonIcon name='eye-off' />
+        <PopupButtonText>
+          {getLocale('wootzWalletConfirmHidingToken')}
+        </PopupButtonText>
+      </PopupButton>
+      {showSellModal && selectedSellAsset && (
+        <SellAssetModal
+          selectedAsset={selectedSellAsset}
+          onClose={() => setShowSellModal(false)}
+          sellAmount={sellAmount}
+          setSellAmount={setSellAmount}
+          openSellAssetLink={onOpenSellAssetLink}
+          showSellModal={showSellModal}
+          account={account}
+          sellAssetBalance={assetBalance}
+        />
+      )}
+    </StyledWrapper>
+  )
+}

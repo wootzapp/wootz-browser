@@ -23,7 +23,23 @@ import org.chromium.chrome.browser.app.domain.KeyringModel;
 import org.chromium.chrome.browser.app.domain.NetworkModel;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletActivity;
 import org.chromium.chrome.browser.wootz_wallet.listeners.OnNextPage;
+import org.chromium.chrome.browser.wootz_wallet.util.KeystoreHelper;
+import org.chromium.chrome.browser.wootz_wallet.util.Utils;
+import org.chromium.ui.widget.Toast;
 
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableEntryException;
+import java.security.cert.CertificateException;
+import java.util.concurrent.Executor;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 /**
  * Base Wootz Wallet fragment that performs a cast on the host activity to extract {@link
  * OnNextPage} interface used for basic navigation actions.

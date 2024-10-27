@@ -72,6 +72,9 @@
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
+
+// Wootz patch
+#include "third_party/blink/renderer/core/permissions_policy/dom_feature_policy.h"
 namespace {
 
 static const blink::WebStyleSheetKey GenerateStyleSheetKey() {
@@ -377,6 +380,14 @@ void WebDocument::InitiatePreview(const WebURL& url) {
 
   KURL kurl(url);
   DocumentSpeculationRules::From(*document).InitiatePreview(kurl);
+}
+
+bool WebDocument::IsDOMFeaturePolicyEnabled(v8::Isolate* isolate,
+                                            v8::Local<v8::Context> context,
+                                            const WebString& feature) {
+  blink::ScriptState* script_state = blink::ScriptState::From(isolate, context);
+  Document* document = Unwrap<Document>();
+  return document->featurePolicy()->allowsFeature(script_state, feature);
 }
 
 }  // namespace blink

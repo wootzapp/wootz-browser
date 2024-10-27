@@ -86,7 +86,7 @@ const char kChromeUICrashRustOverflowURL[] = "wootzapp://crash/rust-overflow";
 const char kChromeUICrashDcheckURL[] = "wootzapp://crash/dcheck";
 #endif
 
-const char kChromeUIResourcesURL[] = "wootzapp://resources/";
+const char kChromeUIResourcesURL[] = "chrome://resources/";
 const char kChromeUIShorthangURL[] = "wootzapp://shorthang/";
 
 bool IsRendererDebugURL(const GURL& url) {

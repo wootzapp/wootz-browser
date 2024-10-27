@@ -50,6 +50,10 @@ namespace extensions {
 class AutotestPrivateLoadSmartDimComponentFunction;
 }
 
+namespace wootz_component_updater {
+class WootzOnDemandUpdater;
+}
+
 namespace component_updater {
 
 // Called when a non-blocking call in this module completes.
@@ -222,6 +226,7 @@ class OnDemandUpdater {
   virtual ~OnDemandUpdater() = default;
 
  private:
+  friend class wootz_component_updater::WootzOnDemandUpdater; 
   friend class OnDemandTester;
   friend class policy::ComponentUpdaterPolicyTest;
   friend class ::ComponentsHandler;
@@ -244,6 +249,9 @@ class OnDemandUpdater {
   virtual void OnDemandUpdate(const std::string& id,
                               Priority priority,
                               Callback callback) = 0;
+  virtual void OnDemandUpdate(const std::vector<std::string>& ids,        
+                              Priority priority, Callback callback);                             
+                              
 };
 
 // Creates the component updater.

@@ -49,4 +49,12 @@ found in the LICENSE file.
         android:key="image_descriptions"
         android:title="@string/image_descriptions_settings_title" />
 
+    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference
+        android:key="move_toolbar_bottom"
+        android:title="@string/move_toolbar_bottom_title" />
+
+    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference
+        android:key="disable_toolbar_swipeup"
+        android:title="@string/disable_toolbar_swipe_up" />
+        
 </PreferenceScreen>

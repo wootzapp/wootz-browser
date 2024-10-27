@@ -1,0 +1,8 @@
+include_rules = [
+  "+wootz/third_party/bitcoin-core/src/src/base58.h",
+  "+wootz/third_party/bitcoin-core/src/src/bech32.h",
+  "+wootz/third_party/bitcoin-core/src/src/crypto/ripemd160.h",
+  "+wootz/third_party/bitcoin-core/src/src/secp256k1/include/secp256k1_recovery.h",
+  "+wootz/third_party/bitcoin-core/src/src/secp256k1/include/secp256k1.h",
+  "+wootz/third_party/bitcoin-core/src/src/util/strencodings.h",
+]

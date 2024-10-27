@@ -68,6 +68,15 @@ class CRYPTO_EXPORT Aead {
 
   size_t KeyLength() const;
 
+  size_t OverrideNonceLength(size_t length) { 
+    nonce_length_ = length;            
+    return length;                     
+  }                                    
+                                       
+ private:                              
+  size_t nonce_length_ = 0;            
+                                       
+ public:                               
   size_t NonceLength() const;
 
  private:

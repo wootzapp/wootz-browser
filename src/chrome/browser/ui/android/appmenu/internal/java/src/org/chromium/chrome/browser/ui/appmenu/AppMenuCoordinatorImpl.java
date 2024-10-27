@@ -11,6 +11,8 @@ import android.view.ViewConfiguration;
 
 import androidx.annotation.VisibleForTesting;
 
+import android.util.Log;
+
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.Supplier;
@@ -19,6 +21,9 @@ import org.chromium.ui.base.WindowAndroid;
 import androidx.fragment.app.FragmentManager;
 /** A UI coordinator the app menu. */
 class AppMenuCoordinatorImpl implements AppMenuCoordinator {
+    
+    private static final String TAG = "AppMenuCoordintorImpl";
+    
     private static Boolean sHasPermanentMenuKeyForTesting;
 
     /** Factory which creates the AppMenuHandlerImpl. */
@@ -113,6 +118,16 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
                         : ViewConfiguration.get(mContext).hasPermanentMenuKey();
         mAppMenuHandler.showAppMenu(
                 hasPermanentMenuKey ? null : mButtonDelegate.getMenuButtonView(), false);
+    }
+
+    @Override
+    public void openExtensionById(String extensionId) {
+        Log.e(TAG, "JANGID: openExtensionById " + extensionId);
+        if (mAppMenuHandler != null) {
+            mAppMenuHandler.openExtensionById(extensionId);
+        } else {
+            Log.e(TAG, "JANGID: AppMenuHandler is null, cannot openExtensionById");
+        }
     }
 
     @Override

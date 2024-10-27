@@ -5,5 +5,5 @@
 import("//build/config/cast.gni")
 
 declare_args() {
-  enable_extensions = !is_android && !is_ios && !is_castos && !is_fuchsia
+  enable_extensions = !is_ios && !is_castos && !is_fuchsia
 }

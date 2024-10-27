@@ -78,6 +78,8 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/account_id/account_id.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/browsing_data/core/pref_names.h"
@@ -1482,7 +1484,7 @@ void ProfileManager::DoFinalInitForServices(Profile* profile,
       AreKeyedServicesDisabledForProfileByDefault(profile)) {
     return;
   }
-
+  wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile);
   TRACE_EVENT0("browser", "ProfileManager::DoFinalInitForServices");
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)

@@ -7,6 +7,7 @@ import org.jni_zero.NativeMethods;
 import android.content.Context;
 import androidx.appcompat.app.AlertDialog;
 import java.util.ArrayList;
+import android.util.Log;
 
 public class Extensions {
     public static ArrayList<ExtensionInfo> getExtensionsInfo() {

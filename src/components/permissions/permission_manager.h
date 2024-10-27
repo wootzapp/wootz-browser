@@ -192,7 +192,9 @@ class PermissionManager : public KeyedService,
   // is added on first use and never removed. This is done to utilize the
   // flat_map's efficiency in accessing/editing items and minimize the use of
   // the unefficient addition/removal of items.
-  SubscriptionTypeCounts subscription_type_counts_;
+  SubscriptionTypeCounts subscription_type_counts_;             
+  friend class WootzPermissionManager; 
+  GURL forced_requesting_origin_;
 
   PermissionContextMap permission_contexts_;
 

@@ -274,4 +274,8 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   RegisterPersistedDataPrefs(registry);
 }
 
+bool CrxInstaller::IsWootzComponent() const {
+  return false;
+}
+
 }  // namespace update_client

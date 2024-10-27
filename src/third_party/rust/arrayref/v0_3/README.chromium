@@ -1,0 +1,9 @@
+Name: arrayref
+URL: https://crates.io/crates/arrayref
+Description: Macros to take array references of slices
+Version: 0.3.8
+Security Critical: yes
+Shipped: yes
+License: BSD 2-Clause
+License File:
+Revision: fe1355e06a0ef42f91ea559ba01004b5ebec4c50

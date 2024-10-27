@@ -115,7 +115,6 @@ void ToolbarLayer::PushResource(int toolbar_resource_id,
   // Position the toolbar at the bottom of the space available for top controls.
   layer_->SetPosition(
       gfx::PointF(x_offset, content_offset + layer_->bounds().height()));
-
 }
 
 int ToolbarLayer::GetIndexOfLayer(scoped_refptr<cc::slim::Layer> layer) {

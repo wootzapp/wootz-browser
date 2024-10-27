@@ -23,28 +23,161 @@
           }
         },
         {
-          "name": "helloWorld",
+          "name": "createWallet",
           "type": "function",
-          "description": "Returns greeting message",
-          "parameters": [],
+          "description": "Creates a new wallet",
+          "parameters": [
+            {
+              "name": "password",
+              "type": "string",
+              "description": "The password for the new wallet"
+            }
+          ],
           "returns_async": {
             "name": "callback",
             "parameters": [
               {
-                "type": "string",
-                "name": "result"
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "recoveryPhrase": {"type": "string", "optional": true},
+                  "error": {"type": "string", "optional": true}
+                }
               }
             ]
           }
         },
         {
-          "name": "showDialog",
+          "name": "unlockWallet",
           "type": "function",
-          "description": "Shows the consent dialog and starts the service if consent is given",
-          "parameters": []
+          "description": "Unlocks the wallet",
+          "parameters": [
+            {
+              "name": "password",
+              "type": "string",
+              "description": "The wallet password"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "lockWallet",
+          "type": "function",
+          "description": "Locks the wallet",
+          "parameters": [],
+          "returns": {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean"}
+            }
+          }
+        },
+        {
+          "name": "isLocked",
+          "type": "function",
+          "description": "Checks if the wallet is locked",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "isLocked": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getAllAccounts",
+          "type": "function",
+          "description": "Gets all accounts in the wallet",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "accounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "address": {"type":"string"},
+                        "name": {"type": "string"},
+                        "coin": {"type": "integer"}
+                      }
+                    }
+                  },
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "signMessage",
+          "type": "function",
+          "description": "Responds to a sign message request",
+          "parameters": [
+            {"name": "requestId", "type": "integer"},
+            {"name": "approved", "type": "boolean"},
+            {"name": "signature", "type": "string", "optional": true}
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
         }
       ],
-      "events": []
+      "events": [
+        {
+          "name": "onSignMessageRequested",
+          "type": "function",
+          "description": "Fired when a new sign message request is available",
+          "parameters": [
+            {
+              "name": "request",
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"},
+                "address": {"type": "string"},
+                "origin": {"type": "string"},
+                "chainId": {"type": "string"},
+                "isEip712": {"type": "boolean"}
+              }
+            }
+          ]
+        }
+      ]
     }
 ]
   

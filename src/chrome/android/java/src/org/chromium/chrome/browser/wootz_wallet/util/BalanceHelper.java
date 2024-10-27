@@ -17,8 +17,8 @@ import org.chromium.wootz_wallet.mojom.JsonRpcService;
 import org.chromium.wootz_wallet.mojom.KeyringService;
 import org.chromium.wootz_wallet.mojom.NetworkInfo;
 import org.chromium.wootz_wallet.mojom.ProviderError;
-import org.chromium.chrome.browser.WootzConfig;
-import org.chromium.chrome.browser.WootzLocalState;
+// import org.chromium.chrome.browser.WootzConfig;
+// import org.chromium.chrome.browser.WootzLocalState;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.GetBalanceResponseBaseContext;
 import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.GetBalanceResponseContext;
@@ -29,7 +29,7 @@ import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.GetNativeAssetsB
 import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.GetSolanaBalanceResponseContext;
 import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.GetSplTokenAccountBalanceResponseContext;
 import org.chromium.chrome.browser.wootz_wallet.util.AsyncUtils.MultiResponseHandler;
-import org.chromium.chrome.browser.preferences.WootzPref;
+import org.chromium.chrome.browser.preferences.Pref;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -200,14 +200,17 @@ public class BalanceHelper {
                     wootzWalletService, blockchainRegistry, keyringService, jsonRpcService))
             return;
 
-        boolean P3AEnabled =
-                WootzConfig.P3A_ENABLED && WootzLocalState.get().getBoolean(WootzPref.P3A_ENABLED);
+        // boolean P3AEnabled =
+        //         WootzConfig.P3A_ENABLED && WootzLocalState.get().getBoolean(WootzPref.P3A_ENABLED);
 
         HashMap<Integer, HashSet<String>> activeAddresses = new HashMap<Integer, HashSet<String>>();
         for (int coinType : Utils.P3ACoinTypes)
             activeAddresses.put(coinType, new HashSet<String>());
 
-        if (!P3AEnabled) {
+        // if (!P3AEnabled) {
+        //     callback.call(activeAddresses);
+        //     return;
+        if (true) {
             callback.call(activeAddresses);
             return;
         } else {

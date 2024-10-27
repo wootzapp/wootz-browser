@@ -13,7 +13,7 @@ namespace content {
 // There are security implications associated with introducing new schemes.
 const char kChromeDevToolsScheme[] = "devtools";
 const char kChromeErrorScheme[] = "chrome-error";
-const char kChromeUIScheme[] = "wootz"; // should be wootz but too much errors for now
+const char kChromeUIScheme[] = "wootzapp";
 const char kChromeUIUntrustedScheme[] = "chrome-untrusted";
 const char kViewSourceScheme[] = "view-source";
 #if BUILDFLAG(IS_CHROMEOS_ASH)

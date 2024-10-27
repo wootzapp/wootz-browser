@@ -4,8 +4,12 @@
 
 package org.chromium.chrome.browser.app;
 
+import static org.chromium.ui.base.ViewUtils.dpToPx;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.Fragment;
 import android.app.KeyguardManager;
 import android.app.assist.AssistContent;
@@ -23,19 +27,32 @@ import android.os.SystemClock;
 import android.util.Pair;
 import android.util.TypedValue;
 import android.view.Display.Mode;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.view.ViewGroup.LayoutParams;
+import android.text.TextUtils;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.app.AlertDialog;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import org.jni_zero.JNINamespace;
+import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
@@ -60,12 +77,14 @@ import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.supplier.UnownedUserDataSupplier;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.ChromeKeyboardVisibilityDelegate;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.ChromeWindow;
 import org.chromium.chrome.browser.DeferredStartupHandler;
 import org.chromium.chrome.browser.IntentHandler;
@@ -169,6 +188,8 @@ import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManagerSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tabmodel.TabList;
+import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tabmodel.TabModelInitializer;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorProfileSupplier;
@@ -248,8 +269,52 @@ import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
 import org.chromium.webapk.lib.client.WebApkNavigationClient;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import androidx.annotation.MainThread;
+import org.chromium.wootz_wallet.mojom.AssetRatioService;
+import org.chromium.wootz_wallet.mojom.BlockchainRegistry;
+import org.chromium.wootz_wallet.mojom.WootzWalletService;
+import org.chromium.wootz_wallet.mojom.CoinType;
+import org.chromium.wootz_wallet.mojom.NetworkInfo;
+import org.chromium.wootz_wallet.mojom.KeyringService;
+import org.chromium.wootz_wallet.mojom.JsonRpcService;
+import org.chromium.wootz_wallet.mojom.SwapService;
+import org.chromium.wootz_wallet.mojom.TxService;
+import org.chromium.wootz_wallet.mojom.EthTxManagerProxy;
+import org.chromium.wootz_wallet.mojom.SolanaTxManagerProxy;
+import org.chromium.wootz_wallet.mojom.SignDataUnion;
+import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletDAppsActivity;
+import org.chromium.chrome.browser.app.domain.WalletModel;
+import org.chromium.mojo.system.MojoException;
+import org.chromium.mojo.bindings.ConnectionErrorHandler;
+
+import org.chromium.chrome.browser.profiles.ProfileManager;
+
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
+import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletActivity;
+import org.chromium.chrome.browser.settings.WootzWalletPreferences;
+import org.chromium.chrome.browser.site_settings.WootzWalletEthereumConnectedSites;
+import org.chromium.chrome.browser.wootz_wallet.util.Utils;
+import org.chromium.chrome.browser.wootz_wallet.model.CryptoAccountTypeInfo;
+import org.chromium.chrome.browser.wootz_wallet.activities.AddAccountActivity;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
+import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
+import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
+import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -268,10 +333,19 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 AppMenuBlocker,
                 MenuOrKeyboardActionController,
                 CompositorViewHolder.Initializer,
-                TabModelInitializer {
+                TabModelInitializer,
+                ConnectionErrorHandler {
     private static final String TAG = "ChromeActivity";
     private static final int CONTENT_VIS_DELAY_MS = 5;
     public static final String UNFOLD_LATENCY_BEGIN_TIMESTAMP = "unfold_latency_begin_timestamp";
+    public static final String WOOTZ_WALLET_HOST = "wallet";
+    public static final String WOOTZ_WALLET_ORIGIN = "wootzapp://wallet/";
+    public static final String WOOTZ_WALLET_URL = "wootzapp://wallet/crypto/portfolio/assets";
+    public static final String WOOTZ_BUY_URL = "wootzapp://wallet/crypto/fund-wallet";
+    public static final String WOOTZ_SEND_URL = "wootzapp://wallet/send";
+    public static final String WOOTZ_SWAP_URL = "wootzapp://wallet/swap";
+    public static final String WOOTZ_DEPOSIT_URL = "wootzapp://wallet/crypto/deposit-funds";
+    
     private C mComponent;
 
     /** Used to generate a unique ID for each ChromeActivity. */
@@ -329,7 +403,18 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     private boolean mNativeInitialized;
     private boolean mRemoveWindowBackgroundDone;
-
+    private WootzWalletService mWootzWalletService;
+    private KeyringService mKeyringService;
+    private JsonRpcService mJsonRpcService;
+    // private MiscAndroidMetrics mMiscAndroidMetrics;
+    private SwapService mSwapService;
+    @Nullable private WalletModel mWalletModel;
+    private BlockchainRegistry mBlockchainRegistry;
+    private TxService mTxService;
+    private EthTxManagerProxy mEthTxManagerProxy;
+    private SolanaTxManagerProxy mSolanaTxManagerProxy;
+    private AssetRatioService mAssetRatioService;
+    private boolean mIsProcessingPendingDappsTxRequest;
     // Observes when sync becomes ready to create the mContextReporter.
     private SyncService.SyncStateChangedListener mSyncStateChangedListener;
 
@@ -484,8 +569,11 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
     }
 
+    public static WeakReference<ChromeActivity> mActivity;
+
     @Override
     public void performPreInflationStartup() {
+        mActivity = new WeakReference<>(this);
         setupUnownedUserDataSuppliers();
 
         View rootView = getWindow().getDecorView().getRootView();
@@ -1030,7 +1118,62 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
         IntentHandler.setTestIntentsEnabled(
                 CommandLine.getInstance().hasSwitch(ContentSwitches.ENABLE_TEST_INTENTS));
+
+        Intent intent = getIntent();
+        if (intent != null
+                && intent.getBooleanExtra(WootzWalletActivity.RESTART_WALLET_ACTIVITY, false)) {
+            openWootzWallet(
+                    false,
+                    intent.getBooleanExtra(
+                            WootzWalletActivity.RESTART_WALLET_ACTIVITY_SETUP, false),
+                    intent.getBooleanExtra(
+                            WootzWalletActivity.RESTART_WALLET_ACTIVITY_RESTORE, false));
+        }        
     }
+
+
+    public void openWootzWalletSettings() {
+        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
+        settingsLauncher.launchSettingsActivity(this, WootzWalletPreferences.class);
+    }
+
+    public void openWootzConnectedSitesSettings() {
+        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
+        settingsLauncher.launchSettingsActivity(this, WootzWalletEthereumConnectedSites.class);
+    }
+
+    public void openWootzWallet(boolean fromDapp, boolean setupAction, boolean restoreAction) {
+        Intent wootzWalletIntent = new Intent(this, WootzWalletActivity.class);
+        wootzWalletIntent.putExtra(WootzWalletActivity.IS_FROM_DAPPS, fromDapp);
+        wootzWalletIntent.putExtra(WootzWalletActivity.RESTART_WALLET_ACTIVITY_SETUP, setupAction);
+        wootzWalletIntent.putExtra(
+                WootzWalletActivity.RESTART_WALLET_ACTIVITY_RESTORE, restoreAction);
+        wootzWalletIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        wootzWalletIntent.setAction(Intent.ACTION_VIEW);
+        startActivity(wootzWalletIntent);
+    }
+
+    public void openWootzWalletBackup() {
+        Intent wootzWalletIntent = new Intent(this, WootzWalletActivity.class);
+        wootzWalletIntent.putExtra(WootzWalletActivity.SHOW_WALLET_ACTIVITY_BACKUP, true);
+        wootzWalletIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        wootzWalletIntent.setAction(Intent.ACTION_VIEW);
+        startActivity(wootzWalletIntent);
+    }
+
+    public void viewOnBlockExplorer(
+            String address, @CoinType.EnumType int coinType, NetworkInfo networkInfo) {
+        Utils.openAddress("/address/" + address, this, coinType, networkInfo);
+    }
+
+    public void openWootzWalletDAppsActivity(WootzWalletDAppsActivity.ActivityType activityType) {
+        Intent wootzWalletIntent = new Intent(this, WootzWalletDAppsActivity.class);
+        wootzWalletIntent.putExtra("activityType", activityType.getValue());
+        wootzWalletIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        wootzWalletIntent.setAction(Intent.ACTION_VIEW);
+        startActivity(wootzWalletIntent);
+    }
+
 
     @Override
     public void initializeCompositor() {
@@ -1255,6 +1398,14 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         getManualFillingComponent().onResume();
         checkForDeviceLockOnAutomotive();
         setViewForInputHint(inMultiWindowMode);
+
+        // if (mNativeInitialized) {
+        //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+        //     if (layout == null || !layout.isWalletIconVisible()) {
+        //         return;
+        //     }
+        //     updateWalletBadgeVisibility();
+        // }
     }
 
     private void setViewForInputHint(boolean inMultiWindowMode) {
@@ -1370,6 +1521,103 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
         if (mContextReporter != null) mContextReporter.disable();
         super.onStopWithNative();
+    }
+
+    @NonNull
+    public static ChromeActivity getChromeActivity() throws ChromeActivityNotFoundException {
+
+        ChromeActivity activity = (ChromeActivity) getActivityOfType(ChromeActivity.class);
+        if (activity != null) {
+            Log.e("Balram Activity not null","getChromeActivity");
+            return activity;
+        }
+            Log.e("Balram Activity  null","getChromeActivity");
+
+        throw new ChromeActivityNotFoundException("ChromeActivity Not Found");
+    }
+
+    public static class ChromeActivityNotFoundException extends Exception {
+        public ChromeActivityNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    private static Activity getActivityOfType(Class<?> classOfActivity) {
+        for (Activity ref : ApplicationStatus.getRunningActivities()) {
+           Log.e("asdf", ""+ref.getClass());
+
+            if (!classOfActivity.isInstance(ref)) continue;
+
+            return ref;
+        }
+
+
+        return null;
+    }
+
+    public void walletInteractionDetected(WebContents webContents) {
+        Tab tab = getActivityTab();
+        if (tab == null
+                || !webContents.getLastCommittedUrl().equals(
+                        tab.getWebContents().getLastCommittedUrl())) {
+            return;
+        }
+        // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+        // if (layout != null) {
+        //     layout.showWalletIcon(true);
+        //     updateWalletBadgeVisibility();
+        // }
+    }
+
+    public Profile getCurrentProfile() {
+        Tab tab = getActivityTab();
+        if (tab == null) {
+            return ProfileManager.getLastUsedRegularProfile();
+        }
+
+        return Profile.fromWebContents(tab.getWebContents());
+    }
+
+    public static ChromeTabbedActivity getChromeTabbedActivity() {
+        return (ChromeTabbedActivity) getActivityOfType(ChromeTabbedActivity.class);
+    }
+    
+
+    public ObservableSupplier<BrowserControlsManager> getBrowserControlsManagerSupplier() {
+        return mBrowserControlsManagerSupplier;
+    }
+
+
+    public Tab selectExistingTab(String url) {
+        Tab tab = getActivityTab();
+        if (tab != null && tab.getUrl().getSpec().equals(url)) {
+            return tab;
+        }
+
+        TabModel tabModel = getCurrentTabModel();
+        int tabIndex = TabModelUtils.getTabIndexByUrl(tabModel, url);
+
+        // Find if tab exists
+        if (tabIndex != TabModel.INVALID_TAB_INDEX) {
+            tab = tabModel.getTabAt(tabIndex);
+            // Set active tab
+            tabModel.setIndex(tabIndex, TabSelectionType.FROM_USER,false);
+            return tab;
+        } else {
+            return null;
+        }
+    }
+
+    public Tab openNewOrSelectExistingTab(String url, boolean refresh) {
+        Tab tab = selectExistingTab(url);
+        if (tab != null) {
+            if (refresh) {
+                tab.reload();
+            }
+            return tab;
+        } else { // Open a new tab
+            return getTabCreator(false).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+        }
     }
 
     @Override
@@ -1761,8 +2009,224 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      * After returning from this, the {@link TabModelSelector} will be destroyed followed
      * by the {@link WindowAndroid}.
      */
-    protected void onDestroyInternal() {}
+    protected void onDestroyInternal() {
+        cleanUpWalletNativeServices();
+    }
 
+    @Nullable
+    public WalletModel getWalletModel() {
+        return mWalletModel;
+    }
+
+    private void maybeHasPendingUnlockRequest() {
+        assert mKeyringService != null;
+        mKeyringService.hasPendingUnlockRequest(pending -> {
+            // if (pending) {
+            //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+            //     if (layout != null) {
+            //         layout.showWalletPanel();
+            //     }
+
+            //     return;
+            // }
+            maybeShowPendingTransactions();
+            maybeShowSignTxRequestLayout();
+        });
+    }
+
+    // private void setWalletBadgeVisibility(boolean visibile) {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.updateWalletBadgeVisibility(visibile);
+    //     }
+    // }
+
+    private void maybeShowPendingTransactions() {
+        if (mWalletModel != null) {
+            // Trigger to observer to refresh data to process the pending request.
+            mWalletModel.getCryptoModel().refreshTransactions();
+        }
+    }
+
+    private void maybeShowSignTxRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingSignTransactionRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.SIGN_TRANSACTION);
+                return;
+            }
+            maybeShowSignAllTxRequestLayout();
+        });
+    }
+
+    private void maybeShowSignAllTxRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingSignAllTransactionsRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.SIGN_ALL_TRANSACTIONS);
+                return;
+            }
+            maybeShowSignMessageErrorsLayout();
+        });
+    }
+
+    private void maybeShowSignMessageErrorsLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingSignMessageErrors(errors -> {
+            if (errors != null && errors.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.SIGN_MESSAGE_ERROR);
+                return;
+            }
+        });
+        maybeShowSignMessageRequestLayout();
+    }
+
+    private void maybeShowSignMessageRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingSignMessageRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                WootzWalletDAppsActivity.ActivityType activityType =
+                        (requests[0].signData.which() == SignDataUnion.Tag.EthSiweData)
+                        ? WootzWalletDAppsActivity.ActivityType.SIWE_MESSAGE
+                        : WootzWalletDAppsActivity.ActivityType.SIGN_MESSAGE;
+                openWootzWalletDAppsActivity(activityType);
+                return;
+            }
+            maybeShowChainRequestLayout();
+        });
+    }
+
+    private void maybeShowChainRequestLayout() {
+        assert mJsonRpcService != null;
+        mJsonRpcService.getPendingAddChainRequests(networks -> {
+            if (networks != null && networks.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.ADD_ETHEREUM_CHAIN);
+
+                return;
+            }
+            maybeShowSwitchChainRequestLayout();
+        });
+    }
+
+    private void maybeShowSwitchChainRequestLayout() {
+        assert mJsonRpcService != null;
+        mJsonRpcService.getPendingSwitchChainRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.SWITCH_ETHEREUM_CHAIN);
+
+                return;
+            }
+            maybeShowAddSuggestTokenRequestLayout();
+        });
+    }
+
+    private void maybeShowAddSuggestTokenRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingAddSuggestTokenRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(WootzWalletDAppsActivity.ActivityType.ADD_TOKEN);
+
+                return;
+            }
+            maybeShowGetEncryptionPublicKeyRequestLayout();
+        });
+    }
+
+    private void maybeShowGetEncryptionPublicKeyRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingGetEncryptionPublicKeyRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(
+                        WootzWalletDAppsActivity.ActivityType.GET_ENCRYPTION_PUBLIC_KEY_REQUEST);
+
+                return;
+            }
+            maybeShowDecryptRequestLayout();
+        });
+    }
+
+    private void maybeShowDecryptRequestLayout() {
+        assert mWootzWalletService != null;
+        mWootzWalletService.getPendingDecryptRequests(requests -> {
+            if (requests != null && requests.length != 0) {
+                openWootzWalletDAppsActivity(WootzWalletDAppsActivity.ActivityType.DECRYPT_REQUEST);
+
+                return;
+            }
+            // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+            // if (layout != null) {
+            //     layout.showWalletPanel();
+            // }
+        });
+    }
+
+    public void dismissWalletPanelOrDialog() {
+        // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+        // if (layout != null) {
+        //     layout.dismissWalletPanelOrDialog();
+        // }
+    }
+
+    // public void showWalletPanel(boolean ignoreWeb3NotificationPreference) {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //     }
+    //     if (!ignoreWeb3NotificationPreference
+    //             && !WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
+    //         return;
+    //     }
+    //     assert mKeyringService != null;
+    //     mKeyringService.isLocked(locked -> {
+    //         if (locked) {
+    //             layout.showWalletPanel();
+    //             return;
+    //         }
+    //         maybeHasPendingUnlockRequest();
+    //     });
+    // }
+
+    // public void showWalletOnboarding() {
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //         if (!WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
+    //             return;
+    //         }
+    //         layout.showWalletPanel();
+    //     }
+    // }
+
+    // public void walletInteractionDetected(WebContents webContents) {
+    //     Tab tab = getActivityTab();
+    //     if (tab == null
+    //             || !webContents.getLastCommittedUrl().equals(
+    //                     tab.getWebContents().getLastCommittedUrl())) {
+    //         return;
+    //     }
+    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
+    //     if (layout != null) {
+    //         layout.showWalletIcon(true);
+    //         updateWalletBadgeVisibility();
+    //     }
+    // }
+
+    public void showAccountCreation(@CoinType.EnumType int coinType) {
+        if (mWalletModel != null) {
+            mWalletModel.getDappsModel().addAccountCreationRequest(coinType);
+        }
+    }
+
+    private void updateWalletBadgeVisibility() {
+        if (mWalletModel != null) {
+            mWalletModel.getDappsModel().updateWalletBadgeVisibility();
+        }
+    }
     /**
      * @return The unified manager for all snackbar related operations.
      */
@@ -1843,6 +2307,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     @Override
     public void finishNativeInitialization() {
         mNativeInitialized = true;
+
+        // Log.e("WOOTZAPP ANKITANKITIVAN", "finishNativeInitializatioN");
         OfflineContentAggregatorNotificationBridgeUiFactory.instance();
         maybeRemoveWindowBackground();
         DownloadManagerService.getDownloadManagerService()
@@ -1851,6 +2317,13 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         PowerMonitor.create();
 
         super.finishNativeInitialization();
+        
+        Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
+       
+            // Offload wallet initialization to Chromium's task scheduler
+            initWalletNativeServices();
+       
+        Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
 
         getProfileProviderSupplier().runSyncOrOnAvailable(this::initializeManualFillingComponent);
 
@@ -1881,6 +2354,225 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 };
         display.addObserver(mDisplayAndroidObserver);
     }
+
+        private void clearWalletModelServices() {
+        if (mWalletModel == null) {
+            return;
+        }
+
+        mWalletModel.resetServices(
+                getApplicationContext(), null, null, null, null, null, null, null, null, null);
+    }
+
+    private void setupWalletModel() {
+        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 ANKITIVAN2 ");
+
+        PostTask.postTask(TaskTraits.UI_DEFAULT, () -> {
+                                    Log.e("WOOTZAPP BALRAM", "getChromeActivity2 ANKITIVAN2 ");
+
+            if (mWalletModel == null) {
+                        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 ANKITIVAN2 ");
+
+                mWalletModel = new WalletModel(getApplicationContext(), mKeyringService,
+                        mBlockchainRegistry, mJsonRpcService, mTxService, mEthTxManagerProxy,
+                        mSolanaTxManagerProxy, mAssetRatioService, mWootzWalletService,
+                        mSwapService);
+            } else {
+                        Log.e("WOOTZAPP BALRAM", "getChromeActivity2 ANKITIVAN2 ");
+                mWalletModel.resetServices(getApplicationContext(), mKeyringService,
+                        mBlockchainRegistry, mJsonRpcService, mTxService, mEthTxManagerProxy,
+                        mSolanaTxManagerProxy, mAssetRatioService, mWootzWalletService,
+                        mSwapService);
+            }
+            setupObservers();
+        });
+    }
+
+    @MainThread
+    private void setupObservers() {
+        ThreadUtils.assertOnUiThread();
+        clearObservers();
+        mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.observe(
+                this, transactionInfo -> {
+                    if (transactionInfo == null) {
+                        return;
+                    }
+                    // don't show dapps panel if the wallet is locked and requests are being
+                    // processed by the approve dialog already
+                    mKeyringService.isLocked(locked -> {
+                        if (locked) {
+                            return;
+                        }
+
+                        if (!mIsProcessingPendingDappsTxRequest) {
+                            mIsProcessingPendingDappsTxRequest = true;
+                            openWootzWalletDAppsActivity(
+                                    WootzWalletDAppsActivity.ActivityType.CONFIRM_TRANSACTION);
+                        }
+
+                        // update badge if there's a pending tx
+                        updateWalletBadgeVisibility();
+                    });
+                });
+
+        // mWalletModel.getDappsModel().mWalletIconNotificationVisible.observe(
+        //         this, this::setWalletBadgeVisibility);
+
+        mWalletModel.getDappsModel().mPendingWalletAccountCreationRequest.observe(this, request -> {
+            if (request == null) return;
+            mWalletModel.getKeyringModel().isWalletLocked(isLocked -> {
+                if (!WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) return;
+                if (isLocked) {
+                    Tab tab = getActivityTab();
+                    if (tab != null) {
+                        walletInteractionDetected(tab.getWebContents());
+                    }
+                    // showWalletPanel(false);
+                    return;
+                }
+                for (CryptoAccountTypeInfo info :
+                        mWalletModel.getCryptoModel().getSupportedCryptoAccountTypes()) {
+                    if (info.getCoinType() == request.getCoinType()) {
+                        Intent intent = AddAccountActivity.createIntentToAddAccount(
+                                this, info.getCoinType());
+                        startActivity(intent);
+                        mWalletModel.getDappsModel().removeProcessedAccountCreationRequest(request);
+                        break;
+                    }
+                }
+            });
+        });
+
+        mWalletModel.getCryptoModel().getNetworkModel().mNeedToCreateAccountForNetwork.observe(
+                this, networkInfo -> {
+                    if (networkInfo == null) return;
+                    Log.e("WOOTZAPP ANKIT", " networkInfo" + networkInfo);
+                    MaterialAlertDialogBuilder builder =
+                            new MaterialAlertDialogBuilder(
+                                    this, R.style.WootzWalletAlertDialogTheme)
+                                    .setMessage(getString(
+                                            R.string.wootz_wallet_create_account_description,
+                                            networkInfo.symbolName))
+                                    .setPositiveButton(R.string.wootz_action_yes,
+                                            (dialog, which) -> {
+                                                mWalletModel.createAccountAndSetDefaultNetwork(
+                                                        networkInfo);
+                                            })
+                                    .setNegativeButton(
+                                            R.string.wootz_action_no, (dialog, which) -> {
+                                                mWalletModel.getCryptoModel()
+                                                        .getNetworkModel()
+                                                        .clearCreateAccountState();
+                                                dialog.dismiss();
+                                            });
+                    builder.show();
+                });
+    }
+
+    @MainThread
+    private void clearObservers() {
+        ThreadUtils.assertOnUiThread();
+        mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.removeObservers(
+                this);
+        mWalletModel.getDappsModel().mWalletIconNotificationVisible.removeObservers(this);
+        mWalletModel.getCryptoModel()
+                .getNetworkModel()
+                .mNeedToCreateAccountForNetwork.removeObservers(this);
+    }
+
+    private void initWootzWalletService() {
+        Log.e("WootzAPP ANKITANKITIVAN","initWootzWalletService"); 
+        if (mWootzWalletService != null) {
+            return;
+        }
+
+        mWootzWalletService = WootzWalletServiceFactory.getInstance().getWootzWalletService(this);
+        Log.e("WootzAPP ANKITANKITIVAN","initWootzWalletService"+mWootzWalletService); 
+
+    }
+
+    private void initKeyringService() {
+        Log.e("WootzAPP ANKITANKITIVAN","initKeyringService");
+
+        if (mKeyringService != null) {
+            return;
+        }
+
+        mKeyringService = WootzWalletServiceFactory.getInstance().getKeyringService(this);
+        Log.e("WootzAPP ANKITANKITIVAN","initKeyringService"+mKeyringService);
+        // Log.e("WootzAPP ANKITANKITIVAN","initKeyringService");
+
+    }
+
+    private void initJsonRpcService() {
+        Log.e("WootzAPP ANKITANKITIVAN","initJsonRpcService");
+
+        if (mJsonRpcService != null) {
+            return;
+        }
+
+        mJsonRpcService = WootzWalletServiceFactory.getInstance().getJsonRpcService(this);
+        Log.e("WootzAPP ANKITANKITIVAN","initJsonRpcService"+mJsonRpcService);
+    }
+
+    private void initTxService() {
+        Log.e("WOOTZAPP", "initTxService");
+        if (mTxService != null) {
+            return;
+        }
+
+        mTxService = WootzWalletServiceFactory.getInstance().getTxService(this);
+        Log.e("WOOTZAPP", "initTxService"+mTxService);
+
+    }
+
+    private void initEthTxManagerProxy() {
+         Log.e("WootzApp ANKITIVANANKIT","initEthTxManagerProxy");
+        
+        if (mEthTxManagerProxy != null) {
+            return;
+        }
+
+        mEthTxManagerProxy = WootzWalletServiceFactory.getInstance().getEthTxManagerProxy(this);
+        
+        Log.e("WootzApp ANKITIVANANKIT","initEthTxManagerProxy"+mEthTxManagerProxy);
+    }
+
+    private void initSolanaTxManagerProxy() {
+        Log.e("WootzApp ANKITIVANANKIT","initEthTxManagerProxy");
+        if (mSolanaTxManagerProxy != null) {
+            return;
+        }
+
+        mSolanaTxManagerProxy =
+                WootzWalletServiceFactory.getInstance().getSolanaTxManagerProxy(this);
+        Log.e("WootzApp ANKITIVANANKIT","initSolanaTxManagerProxy"+mSolanaTxManagerProxy);
+
+    }
+
+    private void initBlockchainRegistry() {
+        Log.e("initBlockchainRegistry not null","wootzapp");
+        if (mBlockchainRegistry != null) {
+            return;
+        }
+        
+
+        mBlockchainRegistry = BlockchainRegistryFactory.getInstance().getBlockchainRegistry(this);
+        Log.e("initBlockchainRegistry not null","wootzapp "+mBlockchainRegistry);
+
+    }
+
+    // private void initAssetRatioService() {
+    //     Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService");
+
+    //     if (mAssetRatioService != null) {
+    //         return;
+    //     }
+
+    //     mAssetRatioService = AssetRatioServiceFactory.getInstance().getAssetRatioService(this);
+    //     // Log.e("WootzApp ANKITIVANANKIT","initAssetRatioService"+mAssetRatioService);
+    // }
+
 
     private void initializeManualFillingComponent(ProfileProvider profileProvider) {
         if (isDestroyed()) return;
@@ -2423,6 +3115,48 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         return handleBackPressed();
     }
 
+        private void initSwapService() {
+        if (mSwapService != null) {
+            return;
+        }
+        mSwapService = SwapServiceFactory.getInstance().getSwapService(this);
+    }
+
+    private void initWalletNativeServices() {
+        initBlockchainRegistry();
+        initTxService();
+        initEthTxManagerProxy();
+        initSolanaTxManagerProxy();
+        // initAssetRatioService();
+        initWootzWalletService();
+        initKeyringService();
+        initJsonRpcService();
+        // initSwapService();
+        setupWalletModel();
+    }
+
+    private void cleanUpWalletNativeServices() {
+        Log.e("cleanUpWalletNativeServices","wootzapp");
+        clearWalletModelServices();
+        Log.e("cleanUpWalletNativeServices","wootzapp");
+        if (mKeyringService != null) mKeyringService.close();
+        // if (mAssetRatioService != null) mAssetRatioService.close();
+        if (mBlockchainRegistry != null) mBlockchainRegistry.close();
+        if (mJsonRpcService != null) mJsonRpcService.close();
+        if (mTxService != null) mTxService.close();
+        if (mEthTxManagerProxy != null) mEthTxManagerProxy.close();
+        if (mSolanaTxManagerProxy != null) mSolanaTxManagerProxy.close();
+        if (mWootzWalletService != null) mWootzWalletService.close();
+        mKeyringService = null;
+        mBlockchainRegistry = null;
+        mJsonRpcService = null;
+        mTxService = null;
+        mEthTxManagerProxy = null;
+        mSolanaTxManagerProxy = null;
+        mAssetRatioService = null;
+        mWootzWalletService = null;
+    }
+
     private void initializeBackPressHandling() {
         mBackPressManager.setIsGestureNavEnabledSupplier(
                 () -> UiUtils.isGestureNavigationMode(getWindow()));
@@ -2606,6 +3340,10 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     getTabModelSelector().getCurrentModel().getProfile());
             return true;
         }
+
+        // if (id == R.id.wootz_wallet_id) {
+        //     openWootzWallet(false, false, false);
+        // } 
 
         if (id == R.id.open_history_menu_id) {
             // 'currentTab' could only be null when opening history from start surface, which is
@@ -2802,6 +3540,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
         return false;
     }
+    
+    @Override
+    public void onConnectionError(MojoException e) {
+        cleanUpWalletNativeServices();
+        initWalletNativeServices();
+    }
 
     /**
      * Shows Help and Feedback and records the user action as well.
@@ -2910,6 +3654,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         return false;
     }
 
+    
     /**
      * Called when VR mode is entered using this activity. 2D UI components that steal focus or
      * draw over VR contents should be hidden in this call.

@@ -334,7 +334,7 @@ class TabListRecyclerView extends RecyclerView
     }
 
     void setShadowVisibility(boolean shouldShowShadow) {
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()
+
         if(true
                 && mIsVisible) {
             // always show shadow
@@ -382,10 +382,10 @@ class TabListRecyclerView extends RecyclerView
 
     void setShadowTopOffset(int shadowTopOffset) {
         mShadowTopOffset = shadowTopOffset;
-        // if (ChromeFeatureList.sMoveTopToolbarToBottom.isEnabled()) {
+        
             // invert the offset since Gravity is set to BOTTOM
         mShadowTopOffset = -mShadowTopOffset;
-        // }
+
         if (mShadowImageView != null && getParent() instanceof FrameLayout) {
             // Since the shadow has no functionality, other than just existing visually, we can use
             // translationY to position it using the top offset. This is preferable to setting a

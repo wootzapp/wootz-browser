@@ -2,6 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Jai - starts
+#ifndef WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
+#define WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
+
+#ifndef PermissionContextBase
+#define WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_PERMISSION_CONTEXT_BASE
+#define PermissionContextBase PermissionContextBase_ChromiumImpl
+#endif
+// Jai - ends
+
+
 #ifndef COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
 #define COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
 
@@ -88,3 +99,11 @@ struct PermissionRequestData {
 }  // namespace permissions
 
 #endif  // COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
+
+// Jai - starts
+#ifdef WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_PERMISSION_CONTEXT_BASE
+#undef PermissionContextBase
+#endif
+
+#endif  // WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_REQUEST_DATA_H_
+// Jai - endss

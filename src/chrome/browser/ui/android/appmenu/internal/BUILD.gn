@@ -13,10 +13,10 @@ android_library("java") {
 
   sources = [
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenu.java",
+    "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuExtensionOpener.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuButtonHelperImpl.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuCoordinatorFactory.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuCoordinatorImpl.java",
-    "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuDragHelper.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuHandlerImpl.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuItemIcon.java",
     "java/src/org/chromium/chrome/browser/ui/appmenu/AppMenuItemViewBinder.java",

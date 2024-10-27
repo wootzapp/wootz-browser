@@ -173,7 +173,7 @@ process but are generated using a script that pulls them from outside the repo.-
       <message name="IDS_BING_SEARCH_DESCRIPTION" use_name_for_id="true">
         Powered by ChatGPT’s GPT-4
       </message>
-      <message name="IDS_BRAVE_SEARCH_DESCRIPTION" use_name_for_id="true">
+      <message name="IDS_WOOTZ_SEARCH_DESCRIPTION" use_name_for_id="true">
         Block ads while you browse, trackers while you search. Better privacy online.
       </message>
       <message name="IDS_DUCKDUCKGO_SEARCH_DESCRIPTION" use_name_for_id="true">

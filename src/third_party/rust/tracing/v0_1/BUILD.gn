@@ -1,0 +1,54 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "tracing"
+  epoch = "0.1"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/dispatcher.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/instrument.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/level_filters.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/macros.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/span.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/stdlib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/tracing-0.1.40/src/subscriber.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2018"
+  cargo_pkg_version = "0.1.40"
+  cargo_pkg_authors =
+      "Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs>"
+  cargo_pkg_name = "tracing"
+  cargo_pkg_description = "Application-level tracing for Rust."
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/pin_project_lite/v0_2:lib",
+    "//third_party/rust/tracing_attributes/v0_1:lib",
+    "//third_party/rust/tracing_core/v0_1:lib",
+  ]
+  features = [
+    "attributes",
+    "release_max_level_debug",
+    "std",
+    "tracing-attributes",
+  ]
+}

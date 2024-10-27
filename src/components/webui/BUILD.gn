@@ -1,0 +1,30 @@
+# Copyright (c) 2023 The Brave Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# import("//chrome/build/config.gni")
+import("//build/buildflag_header.gni")
+
+static_library("webui") {
+  visibility = [
+    "//chrome/browser/ui",
+  ]
+
+  sources = [
+    "webui_resources.cc",
+    "webui_resources.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/constants",
+    "//components/l10n/common",
+    "//components/resources:static_resources",
+    "//components/resources:strings_grit",
+    "//components/resources:components_resources_grit",
+    "//components/strings:components_strings",
+    "//third_party/re2",
+    "//ui/base:base",
+  ]
+}

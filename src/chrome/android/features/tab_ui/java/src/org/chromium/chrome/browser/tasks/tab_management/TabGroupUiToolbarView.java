@@ -242,7 +242,7 @@ public class TabGroupUiToolbarView extends FrameLayout {
     /** Set the color icon of type {@link TabGroupColorId} on the tab group card view. */
     void setColorIconColor(@TabGroupColorId int colorId, boolean isIncognito) {
         if (ChromeFeatureList.sTabGroupParityAndroid.isEnabled()) {
-            mColorIconContainer.setVisibility(View.GONE);
+            mColorIconContainer.setVisibility(View.VISIBLE);
 
             final @ColorInt int color =
                     ColorPickerUtils.getTabGroupColorPickerItemColor(

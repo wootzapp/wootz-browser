@@ -140,14 +140,14 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             // changed the top margin to 0 so that app menu and toolbar will not have any gap b/w them
             int leftMargin = ViewUtils.dpToPx(getContext(), 16);
             int rightMargin = ViewUtils.dpToPx(getContext(), 16);
-            int bottomMargin = ViewUtils.dpToPx(getContext(), 8);
+            int bottomMargin = ViewUtils.dpToPx(getContext(), 16);
             params.setMargins(leftMargin, 0, rightMargin, bottomMargin); // left, top, right, bottom
             mToolbarContainer.setLayoutParams(params);
 
 
             // By Devendra(dkt)
             // Add border radius
-            float borderRadius = 40f; // Adjusted by Sagar Jha
+            float borderRadius = 80f; // You can adjust this value as needed
             mToolbarContainer.setClipToOutline(true);
             mToolbarContainer.setOutlineProvider(new ViewOutlineProvider() {
                 @Override

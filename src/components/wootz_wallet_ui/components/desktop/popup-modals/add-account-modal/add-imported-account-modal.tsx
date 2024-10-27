@@ -1,0 +1,550 @@
+// Copyright (c) 2022 The Wootz Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// you can obtain one at https://mozilla.org/MPL/2.0/.
+
+import * as React from 'react'
+import { useDispatch } from 'react-redux'
+import { useHistory, useParams } from 'react-router'
+import Input, { InputEventDetail } from '@brave/leo/react/input'
+import Dropdown from '@brave/leo/react/dropdown'
+import {
+  SelectItemEventDetail //
+} from '@brave/leo/types/src/components/menu/menu.svelte'
+
+// utils
+import { FILECOIN_FORMAT_DESCRIPTION_URL } from '../../../../common/constants/urls'
+import { getLocale, getLocaleWithTag } from '$web-common/locale'
+import { copyToClipboard } from '../../../../utils/copy-to-clipboard'
+
+// options
+import { CreateAccountOptions } from '../../../../options/create-account-options'
+
+// types
+import {
+  WootzWallet,
+  CreateAccountOptionsType,
+  WalletRoutes,
+  FilecoinNetwork,
+  FilecoinNetworkTypes,
+  FilecoinNetworkLocaleMapping,
+  BitcoinNetworkTypes,
+  BitcoinNetwork,
+  BitcoinNetworkLocaleMapping,
+  DAppSupportedCoinTypes
+} from '../../../../constants/types'
+
+// actions
+import { PanelActions } from '../../../../panel/actions'
+
+// components
+import { DividerLine } from '../../../extension/divider/index'
+import { PopupModal } from '../index'
+import { SelectAccountType } from './select-account-type/select-account-type'
+
+// style
+import { LeoSquaredButton } from '../../../shared/style'
+import {
+  CreateAccountStyledWrapper,
+  DisclaimerText,
+  ErrorText,
+  ImportButton,
+  ImportRow,
+  StyledWrapper,
+  Alert
+} from './style'
+
+// selectors
+import { UISelectors, WalletSelectors } from '../../../../common/selectors'
+
+// hooks
+import {
+  useSafeUISelector,
+  useSafeWalletSelector
+} from '../../../../common/hooks/use-safe-selector'
+import {
+  useImportAccountFromJsonMutation,
+  useImportAccountMutation,
+  useImportBtcAccountMutation,
+  useImportFilAccountMutation
+} from '../../../../common/slices/api.slice'
+
+interface Params {
+  accountTypeName: string
+}
+
+const reduceFileName = (address: string) => {
+  const firstHalf = address.slice(0, 4)
+  const secondHalf = address.slice(-4)
+  const reduced = firstHalf.concat('......', secondHalf)
+  return reduced
+}
+
+export const ImportAccountModal = () => {
+  // refs
+  const passwordInputRef = React.useRef<HTMLInputElement>(null)
+
+  // routing
+  const history = useHistory()
+  const { accountTypeName } = useParams<Params>()
+
+  // redux
+  const dispatch = useDispatch()
+  const isBitcoinImportEnabled = useSafeWalletSelector(
+    WalletSelectors.isBitcoinImportEnabled
+  )
+  // mutations
+  const [importAccount] = useImportAccountMutation()
+  const [importFilAccount] = useImportFilAccountMutation()
+  const [importBtcAccount] = useImportBtcAccountMutation()
+  const [importAccountFromJson] = useImportAccountFromJsonMutation()
+
+  // memos
+  const createAccountOptions = React.useMemo(() => {
+    return CreateAccountOptions({
+      isBitcoinEnabled: isBitcoinImportEnabled,
+      isZCashEnabled: false // No zcash imported accounts by now.
+    })
+  }, [isBitcoinImportEnabled])
+
+  const selectedAccountType = React.useMemo(() => {
+    return createAccountOptions.find((option) => {
+      return option.name.toLowerCase() === accountTypeName?.toLowerCase()
+    })
+  }, [accountTypeName, createAccountOptions])
+
+  const isPanel = useSafeUISelector(UISelectors.isPanel)
+
+  // state
+  const [hasImportError, setHasImportError] = React.useState(false)
+  const [fullLengthAccountName, setFullLengthAccountName] =
+    React.useState<string>('')
+  const accountName = fullLengthAccountName.substring(0, 30)
+  const [filecoinNetwork, setFilecoinNetwork] =
+    React.useState<FilecoinNetwork>('f')
+  const [bitcoinNetwork, setBitcoinNetwork] = React.useState<BitcoinNetwork>(
+    WootzWallet.BITCOIN_MAINNET
+  )
+  const [importOption, setImportOption] = React.useState<string>('key')
+  const [privateKey, setPrivateKey] = React.useState<string>('')
+  const [file, setFile] = React.useState<HTMLInputElement['files']>()
+  const [password, setPassword] = React.useState<string>('')
+
+  // computed
+  const hasAccountNameError = accountName === ''
+  const hasImportTypeError = importOption === 'key' ? !privateKey : !file
+  const isDisabled = hasAccountNameError || hasImportTypeError
+  const modalTitle = selectedAccountType
+    ? getLocale('wootzWalletCreateAccountImportAccount').replace(
+        '$1',
+        selectedAccountType.name
+      )
+    : getLocale('wootzWalletAddAccountImport')
+
+  const filPrivateKeyFormatDescriptionTextParts = getLocaleWithTag(
+    'wootzWalletFilImportPrivateKeyFormatDescription'
+  )
+
+  // methods
+  const onClickClose = React.useCallback(() => {
+    setHasImportError(false)
+    history.push(WalletRoutes.Accounts)
+  }, [history])
+
+  const handleAccountNameChanged = React.useCallback(
+    (detail: InputEventDetail) => {
+      setFullLengthAccountName(detail.value)
+      setHasImportError(false)
+    },
+    []
+  )
+
+  const onChangeFilecoinNetwork = React.useCallback(
+    (detail: SelectItemEventDetail) => {
+      setFilecoinNetwork(detail.value as FilecoinNetwork)
+    },
+    []
+  )
+
+  const onChangeBitcoinNetwork = React.useCallback(
+    (detail: SelectItemEventDetail) => {
+      setBitcoinNetwork(detail.value as BitcoinNetwork)
+    },
+    []
+  )
+
+  const onChangeImportOption = React.useCallback(
+    (detail: SelectItemEventDetail) => {
+      setImportOption(detail.value as string)
+    },
+    []
+  )
+
+  const clearClipboard = React.useCallback(() => {
+    copyToClipboard('')
+  }, [])
+
+  const handlePrivateKeyChanged = React.useCallback(
+    (detail: InputEventDetail) => {
+      clearClipboard()
+      setPrivateKey(detail.value)
+      setHasImportError(false)
+    },
+    [clearClipboard]
+  )
+
+  const onClickFileUpload = () => {
+    // To prevent panel from being closed when file chooser is open
+    if (isPanel) {
+      dispatch(PanelActions.setCloseOnDeactivate(false))
+      // For resume close on deactive when file chooser is close(select/cancel)
+      window.addEventListener('focus', onFocusFileUpload)
+    }
+  }
+
+  const onFocusFileUpload = () => {
+    if (isPanel) {
+      dispatch(PanelActions.setCloseOnDeactivate(true))
+      window.removeEventListener('focus', onFocusFileUpload)
+    }
+  }
+
+  const onFileUpload = React.useCallback(
+    (file: React.ChangeEvent<HTMLInputElement>) => {
+      if (file.target.files) {
+        setFile(file.target.files)
+        setHasImportError(false)
+        passwordInputRef.current?.focus()
+      }
+    },
+    []
+  )
+
+  const handlePasswordChanged = React.useCallback(
+    (detail: InputEventDetail) => {
+      setPassword(detail.value)
+      setHasImportError(false)
+      clearClipboard()
+    },
+    [clearClipboard]
+  )
+
+  const onClickCreateAccount = React.useCallback(async () => {
+    if (!selectedAccountType) {
+      return
+    }
+    if (importOption === 'key') {
+      if (selectedAccountType.coin === WootzWallet.CoinType.FIL) {
+        try {
+          await importFilAccount({
+            accountName,
+            privateKey,
+            network: filecoinNetwork
+          })
+          history.push(WalletRoutes.Accounts)
+        } catch (error) {
+          setHasImportError(true)
+        }
+      } else if (selectedAccountType.coin === WootzWallet.CoinType.BTC) {
+        try {
+          await importBtcAccount({
+            accountName,
+            payload: privateKey,
+            network: bitcoinNetwork
+          })
+          history.push(WalletRoutes.Accounts)
+        } catch (error) {
+          setHasImportError(true)
+        }
+      } else {
+        try {
+          await importAccount({
+            accountName,
+            privateKey,
+            coin: selectedAccountType.coin
+          }).unwrap()
+          history.push(WalletRoutes.Accounts)
+        } catch (error) {
+          setHasImportError(true)
+        }
+      }
+      return
+    }
+
+    if (file) {
+      const index = file[0]
+      const reader = new FileReader()
+      reader.onload = async function () {
+        if (reader.result) {
+          try {
+            await importAccountFromJson({
+              accountName,
+              password,
+              json: reader.result.toString().trim()
+            }).unwrap()
+            history.push(WalletRoutes.Accounts)
+          } catch (error) {
+            setHasImportError(true)
+          }
+        }
+      }
+
+      reader.readAsText(index)
+    }
+  }, [
+    importOption,
+    file,
+    selectedAccountType,
+    importFilAccount,
+    accountName,
+    privateKey,
+    filecoinNetwork,
+    history,
+    importBtcAccount,
+    bitcoinNetwork,
+    importAccount,
+    importAccountFromJson,
+    password
+  ])
+
+  const handleKeyDown = React.useCallback(
+    (detail: InputEventDetail) => {
+      if (isDisabled) {
+        return
+      }
+      if ((detail.innerEvent as unknown as KeyboardEvent).key === 'Enter') {
+        onClickCreateAccount()
+      }
+    },
+    [isDisabled, onClickCreateAccount]
+  )
+
+  const onSelectAccountType = React.useCallback(
+    (accountType: CreateAccountOptionsType) => () => {
+      history.push(
+        WalletRoutes.ImportAccountModal.replace(
+          ':accountTypeName?',
+          accountType.name.toLowerCase()
+        )
+      )
+    },
+    [history]
+  )
+
+  const isDAppCoin =
+    !!selectedAccountType &&
+    DAppSupportedCoinTypes.includes(selectedAccountType?.coin)
+
+  // render
+  return (
+    <PopupModal
+      title={modalTitle}
+      onClose={onClickClose}
+    >
+      <DividerLine />
+
+      {!selectedAccountType && (
+        <SelectAccountType
+          createAccountOptions={createAccountOptions}
+          buttonText={getLocale('wootzWalletAddAccountImport')}
+          onSelectAccountType={onSelectAccountType}
+        />
+      )}
+
+      {selectedAccountType && (
+        <StyledWrapper>
+          {isDAppCoin && (
+            <Alert type='warning'>
+              {getLocale('wootzWalletImportAccountDisclaimer')}
+            </Alert>
+          )}
+
+          {selectedAccountType.coin === WootzWallet.CoinType.FIL && (
+            <Alert type='warning'>
+              {filPrivateKeyFormatDescriptionTextParts.beforeTag}
+              <a
+                target='_blank'
+                href={FILECOIN_FORMAT_DESCRIPTION_URL}
+                rel='noopener noreferrer'
+              >
+                {filPrivateKeyFormatDescriptionTextParts.duringTag}
+              </a>
+              {filPrivateKeyFormatDescriptionTextParts.afterTag}
+            </Alert>
+          )}
+          {selectedAccountType.coin === WootzWallet.CoinType.BTC && (
+            <Alert type='warning'>
+              {getLocale('wootzWalletBtcImportPrivateKeyFormatDescription')}
+            </Alert>
+          )}
+
+          <CreateAccountStyledWrapper>
+            {selectedAccountType?.coin === WootzWallet.CoinType.FIL && (
+              <Dropdown
+                value={filecoinNetwork}
+                onChange={onChangeFilecoinNetwork}
+              >
+                <div slot='label'>
+                  {getLocale('wootzWalletAllowAddNetworkNetworkPanelTitle')}
+                </div>
+
+                <div slot='value'>
+                  {FilecoinNetworkLocaleMapping[filecoinNetwork]}
+                </div>
+
+                {FilecoinNetworkTypes.map((network, index) => {
+                  const networkLocale = FilecoinNetworkLocaleMapping[network]
+                  return (
+                    <leo-option
+                      key={index}
+                      value={network}
+                    >
+                      {networkLocale}
+                    </leo-option>
+                  )
+                })}
+              </Dropdown>
+            )}
+            {selectedAccountType.coin === WootzWallet.CoinType.BTC && (
+              <Dropdown
+                value={bitcoinNetwork}
+                onChange={onChangeBitcoinNetwork}
+              >
+                <div slot='label'>
+                  {getLocale('wootzWalletAllowAddNetworkNetworkPanelTitle')}
+                </div>
+
+                <div slot='value'>
+                  {BitcoinNetworkLocaleMapping[bitcoinNetwork]}
+                </div>
+
+                {BitcoinNetworkTypes.map((network, index) => {
+                  const networkLocale = BitcoinNetworkLocaleMapping[network]
+                  return (
+                    <leo-option
+                      key={index}
+                      value={network}
+                    >
+                      {networkLocale}
+                    </leo-option>
+                  )
+                })}
+              </Dropdown>
+            )}
+            {selectedAccountType.coin === WootzWallet.CoinType.ETH && (
+              <Dropdown
+                value={importOption}
+                onChange={onChangeImportOption}
+              >
+                <div slot='label'>
+                  {getLocale('wootzWalletPrivateKeyImportType')}
+                </div>
+
+                <div slot='value'>
+                  {getLocale(
+                    importOption === 'key'
+                      ? 'wootzWalletImportAccountKey'
+                      : 'wootzWalletImportAccountFile'
+                  )}
+                </div>
+
+                <leo-option
+                  key={'key'}
+                  value='key'
+                >
+                  {getLocale('wootzWalletImportAccountKey')}
+                </leo-option>
+
+                <leo-option
+                  key={'file'}
+                  value='file'
+                >
+                  {getLocale('wootzWalletImportAccountFile')}
+                </leo-option>
+              </Dropdown>
+            )}
+
+            {hasImportError && (
+              <ErrorText>
+                {getLocale('wootzWalletImportAccountError')}
+              </ErrorText>
+            )}
+
+            {importOption === 'key' ? (
+              <Input
+                placeholder={getLocale('wootzWalletImportAccountPlaceholder')}
+                onBlur={clearClipboard}
+                type='password'
+                onInput={handlePrivateKeyChanged}
+                onKeyDown={handleKeyDown}
+              >
+                {
+                  // Label
+                  getLocale('wootzWalletImportAccountKey')
+                }
+              </Input>
+            ) : (
+              <>
+                <ImportRow>
+                  <ImportButton htmlFor='recoverFile'>
+                    {getLocale('wootzWalletImportAccountUploadButton')}
+                  </ImportButton>
+                  <DisclaimerText>
+                    {file
+                      ? reduceFileName(file[0].name)
+                      : getLocale('wootzWalletImportAccountUploadPlaceholder')}
+                  </DisclaimerText>
+                </ImportRow>
+                <input
+                  type='file'
+                  id='recoverFile'
+                  name='recoverFile'
+                  style={{ display: 'none' }}
+                  onChange={onFileUpload}
+                  onClick={onClickFileUpload}
+                />
+                <Input
+                  placeholder={getLocale('wootzWalletInputLabelPassword')}
+                  onInput={handlePasswordChanged}
+                  onKeyDown={handleKeyDown}
+                  onBlur={clearClipboard}
+                  type='password'
+                  ref={passwordInputRef}
+                >
+                  {
+                    // Label
+                    getLocale('wootzWalletEnterPasswordIfApplicable')
+                  }
+                </Input>
+              </>
+            )}
+
+            <Input
+              value={accountName}
+              placeholder={getLocale('wootzWalletAddAccountPlaceholder')}
+              onInput={handleAccountNameChanged}
+              onKeyDown={handleKeyDown}
+              showErrors={hasAccountNameError}
+              maxlength={WootzWallet.ACCOUNT_NAME_MAX_CHARACTER_LENGTH}
+            >
+              {
+                // Label
+                getLocale('wootzWalletAddAccountPlaceholder')
+              }
+            </Input>
+
+            <LeoSquaredButton
+              onClick={onClickCreateAccount}
+              isDisabled={isDisabled}
+              kind='filled'
+            >
+              {getLocale('wootzWalletAddAccountImport')}
+            </LeoSquaredButton>
+          </CreateAccountStyledWrapper>
+        </StyledWrapper>
+      )}
+    </PopupModal>
+  )
+}
+
+export default ImportAccountModal

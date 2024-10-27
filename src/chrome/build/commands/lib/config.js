@@ -1,0 +1,1391 @@
+// Copyright (c) 2016 The chrome Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
+
+'use strict'
+
+const path = require('path')
+const fs = require('fs')
+const assert = require('assert')
+const dotenv = require('dotenv')
+const Log = require('./logging')
+
+let envConfig = null
+
+let dirName = __dirname
+// Use fs.realpathSync to normalize the path(__dirname could be c:\.. or C:\..).
+if (process.platform === 'win32') {
+  dirName = fs.realpathSync.native(dirName)
+}
+const rootDir = path.resolve(dirName, '..', '..', '..', '..', '..')
+const chromeCoreDir = path.join(rootDir, 'src')
+
+var packageConfig = function (key, sourceDir = chromeCoreDir) {
+  let packages = { config: {} }
+  const configAbsolutePath = path.join(sourceDir, 'package.json')
+  if (fs.existsSync(configAbsolutePath)) {
+    packages = require(path.relative(__dirname, configAbsolutePath))
+  }
+
+  // packages.config should include version string.
+  let obj = Object.assign({}, packages.config, { version: packages.version })
+  for (var i = 0, len = key.length; i < len; i++) {
+    if (!obj) {
+      return obj
+    }
+    obj = obj[key[i]]
+  }
+  return obj
+}
+
+const getEnvConfig = (key, default_value = undefined) => {
+  if (!envConfig) {
+    envConfig = {}
+
+    // Parse src/chrome/.env with all included env files.
+    let envConfigPath = path.join(chromeCoreDir, '.env')
+    // It's okay to not have the initial `.env` file.
+    if (fs.existsSync(envConfigPath)) {
+      while (envConfigPath) {
+        const loadResult = dotenv.configDotenv({
+          path: envConfigPath,
+          processEnv: envConfig
+        })
+        if (loadResult.error) {
+          Log.error(
+            `Error loading .env from ${envConfigPath}\n${loadResult.error}`
+          )
+          process.exit(1)
+        }
+
+        // Support include_env=<path> to include other .env files.
+        const newEnvConfigPath = envConfig['include_env']
+        delete envConfig['include_env']
+        envConfigPath = newEnvConfigPath
+          ? path.isAbsolute(newEnvConfigPath)
+            ? newEnvConfigPath
+            : path.join(path.dirname(envConfigPath), newEnvConfigPath)
+          : null
+      }
+    }
+
+    // Convert 'true' and 'false' strings into booleans.
+    for (const [key, value] of Object.entries(envConfig)) {
+      if (value === 'true' || value === 'false') {
+        envConfig[key] = value === 'true'
+      }
+    }
+  }
+
+  const envConfigValue = envConfig[key.join('_')]
+  if (envConfigValue !== undefined)
+    return envConfigValue
+
+  const packageConfigValue = packageConfig(key)
+  if (packageConfigValue !== undefined)
+    return packageConfigValue
+
+  return default_value
+}
+
+const getDepotToolsDir = (rootDir) => {
+  let depotToolsDir = getEnvConfig(['projects', 'depot_tools', 'dir'])
+  if (!path.isAbsolute(depotToolsDir)) {
+    depotToolsDir = path.join(rootDir, depotToolsDir)
+  }
+  return path.normalize(depotToolsDir)
+}
+
+const parseExtraInputs = (inputs, accumulator, callback) => {
+  for (let input of inputs) {
+    let separatorIndex = input.indexOf(':')
+    if (separatorIndex < 0) {
+      separatorIndex = input.length
+    }
+
+    const key = input.substring(0, separatorIndex)
+    const value = input.substring(separatorIndex + 1)
+    callback(accumulator, key, value)
+  }
+}
+
+const getchromeVersion = (ignorePatchVersionNumber) => {
+  const chromeVersion = packageConfig(['version'])
+  if (!ignorePatchVersionNumber) {
+    return chromeVersion
+  }
+
+  const chromeVersionParts = chromeVersion.split('.')
+  assert(chromeVersionParts.length == 3)
+  chromeVersionParts[2] = '0'
+  return chromeVersionParts.join('.')
+}
+
+const getHostOS = () => {
+  switch (process.platform) {
+    case 'darwin':
+      return 'mac'
+    case 'linux':
+      return 'linux'
+    case 'win32':
+      return 'win'
+    default:
+      throw new Error(`Unsupported process.platform: ${process.platform}`)
+  }
+}
+
+const Config = function () {
+  this.isTeamcity = process.env.TEAMCITY_VERSION !== undefined
+  this.isCI = process.env.BUILD_ID !== undefined || this.isTeamcity
+  this.internalDepsUrl = 'https://vhemnu34de4lf5cj6bx2wwshyy0egdxk.lambda-url.us-west-2.on.aws'
+  this.defaultBuildConfig = getEnvConfig(['default_build_config']) || 'Component'
+  this.buildConfig = this.defaultBuildConfig
+  this.signTarget = 'sign_app'
+  this.buildTargets = ['chrome']
+  this.rootDir = rootDir
+  this.isUniversalBinary = false
+  this.isChromium = false
+  this.scriptDir = path.join(this.rootDir, 'scripts')
+  this.srcDir = path.join(this.rootDir, 'src')
+  this.chromeVersion = this.getProjectVersion('chrome')
+  this.chromiumRepo = getEnvConfig(['projects', 'chrome', 'repository', 'url'])
+  this.chromeCoreDir = chromeCoreDir
+  this.buildToolsDir = path.join(this.srcDir, 'build')
+  this.resourcesDir = path.join(this.rootDir, 'resources')
+  this.depotToolsDir = getDepotToolsDir(this.chromeCoreDir)
+  this.depotToolsRepo = getEnvConfig(['projects', 'depot_tools', 'repository', 'url'])
+  this.defaultGClientFile = path.join(this.rootDir, '.gclient')
+  this.gClientFile = process.env.chrome_GCLIENT_FILE || this.defaultGClientFile
+  this.gClientVerbose = getEnvConfig(['gclient_verbose']) || false
+  this.hostOS = getHostOS()
+  this.targetArch = getEnvConfig(['target_arch']) || process.arch
+  this.targetOS = getEnvConfig(['target_os'])
+  this.targetEnvironment = getEnvConfig(['target_environment'])
+  this.gypTargetArch = 'x64'
+  this.targetAndroidBase = 'classic'
+  this.chromeServicesProductionDomain = getEnvConfig(['chrome_services_production_domain']) || ''
+  this.chromeServicesStagingDomain = getEnvConfig(['chrome_services_staging_domain']) || ''
+  this.chromeServicesDevDomain = getEnvConfig(['chrome_services_dev_domain']) || ''
+  this.chromeServicesKey = getEnvConfig(['chrome_services_key']) || ''
+  this.chromeGoogleApiKey = getEnvConfig(['chrome_google_api_key']) || 'AIzaSyAREPLACEWITHYOUROWNGOOGLEAPIKEY2Q'
+  this.googleApiEndpoint = getEnvConfig(['chrome_google_api_endpoint']) || 'https://www.googleapis.com/geolocation/v1/geolocate?key='
+  this.googleDefaultClientId = getEnvConfig(['google_default_client_id']) || ''
+  this.googleDefaultClientSecret = getEnvConfig(['google_default_client_secret']) || ''
+  this.infuraProjectId = getEnvConfig(['chrome_infura_project_id']) || ''
+  this.sardineClientId = getEnvConfig(['sardine_client_id']) || ''
+  this.sardineClientSecret = getEnvConfig(['sardine_client_secret']) || ''
+  this.bitFlyerProductionClientId = getEnvConfig(['bitflyer_production_client_id']) || ''
+  this.bitFlyerProductionClientSecret = getEnvConfig(['bitflyer_production_client_secret']) || ''
+  this.bitFlyerProductionFeeAddress = getEnvConfig(['bitflyer_production_fee_address']) || ''
+  this.bitFlyerProductionUrl = getEnvConfig(['bitflyer_production_url']) || ''
+  this.bitFlyerSandboxClientId = getEnvConfig(['bitflyer_sandbox_client_id']) || ''
+  this.bitFlyerSandboxClientSecret = getEnvConfig(['bitflyer_sandbox_client_secret']) || ''
+  this.bitFlyerSandboxFeeAddress = getEnvConfig(['bitflyer_sandbox_fee_address']) || ''
+  this.bitFlyerSandboxUrl = getEnvConfig(['bitflyer_sandbox_url']) || ''
+  this.geminiProductionApiUrl = getEnvConfig(['gemini_production_api_url']) || ''
+  this.geminiProductionClientId = getEnvConfig(['gemini_production_client_id']) || ''
+  this.geminiProductionClientSecret = getEnvConfig(['gemini_production_client_secret']) || ''
+  this.geminiProductionFeeAddress = getEnvConfig(['gemini_production_fee_address']) || ''
+  this.geminiProductionOauthUrl = getEnvConfig(['gemini_production_oauth_url']) || ''
+  this.geminiSandboxApiUrl = getEnvConfig(['gemini_sandbox_api_url']) || ''
+  this.geminiSandboxClientId = getEnvConfig(['gemini_sandbox_client_id']) || ''
+  this.geminiSandboxClientSecret = getEnvConfig(['gemini_sandbox_client_secret']) || ''
+  this.geminiSandboxFeeAddress = getEnvConfig(['gemini_sandbox_fee_address']) || ''
+  this.geminiSandboxOauthUrl = getEnvConfig(['gemini_sandbox_oauth_url']) || ''
+  this.upholdProductionApiUrl = getEnvConfig(['uphold_production_api_url']) || ''
+  this.upholdProductionClientId = getEnvConfig(['uphold_production_client_id']) || ''
+  this.upholdProductionClientSecret = getEnvConfig(['uphold_production_client_secret']) || ''
+  this.upholdProductionFeeAddress = getEnvConfig(['uphold_production_fee_address']) || ''
+  this.upholdProductionOauthUrl = getEnvConfig(['uphold_production_oauth_url']) || ''
+  this.upholdSandboxApiUrl = getEnvConfig(['uphold_sandbox_api_url']) || ''
+  this.upholdSandboxClientId = getEnvConfig(['uphold_sandbox_client_id']) || ''
+  this.upholdSandboxClientSecret = getEnvConfig(['uphold_sandbox_client_secret']) || ''
+  this.upholdSandboxFeeAddress = getEnvConfig(['uphold_sandbox_fee_address']) || ''
+  this.upholdSandboxOauthUrl = getEnvConfig(['uphold_sandbox_oauth_url']) || ''
+  this.zebPayProductionApiUrl = getEnvConfig(['zebpay_production_api_url']) || ''
+  this.zebPayProductionClientId = getEnvConfig(['zebpay_production_client_id']) || ''
+  this.zebPayProductionClientSecret = getEnvConfig(['zebpay_production_client_secret']) || ''
+  this.zebPayProductionOauthUrl = getEnvConfig(['zebpay_production_oauth_url']) || ''
+  this.zebPaySandboxApiUrl = getEnvConfig(['zebpay_sandbox_api_url']) || ''
+  this.zebPaySandboxClientId = getEnvConfig(['zebpay_sandbox_client_id']) || ''
+  this.zebPaySandboxClientSecret = getEnvConfig(['zebpay_sandbox_client_secret']) || ''
+  this.zebPaySandboxOauthUrl = getEnvConfig(['zebpay_sandbox_oauth_url']) || ''
+  this.chromeSyncEndpoint = getEnvConfig(['chrome_sync_endpoint']) || ''
+  this.safeBrowsingApiEndpoint = getEnvConfig(['safebrowsing_api_endpoint']) || ''
+  this.updaterProdEndpoint = getEnvConfig(['updater_prod_endpoint']) || ''
+  this.updaterDevEndpoint = getEnvConfig(['updater_dev_endpoint']) || ''
+  this.webcompatReportApiEndpoint = getEnvConfig(['webcompat_report_api_endpoint']) || 'https://webcompat.chrome.com/1/webcompat'
+  this.rewardsGrantDevEndpoint = getEnvConfig(['rewards_grant_dev_endpoint']) || ''
+  this.rewardsGrantStagingEndpoint = getEnvConfig(['rewards_grant_staging_endpoint']) || ''
+  this.rewardsGrantProdEndpoint = getEnvConfig(['rewards_grant_prod_endpoint']) || ''
+  this.ignorePatchVersionNumber = !this.ischromeReleaseBuild() && getEnvConfig(['ignore_patch_version_number'], !this.isCI)
+  this.chromeVersion = getchromeVersion(this.ignorePatchVersionNumber)
+  this.chromeIOSMarketingPatchVersion = getEnvConfig(['chrome_ios_marketing_version_patch']) || ''
+  this.androidOverrideVersionName = this.chromeVersion
+  this.releaseTag = this.chromeVersion.split('+')[0]
+  this.mac_signing_identifier = getEnvConfig(['mac_signing_identifier'])
+  this.mac_installer_signing_identifier = getEnvConfig(['mac_installer_signing_identifier']) || ''
+  this.mac_signing_keychain = getEnvConfig(['mac_signing_keychain']) || 'login'
+  this.sparkleDSAPrivateKeyFile = getEnvConfig(['sparkle_dsa_private_key_file']) || ''
+  this.sparkleEdDSAPrivateKey = getEnvConfig(['sparkle_eddsa_private_key']) || ''
+  this.sparkleEdDSAPublicKey = getEnvConfig(['sparkle_eddsa_public_key']) || ''
+  this.notary_user = getEnvConfig(['notary_user']) || ''
+  this.notary_password = getEnvConfig(['notary_password']) || ''
+  this.channel = 'development'
+  this.git_cache_path = getEnvConfig(['git_cache_path'])
+  this.sccache = getEnvConfig(['sccache'])
+  this.rbeService = getEnvConfig(['rbe_service']) || ''
+  this.rbeTlsClientAuthCert = getEnvConfig(['rbe_tls_client_auth_cert']) || ''
+  this.rbeTlsClientAuthKey = getEnvConfig(['rbe_tls_client_auth_key']) || ''
+  // Make sure "src/" is a part of RBE "exec_root" to allow "src/" files as inputs.
+  this.rbeExecRoot = this.rootDir
+  this.realRewrapperDir = process.env.RBE_DIR || path.join(this.srcDir, 'buildtools', 'reclient')
+  this.chromeStatsApiKey = getEnvConfig(['chrome_stats_api_key']) || ''
+  this.chromeStatsUpdaterUrl = getEnvConfig(['chrome_stats_updater_url']) || ''
+  this.ignore_compile_failure = false
+  this.enable_hangout_services_extension = false
+  this.enable_pseudolocales = false
+  this.sign_widevine_cert = process.env.SIGN_WIDEVINE_CERT || ''
+  this.sign_widevine_key = process.env.SIGN_WIDEVINE_KEY || ''
+  this.sign_widevine_passwd = process.env.SIGN_WIDEVINE_PASSPHRASE || ''
+  this.signature_generator = path.join(this.srcDir, 'third_party', 'widevine', 'scripts', 'signature_generator.py') || ''
+  this.extraGnArgs = {}
+  this.extraGnGenOpts = getEnvConfig(['chrome_extra_gn_gen_opts']) || ''
+  this.extraNinjaOpts = []
+  this.chromeAndroidSafeBrowsingApiKey = getEnvConfig(['chrome_safebrowsing_api_key']) || ''
+  this.chromeSafetyNetApiKey = getEnvConfig(['chrome_safetynet_api_key']) || ''
+  this.chromeAndroidDeveloperOptionsCode = getEnvConfig(['chrome_android_developer_options_code']) || ''
+  this.chromeAndroidKeystorePath = getEnvConfig(['chrome_android_keystore_path'])
+  this.chromeAndroidKeystoreName = getEnvConfig(['chrome_android_keystore_name'])
+  this.chromeAndroidKeystorePassword = getEnvConfig(['chrome_android_keystore_password'])
+  this.chromeAndroidKeyPassword = getEnvConfig(['chrome_android_key_password'])
+  this.chromeVariationsServerUrl = getEnvConfig(['chrome_variations_server_url']) || ''
+  this.nativeRedirectCCDir = path.join(this.srcDir, 'out', 'redirect_cc')
+  this.useRemoteExec = getEnvConfig(['use_remoteexec']) || false
+  this.offline = getEnvConfig(['offline']) || false
+  this.use_libfuzzer = false
+  this.androidAabToApk = false
+  this.usechromeHermeticToolchain = this.rbeService.includes('.chrome.com:')
+  this.chrome_services_key_id = getEnvConfig(['chrome_services_key_id']) || ''
+  this.service_key_aichat = getEnvConfig(['service_key_aichat']) || ''
+  this.chromeIOSDeveloperOptionsCode = getEnvConfig(['chrome_ios_developer_options_code']) || ''
+}
+
+Config.prototype.isReleaseBuild = function () {
+  return this.buildConfig === 'Release'
+}
+
+Config.prototype.ischromeReleaseBuild = function () {
+  const ischromeReleaseBuildValue = getEnvConfig(['is_chrome_release_build'])
+  if (ischromeReleaseBuildValue !== undefined) {
+    assert(ischromeReleaseBuildValue === '0' || ischromeReleaseBuildValue === '1',
+      'Bad is_chrome_release_build value (should be 0 or 1)')
+    return ischromeReleaseBuildValue === '1'
+  }
+
+  return false
+}
+
+Config.prototype.isComponentBuild = function () {
+  return this.buildConfig === 'Debug' || this.buildConfig === 'Component'
+}
+
+Config.prototype.isDebug = function () {
+  return this.buildConfig === 'Debug'
+}
+
+Config.prototype.enableCDMHostVerification = function () {
+  const enable = this.buildConfig === 'Release' &&
+    process.platform !== 'linux' &&
+    this.sign_widevine_cert !== "" &&
+    this.sign_widevine_key !== "" &&
+    this.sign_widevine_passwd !== "" &&
+    fs.existsSync(this.signature_generator)
+  if (enable) {
+    console.log('Widevine cdm host verification is enabled')
+  } else {
+    console.log('Widevine cdm host verification is disabled')
+  }
+  return enable
+}
+
+Config.prototype.isAsan = function () {
+  if (this.is_asan) {
+    return true
+  }
+  return false
+}
+
+Config.prototype.isOfficialBuild = function () {
+  return this.isReleaseBuild() && !this.isAsan()
+}
+
+Config.prototype.getchromeLogoIconName = function () {
+  let iconName = "chrome-icon-dev-color.svg"
+  if (this.ischromeReleaseBuild()) {
+    if (this.channel === "beta") {
+      iconName = "chrome-icon-beta-color.svg"
+    } else if (this.channel === "nightly") {
+      iconName = "chrome-icon-nightly-color.svg"
+    } else {
+      iconName = "chrome-icon-release-color.svg"
+    }
+  }
+  return iconName
+}
+
+Config.prototype.buildArgs = function () {
+  const version = this.chromeVersion
+  let version_parts = version.split('+')[0]
+  version_parts = version_parts.split('.')
+
+  const chrome_version_parts = this.chromeVersion.split('.')
+
+  let args = {
+    sardine_client_id: this.sardineClientId,
+    sardine_client_secret: this.sardineClientSecret,
+    is_asan: this.isAsan(),
+    enable_rust: true,
+    enable_rust_json: true,
+    enable_full_stack_frames_for_profiling: this.isAsan(),
+    v8_enable_verify_heap: this.isAsan(),
+    disable_fieldtrial_testing_config: true,
+    safe_browsing_mode: 1,
+    chrome_services_key: this.chromeServicesKey,
+    root_extra_deps: ["//chrome"],
+    clang_unsafe_buffers_paths: "//chrome/build/config/unsafe_buffers_paths.txt",
+    // TODO: Re-enable when chromium_src overrides work for files in relative
+    // paths like widevine_cmdm_compoennt_installer.cc
+    // use_jumbo_build: !this.officialBuild,
+    is_component_build: this.isComponentBuild(),
+    is_universal_binary: this.isUniversalBinary,
+    proprietary_codecs: true,
+    ffmpeg_branding: "Chrome",
+    branding_path_component: "chrome",
+    branding_path_product: "chrome",
+    enable_nacl: false,
+    enable_widevine: true,
+    enable_feed_v2: true,
+    // Our copy of signature_generator.py doesn't support --ignore_missing_cert:
+    ignore_missing_widevine_signing_cert: false,
+    target_cpu: this.targetArch,
+    is_official_build: this.isOfficialBuild(),
+    is_debug: this.isDebug(),
+    dcheck_always_on: getEnvConfig(['dcheck_always_on']) || this.isComponentBuild(),
+    chrome_channel: this.channel,
+    chrome_google_api_key: this.chromeGoogleApiKey,
+    chrome_google_api_endpoint: this.googleApiEndpoint,
+    google_default_client_id: this.googleDefaultClientId,
+    google_default_client_secret: this.googleDefaultClientSecret,
+    chrome_infura_project_id: this.infuraProjectId,
+    bitflyer_production_client_id: this.bitFlyerProductionClientId,
+    bitflyer_production_client_secret: this.bitFlyerProductionClientSecret,
+    bitflyer_production_fee_address: this.bitFlyerProductionFeeAddress,
+    bitflyer_production_url: this.bitFlyerProductionUrl,
+    bitflyer_sandbox_client_id: this.bitFlyerSandboxClientId,
+    bitflyer_sandbox_client_secret: this.bitFlyerSandboxClientSecret,
+    bitflyer_sandbox_fee_address: this.bitFlyerSandboxFeeAddress,
+    bitflyer_sandbox_url: this.bitFlyerSandboxUrl,
+    gemini_production_api_url: this.geminiProductionApiUrl,
+    gemini_production_client_id: this.geminiProductionClientId,
+    gemini_production_client_secret: this.geminiProductionClientSecret,
+    gemini_production_fee_address: this.geminiProductionFeeAddress,
+    gemini_production_oauth_url: this.geminiProductionOauthUrl,
+    gemini_sandbox_api_url: this.geminiSandboxApiUrl,
+    gemini_sandbox_client_id: this.geminiSandboxClientId,
+    gemini_sandbox_client_secret: this.geminiSandboxClientSecret,
+    gemini_sandbox_fee_address: this.geminiSandboxFeeAddress,
+    gemini_sandbox_oauth_url: this.geminiSandboxOauthUrl,
+    uphold_production_api_url: this.upholdProductionApiUrl,
+    uphold_production_client_id: this.upholdProductionClientId,
+    uphold_production_client_secret: this.upholdProductionClientSecret,
+    uphold_production_fee_address: this.upholdProductionFeeAddress,
+    uphold_production_oauth_url: this.upholdProductionOauthUrl,
+    uphold_sandbox_api_url: this.upholdSandboxApiUrl,
+    uphold_sandbox_client_id: this.upholdSandboxClientId,
+    uphold_sandbox_client_secret: this.upholdSandboxClientSecret,
+    uphold_sandbox_fee_address: this.upholdSandboxFeeAddress,
+    uphold_sandbox_oauth_url: this.upholdSandboxOauthUrl,
+    zebpay_production_api_url: this.zebPayProductionApiUrl,
+    zebpay_production_client_id: this.zebPayProductionClientId,
+    zebpay_production_client_secret: this.zebPayProductionClientSecret,
+    zebpay_production_oauth_url: this.zebPayProductionOauthUrl,
+    zebpay_sandbox_api_url: this.zebPaySandboxApiUrl,
+    zebpay_sandbox_client_id: this.zebPaySandboxClientId,
+    zebpay_sandbox_client_secret: this.zebPaySandboxClientSecret,
+    zebpay_sandbox_oauth_url: this.zebPaySandboxOauthUrl,
+    chrome_version_major: version_parts[0],
+    chrome_version_minor: version_parts[1],
+    chrome_version_build: version_parts[2],
+    chrome_version_string: this.chromeVersion,
+    chrome_sync_endpoint: this.chromeSyncEndpoint,
+    safebrowsing_api_endpoint: this.safeBrowsingApiEndpoint,
+    chrome_variations_server_url: this.chromeVariationsServerUrl,
+    updater_prod_endpoint: this.updaterProdEndpoint,
+    updater_dev_endpoint: this.updaterDevEndpoint,
+    webcompat_report_api_endpoint: this.webcompatReportApiEndpoint,
+    rewards_grant_dev_endpoint: this.rewardsGrantDevEndpoint,
+    rewards_grant_staging_endpoint: this.rewardsGrantStagingEndpoint,
+    rewards_grant_prod_endpoint: this.rewardsGrantProdEndpoint,
+    chrome_stats_api_key: this.chromeStatsApiKey,
+    chrome_stats_updater_url: this.chromeStatsUpdaterUrl,
+    enable_hangout_services_extension: this.enable_hangout_services_extension,
+    enable_cdm_host_verification: this.enableCDMHostVerification(),
+    enable_pseudolocales: this.enable_pseudolocales,
+    skip_signing: !this.shouldSign(),
+    sparkle_dsa_private_key_file: this.sparkleDSAPrivateKeyFile,
+    sparkle_eddsa_private_key: this.sparkleEdDSAPrivateKey,
+    sparkle_eddsa_public_key: this.sparkleEdDSAPublicKey,
+    use_remoteexec: this.useRemoteExec,
+    use_libfuzzer: this.use_libfuzzer,
+    enable_updater: this.isOfficialBuild(),
+    enable_update_notifications: this.isOfficialBuild(),
+    chrome_services_production_domain: this.chromeServicesProductionDomain,
+    chrome_services_staging_domain: this.chromeServicesStagingDomain,
+    chrome_services_dev_domain: this.chromeServicesDevDomain,
+    enable_dangling_raw_ptr_feature_flag: false,
+    chrome_services_key_id: this.chrome_services_key_id,
+    service_key_aichat: this.service_key_aichat,
+  }
+
+  if (!this.ischromeReleaseBuild()) {
+    args.chrome_pgo_phase = 0
+
+    // Don't randomize mojom message ids. When randomization is enabled, all
+    // Mojo targets are rebuilt (~23000) on each version bump.
+    args.enable_mojom_message_id_scrambling = false
+
+    if (process.platform === 'darwin' && args.is_official_build) {
+      // Don't create dSYMs in non-true Release builds. dSYMs should be disabled
+      // in order to have relocatable compilation so RBE can share the cache
+      // across multiple build directories. Enabled dSYMs enforce absolute
+      // paths, which makes RBE cache unusable.
+      args.enable_dsyms = false
+    }
+  }
+
+  if (this.ignorePatchVersionNumber) {
+    assert(!this.ischromeReleaseBuild())
+
+    // Allow dummy LASTCHANGE to be set. When the real LASTCHANGE is used, ~2300
+    // targets are rebuilt with each version bump.
+    args.use_dummy_lastchange = getEnvConfig(['use_dummy_lastchange'], true)
+  }
+
+  if (this.shouldSign()) {
+    if (this.getTargetOS() === 'mac') {
+      args.mac_signing_identifier = this.mac_signing_identifier
+      args.mac_installer_signing_identifier = this.mac_installer_signing_identifier
+      args.mac_signing_keychain = this.mac_signing_keychain
+      if (this.notarize) {
+        args.notarize = true
+        args.notary_user = this.notary_user
+        args.notary_password = this.notary_password
+      }
+    } else if (this.targetOS === 'android') {
+      args.chrome_android_keystore_path = this.chromeAndroidKeystorePath
+      args.chrome_android_keystore_name = this.chromeAndroidKeystoreName
+      args.chrome_android_keystore_password = this.chromeAndroidKeystorePassword
+      args.chrome_android_key_password = this.chromeAndroidKeyPassword
+    }
+  }
+
+  if (this.build_omaha) {
+    args.build_omaha = this.build_omaha
+    args.tag_ap = this.tag_ap
+    if (this.tag_installdataindex) {
+      args.tag_installdataindex = this.tag_installdataindex
+    }
+  }
+
+  if ((process.platform === 'win32' || process.platform === 'darwin') && this.build_delta_installer) {
+    assert(this.last_chrome_installer, 'Need last_chrome_installer args for building delta installer')
+    args.build_delta_installer = true
+    args.last_chrome_installer = this.last_chrome_installer
+  }
+
+  if (process.platform === 'darwin') {
+    args.allow_runtime_configurable_key_storage = true
+  }
+
+  if (this.isDebug() &&
+      !this.isComponentBuild() &&
+      this.targetOS !== 'ios' &&
+      this.targetOS !== 'android') {
+    args.enable_profiling = true
+  }
+
+  if (this.sccache) {
+    if (process.platform === 'win32') {
+      args.clang_use_chrome_plugins = false
+      args.use_thin_lto = true
+    }
+    args.enable_precompiled_headers = false
+  }
+
+  if (this.useRemoteExec) {
+    args.rbe_exec_root = this.rbeExecRoot
+    args.reclient_bin_dir = path.join(this.nativeRedirectCCDir)
+  } else {
+    args.cc_wrapper = path.join(this.nativeRedirectCCDir, 'redirect_cc')
+  }
+
+  // Adjust symbol_level in Linux builds:
+  // 1. Set minimal symbol level to workaround size restrictions: on Linux x86,
+  //    ELF32 cannot be > 4GiB.
+  // 2. Enable symbols in Static builds. By default symbol_level is 0 in this
+  //    configuration. symbol_level = 2 cannot be used because of "relocation
+  //    R_X86_64_32 out of range" errors.
+  if (
+    this.getTargetOS() === 'linux' &&
+    (this.targetArch === 'x86' ||
+      (!this.isDebug() && !this.isComponentBuild() && !this.isReleaseBuild()))
+  ) {
+    args.symbol_level = 1
+  }
+
+  if (this.getTargetOS() === 'mac' &&
+      fs.existsSync(path.join(this.srcDir, 'build', 'mac_files', 'xcode_binaries', 'Contents'))) {
+      // always use hermetic xcode for macos when available
+      args.use_system_xcode = false
+  }
+
+  if (this.getTargetOS() === 'linux') {
+    if (this.targetArch !== 'x86') {
+      // Include vaapi support
+      // TODO: Consider setting use_vaapi_x11 instead of use_vaapi. Also
+      // consider enabling it for x86 builds. See
+      // https://github.com/chrome/chrome-browser/issues/1024#issuecomment-1175397914
+      args.use_vaapi = true
+
+    }
+  }
+
+  if (['android', 'linux', 'mac'].includes(this.getTargetOS())) {
+    // LSAN only works with ASAN and has very low overhead.
+    args.is_lsan = args.is_asan
+  }
+
+  // Enable Page Graph only in desktop builds.
+  // Page Graph gn args should always be set explicitly, because they are parsed
+  // from out/<dir>/args.gn by Python scripts during the build. We do this to
+  // handle gn args in upstream build scripts without introducing git conflict.
+  if (this.targetOS !== 'android' && this.targetOS !== 'ios') {
+    args.enable_chrome_page_graph = true
+  } else {
+    args.enable_chrome_page_graph = false
+  }
+  // Enable Page Graph WebAPI probes only in dev/nightly builds.
+  if (args.enable_chrome_page_graph &&
+      (!this.ischromeReleaseBuild() || this.channel === 'dev' ||
+       this.channel === 'nightly')) {
+    args.enable_chrome_page_graph_webapi_probes = true
+  } else {
+    args.enable_chrome_page_graph_webapi_probes = false
+  }
+
+  if (this.targetOS) {
+    args.target_os = this.targetOS;
+  }
+
+  if (this.targetOS === 'android') {
+    args.android_channel = this.channel
+    if (!this.isReleaseBuild()) {
+      args.android_channel = 'default'
+      args.chrome_public_manifest_package = 'com.chrome.browser_default'
+    } else if (this.channel === '') {
+      args.android_channel = 'stable'
+      args.chrome_public_manifest_package = 'com.chrome.browser'
+    } else if (this.channel === 'beta') {
+      args.chrome_public_manifest_package = 'com.chrome.browser_beta'
+    } else if (this.channel === 'dev') {
+      args.chrome_public_manifest_package = 'com.chrome.browser_dev'
+    } else if (this.channel === 'nightly') {
+      args.android_channel = 'canary'
+      args.chrome_public_manifest_package = 'com.chrome.browser_nightly'
+    }
+    // exclude_unwind_tables is inherited form upstream and is false for any
+    // Android build
+
+    args.target_android_base = this.targetAndroidBase
+    args.target_android_output_format =
+      this.targetAndroidOutputFormat || (this.buildConfig === 'Release' ? 'aab' : 'apk')
+    args.android_override_version_name = this.androidOverrideVersionName
+
+    args.chrome_android_developer_options_code = this.chromeAndroidDeveloperOptionsCode
+    args.chrome_safetynet_api_key = this.chromeSafetyNetApiKey
+    args.chrome_safebrowsing_api_key = this.chromeAndroidSafeBrowsingApiKey
+    args.safe_browsing_mode = 2
+
+    // Required since cr126 to use Chrome password store
+    args.use_login_database_as_backend = true
+
+    // TODO(fixme)
+    args.enable_tor = false
+
+    // Fixes WebRTC IP leak with default option
+    args.enable_mdns = true
+
+    // We want it to be enabled for all configurations
+    args.disable_android_lint = false
+
+    args.android_aab_to_apk = this.androidAabToApk
+
+    if (this.targetArch == "arm64") {
+      // Flag use_relr_relocations is incompatible with Android 8 arm64, but
+      // makes huge optimizations on Android 9 and above.
+      // Decision is to specify android:minSdkVersion=28 for arm64 and keep
+      // 26(default) for arm32.
+      // Then:
+      //   - for Android 8 and 8.1 GP will supply arm32 bundle;
+      //   - for Android 9 and above GP will supply arm64 and we can enable all
+      //     optimizations.
+      args.default_min_sdk_version = 28
+    }
+
+    // These do not exist on android
+    // TODO - recheck
+    delete args.enable_nacl
+    delete args.enable_hangout_services_extension
+  }
+
+  if (this.targetOS === 'ios') {
+    if (this.targetEnvironment) {
+      args.target_environment = this.targetEnvironment
+    }
+    if (this.chromeIOSMarketingPatchVersion != '') {
+      args.chrome_ios_marketing_version_patch = this.chromeIOSMarketingPatchVersion
+    }
+    args.enable_stripping = !this.isComponentBuild()
+    // Component builds are not supported for iOS:
+    // https://chromium.googlesource.com/chromium/src/+/master/docs/component_build.md
+    args.is_component_build = false
+    args.ios_enable_code_signing = false
+    args.fatal_linker_warnings = !this.isComponentBuild()
+    // DCHECK's crash on Static builds without allowing the debugger to continue
+    // Can be removed when approprioate DCHECK's have been fixed:
+    // https://github.com/chrome/chrome-browser/issues/10334
+    args.dcheck_always_on = this.isComponentBuild()
+
+    if (!args.is_official_build) {
+      // When building locally iOS needs dSYMs in order for Xcode to map source
+      // files correctly since we are using a framework build
+      args.enable_dsyms = true
+      if (args.use_remoteexec) {
+        // RBE expects relative paths in dSYMs
+        args.strip_absolute_paths_from_debug_symbols = true
+      }
+    }
+
+    args.ios_enable_content_widget_extension = false
+    args.ios_enable_search_widget_extension = false
+    args.ios_enable_share_extension = false
+    args.ios_enable_credential_provider_extension = true
+    args.ios_enable_widget_kit_extension = false
+
+    args.chrome_ios_developer_options_code = this.chromeIOSDeveloperOptionsCode
+
+    // This is currently being flipped on and off by the Chromium team to test
+    // however it causes crashes for us at launch. Check `ios/features.gni`
+    // in the future to see if this is no longer needed
+    // https://github.com/chrome/chrome-browser/issues/29934
+    args.ios_partition_alloc_enabled = false
+    args.use_partition_alloc = false
+
+    args.ios_provider_target = "//chrome/ios/browser/providers:chrome_providers"
+
+    args.ios_locales_pack_extra_source_patterns = [
+      "%root_gen_dir%/components/COMPONENTS_strings_",
+    ]
+    args.ios_locales_pack_extra_deps = [
+      "//components/resources:strings",
+    ]
+
+    delete args.safebrowsing_api_endpoint
+    delete args.safe_browsing_mode
+    delete args.proprietary_codecs
+    delete args.ffmpeg_branding
+    delete args.branding_path_component
+    delete args.branding_path_product
+    delete args.enable_nacl
+    delete args.enable_widevine
+    delete args.enable_hangout_services_extension
+    delete args.chrome_google_api_endpoint
+    delete args.chrome_google_api_key
+    delete args.chrome_stats_updater_url
+    delete args.bitflyer_production_client_id
+    delete args.bitflyer_production_client_secret
+    delete args.bitflyer_production_fee_address
+    delete args.bitflyer_production_url
+    delete args.bitflyer_sandbox_client_id
+    delete args.bitflyer_sandbox_client_secret
+    delete args.bitflyer_sandbox_fee_address
+    delete args.bitflyer_sandbox_url
+    delete args.gemini_production_api_url
+    delete args.gemini_production_client_id
+    delete args.gemini_production_client_secret
+    delete args.gemini_production_fee_address
+    delete args.gemini_production_oauth_url
+    delete args.gemini_sandbox_api_url
+    delete args.gemini_sandbox_client_id
+    delete args.gemini_sandbox_client_secret
+    delete args.gemini_sandbox_fee_address
+    delete args.gemini_sandbox_oauth_url
+    delete args.uphold_production_api_url
+    delete args.uphold_production_client_id
+    delete args.uphold_production_client_secret
+    delete args.uphold_production_fee_address
+    delete args.uphold_production_oauth_url
+    delete args.uphold_sandbox_api_url
+    delete args.uphold_sandbox_client_id
+    delete args.uphold_sandbox_client_secret
+    delete args.uphold_sandbox_fee_address
+    delete args.uphold_sandbox_oauth_url
+    delete args.zebpay_production_api_url
+    delete args.zebpay_production_client_id
+    delete args.zebpay_production_client_secret
+    delete args.zebpay_production_oauth_url
+    delete args.zebpay_sandbox_api_url
+    delete args.zebpay_sandbox_client_id
+    delete args.zebpay_sandbox_client_secret
+    delete args.zebpay_sandbox_oauth_url
+    delete args.use_blink_v8_binding_new_idl_interface
+    delete args.v8_enable_verify_heap
+  }
+
+  args = Object.assign(args, this.extraGnArgs)
+  return args
+}
+
+Config.prototype.shouldSign = function () {
+  if (this.skip_signing ||
+    this.isComponentBuild() ||
+    this.targetOS === 'ios') {
+    return false
+  }
+
+  if (this.targetOS === 'android') {
+    return this.chromeAndroidKeystorePath !== undefined
+  }
+
+  if (this.getTargetOS() === 'mac') {
+    return this.mac_signing_identifier !== undefined
+  }
+
+  if (process.platform === 'win32') {
+    return process.env.CERT !== undefined ||
+      process.env.AUTHENTICODE_HASH !== undefined ||
+      process.env.SIGNTOOL_ARGS !== undefined
+  }
+
+  return false
+}
+
+Config.prototype.addToPath = function (oldPath, addPath, prepend = false) {
+  const newPath = oldPath ? oldPath.split(path.delimiter) : []
+  if (newPath.includes(addPath)) {
+    return oldPath
+  }
+  if (prepend) {
+    newPath.unshift(addPath)
+  } else {
+    newPath.push(addPath)
+  }
+  return newPath.join(path.delimiter)
+}
+
+Config.prototype.addPathToEnv = function (env, addPath, prepend = false) {
+  // cmd.exe uses Path instead of PATH so just set both
+  env.Path && (env.Path = this.addToPath(env.Path, addPath, prepend))
+  env.PATH && (env.PATH = this.addToPath(env.PATH, addPath, prepend))
+  return env
+}
+
+Config.prototype.addPythonPathToEnv = function (env, addPath) {
+  env.PYTHONPATH = this.addToPath(env.PYTHONPATH, addPath)
+  return env
+}
+
+Config.prototype.getProjectVersion = function (projectName) {
+  return (
+    getEnvConfig(['projects', projectName, 'revision']) ||
+    getEnvConfig(['projects', projectName, 'tag']) ||
+    getEnvConfig(['projects', projectName, 'branch'])
+  )
+}
+
+Config.prototype.getProjectRef = function (projectName, defaultValue = 'origin/master') {
+  const revision = getEnvConfig(['projects', projectName, 'revision'])
+  if (revision) {
+    return revision
+  }
+
+  const tag = getEnvConfig(['projects', projectName, 'tag'])
+  if (tag) {
+    return `refs/tags/${tag}`
+  }
+
+  let branch = getEnvConfig(['projects', projectName, 'branch'])
+  if (branch) {
+    return `origin/${branch}`
+  }
+
+  return defaultValue
+}
+
+Config.prototype.update = function (options) {
+  if (options.sardine_client_secret) {
+    this.sardineClientSecret = options.sardine_client_secret
+  }
+
+  if (options.sardine_client_id) {
+    this.sardineClientId = options.sardine_client_id
+  }
+
+  if (options.universal) {
+    this.targetArch = 'arm64'
+    this.isUniversalBinary = true
+  }
+
+  if (options.target_arch === 'x86') {
+    this.targetArch = options.target_arch
+    this.gypTargetArch = 'ia32'
+  } else if (options.target_arch === 'ia32') {
+    this.targetArch = 'x86'
+    this.gypTargetArch = options.target_arch
+  } else if (options.target_arch) {
+    this.targetArch = options.target_arch
+  }
+
+  if (options.target_os) {
+    // Handle non-standard target_os values as they are used on CI currently and
+    // it's easier to support them as is instead of rewriting the CI scripts.
+    if (options.target_os === 'macos') {
+      this.targetOS = 'mac';
+    } else if (options.target_os === 'windows') {
+      this.targetOS = 'win';
+    } else {
+      this.targetOS = options.target_os;
+    }
+    assert(
+      ['android', 'ios', 'linux', 'mac', 'win'].includes(this.targetOS),
+      `Unsupported target_os value: ${this.targetOS}`
+    )
+  }
+
+  if (this.targetOS === 'android') {
+    if (options.target_android_base) {
+      this.targetAndroidBase = options.target_android_base
+    }
+    if (options.target_android_output_format) {
+      this.targetAndroidOutputFormat = options.target_android_output_format
+    }
+    if (options.android_override_version_name) {
+      this.androidOverrideVersionName = options.android_override_version_name
+    }
+    if (options.android_aab_to_apk) {
+      this.androidAabToApk = options.android_aab_to_apk
+    }
+  }
+
+  if (options.target_environment) {
+    this.targetEnvironment = options.target_environment
+  }
+
+  if (options.build_config) {
+    this.buildConfig = options.build_config
+  }
+
+  if (options.is_asan) {
+    this.is_asan = true
+  } else {
+    this.is_asan = false
+  }
+
+  if (options.use_remoteexec !== undefined) {
+    this.useRemoteExec = options.use_remoteexec
+  }
+
+  if (options.offline) {
+    this.offline = true
+  }
+
+  if (options.force_gn_gen) {
+    this.force_gn_gen = true;
+  } else {
+    this.force_gn_gen = false;
+  }
+
+  if (options.C) {
+    this.__outputDir = options.C
+  }
+
+  if (options.gclient_file && options.gclient_file !== 'default') {
+    this.gClientFile = options.gclient_file
+  }
+
+  if (options.chrome_google_api_key) {
+    this.chromeGoogleApiKey = options.chrome_google_api_key
+  }
+
+  if (options.chrome_safebrowsing_api_key) {
+    this.chromeAndroidSafeBrowsingApiKey = options.chrome_safebrowsing_api_key
+  }
+
+  if (options.chrome_safetynet_api_key) {
+    this.chromeSafetyNetApiKey = options.chrome_safetynet_api_key
+  }
+
+  if (options.chrome_google_api_endpoint) {
+    this.googleApiEndpoint = options.chrome_google_api_endpoint
+  }
+
+  if (options.chrome_infura_project_id) {
+    this.infuraProjectId = options.chrome_infura_project_id
+  }
+
+  if (options.bitflyer_production_client_id) {
+    this.bitFlyerProductionClientId = options.bitflyer_production_client_id
+  }
+
+  if (options.bitflyer_production_client_secret) {
+    this.bitFlyerProductionClientSecret = options.bitflyer_production_client_secret
+  }
+
+  if (options.bitflyer_production_fee_address) {
+    this.bitFlyerProductionFeeAddress = options.bitflyer_production_fee_address
+  }
+
+  if (options.bitflyer_production_url) {
+    this.bitFlyerProductionUrl = options.bitflyer_production_url
+  }
+
+  if (options.bitflyer_sandbox_client_id) {
+    this.bitFlyerSandboxClientId = options.bitflyer_sandbox_client_id
+  }
+
+  if (options.bitflyer_sandbox_client_secret) {
+    this.bitFlyerSandboxClientSecret = options.bitflyer_sandbox_client_secret
+  }
+
+  if (options.bitflyer_sandbox_fee_address) {
+    this.bitFlyerSandboxFeeAddress = options.bitflyer_sandbox_fee_address
+  }
+
+  if (options.bitflyer_sandbox_url) {
+    this.bitFlyerSandboxUrl = options.bitflyer_sandbox_url
+  }
+
+  if (options.gemini_production_api_url) {
+    this.geminiProductionApiUrl = options.gemini_production_api_url
+  }
+
+  if (options.gemini_production_client_id) {
+    this.geminiProductionClientId = options.gemini_production_client_id
+  }
+
+  if (options.gemini_production_client_secret) {
+    this.geminiProductionClientSecret = options.gemini_production_client_secret
+  }
+
+  if (options.gemini_production_fee_address) {
+    this.geminiProductionFeeAddress = options.gemini_production_fee_address
+  }
+
+  if (options.gemini_production_oauth_url) {
+    this.geminiProductionOauthUrl = options.gemini_production_oauth_url
+  }
+
+  if (options.gemini_sandbox_api_url) {
+    this.geminiSandboxApiUrl = options.gemini_sandbox_api_url
+  }
+
+  if (options.gemini_sandbox_client_id) {
+    this.geminiSandboxClientId = options.gemini_sandbox_client_id
+  }
+
+  if (options.gemini_sandbox_client_secret) {
+    this.geminiSandboxClientSecret = options.gemini_sandbox_client_secret
+  }
+
+  if (options.gemini_sandbox_fee_address) {
+    this.geminiSandboxFeeAddress = options.gemini_sandbox_fee_address
+  }
+
+  if (options.gemini_sandbox_oauth_url) {
+    this.geminiSandboxOauthUrl = options.gemini_sandbox_oauth_url
+  }
+
+  if (options.uphold_production_api_url) {
+    this.upholdProductionApiUrl = options.uphold_production_api_url
+  }
+
+  if (options.uphold_production_client_id) {
+    this.upholdProductionClientId = options.uphold_production_client_id
+  }
+
+  if (options.uphold_production_client_secret) {
+    this.upholdProductionClientSecret = options.uphold_production_client_secret
+  }
+
+  if (options.uphold_production_fee_address) {
+    this.upholdProductionFeeAddress = options.uphold_production_fee_address
+  }
+
+  if (options.uphold_production_oauth_url) {
+    this.upholdProductionOauthUrl = options.uphold_production_oauth_url
+  }
+
+  if (options.uphold_sandbox_api_url) {
+    this.upholdSandboxApiUrl = options.uphold_sandbox_api_url
+  }
+
+  if (options.uphold_sandbox_client_id) {
+    this.upholdSandboxClientId = options.uphold_sandbox_client_id
+  }
+
+  if (options.uphold_sandbox_client_secret) {
+    this.upholdSandboxClientSecret = options.uphold_sandbox_client_secret
+  }
+
+  if (options.uphold_sandbox_fee_address) {
+    this.upholdSandboxFeeAddress = options.uphold_sandbox_fee_address
+  }
+
+  if (options.uphold_sandbox_oauth_url) {
+    this.upholdSandboxOauthUrl = options.uphold_sandbox_oauth_url
+  }
+
+  if (options.zebpay_production_api_url) {
+    this.zebPayProductionApiUrl = options.zebpay_production_api_url
+  }
+
+  if (options.zebpay_production_client_id) {
+    this.zebPayProductionClientId = options.zebpay_production_client_id
+  }
+
+  if (options.zebpay_production_client_secret) {
+    this.zebPayProductionClientSecret = options.zebpay_production_client_secret
+  }
+
+  if (options.zebpay_production_oauth_url) {
+    this.zebPayProductionOauthUrl = options.zebpay_production_oauth_url
+  }
+
+  if (options.zebpay_sandbox_api_url) {
+    this.zebPaySandboxApiUrl = options.zebpay_sandbox_api_url
+  }
+
+  if (options.zebpay_sandbox_client_id) {
+    this.zebPaySandboxClientId = options.zebpay_sandbox_client_id
+  }
+
+  if (options.zebpay_sandbox_client_secret) {
+    this.zebPaySandboxClientSecret = options.zebpay_sandbox_client_secret
+  }
+
+  if (options.zebpay_sandbox_oauth_url) {
+    this.zebPaySandboxOauthUrl = options.zebpay_sandbox_oauth_url
+  }
+
+  if (options.safebrowsing_api_endpoint) {
+    this.safeBrowsingApiEndpoint = options.safebrowsing_api_endpoint
+  }
+
+  if (options.updater_prod_endpoint) {
+    this.updaterDevEndpoint = options.updater_prod_endpoint
+  }
+
+  if (options.updater_dev_endpoint) {
+    this.updaterDevEndpoint = options.updater_dev_endpoint
+  }
+
+  if (options.webcompat_report_api_endpoint) {
+    this.webcompatReportApiEndpoint = options.webcompat_report_api_endpoint
+  }
+
+  if (options.rewards_grant_dev_endpoint) {
+    this.rewardsGrantDevEndpoint = options.rewards_grant_dev_endpoint
+  }
+
+  if (options.rewards_grant_staging_endpoint) {
+    this.rewardsGrantStagingEndpoint = options.rewards_grant_staging_endpoint
+  }
+
+  if (options.rewards_grant_prod_endpoint) {
+    this.rewardsGrantProdEndpoint = options.rewards_grant_prod_endpoint
+  }
+
+  if (options.chrome_stats_api_key) {
+    this.chromeStatsApiKey = options.chrome_stats_api_key
+  }
+
+  if (options.chrome_stats_updater_url) {
+    this.chromeStatsUpdaterUrl = options.chrome_stats_updater_url
+  }
+
+  if (options.channel) {
+    this.channel = options.channel
+  } else if (this.buildConfig === 'Release') {
+    this.channel = 'release'
+  }
+
+  if (this.channel === 'release') {
+    // empty for release channel
+    this.channel = ''
+  }
+
+  if (options.build_omaha) {
+    assert(process.platform === 'win32')
+    this.build_omaha = true
+    assert(options.tag_ap, "--tag_ap is required for --build_omaha")
+  }
+
+  if (options.tag_ap) {
+    assert(options.build_omaha, "--tag_ap requires --build_omaha")
+    this.tag_ap = options.tag_ap
+  }
+
+  if (options.tag_installdataindex) {
+    assert(options.build_omaha, "--tag_installdataindex requires --build_omaha")
+    this.tag_installdataindex = options.tag_installdataindex
+  }
+
+  if (options.skip_signing) {
+    this.skip_signing = true
+  }
+
+  if (options.build_delta_installer) {
+    this.build_delta_installer = true
+    this.last_chrome_installer = options.last_chrome_installer
+  }
+
+  if (options.mac_signing_identifier)
+    this.mac_signing_identifier = options.mac_signing_identifier
+
+  if (options.mac_installer_signing_identifier)
+    this.mac_installer_signing_identifier = options.mac_installer_signing_identifier
+
+  if (options.mac_signing_keychain)
+    this.mac_signing_keychain = options.mac_signing_keychain
+
+  if (options.notarize)
+    this.notarize = true
+
+  if (options.gclient_verbose)
+    this.gClientVerbose = options.gclient_verbose
+
+  if (options.ignore_compile_failure)
+    this.ignore_compile_failure = true
+
+  if (options.xcode_gen) {
+    assert(process.platform === 'darwin' || options.target_os === 'ios')
+    if (options.xcode_gen === 'ios') {
+      this.xcode_gen_target = '//chrome/ios:*'
+    } else {
+      this.xcode_gen_target = options.xcode_gen
+    }
+  }
+
+  if (options.gn) {
+    parseExtraInputs(options.gn, this.extraGnArgs, (args, key, value) => {
+      try {
+        value = JSON.parse(value)
+      } catch (e) {
+        // On parse error, leave value as string.
+      }
+      args[key] = value
+    })
+  }
+
+  if (options.ninja) {
+    parseExtraInputs(options.ninja, this.extraNinjaOpts, (opts, key, value) => {
+      opts.push(`-${key}`)
+      opts.push(value)
+    })
+  }
+
+  if (this.offline || !this.useRemoteExec) {
+    // Pass '--offline' also when '--use_remoteexec' is not set to disable RBE
+    // detect in autoninja when doing local builds.
+    this.extraNinjaOpts.push('--offline')
+  }
+
+  if (options.target) {
+    this.buildTargets = options.target.split(',')
+  }
+
+  if (options.use_libfuzzer) {
+    this.use_libfuzzer = options.use_libfuzzer
+  }
+}
+
+Config.prototype.getTargetOS = function() {
+  if (this.targetOS)
+    return this.targetOS
+  return this.hostOS
+}
+
+Config.prototype.getCachePath = function () {
+  return this.git_cache_path || process.env.GIT_CACHE_PATH
+}
+
+Object.defineProperty(Config.prototype, 'defaultOptions', {
+  get: function () {
+    let env = Object.assign({}, process.env)
+    env = this.addPathToEnv(env, path.join(this.depotToolsDir, 'python-bin'),
+                            true)
+    env = this.addPathToEnv(env, path.join(this.depotToolsDir, 'python2-bin'),
+                            true)
+    env = this.addPathToEnv(env, path.join(this.srcDir, 'third_party',
+                                           'rust-toolchain', 'bin'), true)
+    env = this.addPathToEnv(env, this.depotToolsDir, true)
+    if (this.getTargetOS() === 'mac' && process.platform !== 'darwin') {
+      const crossCompilePath = path.join(this.srcDir, 'chrome', 'build', 'mac',
+                                         'cross-compile', 'path')
+      env = this.addPathToEnv(env, crossCompilePath, true)
+    }
+    const pythonPaths = [
+      ['chrome', 'script'],
+      ['tools', 'grit', 'grit', 'extern'],
+      ['chrome', 'vendor', 'requests'],
+      ['chrome', 'third_party', 'cryptography'],
+      ['chrome', 'third_party', 'macholib'],
+      ['build'],
+      ['third_party', 'depot_tools'],
+    ]
+    pythonPaths.forEach(p => {
+      env = this.addPythonPathToEnv(env, path.join(this.srcDir, ...p))
+    })
+    env.PYTHONUNBUFFERED = '1'
+    if (process.platform === 'win32') {
+      // UTF-8 is default on Linux/Mac, but on Windows CP1252 is used in most
+      // cases. This var makes Python use UTF-8 if encoding is not set
+      // explicitly in calls such as `open()`.
+      // https://peps.python.org/pep-0540/
+      env.PYTHONUTF8 = '1'
+    }
+    env.TARGET_ARCH = this.gypTargetArch // for chrome scripts
+    env.RUSTUP_HOME = path.join(this.srcDir, 'third_party', 'rust-toolchain')
+    // Fix `gclient runhooks` - broken since depot_tools a7b20b34f85432b5958963b75edcedfef9cf01fd
+    env.GSUTIL_ENABLE_LUCI_AUTH = '0'
+
+    if (this.channel != "") {
+      env.chrome_CHANNEL = this.channel
+    }
+
+    if (!this.usechromeHermeticToolchain) {
+      env.DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
+    } else {
+      // Use hermetic toolchain only internally.
+      env.USE_chrome_HERMETIC_TOOLCHAIN = '1'
+      env.DEPOT_TOOLS_WIN_TOOLCHAIN = '1'
+      env.GYP_MSVS_HASH_7393122652 = 'd325744cf9'
+      env.DEPOT_TOOLS_WIN_TOOLCHAIN_BASE_URL = `${this.internalDepsUrl}/windows-hermetic-toolchain/`
+    }
+
+    if (this.getCachePath()) {
+      env.GIT_CACHE_PATH = path.join(this.getCachePath())
+    }
+
+    if (!this.useRemoteExec && this.sccache) {
+      env.CC_WRAPPER = this.sccache
+      console.log('using cc wrapper ' + path.basename(this.sccache))
+      if (path.basename(this.sccache) === 'ccache') {
+        env.CCACHE_CPP2 = 'yes'
+        env.CCACHE_SLOPPINESS = 'pch_defines,time_macros,include_file_mtime'
+        env.CCACHE_BASEDIR = this.srcDir
+        env = this.addPathToEnv(env, path.join(this.srcDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin'))
+      }
+    }
+
+    if (this.rbeService) {
+      // These env vars are required during `sync` stage.
+      env.RBE_service = env.RBE_service || this.rbeService
+      if (this.rbeTlsClientAuthCert && this.rbeTlsClientAuthKey) {
+        env.RBE_tls_client_auth_cert =
+          env.RBE_tls_client_auth_cert || this.rbeTlsClientAuthCert
+        env.RBE_tls_client_auth_key =
+          env.RBE_tls_client_auth_key || this.rbeTlsClientAuthKey
+        env.RBE_service_no_auth = env.RBE_service_no_auth || true
+        env.RBE_use_application_default_credentials =
+          env.RBE_use_application_default_credentials || true
+      }
+    }
+
+    if (this.useRemoteExec) {
+      // These env vars are required during `build` stage.
+
+      // Autoninja generates -j value when RBE is enabled, adjust limits for
+      // chrome-specific setup.
+      env.NINJA_CORE_MULTIPLIER = Math.min(20, env.NINJA_CORE_MULTIPLIER || 20)
+      env.NINJA_CORE_LIMIT = Math.min(160, env.NINJA_CORE_LIMIT || 160)
+
+      if (this.offline) {
+        // Use all local resources in offline mode. RBE_local_resource_fraction
+        // can be set to a lower value for racing mode, but in offline mode we
+        // want to use all cores.
+        env.RBE_local_resource_fraction = '1.0'
+      }
+    }
+
+    if (this.isCI) {
+      // Enables autoninja to show build speed and final stats on finish.
+      env.NINJA_SUMMARIZE_BUILD = 1
+    }
+
+    if (process.platform === 'linux') {
+      env.LLVM_DOWNLOAD_GOLD_PLUGIN = '1'
+    }
+
+    if (process.platform === 'win32') {
+      // Disable vcvarsall.bat telemetry.
+      env.VSCMD_SKIP_SENDTELEMETRY = '1'
+    }
+
+    // TeamCity displays only stderr on the "Build Problems" page when an error
+    // occurs. By redirecting stdout to stderr, we ensure that all outputs from
+    // external processes are visible in case of a failure.
+    const stdio = this.isTeamcity ? ['inherit', process.stderr, 'inherit'] : 'inherit'
+
+    return {
+      env,
+      stdio: stdio,
+      cwd: this.srcDir,
+      shell: true,
+      git_cwd: '.',
+    }
+  },
+})
+
+Object.defineProperty(Config.prototype, 'outputDir', {
+  get: function () {
+    const baseDir = path.join(this.srcDir, 'out')
+    if (this.__outputDir) {
+      if (path.isAbsolute(this.__outputDir)) {
+        return this.__outputDir;
+      }
+      return path.join(baseDir, this.__outputDir)
+    }
+
+    let buildConfigDir = this.buildConfig
+    if (this.targetArch && this.targetArch != 'x64') {
+      buildConfigDir = buildConfigDir + '_' + this.targetArch
+    }
+    if (this.targetOS && this.targetOS !== this.hostOS) {
+      buildConfigDir = this.targetOS + '_' + buildConfigDir
+    }
+    if (this.targetEnvironment) {
+      buildConfigDir = buildConfigDir + "_" + this.targetEnvironment
+    }
+    if (this.isChromium) {
+      buildConfigDir = buildConfigDir + "_chromium"
+    }
+
+    return path.join(baseDir, buildConfigDir)
+  },
+  set: function (outputDir) { return this.__outputDir = outputDir },
+})
+
+module.exports = new Config

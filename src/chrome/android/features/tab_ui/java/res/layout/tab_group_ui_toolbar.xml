@@ -12,7 +12,6 @@ found in the LICENSE file.
     android:id="@+id/tab_group_toolbar"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="bottom"
     android:background="@drawable/tab_grid_dialog_background">
     <LinearLayout
         android:id="@+id/main_content"
@@ -33,8 +32,7 @@ found in the LICENSE file.
         <FrameLayout
             android:id="@+id/tab_group_color_icon_container"
             android:layout_height="@dimen/min_touch_target_size"
-            android:layout_width="40dp"
-            android:visibility="gone" >
+            android:layout_width="40dp" >
             <ImageView
                 android:id="@+id/tab_group_color_icon"
                 android:layout_gravity="center"
@@ -72,7 +70,6 @@ found in the LICENSE file.
             android:src="@drawable/ic_more_vert_24dp"
             android:layout_gravity="center"
             app:tint="@color/default_icon_color_tint_list"
-            android:contentDescription="@string/accessibility_toolbar_btn_menu"
-            android:visibility="gone" />
+            android:contentDescription="@string/accessibility_toolbar_btn_menu" />
    </LinearLayout>
 </org.chromium.chrome.browser.tasks.tab_management.TabGroupUiToolbarView>

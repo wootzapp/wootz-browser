@@ -61,10 +61,10 @@ extra_src_roots = ['../../portable-simd/crates/core_simd', '../../stdarch/crates
 # issue is fixed.
 remove_deps = ['allocator-api2']
 
-[crate.libc]
+#[crate.libc]
 # This target is #[no_core] when included by std, which is incompatible with
 # profiling.
-extra_kv = { include_coverage = false }
+#extra_kv = { include_coverage = false }
 
 [crate.profiler_builtins]
 # The build script is used to compile a profiler-rt library, but we get

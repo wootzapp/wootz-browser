@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser.tab;
 
+import static androidx.browser.customtabs.CustomTabsIntent.COLOR_SCHEME_DARK;
+import static androidx.browser.customtabs.CustomTabsIntent.COLOR_SCHEME_LIGHT;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -37,11 +40,23 @@ import org.chromium.ui.display.DisplayAndroidManager;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.url.GURL;
 
+import org.chromium.base.Log;
+import android.net.Uri;
+import android.content.Intent;
+import android.provider.Browser;
+import org.chromium.chrome.browser.LaunchIntentDispatcher;
+import org.chromium.ui.util.ColorUtils;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.base.IntentUtils;
+import androidx.browser.customtabs.CustomTabsIntent;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** Collection of utility methods that operates on Tab. */
 public class TabUtils {
+    private static final String TAG = "TabUtils";
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     public static final float PORTRAIT_THUMBNAIL_ASPECT_RATIO = 0.85f;
 
@@ -297,6 +312,42 @@ public class TabUtils {
      * @param bitmap The {@link Bitmap} to set in the view and scale.
      * @param destinationSize The desired {@link Size} of the bitmap.
      */
+
+    public static void openUrlInNewTab(boolean isIncognito, String url) {
+        try {
+            ChromeActivity chromeActivity = ChromeActivity.getChromeActivity();
+            chromeActivity.getTabCreator(isIncognito).launchUrl(url, TabLaunchType.FROM_CHROME_UI);
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+            Log.e(TAG, "openUrlInNewTab " + e);
+        }
+    }
+
+    public static void bringChromeTabbedActivityToTheTop(Activity activity) {
+        Intent chromeActivityIntent = new Intent(activity, ChromeTabbedActivity.class);
+        chromeActivityIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        chromeActivityIntent.setAction(Intent.ACTION_VIEW);
+        activity.startActivity(chromeActivityIntent);
+    }
+
+    public static void openUrlInCustomTab(Context context, String url) {
+        CustomTabsIntent customTabIntent =
+                new CustomTabsIntent.Builder()
+                        .setShowTitle(true)
+                        .setColorScheme(ColorUtils.inNightMode(context) ? COLOR_SCHEME_DARK
+                                                                        : COLOR_SCHEME_LIGHT)
+                        .build();
+        customTabIntent.intent.setData(Uri.parse(url));
+
+        Intent intent = LaunchIntentDispatcher.createCustomTabActivityIntent(
+                context, customTabIntent.intent);
+        intent.setPackage(context.getPackageName());
+        intent.putExtra(Browser.EXTRA_APPLICATION_ID, context.getPackageName());
+        if (!(context instanceof Activity)) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        IntentUtils.addTrustedIntentExtras(intent);
+
+        context.startActivity(intent);
+    }
+
     public static void setBitmapAndUpdateImageMatrix(
             ImageView view, Bitmap bitmap, Size destinationSize) {
         if (BuildInfo.getInstance().isAutomotive) {

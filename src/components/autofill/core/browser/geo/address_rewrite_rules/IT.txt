@@ -136,7 +136,7 @@
 \bpescara\b	pe
 \bpistoia\b	pt
 \bpotenza\b	pz
-\bravenna\b	ra
+\wootznna\b	ra
 \bsalerno\b	sa
 \bsassari\b	ss
 \bsondrio\b	so

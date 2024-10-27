@@ -71,13 +71,13 @@ import org.chromium.wootz_wallet.mojom.ProviderError;
 import org.chromium.wootz_wallet.mojom.TransactionInfo;
 import org.chromium.wootz_wallet.mojom.TransactionStatus;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.app.WootzActivity;
+import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.wootz_wallet.activities.WootzWalletBaseActivity;
 import org.chromium.chrome.browser.wootz_wallet.model.AccountSelectorItemModel;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.chrome.browser.util.TabUtils;
+import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.ui.text.NoUnderlineClickableSpan;
 import org.chromium.ui.widget.Toast;
 
@@ -196,7 +196,8 @@ public class Utils {
 
     public static boolean shouldShowCryptoOnboarding() {
         SharedPreferences mSharedPreferences = ContextUtils.getAppSharedPreferences();
-        return mSharedPreferences.getBoolean(PREF_CRYPTO_ONBOARDING, true);
+        // return mSharedPreferences.getBoolean(PREF_CRYPTO_ONBOARDING, true);
+        return false;
     }
 
     public static void setCryptoOnboarding(boolean enabled) {
@@ -1176,12 +1177,12 @@ public class Utils {
     public static Profile getProfile(boolean isIncognito) {
         ChromeActivity chromeActivity = null;
         try {
-            chromeActivity = WootzActivity.getWootzActivity();
-        } catch (WootzActivity.WootzActivityNotFoundException e) {
+            chromeActivity = ChromeActivity.getChromeActivity();
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "getProfile " + e);
         }
         if (chromeActivity == null) {
-            chromeActivity = WootzActivity.getChromeTabbedActivity();
+            chromeActivity = ChromeActivity.getChromeTabbedActivity();
         }
         if (chromeActivity == null) {
             return ProfileManager.getLastUsedRegularProfile(); // Last resort

@@ -71,7 +71,7 @@
   // The default icon filenames are '{engine}_xxxhdpi.png',
   // '{engine}_icon_xxxhdpi.png' and 'xxxhdpi.png'.
   "non_default_icon_filenames": {
-    "brave": "brave_logo_",
+    "wootz": "wootz_logo_",
     "duckduckgo": "logo_",
     "info": "ic_launcher_",
     "yep": "yep-widget-icon-"

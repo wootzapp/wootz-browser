@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grit-part>
+  <message name="IDS_WOOTZ_SHIELDS" translateable="false" desc="Title for Wootz Shields">
+    Wootz Shields
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_STANDALONE" desc="Label for back button on inner views of Shields panel">
+    Shields
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ENABLE" desc="An accessible label for Wootz Shields switch button.">
+    Enable Wootz Shields
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_UP" desc="Status label for when Wootz Shields is enabled.">
+    Shields are UP <ph name="LINK_BEFORE">$1</ph>for<ph name="LINK_AFTER">$2</ph>
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_DOWN" desc="Status label for when Wootz Shields is disabled.">
+    Shields are DOWN <ph name="LINK_BEFORE">$1</ph>for<ph name="LINK_AFTER">$2</ph>
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_BROKEN" desc="A footnote below the main Shields switch button.">
+    If this site seems broken, try Shields down.
+    <ph name="LINK_BEFORE">$1</ph>Note: this may reduce Wootz's privacy protections.<ph name="LINK_AFTER">$2</ph>
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_BLOCKED_NOTE" desc="Description to convey trackers, advertisement and more are being blocked.">
+    Trackers, ads, and more blocked <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_NOT_BLOCKED_NOTE" desc="Description to convey trackers, advertisement and more are not being blocked. Do not translate Wootz SHields.">
+    Not protected by Wootz Shields <ph name="LINK_BEFORE">$1</ph>Learn more<ph name="LINK_AFTER">$2</ph>
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ADVANCED_CTRLS" desc="A button label to expand/collapse more options.">
+    Advanced controls
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELD_SETTINGS_DESCRIPTION" desc="A description to explain the various options below will effect web compatibility.">
+    Changing these settings might break sites.
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_GLOBAL_SETTINGS_TITLE" desc="A section title for global settings.">
+    Global Shield settings
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_CHANGE_DEFAULTS" desc="A link that redirects to menu options for changing default Shield settings.">
+    Global defaults
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_MANAGED" desc="A description to explain the settings managed by organization.">
+    Settings managed by organization
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ALLOW_SCRIPT_ONCE" desc="A link to allow script to be executed in a page.">
+    Allow
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_SCRIPT_BLOCK" desc="A text to indicate a script will be blocked in a page.">
+    Block
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ALLOW_SCRIPTS_ALL" desc="A link to allow all scripts to be executed in a page.">
+    Allow all
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_BLOCK_SCRIPTS_ALL" desc="A link to block all scripts to be executed in a page.">
+    Block all
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_CUSTOMIZE_ADBLOCK_LISTS" desc="A link that redirects to Adblock lists.">
+    Filter lists
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_CONNECTIONS_UPGRADED" desc="A label to describe expand/collapse button for the HTTPS section.">
+    Upgrade connections to HTTPS
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_HTTPS_ENABLE" desc="An accessible label for HTTPS switch button.">
+    Enable HTTPS
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_SCRIPTS_BLOCKED" desc="A label for scripts Scripts blocked option.">
+    Block scripts
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_SCRIPTS_BLOCKED_ENABLE" desc="A label to describe expand/collapse button for the website scripts blocked section.">
+    Enable Scripts Blocked
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_TRACKERS_AND_ADS" desc="An accessible label to describe expand/collapse button for the trackers and advertisement section.">
+    Trackers &amp; ads
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_TRACKERS_AND_ADS_BLOCKED_STD" desc="Menu option that would block some trackers and advertisement website scripts.">
+    Block trackers &amp; ads
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_TRACKERS_AND_ADS_BLOCKED_AGG" desc="Menu option that would block all trackers and advertisement website scripts.">
+    Aggressively block trackers &amp; ads
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_TRACKERS_AND_ADS_ALLOW_ALL" desc="Menu option that would stop blocking all trackers and advertisement website scripts">
+    Allow all trackers &amp; ads
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_THIRD_PARTY_COOKIES_BLOCKED" desc="Menu option that would block third-party cookies.">
+    Block third-party cookies
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FORGET_FIRST_PARTY_STORAGE_LABEL" desc="Shields panel toggle label that would forget first party website storage when enabled.">
+    Forget me when I close this site
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FORGET_FIRST_PARTY_STORAGE_SUBLABEL" desc="Shields panel toggle sublabel that would forget first party website storage when enabled.">
+    Clears cookies and other site data when you close a site.
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIES_BLOCKED" desc="Menu option that would block current website cookies.">
+    Block all cookies
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIES_ALLOWED_ALL" desc="Menu option that would allow all cookies on the current website.">
+    Allow all cookies
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FINGERPRINTING_BLOCKED" desc="An accessible label for expand/collapse button.">
+    Fingerprinting blocked
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FINGERPRINTING_BLOCKED_STD" desc="Menu option that would block some fingerprinting website scripts.">
+    Block fingerprinting
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FINGERPRINTING_BLOCKED_AGG" desc="Menu option that would block all fingerprinting website scripts.">
+    Aggressively block fingerprinting
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_FINGERPRINTING_ALLOW_ALL" desc="Menu option that would stop blocking all fingerprinting website scripts.">
+    Allow fingerprinting
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_HTTPS_UPGRADE_MODE_DISABLED" desc="Menu option that doesn't upgrade HTTP connections.">
+    Don't upgrade HTTP connections
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_HTTPS_UPGRADE_MODE_STANDARD" desc="Menu option that prefers to use HTTPS whenever possible.">
+    Upgrade connections to HTTPS
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_HTTPS_UPGRADE_MODE_STRICT" desc="Menu option that requires HTTPS on all connections.">
+    Only connect with HTTPS
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_REPORT_SITE" desc="An accessible label for reporting broken sites.">
+    Report site
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_REPORT_SITE_DESC" desc="Description on why to report broken site">
+    Tell us if the site wasn't working properly with Shields up.
+  </message>
+
+   <message name="IDS_WOOTZ_SHIELDS_DOWN_DESC" desc="Tell users the site's Shield is turned off">
+    You are viewing this site without Wootz's privacy protections.
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ICON_TOOLTIP" desc="The message shown on hover of the shields lion icon">
+    Wootz Shields
+<ph name="NUMBER">$1</ph> Trackers, ads, and more blocked
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_BLOCKED_SCRIPTS_LABEL" desc="Label for secondary panel of Shields which shows a list of blocked scripts">
+    Blocked scripts
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ALLOWED_SCRIPTS_LABEL" desc="Label for secondary panel of Shields which shows a list of allowed scripts">
+    Allowed scripts
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIE_LIST_TITLE" desc="Title for CookieList opt-in bubble">
+    Shields
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIE_LIST_HEADER" desc="Header text for CookieList opt-in bubble">
+    Tired of cookie consent notices?
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIE_LIST_TEXT" desc="Description text for CookieList opt-in bubble">
+    Wootz already blocks third-party cookies. We can block cookie consent notices, too.
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIE_LIST_BUTTON_TEXT" desc="Label for button to enable the CookieList filter">
+    Yes, block cookie consent notices
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_COOKIE_LIST_NO_THANKS" desc="Label for link to decline the CookieList filter">
+    No thanks
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_NOT_VALID_ADDRESS" desc="Label for link about invalid pattern for content setting page dialog to add a site">
+    Wildcards are not allowed for Wootz Shields.
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ONBOARDING_LABEL_WITHOUT_COMPANIES" desc="Label for the onboarding bubble UI, informing users about Wootz Shields blocking number of trackers only.">
+    {BLOCKED_COUNT, plural,
+      =1 {Wootz Shields blocked 1 tracker on <ph name="SITE_URL">$1</ph>}
+      other {Wootz Shields blocked {BLOCKED_COUNT} trackers on <ph name="SITE_URL">$1</ph>}
+    }
+  </message>
+
+  <message name="IDS_WOOTZ_SHIELDS_ONBOARDING_CLICK_TO_VIEW_LABEL" desc="Label for the onboarding bubble to guide the user to the Shield icon">
+    Click the Wootz icon to view Wootz Shields.
+  </message>
+</grit-part>

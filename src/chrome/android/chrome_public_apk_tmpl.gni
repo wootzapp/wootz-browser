@@ -26,7 +26,7 @@ declare_args() {
   # WebView providers which declare one of a handful of package names. See
   # https://chromium.googlesource.com/chromium/src/+/HEAD/android_webview/docs/build-instructions.md#Changing-package-name
   # for details.
-  chrome_public_manifest_package = "com.wootzapp.web"
+  chrome_public_manifest_package = "org.chromium.chrome"
   if (use_stable_package_name_for_trichrome) {
     chrome_public_manifest_package += ".stable"
   } else if (android_channel != "default") {
@@ -34,7 +34,7 @@ declare_args() {
   }
 }
 
-chrome_public_test_manifest_package = "com.wootzapp.web.tests"
+chrome_public_test_manifest_package = "org.chromium.chrome.tests"
 
 default_chrome_public_jinja_variables = [
   "channel=$android_channel",

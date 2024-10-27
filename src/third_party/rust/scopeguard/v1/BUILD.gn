@@ -1,0 +1,33 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "scopeguard"
+  epoch = "1"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/scopeguard-1.1.0/src/lib.rs"
+  sources = [ "//third_party/rust/chromium_crates_io/vendor/scopeguard-1.1.0/src/lib.rs" ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2015"
+  cargo_pkg_version = "1.1.0"
+  cargo_pkg_authors = "bluss"
+  cargo_pkg_name = "scopeguard"
+  cargo_pkg_description = "A RAII scope guard that will run a given closure when it goes out of scope, even if the code between panics (assuming unwinding panic).  Defines the macros `defer!`, `defer_on_unwind!`, `defer_on_success!` as shorthands for guards with one of the implemented strategies."
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  features = [ "use_std" ]
+}

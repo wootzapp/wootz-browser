@@ -1,4 +1,4 @@
-/* Copyright (c) 2022 The Brave Authors. All rights reserved.
+/* Copyright (c) 2022 The Wootz Authors. All rights reserved.
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,7 +7,7 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
-#include "chrome/build/android/jni_headers/BraveDappPermissionPromptDialog_jni.h"
+#include "chrome/android/chrome_jni_headers/WootzDappPermissionPromptDialog_jni.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/mojom/favicon/favicon_url.mojom.h"
 #include "ui/android/view_android.h"
@@ -30,27 +30,27 @@ GURL GetFavIconURL(const std::vector<blink::mojom::FaviconURLPtr>& candidates) {
 
 }  // namespace
 
-BraveDappPermissionPromptDialogController::
-    BraveDappPermissionPromptDialogController(
+WootzDappPermissionPromptDialogController::
+    WootzDappPermissionPromptDialogController(
         Delegate* delegate,
         content::WebContents* web_contents,
         wootz_wallet::mojom::CoinType coin_type)
     : delegate_(delegate), web_contents_(web_contents), coin_type_(coin_type) {}
 
-BraveDappPermissionPromptDialogController::
-    ~BraveDappPermissionPromptDialogController() {
+WootzDappPermissionPromptDialogController::
+    ~WootzDappPermissionPromptDialogController() {
   DismissDialog();
 }
 
-void BraveDappPermissionPromptDialogController::ShowDialog() {
+void WootzDappPermissionPromptDialogController::ShowDialog() {
   if (!GetOrCreateJavaObject())
     return;
 
   JNIEnv* env = base::android::AttachCurrentThread();
-  Java_BraveDappPermissionPromptDialog_show(env, GetOrCreateJavaObject());
+  Java_WootzDappPermissionPromptDialog_show(env, GetOrCreateJavaObject());
 }
 
-void BraveDappPermissionPromptDialogController::OnPrimaryButtonClicked(
+void WootzDappPermissionPromptDialogController::OnPrimaryButtonClicked(
     JNIEnv* env,
     const base::android::JavaParamRef<jobjectArray>& accounts,
     int permission_lifetime_option) {
@@ -60,25 +60,25 @@ void BraveDappPermissionPromptDialogController::OnPrimaryButtonClicked(
   delegate_->ConnectToSite(allowedAccounts, permission_lifetime_option);
 }
 
-void BraveDappPermissionPromptDialogController::OnNegativeButtonClicked(
+void WootzDappPermissionPromptDialogController::OnNegativeButtonClicked(
     JNIEnv* env) {
   delegate_->CancelConnectToSite();
 }
 
-void BraveDappPermissionPromptDialogController::OnDialogDismissed(JNIEnv* env) {
+void WootzDappPermissionPromptDialogController::OnDialogDismissed(JNIEnv* env) {
   java_object_.Reset();
   delegate_->OnDialogDismissed();
 }
 
-void BraveDappPermissionPromptDialogController::DismissDialog() {
+void WootzDappPermissionPromptDialogController::DismissDialog() {
   if (java_object_) {
-    Java_BraveDappPermissionPromptDialog_dismissDialog(
+    Java_WootzDappPermissionPromptDialog_dismissDialog(
         base::android::AttachCurrentThread(), java_object_);
   }
 }
 
 base::android::ScopedJavaGlobalRef<jobject>
-BraveDappPermissionPromptDialogController::GetOrCreateJavaObject() {
+WootzDappPermissionPromptDialogController::GetOrCreateJavaObject() {
   if (java_object_)
     return java_object_;
 
@@ -89,7 +89,7 @@ BraveDappPermissionPromptDialogController::GetOrCreateJavaObject() {
   GURL fav_icon_url = GetFavIconURL(web_contents_->GetFaviconURLs());
   JNIEnv* env = base::android::AttachCurrentThread();
   ui::ViewAndroid* view_android = web_contents_->GetNativeView();
-  return java_object_ = Java_BraveDappPermissionPromptDialog_create(
+  return java_object_ = Java_WootzDappPermissionPromptDialog_create(
              env, reinterpret_cast<intptr_t>(this),
              view_android->GetWindowAndroid()->GetJavaObject(),
              base::android::ConvertUTF8ToJavaString(

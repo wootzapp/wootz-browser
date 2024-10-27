@@ -17,6 +17,6 @@ wootz_browser_wootz_wallet_android_sources = [
 ]
 
 wootz_browser_wootz_wallet_android_deps = [
-  "//chrome/components/wootz_wallet/browser",
-  "//chrome/components/wootz_wallet/browser:constants",
+  "//components/wootz_wallet/browser",
+  "//components/wootz_wallet/browser:constants",
 ]

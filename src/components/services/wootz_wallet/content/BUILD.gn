@@ -1,0 +1,20 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+source_set("content") {
+  visibility = [ "//components/services/wootz_wallet/public/cpp" ]
+
+  sources = [
+    "wootz_wallet_utils_service_launcher.cc",
+    "wootz_wallet_utils_service_launcher.h",
+  ]
+
+  deps = [
+    "//chrome/app:wootz_generated_resources_grit",
+    "//components/services/wootz_wallet/public/mojom",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+  ]
+}

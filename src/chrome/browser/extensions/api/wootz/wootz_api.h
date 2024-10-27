@@ -15,20 +15,19 @@
 #include "components/search_engines/template_url_service.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/extension_function.h"
+#include "extensions/browser/extension_function_histogram_value.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/common/extension_id.h"
 #include "ui/base/window_open_disposition.h"
-#include "base/android/jni_array.h"
-#include "base/android/jni_android.h"
-#include "base/android/jni_string.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 
 class Profile;
 
 namespace content {
 class BrowserContext;
 class WebContents;
-}  // namespace content
+}
 
 namespace extensions {
 class WootzInfoFunction : public ExtensionFunction {
@@ -37,40 +36,82 @@ class WootzInfoFunction : public ExtensionFunction {
 
   WootzInfoFunction() = default;
 
-  WootzInfoFunction(const WootzInfoFunction&) = delete;
-  WootzInfoFunction& operator=(const WootzInfoFunction&) = delete;
+  WootzInfoFunction(
+      const WootzInfoFunction&) = delete;
+  WootzInfoFunction& operator=(
+      const WootzInfoFunction&) = delete;
 
  protected:
   ~WootzInfoFunction() override {}
 
   ResponseAction Run() override;
 };
-class WootzHelloWorldFunction : public ExtensionFunction {
+
+
+class WootzCreateWalletFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.helloWorld", WOOTZ_HELLOWORLD)
-
-  WootzHelloWorldFunction() = default;
-
-  WootzHelloWorldFunction(const WootzHelloWorldFunction&) = delete;
-  WootzHelloWorldFunction& operator=(const WootzHelloWorldFunction&) = delete;
-
+  DECLARE_EXTENSION_FUNCTION("wootz.createWallet", WOOTZ_CREATE_WALLET)
  protected:
-  ~WootzHelloWorldFunction() override {}
+  ~WootzCreateWalletFunction() override {}
+  ResponseAction Run() override;
+ private:
+  void OnWalletCreated(const std::optional<std::string>& recovery_phrase);
+};
 
+class WootzUnlockWalletFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.unlockWallet", WOOTZ_UNLOCK_WALLET)
+ protected:
+  ~WootzUnlockWalletFunction() override {}
+  ResponseAction Run() override;
+ private:
+  void OnUnlocked(bool success);
+};
+
+class WootzLockWalletFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.lockWallet", WOOTZ_LOCK_WALLET)
+ protected:
+  ~WootzLockWalletFunction() override {}
   ResponseAction Run() override;
 };
 
-class WootzShowDialogFunction : public ExtensionFunction {
-    DECLARE_EXTENSION_FUNCTION("wootz.showDialog", WOOTZ_SHOWDIALOG)
-    WootzShowDialogFunction() = default;
-
-    WootzShowDialogFunction(const WootzShowDialogFunction&) = delete;
-    WootzShowDialogFunction& operator=(const WootzShowDialogFunction&) = delete;
-
-    ResponseAction Run() override;
+class WootzIsLockedFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.isLocked", WOOTZ_IS_LOCKED)
+ protected:
+  ~WootzIsLockedFunction() override {}
+  ResponseAction Run() override;
+ private:
+  void OnIsLocked(bool is_locked);
 };
-}  // namespace extensions
 
+class WootzGetAllAccountsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
+ protected:
+  ~WootzGetAllAccountsFunction() override {}
+  ResponseAction Run() override;
 
+ private:
+  void OnGetAllAccounts(wootz_wallet::mojom::AllAccountsInfoPtr all_accounts_info);
+  
+  base::WeakPtrFactory<WootzGetAllAccountsFunction> weak_factory_{this};
+};
+
+class WootzSignMessageFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.signMessage", WOOTZ_SIGN_MESSAGE)
+  
+  static void NotifyExtensionOfPendingRequest(content::BrowserContext* context);
+
+ private:
+  ~WootzSignMessageFunction() override {}
+  ResponseAction Run() override;
+  static void OnGetPendingRequests(
+      content::BrowserContext* context,
+      std::vector<wootz_wallet::mojom::SignMessageRequestPtr> requests);
+};
+}
 
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

@@ -30,7 +30,7 @@
 #include "ui/gfx/geometry/rect.h"
 
 class GURL;
-
+class WidevinePermissionAndroidTest;
 namespace content {
 class RenderFrameHost;
 }
@@ -222,6 +222,16 @@ class PermissionRequestManager
     return permission_ui_selectors_;
   }
 
+  void AcceptDenyCancel(const std::vector<PermissionRequest*>& accepted_requests,  
+                   const std::vector<PermissionRequest*>& denied_requests,    
+                   const std::vector<PermissionRequest*>& cancelled_requests);
+  bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) const; 
+                                                                              
+ private:                                                                     
+  bool ShouldBeGrouppedInRequests(PermissionRequest* a) const;                
+  friend class ::WidevinePermissionAndroidTest;                               
+                                                                              
+ public:                                                                      
   void set_view_factory_for_testing(PermissionPrompt::Factory view_factory) {
     view_factory_ = std::move(view_factory);
   }

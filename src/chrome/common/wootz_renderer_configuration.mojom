@@ -1,0 +1,26 @@
+/* Copyright (c) 2021 The Wootz Authors. All rights reserved.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+module wootz.mojom;
+
+// The renderer configuration parameters which can change post renderer launch.
+struct DynamicParams {
+  bool install_window_wootz_ethereum_provider = false;
+  bool install_window_ethereum_provider = false;
+  bool allow_overwrite_window_ethereum_provider = true;
+  bool wootz_use_native_solana_wallet = false;
+  bool allow_overwrite_window_solana_provider = true;
+  bool de_amp_enabled = true;
+  bool onion_only_in_tor_windows = true;
+  bool widevine_enabled = false;
+  bool playlist_enabled = false;
+};
+
+// Configures the renderer.
+interface WootzRendererConfiguration {
+  // Configures the renderer with settings that won't change.
+  // Update renderer configuration with settings that can change.
+  SetConfiguration(DynamicParams params);
+};

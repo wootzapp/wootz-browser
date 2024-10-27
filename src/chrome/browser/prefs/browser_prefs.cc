@@ -184,6 +184,9 @@
 #include "components/tracing/common/pref_names.h"
 #include "components/translate/core/browser/translate_prefs.h"
 #include "components/update_client/update_client.h"
+#include "components/wootz_wallet/browser/keyring_service.h"
+#include "components/wootz_wallet/browser/keyring_service_migrations.h"
+#include "components/wootz_wallet/browser/pref_names.h"
 #include "components/variations/service/variations_service.h"
 #include "content/public/browser/render_process_host.h"
 #include "extensions/buildflags/buildflags.h"
@@ -548,6 +551,7 @@
 #endif
 
 #include "chrome/browser/ui/webui/throttle/throttle_prefs.h"
+#include "components/wootz_wallet/browser/wootz_wallet_prefs.h"
 
 namespace {
 
@@ -1100,12 +1104,14 @@ inline constexpr char kDefaultSearchProviderChoiceLocationPrefName[] =
 // Register local state used only for migration (clearing or moving to a new
 // key).
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
+
+wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
+
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   registry->RegisterDictionaryPref(kEasyUnlockHardlockState);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-  // Deprecated 04/2023.
   registry->RegisterDictionaryPref(kTypeSubscribedForInvalidations);
   registry->RegisterStringPref(kActiveRegistrationToken, std::string());
   registry->RegisterStringPref(kFCMInvalidationClientIDCache, std::string());
@@ -1241,6 +1247,8 @@ void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
 void RegisterProfilePrefsForMigration(
     user_prefs::PrefRegistrySyncable* registry) {
   chrome_browser_net::secure_dns::RegisterProbesSettingBackupPref(registry);
+  wootz_wallet::RegisterProfilePrefsForMigration(registry);
+
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1613,6 +1621,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
   accessibility::AccessibilityPrefsController::RegisterLocalStatePrefs(
       registry);
 #endif
+  wootz_wallet::RegisterLocalStatePrefs(registry);
+
   breadcrumbs::RegisterPrefs(registry);
   browser_shutdown::RegisterPrefs(registry);
   BrowserProcessImpl::RegisterPrefs(registry);
@@ -1894,7 +1904,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
-
+  wootz_wallet::RegisterProfilePrefs(registry);
   throttle_webui::RegisterProfilePrefs(registry);
   LOG(ERROR)<< "After throttle_webui::RegisterProfilePrefs(registry)";
   // User prefs. Please keep this list alphabetized.
@@ -2534,6 +2544,8 @@ void MigrateObsoleteProfilePrefs(PrefService* profile_prefs,
 
   // Check MigrateDeprecatedAutofillPrefs() to see if this is safe to remove.
   autofill::prefs::MigrateDeprecatedAutofillPrefs(profile_prefs);
+
+  // wootz_wallet::MigrateObsoleteProfilePrefs(registry);
 
   // Added 3/2020.
   // TODO(crbug.com/40122991): Remove this once the privacy settings redesign

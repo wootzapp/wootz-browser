@@ -12,17 +12,18 @@ found in the LICENSE file.
     <!-- Other colors -->
     <color name="dark_action_bar_color">@color/google_blue_grey_900</color>
     <color name="dark_status_bar_color">#161E21</color>
-
+    <!-- <color name="baseline_primary_20">@color/modern_blue_600</color> -->
+    
     <!-- App menu colors -->
     <color name="update_menu_item_text_color">@color/default_red</color>
-
+    
     <!--  Distilled Page Prefs colors -->
     <color name="distilled_page_prefs_selected">#999999</color>
-
+    
     <!-- Compositor Tab Title Colors -->
     <color name="compositor_tab_title_bar_text">@color/default_text_color_list</color>
     <color name="compositor_tab_title_bar_text_incognito">@android:color/white</color>
-
+    
     <!-- Account Signin Colors -->
     <!-- As in dimens.xml, signin uses values from the First Run Experience -->
     <macro name="signin_head_background">@macro/default_bg_color</macro>
@@ -31,47 +32,126 @@ found in the LICENSE file.
     <color name="signin_header_animation_line_light">#E8E9EB</color>
     <color name="signin_header_animation_line_dark">#BDC0C5</color>
     <color name="signin_header_animation_laptop_screen">#F4F4F4</color>
-
+    
     <!-- NTP and Home sheet colors. Also used on the bookmarks and recent tabs pages. -->
     <color name="ntp_bg_incognito">@color/default_bg_color_dark</color>
-
+    
     <!-- Incognito NTP Colors. -->
     <color name="incognito_emphasis">@android:color/white</color>
-
+    
     <!-- Overlay Panel colors -->
     <macro name="overlay_panel_bar_background_color">@macro/default_bg_color</macro>
-
+    
     <!-- Find in Page colors -->
     <color name="find_in_page_query_white_color">@android:color/white</color>
     <color name="find_in_page_query_incognito_hint_color">@color/white_alpha_70</color>
     <color name="find_in_page_failed_results_status_color">@color/default_red</color>
     <color name="find_in_page_query_default_hint_color">@color/default_text_color_secondary_list</color>
     <color name="find_in_page_background_color">@color/default_bg_color_baseline</color>
-
+    
     <!-- App Background Colors -->
     <color name="window_background_color">@color/default_bg_color_baseline</color>
-
+    
     <!-- Bookmark widget colors -->
     <color name="bookmark_widget_pressed_highlight">@color/black_alpha_11</color>
     <color name="bookmark_widget_background">@color/default_bg_color_baseline</color>
-
+    
     <!-- History Navigation UI colors -->
     <color name="navigation_bubble_arrow">@android:color/black</color>
-
+    
+    <color name="wootz_white">@android:color/white</color>
     <color name="wootz_link">#4C54D2</color>
     
     <!-- Scrollbar colors -->
     <color name="default_scroll_thumb">@color/modern_grey_800_alpha_38</color>
-
+    
     <!-- Offline indicator v2 colors -->
     <color name="offline_indicator_offline_color">@android:color/black</color>
-
+    
     <!-- Model selector button background TSR colors -->
     <color name="model_selector_button_bg_color">@color/default_icon_color_inverse_dark</color>
-
+    
     <!-- Tab strip button hover background color -->
     <color name="tab_strip_button_hover_bg_color">@color/baseline_neutral_90</color>
+    
+    <!-- <color name="wootz_sync_bg_color">@android:color/transparent</color> -->
+    <!--  Wallet gradient colors  -->
+    <color name="wallet_gradient_center_color">#BF14A2</color>
+    <color name="wallet_gradient_end_color">#F73A1C</color>
+    <color name="wallet_gradient_start_color">#4C54D2</color>
 
+    <color name="translucent_activity_background_color">#AA3B3B3B</color>
+    
+    <color name="text_primary">#F3F5F7</color>
+    
+    <color name="wootz_set_default_dialog_text_color">@color/modern_grey_700</color>
+    
+    <!-- Theme colors -->
+    <color name="wootz_theme_color">#fb542b</color>
+    <!-- <color name="wootz_add_widget_button_pressed">#737ADE</color> -->
+    <color name="wootz_button_pressed">#7278C5</color>
+    <color name="modern_blue_300">#FF7654</color>
+    
+      <!--  Wootz Wallet DApp  -->
+    <color name="wootz_wallet_dapp_text_color">#171919</color>
+     <!-- <color name="use_web3_wallet_button_text_color">#423EEE</color> -->
+        <!-- Day/Night wootz wallet colors -->
+    <color name="wootz_wallet_onboarding_item_background_color">#687485</color>
+    <color name="wootz_wallet_day_night_toolbar_icon_color">#495057</color>
+    <color name="wootz_wallet_day_night_icon_color">#212529</color>
+    <color name="wootz_wallet_day_night_negative_ripple_color">#E1E3E4</color>
+    <color name="wootz_wallet_dn_error_text_bg_color">#F0F2FF</color>
+    <color name="wootz_wallet_dn_highlight_bg_color">#FFFFFF</color>
+    <color name="wootz_wallet_onboarding_card_view_background">#FFFFFF</color>
+    <color name="wootz_wallet_dn_button_color">#3E37D4</color>
+    <!-- Wootz wallet 2.0 colors -->
+    <color name="wootz_wallet_dn_panel_bg">#EDEEF1</color>
+    <color name="button_disabled">#4D687B85</color>
+    <color name="text_disabled">#8021272A</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    <color name="icon_interactive">#3F39E8</color>
+    <color name="divider_subtle">#66A1B2BA</color>
+    <color name="system_feedback_error">#B3002A</color>
+
+    <color name="wallet_text_color">#0D0F14</color>
+    <color name="wallet_secondary_text_color">#686978</color>
+    <color name="wallet_secondary_layout_text_color">#495057</color>
+    <color name="wallet_tertiary_layout_text_color">#62757E</color>
+    <color name="recovery_phrase_text_color">#F8F9FA</color>
+    <color name="wallet_toolbar_bg_color">#F6F7F8</color>
+    <color name="tab_color">#FF4081</color>
+    <color name="wallet_bg">#FFFFFF</color>
+    <color name="wallet_edittext_outline_color">#AEB1C2</color>
+    <color name="wallet_warning_box_bg_color">#FFFFFF</color>
+    <color name="recovery_phrase_warning_text_color">#868E96</color>
+    <color name="wootz_action_color">#4C54D2</color>
+    <color name="wallet_top_banner_color">#33E32444</color>
+    <color name="wallet_error_text_color">#FF4B6A</color>
+
+    <color name="wallet_sign_msg_err_bg_color">#FFF1F1</color>
+
+    <color name="wallet_onboarding_gradient_start">#C9CCF0</color>
+    <color name="wallet_onboarding_gradient_center">#D8DCF2</color>
+    <color name="wallet_onboarding_gradient_end">#F2F3F4</color>
+
+    <!-- Text colors -->
+    <color name="wootz_theme_subtitle_text">#868E96</color>
+    <color name="wootz_theme_hint_text">#868E96</color>
+    <color name="wootz_theme_error">#cc0000</color>
+    <color name="wootz_theme_success">#51cf66</color>
+    <color name="wootz_theme_error_txt">#E32444</color>
+    <color name="wootz_text_button_color">#4C54D2</color>
+    
+    <!-- <color name="wootz_rewards_modal_text_color">#495057</color> -->
+    <!-- <color name="wootz_rewards_modal_theme_color">#4C54D2</color> -->
+    <color name="wootz_blue_tint_color">#4C54D2</color>
+    <color name="text_secondary">#3f4e55</color>
+    <color name="primary_20">#d5dcff</color>
+    <color name="shield_text_color">#212529</color>
+
+    <color name="black_alpha_50">#80000000</color>
+    <color name="container_background">#ffffff</color>
+    <color name="text_tertiary">#62757e</color>
     <!-- Other colors -->
     <color name="media_viewer_bg">#000000</color>
     <color name="image_viewer_bg">#0E0E0E</color>

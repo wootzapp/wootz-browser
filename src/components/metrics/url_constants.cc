@@ -8,7 +8,7 @@ namespace metrics {
 
 // Chrome metrics URLs are stored internally to prevent Chromium forks from
 // accidentally sending metrics to Google servers. The URLs can be found here:
-// https://chrome-internal.googlesource.com/chrome/components/metrics/internal/
+// https://chrome-internal.googlesource.com/components/metrics/internal/
 const char kNewMetricsServerUrl[] = "";
 const char kNewMetricsServerUrlInsecure[] = "";
 const char kOldMetricsServerUrl[] = "";

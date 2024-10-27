@@ -42,6 +42,7 @@
 
 #include "base/base_export.h"
 #include "base/json/json_common.h"
+#include "base/rust_buildflags.h" 
 #include "base/strings/string_number_conversions.h"
 #include "base/types/expected.h"
 #include "base/values.h"
@@ -134,6 +135,16 @@ class BASE_EXPORT JSONReader {
   // Determine whether the Rust parser is in use.
   static bool UsingRust();
 };
+
+
+
+// BASE_EXPORT JSONReader::Result DecodeJSONInRust(std::string_view json,
+//                                                 int options, size_t max_depth);
+
+#if BUILDFLAG(BUILD_RUST_JSON_READER)
+BASE_EXPORT JSONReader::Result DecodeJSONInRust(std::string_view json,
+                                                int options);
+#endif
 
 }  // namespace base
 

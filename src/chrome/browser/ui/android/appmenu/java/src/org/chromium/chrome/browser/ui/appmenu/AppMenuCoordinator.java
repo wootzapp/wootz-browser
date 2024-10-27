@@ -21,6 +21,13 @@ public interface AppMenuCoordinator {
     AppMenuHandler getAppMenuHandler();
 
     /**
+     * Open the extensions Bottom Sheet.
+     * @param address The address to be shown.
+     */
+    void openExtensionById(String extensionId);
+    
+
+    /**
      * @return The {@link AppMenuPropertiesDelegate} associated with this activity.
      */
     AppMenuPropertiesDelegate getAppMenuPropertiesDelegate();

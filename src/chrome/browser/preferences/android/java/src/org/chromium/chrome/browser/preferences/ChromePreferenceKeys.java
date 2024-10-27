@@ -105,6 +105,14 @@ public final class ChromePreferenceKeys {
     public static final String BOOKMARKS_SORT_ORDER = "Chrome.Bookmarks.BookmarkRowSortOrder";
     public static final String BOOKMARKS_VISUALS_PREF = "Chrome.Bookmarks.BookmarkRowDisplay";
 
+    // Wallet Preferences Keys
+    public static final String WOOTZ_USE_BIOMETRICS_FOR_WALLET =
+            "org.chromium.chrome.browser.Wootz_Use_Biometrics_For_Wallet";
+    public static final String WOOTZ_BIOMETRICS_FOR_WALLET_IV =
+            "org.chromium.chrome.browser.Wootz_Biometrics_For_Wallet_Iv";
+    public static final String WOOTZ_BIOMETRICS_FOR_WALLET_ENCRYPTED =
+            "org.chromium.chrome.browser.Wootz_Biometrics_For_Wallet_Encrypted";
+
     /**
      * Whether Chrome is set as the default browser.
      * Default value is false.

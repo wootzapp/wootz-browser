@@ -74,6 +74,20 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       content::WebContents* web_contents) override;
 #endif
 
+// #define CanBypassEmbeddingOriginCheck                                    
+//   WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
+//                                      const GURL& embedding_origin,       
+//                                      ContentSettingsType type) override; 
+//   bool CanBypassEmbeddingOriginCheck
+
+// #define MaybeCreateMessageUI                                        
+//   MaybeCreateMessageUI_ChromiumImpl(                                
+//       content::WebContents* web_contents, ContentSettingsType type, 
+//       base::WeakPtr<permissions::PermissionPromptAndroid> prompt);  
+//   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI
+// #undef MaybeCreateMessageUI
+// #undef CanBypassEmbeddingOriginCheck
+
   void OnPromptResolved(
       permissions::RequestType request_type,
       permissions::PermissionAction action,
@@ -92,6 +106,10 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       ContentSettingsType permission) override;
   std::optional<url::Origin> GetAutoApprovalOrigin(
       content::BrowserContext* browser_context) override;
+      // Wootz patch
+  bool WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
+                                     const GURL& embedding_origin,       
+                                     ContentSettingsType type) override; 
   bool CanBypassEmbeddingOriginCheck(const GURL& requesting_origin,
                                      const GURL& embedding_origin) override;
   std::optional<GURL> OverrideCanonicalOrigin(
@@ -110,6 +128,10 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       content::WebContents* web_contents,
       ContentSettingsType type,
       base::WeakPtr<permissions::PermissionPromptAndroid> prompt) override;
+      // Wootz patch 
+  std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI_ChromiumImpl(                                
+      content::WebContents* web_contents, ContentSettingsType type,
+      base::WeakPtr<permissions::PermissionPromptAndroid> prompt);  
   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI(
       content::WebContents* web_contents,
       ContentSettingsType type,

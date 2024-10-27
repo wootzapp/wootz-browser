@@ -844,7 +844,8 @@ test("components_unittests") {
   # Since //chrome depends on //extensions, we also only assert_no_deps on
   # extensions targets for non-lacros builds.
   if (!is_chromeos_lacros) {
-    assert_no_deps = [ "//chrome/*" ]
+    # assert_no_deps = [ "//chrome/*" ] # wootz patch
+    assert_no_deps = [ ]
     assert_no_deps += disallowed_extension_deps_
   }
 
@@ -1130,7 +1131,8 @@ if (use_blink) {
     # Since //chrome depends on //extensions, we also only assert_no_deps on
     # extensions targets for non-lacros builds.
     if (!is_chromeos_lacros) {
-      assert_no_deps = [ "//chrome/*" ]
+      # assert_no_deps = [ "//chrome/*" ] # wootz patch
+      assert_no_deps = [ ]
       assert_no_deps += disallowed_extension_deps_
     }
 

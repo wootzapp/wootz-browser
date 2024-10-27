@@ -576,6 +576,9 @@ enum HistogramValue {
   ACCESSIBILITY_PRIVATE_ON_SELECT_TO_SPEAK_FOCUS_CHANGED = 554,
   TTS_ON_VOICES_CHANGED = 555,
   OS_DIAGNOSTICS_ON_ROUTINE_FINISHED = 556,
+
+  WOOTZ_ON_SIGN_MESSAGE_REQUESTED = 557,
+  
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

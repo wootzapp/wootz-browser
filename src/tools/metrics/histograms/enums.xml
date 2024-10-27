@@ -28507,7 +28507,7 @@ Called by update_net_error_codes.py.-->
   <int value="67" label="Yep"/>
   <int value="68" label="Nona"/>
   <int value="69" label="Quendu"/>
-  <int value="70" label="Brave"/>
+  <int value="70" label="Wootz"/>
   <int value="71" label="Karma"/>
   <int value="72" label="YouSearch"/>
   <int value="73" label="StarterPackAskGoogle"/>

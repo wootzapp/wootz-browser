@@ -1,0 +1,97 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "der"
+  epoch = "0.7"
+  crate_type = "rlib"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/arrayvec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/any.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/bit_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/bmp_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/boolean.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/choice.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/context_specific.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/generalized_time.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/ia5_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/integer.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/integer/int.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/integer/uint.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/internal_macros.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/null.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/octet_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/oid.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/optional.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/printable_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/real.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/sequence.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/sequence_of.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/set_of.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/teletex_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/utc_time.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/utf8_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/asn1/videotex_string.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/bytes_owned.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/bytes_ref.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/datetime.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/decode.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/document.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/encode.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/encode_ref.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/error.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/header.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/length.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/ord.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/reader.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/reader/nested.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/reader/pem.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/reader/slice.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/referenced.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/str_owned.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/str_ref.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/tag.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/tag/class.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/tag/mode.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/tag/number.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/writer.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/writer/pem.rs",
+    "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/writer/slice.rs",
+  ]
+  inputs = [ "//third_party/rust/chromium_crates_io/vendor/der-0.7.9/src/../README.md" ]
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.7.9"
+  cargo_pkg_authors = "RustCrypto Developers"
+  cargo_pkg_name = "der"
+  cargo_pkg_description = "Pure Rust embedded-friendly implementation of the Distinguished Encoding Rules (DER) for Abstract Syntax Notation One (ASN.1) as described in ITU X.690 with full support for heapless no_std targets"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/const_oid/v0_9:lib",
+    "//third_party/rust/zeroize/v1:lib",
+  ]
+  features = [
+    "alloc",
+    "oid",
+    "std",
+    "zeroize",
+  ]
+}

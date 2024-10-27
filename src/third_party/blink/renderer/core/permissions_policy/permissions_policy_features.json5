@@ -468,5 +468,14 @@
       name: "WindowManagement",
       permissions_policy_name: "window-management",
     },
+    {
+      // Added By Jai
+      name: "Ethereum",
+      permissions_policy_name: "ethereum"
+    },
+    {
+      name: "Solana",
+      permissions_policy_name: "solana"
+    },
   ],
 }

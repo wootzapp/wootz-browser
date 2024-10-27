@@ -1,0 +1,200 @@
+# Copyright (c) 2021 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+import("//components/wootz_wallet/common/config.gni")
+import("//testing/test.gni")
+
+source_set("wootz_wallet_unit_tests") {
+  testonly = true
+  sources = [
+    "//components/wootz_wallet/browser/account_discovery_manager_unittest.cc",
+    "//components/wootz_wallet/browser/account_resolver_delegate_impl_unittest.cc",
+    "//components/wootz_wallet/browser/asset_ratio_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/asset_ratio_service_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_block_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_hd_keyring_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_import_keyring_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_knapsack_solver_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_max_send_solver_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_rpc_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_serializer_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_tx_manager_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_tx_meta_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_tx_state_manager_unittest.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_wallet_service_unittest.cc",
+    "//components/wootz_wallet/browser/blockchain_list_parser_unittest.cc",
+    "//components/wootz_wallet/browser/blockchain_registry_unittest.cc",
+    "//components/wootz_wallet/browser/wootz_wallet_p3a_unittest.cc",
+    "//components/wootz_wallet/browser/wootz_wallet_utils_unittest.cc",
+    "//components/wootz_wallet/browser/eip1559_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/eip2930_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/eth_abi_decoder_unittest.cc",
+    "//components/wootz_wallet/browser/eth_block_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/eth_data_builder_unittest.cc",
+    "//components/wootz_wallet/browser/eth_data_parser_unittest.cc",
+    "//components/wootz_wallet/browser/eth_gas_utils_unittest.cc",
+    "//components/wootz_wallet/browser/eth_nonce_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/eth_requests_unittest.cc",
+    "//components/wootz_wallet/browser/eth_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/eth_topics_builder_unittest.cc",
+    "//components/wootz_wallet/browser/eth_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/eth_tx_manager_unittest.cc",
+    "//components/wootz_wallet/browser/eth_tx_meta_unittest.cc",
+    "//components/wootz_wallet/browser/eth_tx_state_manager_unittest.cc",
+    "//components/wootz_wallet/browser/ethereum_keyring_unittest.cc",
+    "//components/wootz_wallet/browser/fil_block_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/fil_nonce_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/fil_requests_unittest.cc",
+    "//components/wootz_wallet/browser/fil_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/fil_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/fil_tx_manager_unittest.cc",
+    "//components/wootz_wallet/browser/fil_tx_meta_unittest.cc",
+    "//components/wootz_wallet/browser/fil_tx_state_manager_unittest.cc",
+    "//components/wootz_wallet/browser/internal/hd_key_ed25519_unittest.cc",
+    "//components/wootz_wallet/browser/internal/hd_key_unittest.cc",
+    "//components/wootz_wallet/browser/json_rpc_requests_helper_unittest.cc",
+    "//components/wootz_wallet/browser/json_rpc_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/json_rpc_service_test_utils_unittest.cc",
+    "//components/wootz_wallet/browser/json_rpc_service_unittest.cc",
+    "//components/wootz_wallet/browser/keyring_service_migrations_unittest.cc",
+    "//components/wootz_wallet/browser/meld_integration_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/meld_integration_service_unittest.cc",
+    "//components/wootz_wallet/browser/network_manager_unittest.cc",
+    "//components/wootz_wallet/browser/nft_metadata_fetcher_unittest.cc",
+    "//components/wootz_wallet/browser/password_encryptor_unittest.cc",
+    "//components/wootz_wallet/browser/permission_utils_unittest.cc",
+    "//components/wootz_wallet/browser/rlp_decode_unittest.cc",
+    "//components/wootz_wallet/browser/rlp_encode_unittest.cc",
+    "//components/wootz_wallet/browser/simple_hash_client_unittest.cc",
+    "//components/wootz_wallet/browser/simulation_request_helper_unittest.cc",
+    "//components/wootz_wallet/browser/simulation_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/simulation_service_unittest.cc",
+    "//components/wootz_wallet/browser/siwe_message_parser_unittest.cc",
+    "//components/wootz_wallet/browser/sns_resolver_task_unittest.cc",
+    "//components/wootz_wallet/browser/solana_account_meta_unittest.cc",
+    "//components/wootz_wallet/browser/solana_block_tracker_unittest.cc",
+    "//components/wootz_wallet/browser/solana_compiled_instruction_unittest.cc",
+    "//components/wootz_wallet/browser/solana_instruction_builder_unittest.cc",
+    "//components/wootz_wallet/browser/solana_instruction_data_decoder_unittest.cc",
+    "//components/wootz_wallet/browser/solana_instruction_decoded_data_unittest.cc",
+    "//components/wootz_wallet/browser/solana_instruction_unittest.cc",
+    "//components/wootz_wallet/browser/solana_keyring_unittest.cc",
+    "//components/wootz_wallet/browser/solana_message_address_table_lookup_unittest.cc",
+    "//components/wootz_wallet/browser/solana_message_header_unittest.cc",
+    "//components/wootz_wallet/browser/solana_message_unittest.cc",
+    "//components/wootz_wallet/browser/solana_requests_unittest.cc",
+    "//components/wootz_wallet/browser/solana_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/solana_transaction_unittest.cc",
+    "//components/wootz_wallet/browser/solana_tx_manager_unittest.cc",
+    "//components/wootz_wallet/browser/solana_tx_meta_unittest.cc",
+    "//components/wootz_wallet/browser/solana_tx_state_manager_unittest.cc",
+    "//components/wootz_wallet/browser/swap_request_helper_unittest.cc",
+    "//components/wootz_wallet/browser/swap_response_parser_unittest.cc",
+    "//components/wootz_wallet/browser/swap_service_unittest.cc",
+    "//components/wootz_wallet/browser/tx_meta_unittest.cc",
+    "//components/wootz_wallet/browser/tx_state_manager_unittest.cc",
+    "//components/wootz_wallet/browser/tx_storage_delegate_impl_unittest.cc",
+    "//components/wootz_wallet/browser/unstoppable_domains_dns_resolve_unittest.cc",
+    "//components/wootz_wallet/browser/unstoppable_domains_multichain_calls_unittest.cc",
+    "//components/wootz_wallet/browser/wallet_data_files_installer_unittest.cc",
+    "//components/wootz_wallet/browser/zcash/zcash_grpc_utils_unittest.cc",
+    "//components/wootz_wallet/browser/zcash/zcash_keyring_unittest.cc",
+    "//components/wootz_wallet/browser/zcash/zcash_serializer_unittest.cc",
+    "//components/wootz_wallet/browser/zcash/zcash_wallet_service_unittest.cc",
+  ]
+
+  deps = [
+    ":test_data",
+    ":test_support",
+    "//base/test:test_support",
+    "//components/wootz_component_updater/browser",
+    "//components/wootz_component_updater/browser:test_support",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:constants",
+    "//components/wootz_wallet/browser:generated_bitcoin_rpc_responses",
+    "//components/wootz_wallet/browser:generated_json_rpc_responses",
+    "//components/wootz_wallet/browser:generated_swap_responses",
+    "//components/wootz_wallet/browser:hd_keyring",
+    "//components/wootz_wallet/browser:pref_names",
+    "//components/wootz_wallet/browser:test_support",
+    "//components/wootz_wallet/browser:transaction",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/browser/internal:hd_key",
+    "//components/wootz_wallet/common",
+    "//components/wootz_wallet/common:buildflags",
+    "//components/wootz_wallet/common:common_constants",
+    "//components/wootz_wallet/common:mojom",
+    "//components/wootz_wallet/common:test_support",
+    "//components/constants",
+    "//components/decentralized_dns/core",
+    "//components/filecoin/rs:rust_lib",
+    "//components/ipfs",
+    "//components/json/rs:rust_lib",
+    "//components/resources:strings_grit",
+    "//components/services/wootz_wallet/public/cpp/utils",
+    "//components/services/wootz_wallet/public/mojom",
+    "//components/component_updater:test_support",
+    "//components/prefs",
+    "//components/prefs:test_support",
+    "//components/sync_preferences:test_support",
+    "//net:test_support",
+    "//services/data_decoder/public/cpp:test_support",
+    "//services/network:test_support",
+    "//testing/gtest",
+    "//ui/base:base",
+    "//url",
+  ]
+
+  if (enable_orchard) {
+    sources += [
+      "//components/wootz_wallet/browser/internal/hd_key_zip32_unittest.cc",
+      "//components/wootz_wallet/browser/internal/orchard_bundle_manager_unittest.cc",
+    ]
+    deps +=
+        [ "//components/wootz_wallet/browser/internal:orchard_bundle" ]
+  }
+
+  if (!is_ios) {
+    deps += [
+      "//components/wootz_wallet/browser:permission_utils",
+      "//components/permissions",
+      "//content/test:test_support",
+    ]
+  }
+}  # source_set("wootz_wallet_unit_tests")
+
+source_set("test_support") {
+  testonly = true
+  sources = [
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_test_utils.cc",
+    "//components/wootz_wallet/browser/bitcoin/bitcoin_test_utils.h",
+    "//components/wootz_wallet/browser/json_rpc_service_test_utils.cc",
+    "//components/wootz_wallet/browser/json_rpc_service_test_utils.h",
+  ]
+
+  deps = [
+    ":test_data",
+    "//base",
+    "//base/test:test_support",
+    "//components/wootz_wallet/browser",
+    "//components/wootz_wallet/browser:generated_bitcoin_rpc_responses",
+    "//components/wootz_wallet/browser:hd_keyring",
+    "//components/wootz_wallet/browser:utils",
+    "//components/wootz_wallet/common:mojom",
+    "//services/network:test_support",
+    "//services/network/public/cpp",
+    "//testing/gtest",
+  ]
+
+  data = [ "$root_gen_dir/chrome/wallet-test-data/" ]
+}  # source_set("test_support")
+
+copy("test_data") {
+  testonly = true
+  sources =
+      [ "//third_party/bitcoin-core/src/src/test/data/key_io_valid.json" ]
+  outputs = [ "$root_gen_dir/chrome/wallet-test-data/{{source_file_part}}" ]
+}

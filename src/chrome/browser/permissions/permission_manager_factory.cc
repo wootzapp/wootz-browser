@@ -112,6 +112,13 @@ permissions::PermissionManager::PermissionContextMap CreatePermissionContexts(
   permission_contexts[ContentSettingsType::KEYBOARD_LOCK] =
       std::make_unique<permissions::KeyboardLockPermissionContext>(profile);
 
+//   permission_contexts[ContentSettingsType::WOOTZ_ETHEREUM] =
+//       std::make_unique<permissions::WootzWalletPermissionContext>(
+//           profile, ContentSettingsType::WOOTZ_ETHEREUM);
+//   permission_contexts[ContentSettingsType::WOOTZ_SOLANA] =
+//       std::make_unique<permissions::WootzWalletPermissionContext>(
+//           profile, ContentSettingsType:WOOTZE_SOLANA);
+
   // TODO(crbug.com/40115199): Still in development for Android so we don't
   // support it on WebLayer yet.
   permission_contexts[ContentSettingsType::LOCAL_FONTS] =

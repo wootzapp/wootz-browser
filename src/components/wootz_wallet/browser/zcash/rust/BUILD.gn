@@ -1,0 +1,72 @@
+# Copyright (c) 2024 The Wootz Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//components/wootz_wallet/common/config.gni")
+import("//build/rust/rust_static_library.gni")
+
+assert(enable_orchard)
+
+group("rust") {
+  # This should only be used by internal wallet code
+  visibility = [ "//components/wootz_wallet/browser/internal:*" ]
+
+  public_deps = [ ":orchard_headers" ]
+
+  deps = [ ":orchard_impl" ]
+}
+
+source_set("orchard_headers") {
+  visibility = [ ":*" ]
+
+  sources = [
+    "authorized_orchard_bundle.h",
+    "extended_spending_key.h",
+    "unauthorized_orchard_bundle.h",
+  ]
+
+  public_deps = [
+    "//base",
+    "//components/wootz_wallet/common",
+  ]
+}
+
+source_set("orchard_impl") {
+  visibility = [ ":rust" ]
+
+  sources = [
+    "authorized_orchard_bundle_impl.cc",
+    "authorized_orchard_bundle_impl.h",
+    "extended_spending_key_impl.cc",
+    "extended_spending_key_impl.h",
+    "unauthorized_orchard_bundle_impl.cc",
+    "unauthorized_orchard_bundle_impl.h",
+  ]
+
+  deps = [
+    ":orchard_headers",
+    ":rust_lib",
+    "//base",
+    "//components/wootz_wallet/common",
+    "//build/rust:cxx_cppdeps",
+  ]
+}
+
+rust_static_library("rust_lib") {
+  visibility = [ ":orchard_impl" ]
+
+  crate_name = "zcash"
+  crate_root = "lib.rs"
+  allow_unsafe = true
+  sources = [ "lib.rs" ]
+  cxx_bindings = [ "lib.rs" ]
+
+  deps = [
+    "librustzcash:zcash_primitives", 
+    "//components/wootz_wallet/rust:rust_lib",
+    "//third_party/rust/orchard/v0_8:lib",
+    "//third_party/rust/rand/v0_8:lib",
+    "//third_party/rust/reddsa/v0_5:lib", #WOOTZ_WALLET
+  ]
+}
