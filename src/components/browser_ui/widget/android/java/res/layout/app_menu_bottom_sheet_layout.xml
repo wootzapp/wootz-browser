@@ -86,7 +86,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="500dp"/>
 
-                <ImageButton
+                <!-- <ImageButton
                     android:id="@+id/floating_back_button"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
@@ -96,7 +96,7 @@
                     android:layout_gravity="top|start"
                     android:layout_margin="16dp"
                     android:elevation="4dp"
-                    android:visibility="gone"/>
+                    android:visibility="gone"/> -->
 
         </FrameLayout>
         <!-- <LinearLayout
