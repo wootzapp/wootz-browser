@@ -104,7 +104,7 @@ enable_extensions = true
 cc_wrapper="env CCACHE_SLOPPINESS=time_macros ccache"
 ```
 
-##### Option 2: Generate an optimized APK (approximately 131 MB)
+##### Option 2: Generate an optimized APK
 
 Run following command in ```chromium/src``` directory 
 ```
@@ -122,7 +122,6 @@ symbol_level = 0
 enable_nacl = false
 proprietary_codecs = true
 ffmpeg_branding = "Chrome"
-remove_webcore_debug_symbols = true
 enable_extensions = true
 enable_cardboard = false
 
@@ -133,7 +132,7 @@ cc_wrapper="env CCACHE_SLOPPINESS=time_macros ccache"
 #### Build Chromium
 Build Chromium with Ninja using the command:
 ```bash
-autoninja -C out/Default chrome_public_apk
+autoninja -C out/Default chrome_public_apk monochrome_public_bundle
 ```
 
 ### Installation Steps (building wootzapp):

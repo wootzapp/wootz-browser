@@ -65,3 +65,8 @@
 -keep,allowobfuscation class org.chromium.chrome.browser.usage_stats.SuspensionTracker { *; }
 -keep,allowobfuscation class org.chromium.chrome.browser.usage_stats.UsageStatsService { *; }
 -keep,allowobfuscation class org.chromium.chrome.browser.vr.ArImmersiveOverlay { *; }
+-keep class android.graphics.Bitmap { *; }
+-keep class android.graphics.BitmapFactory { *; }
+-keep class org.chromium.chrome.browser.extensions.Extensions { *; }
+-keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog { *; }
+-keep class org.chromium.chrome.browser.extensions.ExtensionInfo { *; }

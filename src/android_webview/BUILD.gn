@@ -30,9 +30,9 @@ import("//tools/resources/generate_resource_allowlist.gni")
 
 assert(!is_cronet_build)
 
-if (android_64bit_target_cpu && skip_secondary_abi_for_cq) {
-  assert(current_toolchain != android_secondary_abi_toolchain)
-}
+# if (android_64bit_target_cpu && skip_secondary_abi_for_cq) {
+#   assert(current_toolchain != android_secondary_abi_toolchain)
+# }
 
 if (enable_resource_allowlist_generation) {
   system_webview_pak_allowlist =

@@ -43,6 +43,15 @@ run arch="x64":
     # ANDROID_SERIAL=172.17.0.2:5555 src/out/Debug_{{arch}}/bin/chrome_public_apk run -vvv
     ANDROID_SERIAL=$DEVICE src/out/Debug_{{arch}}/bin/chrome_public_apk run
 
+bundle:
+    rm -f src/out/Release_arm64/apks/WootzBundle.apks
+    java -jar src/third_party/android_build_tools/bundletool/bundletool.jar build-apks \
+    --bundle=src/out/Release_arm64/apks/MonochromePublic64.aab \
+    --output=src/out/Release_arm64/apks/WootzBundle.apks
+    java -jar src/third_party/android_build_tools/bundletool/bundletool.jar install-apks \
+    --device-id=$DEVICE \
+    --apks=src/out/Release_arm64/apks/WootzBundle.apks
+
 install arch="x64":
     ADB_TRACE="all adb" ANDROID_SERIAL=172.17.0.2:5555 adb install -r -t src/out/Debug_{{arch}}/apks/WootzApp.apk
 
@@ -51,6 +60,9 @@ run_shell arch="x64":
 
 symbolize arch="x64":
     ANDROID_SERIAL=$DEVICE adb logcat -d | src/third_party/android_platform/development/scripts/stack --output-directory src/out/Debug_{{arch}}
+
+symbolize_device:
+    ANDROID_SERIAL=$DEVICE adb logcat -d | src/third_party/android_platform/development/scripts/stack --output-directory src/out/Release_arm64 && adb logcat -s
 
 commit branch:
     cd ../wootz-browser && git switch -C {{branch}} && git reset --hard HEAD

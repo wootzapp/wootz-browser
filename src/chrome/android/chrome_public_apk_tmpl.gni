@@ -208,6 +208,10 @@ template("chrome_common_apk_or_module_tmpl") {
       variables +=
           trichrome_jinja_variables + [ "trichrome_version=$_version_code" ]
     } else if (_is_monochrome) {
+      print("Debug: Processing Monochrome configuration")
+      if (definitions_in_split) {
+        print(target_name)
+      }
       input = "//chrome/android/java/AndroidManifest_monochrome.xml"
       includes = [
         "//android_webview/nonembedded/java/AndroidManifest.xml",

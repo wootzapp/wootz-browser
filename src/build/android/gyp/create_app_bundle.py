@@ -40,6 +40,8 @@ _FALLBACK_LOCALE = 'en-US'
 
 # List of split dimensions recognized by this tool.
 _ALL_SPLIT_DIMENSIONS = [ 'ABI', 'SCREEN_DENSITY', 'LANGUAGE' ]
+# not working hack
+# _ALL_SPLIT_DIMENSIONS = [ ]
 
 # Due to historical reasons, certain languages identified by Chromium with a
 # 3-letters ISO 639-2 code, are mapped to a nearly equivalent 2-letters
@@ -122,6 +124,11 @@ def _ParseArgs(args):
 
   options = parser.parse_args(args)
   options.module_zips = action_helpers.parse_gn_list(options.module_zips)
+
+  # not working hack
+  # options.split_dimensions = []
+  # options.base_module_rtxt_path = None
+
 
   if len(options.module_zips) == 0:
     parser.error('The module zip list cannot be empty.')
