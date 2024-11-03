@@ -52,6 +52,15 @@ run_shell arch="x64":
 symbolize arch="x64":
     ANDROID_SERIAL=$DEVICE adb logcat -d | src/third_party/android_platform/development/scripts/stack --output-directory src/out/Debug_{{arch}}
 
+bundle:
+    rm -f src/out/Release_arm64/apks/WootzBundle.apks
+    java -jar src/third_party/android_build_tools/bundletool/bundletool.jar build-apks \
+    --bundle=src/out/Release_arm64/apks/WootzApp.aab \
+    --output=src/out/Release_arm64/apks/WootzBundle.apks
+    java -jar src/third_party/android_build_tools/bundletool/bundletool.jar install-apks \
+    --device-id=$DEVICE \
+    --apks=src/out/Release_arm64/apks/WootzBundle.apks
+
 commit branch:
     cd ../wootz-browser && git switch -C {{branch}} && git reset --hard HEAD
     cd src && git status -s | grep ' M ' | choose 1 | xargs -I {} cp -v --parents {} ../../wootz-browser/src
