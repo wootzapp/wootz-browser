@@ -101,6 +101,10 @@ import android.view.ViewOutlineProvider;
 import android.os.Build;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
+import org.chromium.chrome.browser.tab.Tab;
+import androidx.appcompat.content.res.AppCompatResources;
 
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected we call
@@ -489,7 +493,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         Log.d(TAG, "contentview " + contentView.toString());
         // viewWrapper.addView(contentView);
-
+    
         IntentRequestTracker intentRequestTracker = mHandler.getWindowAndroid().getIntentRequestTracker();
         ThinWebView thinWebView = ThinWebViewFactory.create(
             getContext(), new ThinWebViewConstraints(), intentRequestTracker);
@@ -512,7 +516,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         view.setTag(webContents);
 
         mCurrentWebContents = webContents;
-        setupFloatingBackButton();
+        // setupFloatingBackButton();
 
         return view;
     }
@@ -530,6 +534,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         }
     }
 
+    /* This function is not used anymore since we are removing the back button from the extension webview
     private void setupFloatingBackButton() {
         View view = getView();
         if (view != null) {
@@ -561,6 +566,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             }
         }
     }
+*/
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
@@ -674,41 +680,127 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         extensionsContainer.removeAllViews();
 
-        int extensionsCount = 0;
-        for(int i = 0; i < Extensions.getExtensionsInfo().size(); i++) {
-            ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
-            ImageButton extensionIcon = new ImageButton(context);
+        // ImageButton moreExtensionsButton = new ImageButton(context);
+        // moreExtensionsButton.setImageResource(R.drawable.ic_add_extensions); // Use an appropriate icon
+        // moreExtensionsButton.setLayoutParams(new LinearLayout.LayoutParams(dpToPx(48), dpToPx(48)));
+        // moreExtensionsButton.setOnClickListener(v -> openWebsite("https://devt75.github.io/extensions_test/"));
+        // extensionsContainer.addView(moreExtensionsButton);
 
+        // int extensionsCount = 1;
+        // for(int i = 0; i < Extensions.getExtensionsInfo().size(); i++) {
+        //     ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
+        //     ImageButton extensionIcon = new ImageButton(context);
+
+        //     if (extension.getName().equals("Web Store")) {
+        //         continue;
+        //     }
+
+        //     if(extension.getIconBitmap() != null){
+        //         extensionIcon.setImageBitmap(extension.getIconBitmap());
+        //     } else {
+        //         extensionIcon.setImageResource(R.drawable.test_extension_logo);
+        //     }
+
+        //     extensionIcon.setLayoutParams(new LinearLayout.LayoutParams(
+        //         dpToPx(48), dpToPx(48)));
+        //     final int index = i;
+        //     extensionIcon.setOnClickListener(v -> openExtensionWebView(index));
+        //     extensionIcon.setOnLongClickListener(v -> {
+        //         showDeleteExtensionDialog(index);
+        //         return true;
+        //     });
+        //     extensionsContainer.addView(extensionIcon);
+        //     extensionsCount ++;
+        // }
+
+        // if (extensionsCount == 0) {
+        //     parent.setVisibility(View.GONE);
+        //     extensionsDivider.setVisibility(View.GONE);
+        //     scrollView.setVisibility(View.GONE);
+        // } else {
+        //     parent.setVisibility(View.VISIBLE);
+        //     extensionsDivider.setVisibility(View.VISIBLE);
+        //     scrollView.setVisibility(View.VISIBLE);
+        // }
+
+        List<ExtensionInfo> extensionsInfo = Extensions.getExtensionsInfo();
+        int extensionCount = extensionsInfo.size();
+
+        extensionsDivider.setVisibility(View.VISIBLE);
+        scrollView.setVisibility(View.VISIBLE);
+        parent.setVisibility(View.VISIBLE);
+
+        int buttonSize = dpToPx(48);
+        int buttonMargin = dpToPx(4);
+        int containerWidth = buttonSize * 5 + buttonMargin * 10; // Adjusted for new margins
+
+        // LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
+        //         ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        // extensionsContainer.setLayoutParams(containerParams);
+
+        // Add "Add Extension" button
+        ImageButton addExtensionButton = createRoundButton(context);
+        addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
+        addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        addExtensionButton.setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+        addExtensionButton.setOnClickListener(v -> openWebsite("https://github.com/wootzapp/ext-store"));
+        extensionsContainer.addView(addExtensionButton);
+
+        for (int i = 0; i < extensionCount; i++) {
+            ExtensionInfo extension = extensionsInfo.get(i);
+            ImageButton extensionIcon = createRoundButton(context);
             if (extension.getName().equals("Web Store")) {
                 continue;
             }
-
-            if(extension.getIconBitmap() != null){
+            if (extension.getIconBitmap() != null) {
                 extensionIcon.setImageBitmap(extension.getIconBitmap());
+                extensionIcon.setImageTintList(null); // Remove any tint
             } else {
                 extensionIcon.setImageResource(R.drawable.test_extension_logo);
+                extensionIcon.setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
             }
 
-            extensionIcon.setLayoutParams(new LinearLayout.LayoutParams(
-                dpToPx(48), dpToPx(48)));
             final int index = i;
             extensionIcon.setOnClickListener(v -> openExtensionWebView(index));
             extensionIcon.setOnLongClickListener(v -> {
                 showDeleteExtensionDialog(index);
                 return true;
             });
+
             extensionsContainer.addView(extensionIcon);
-            extensionsCount ++;
         }
 
-        if (extensionsCount == 0) {
-            parent.setVisibility(View.GONE);
-            extensionsDivider.setVisibility(View.GONE);
-            scrollView.setVisibility(View.GONE);
-        } else {
-            parent.setVisibility(View.VISIBLE);
-            extensionsDivider.setVisibility(View.VISIBLE);
-            scrollView.setVisibility(View.VISIBLE);
+        // Set the width of the scroll view to show only 5 buttons
+        ViewGroup.LayoutParams scrollParams = scrollView.getLayoutParams();
+        scrollParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        scrollView.setLayoutParams(scrollParams);
+
+        // Enable horizontal scrolling
+        scrollView.setHorizontalScrollBarEnabled(true);
+    }
+
+    private ImageButton createRoundButton(Context context) {
+        ImageButton button = new ImageButton(context);
+        int size = dpToPx(48); // Slightly smaller size
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+        params.setMargins(dpToPx(8), 0, dpToPx(8), 0); // Reduced margins
+        button.setLayoutParams(params);
+    
+        button.setBackground(AppCompatResources.getDrawable(context, R.drawable.extension_button_background));
+        button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        button.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+    
+        return button;
+    }
+
+    private void openWebsite(String url) {
+        if (mHandler != null) {
+            LoadUrlParams params = new LoadUrlParams(url);
+            Tab tab = mHandler.getActivityTab();
+            if (tab != null) {
+                tab.loadUrl(params);
+                dismiss(); // Dismiss the app menu after loading the URL
+            }
         }
     }
 
@@ -1052,6 +1144,12 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                     iconView.setImageDrawable(adaptiveIcon);
                 } else {
                     iconView.setImageDrawable(null);
+                }
+
+                if (title != null) {
+                    title = title.toString()
+                            .substring(0, 1)
+                            .toUpperCase() + title.toString().substring(1);
                 }
             
                 titleView.setText(title);

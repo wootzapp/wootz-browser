@@ -21,6 +21,7 @@ import android.util.Log;
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.app.appmenu.AppMenuPropertiesDelegateImpl;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
 import org.chromium.chrome.browser.lifecycle.StartStopWithNativeObserver;
@@ -34,6 +35,7 @@ import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.ModelListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.chrome.browser.tab.Tab;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -524,5 +526,13 @@ class AppMenuHandlerImpl
     @Nullable
     ModelList getModelListForTesting() {
         return mModelList;
+    }
+
+    public Tab getActivityTab() {
+    if (mDelegate != null && mDelegate instanceof AppMenuPropertiesDelegateImpl) {
+        AppMenuPropertiesDelegateImpl delegateImpl = (AppMenuPropertiesDelegateImpl) mDelegate;
+        return delegateImpl.getActivityTab();
+    }
+        return null;
     }
 }

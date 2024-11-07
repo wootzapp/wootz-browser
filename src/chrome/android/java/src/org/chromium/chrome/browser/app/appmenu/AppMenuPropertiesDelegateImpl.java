@@ -1463,4 +1463,8 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
                     HostSurface.NEW_TAB_PAGE, ModuleTypeOnStartAndNtp.MENU_BUTTON);
         }
     }
+
+    public Tab getActivityTab() {
+        return mActivityTabProvider.get();
+    }
 }
