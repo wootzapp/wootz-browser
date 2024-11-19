@@ -1247,23 +1247,23 @@ void WebTransport::Init(const String& url_for_diagnostics,
   auto* execution_context = GetExecutionContext();
 
   bool is_url_blocked = false;
-  if (!execution_context->GetContentSecurityPolicyForCurrentWorld()
-           ->AllowConnectToSource(url_, url_, RedirectStatus::kNoRedirect)) {
-    ScriptValue error(
-        script_state_->GetIsolate(),
-        WebTransportError::Create(
-            script_state_->GetIsolate(),
-            /*stream_error_code=*/std::nullopt,
-            "Refused to connect to '" + url_.ElidedString() +
-                "' because it violates the document's Content Security Policy",
-            WebTransportError::Source::kSession));
+  // if (!execution_context->GetContentSecurityPolicyForCurrentWorld()
+  //          ->AllowConnectToSource(url_, url_, RedirectStatus::kNoRedirect)) {
+  //   ScriptValue error(
+  //       script_state_->GetIsolate(),
+  //       WebTransportError::Create(
+  //           script_state_->GetIsolate(),
+  //           /*stream_error_code=*/std::nullopt,
+  //           "Refused to connect to '" + url_.ElidedString() +
+  //               "' because it violates the document's Content Security Policy",
+  //           WebTransportError::Source::kSession));
 
-    connection_pending_ = false;
-    ready_->Reject(error);
-    closed_->Reject(error);
+  //   connection_pending_ = false;
+  //   ready_->Reject(error);
+  //   closed_->Reject(error);
 
-    is_url_blocked = true;
-  }
+  //   is_url_blocked = true;
+  // }
 
   Vector<network::mojom::blink::WebTransportCertificateFingerprintPtr>
       fingerprints;

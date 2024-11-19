@@ -807,6 +807,9 @@ bool ContentSecurityPolicy::AllowFromSource(
     const String& nonce,
     const IntegrityMetadataSet& hashes,
     ParserDisposition parser_disposition) {
+    LOG(ERROR) << "ContentSecurityPolicy::AllowFromSource " << url.GetString();
+
+  return true;
   SchemeRegistry::PolicyAreas area = SchemeRegistry::kPolicyAreaAll;
   if (type == CSPDirectiveName::ImgSrc)
     area = SchemeRegistry::kPolicyAreaImage;
@@ -872,6 +875,9 @@ bool ContentSecurityPolicy::AllowConnectToSource(
     RedirectStatus redirect_status,
     ReportingDisposition reporting_disposition,
     CheckHeaderType check_header_type) {
+  LOG(ERROR) << "ContentSecurityPolicy::AllowConnectToSource " << url.GetString();
+  return true;
+
   return AllowFromSource(CSPDirectiveName::ConnectSrc, url,
                          url_before_redirects, redirect_status,
                          reporting_disposition, check_header_type);
