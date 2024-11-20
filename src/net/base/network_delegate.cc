@@ -59,6 +59,8 @@ int NetworkDelegate::NotifyHeadersReceived(
   DCHECK(original_response_headers);
   DCHECK(!callback.is_null());
   DCHECK(!preserve_fragment_on_redirect_url->has_value());
+  *override_response_headers = base::MakeRefCounted<HttpResponseHeaders>(original_response_headers->raw_headers());
+  (*override_response_headers)->SetHeader("Access-Control-Allow-Origin", "*");
   return OnHeadersReceived(request, std::move(callback),
                            original_response_headers, override_response_headers,
                            endpoint, preserve_fragment_on_redirect_url);

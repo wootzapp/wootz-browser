@@ -586,6 +586,7 @@ NetworkContext::NetworkContext(
            "the network service.";
   }
 #endif  // BUILDFLAG(IS_WIN) && DCHECK_IS_ON()
+params_->allow_any_cors_exempt_header_for_browser = true;
 
 #if BUILDFLAG(IS_DIRECTORY_TRANSFER_REQUIRED)
   if (params_->file_paths) {
@@ -755,6 +756,9 @@ NetworkContext::NetworkContext(
 
   for (const auto& key : cors_exempt_header_list)
     cors_exempt_header_list_.insert(key);
+  cors_exempt_header_list_.insert("Origin");
+  cors_exempt_header_list_.insert("Access-Control-Request-Method");
+  cors_exempt_header_list_.insert("Access-Control-Request-Headers");
 
   acam_preflight_spec_conformant_ = base::FeatureList::IsEnabled(
       network::features::
