@@ -1,0 +1,17 @@
+import type { Chain } from "../../chains/types.js";
+import type { ThirdwebClient } from "../../client/client.js";
+type CurrencyValue = {
+    name: string;
+    decimals: number;
+    symbol: string;
+    displayValue: string;
+    value: bigint;
+};
+export declare function resolveCurrencyValue(options: {
+    client: ThirdwebClient;
+    chain: Chain;
+    currencyAddress: string;
+    wei: bigint;
+}): Promise<CurrencyValue>;
+export {};
+//# sourceMappingURL=resolve-currency-value.d.ts.map

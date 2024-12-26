@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkrewards=self.webpackChunkrewards||[]).push([[89618],{89618:(e,a,s)=>{s.r(a),s.d(a,{eth_estimateGas:()=>r});var t=s(3340);async function r(e,a){const s=await e({method:"eth_estimateGas",params:[a]});return(0,t.uU)(s)}}}]);
+//# sourceMappingURL=89618.b3130678.chunk.js.map

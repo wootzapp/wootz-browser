@@ -1,0 +1,17 @@
+rootWebArea
+++genericContainer ignored
+++++genericContainer
+++++++button
+++++++button
+++++++table ignored invisible
+++++++++rowGroup ignored invisible
+++++++++++row ignored invisible
+++++++++++++cell ignored invisible
+++++++++++++cell ignored invisible
+++++++++++row ignored invisible
+++++++++++++cell ignored invisible
+++++++++++++cell ignored invisible
+++++++button
+++++++genericContainer ignored invisible
+++++++button
+++++++button name='the title' nameFrom=title

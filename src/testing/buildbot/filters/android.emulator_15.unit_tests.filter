@@ -1,0 +1,6 @@
+# TODO (rnanjappan) : Create separate bugs for failing tests
+-SigninManagerAndroidTest.*
+-SigninManagerAndroidWithLocalUpmTest.*
+-ChromeBrowsingDataRemoverDelegateOriginTrialsTest.*
+-ChromeBrowsingDataRemoverDelegateTest.AllTypesAreGettingDeleted
+-ChromeBrowsingDataRemoverDelegateTest.RemovePersistentIsolatedOrigins

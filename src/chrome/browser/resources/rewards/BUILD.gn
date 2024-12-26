@@ -1,0 +1,21 @@
+import("//tools/grit/grit_rule.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+import("//ui/webui/resources/tools/generate_grd.gni")
+
+
+grit("rewards_resources") {
+  enable_input_discovery_for_gn_analyze = false
+  source = "dist/rewards_resources.grd"
+
+  outputs = [
+    "grit/rewards_page_resources.h",
+    "grit/rewards_page_resources_map.h",
+    "grit/rewards_page_resources_map.cc",
+    "rewards_page_resources.pak",
+  ]
+  output_dir = "$root_gen_dir/chrome"
+}
+
+group("rewards_app") {
+  public_deps = [ ":rewards_resources" ]
+}

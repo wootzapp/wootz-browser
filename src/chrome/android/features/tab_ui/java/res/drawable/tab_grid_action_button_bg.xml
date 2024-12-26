@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/tab_grid_dialog_background_color"/>
+    <corners android:radius="@dimen/tab_grid_card_action_button_bg_radius" />
+</shape>

@@ -1,0 +1,14 @@
+import { defineChain } from "../../../../chains/utils.js";
+import { hexToNumber } from "../../../../utils/encoding/hex.js";
+/**
+ * @internal
+ */
+export async function handleSwitchChain(options) {
+    const { wallet, params } = options;
+    if (wallet.getChain()?.id === hexToNumber(params[0].chainId)) {
+        return "0x1";
+    }
+    await wallet.switchChain(defineChain(hexToNumber(params[0].chainId)));
+    return "0x1";
+}
+//# sourceMappingURL=switch-chain.js.map

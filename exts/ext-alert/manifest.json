@@ -1,0 +1,13 @@
+{
+    "manifest_version": 3,
+    "name": "Hello World Alert",
+    "version": "1.0",
+    "description": "A simple Chrome extension that shows an alert saying 'Hello, World!' on every page.",
+    "permissions": ["activeTab"],
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
+    ]
+}  

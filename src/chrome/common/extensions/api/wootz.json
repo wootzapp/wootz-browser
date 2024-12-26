@@ -1,0 +1,150 @@
+[
+  {
+    "namespace": "wootz",
+    "description": "Wootz browser api",
+    "compiler_options": {
+      "implemented_in": "chrome/browser/extensions/api/wootz/wootz_api.h"
+    },
+    "types": [
+      {
+        "id": "JobResult",
+        "type": "object",
+        "description": "Result of URL monitoring job",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The monitored URL"
+          },
+          "response": {
+            "type": "string",
+            "description": "Response content from the URL"
+          },
+          "timestamp": {
+            "type": "number",
+            "description": "Timestamp of the fetch"
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "info",
+        "type": "function",
+        "description": "Gets wootz browser info",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "type": "string",
+              "name": "result"
+            }
+          ]
+        }
+      },
+      {
+        "name": "helloWorld",
+        "type": "function",
+        "description": "Returns greeting message",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "type": "string",
+              "name": "result"
+            }
+          ]
+        }
+      },
+      {
+        "name": "showDialog",
+        "type": "function",
+        "description": "Shows the consent dialog and starts the service if consent is given",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
+        "name": "log",
+        "type": "function",
+        "description": "Log to browser debug logs",
+        "parameters": [{
+          "type": "string",
+          "name": "log"
+        }],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
+        "name": "setJob",
+        "type": "function",
+        "description": "Start monitoring a URL",
+        "parameters": [
+          {
+            "name": "url",
+            "type": "string",
+            "description": "URL to monitor"
+          }
+        ]
+      },
+      {
+        "name": "removeJob",
+        "type": "function",
+        "description": "Stop monitoring a URL",
+        "parameters": [
+          {
+            "name": "url",
+            "type": "string",
+            "description": "URL to stop monitoring"
+          }
+        ]
+      },
+      {
+        "name": "getJobs",
+        "type": "function",
+        "description": "Get monitoring results for a URL",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "results",
+              "type": "array",
+              "items": { "$ref": "JobResult" },
+              "description": "Array of job results"
+            }
+          ]
+        }
+      },
+      {
+        "name": "listJobs",
+        "type": "function", 
+        "description": "List all monitored URLs",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "urls",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of monitored URLs"
+            }
+          ]
+        }
+      },
+      {
+        "name": "cleanJobs",
+        "type": "function",
+        "description": "Clear all jobs and results",
+        "parameters": []
+      }
+    ],
+    "events": []
+  }
+]
