@@ -5,6 +5,8 @@
 package org.chromium.chrome.browser.language;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
@@ -27,11 +29,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
+import org.chromium.base.Log;
+
 /**
  * Provides utility functions to assist with overriding the application language.
  * This class manages the AppLanguagePref.
  */
 public class AppLocaleUtils {
+    private static final String TAG = "AppLocaleUtils";
     private AppLocaleUtils() {}
 
     // Value of AppLocale preference when the system language is used.
@@ -140,29 +145,53 @@ public class AppLocaleUtils {
      */
     public static void setAppLanguagePref(
             String languageName, LanguageSplitInstaller.InstallListener listener) {
+        Log.i(TAG, "Setting app language preference: " + languageName);
+        
         // Wrap the install listener so that on success the app override preference is set.
         LanguageSplitInstaller.InstallListener wrappedListener =
                 (success) -> {
                     if (success) {
-                        if (shouldUseSystemManagedLocale()) {
-                            setSystemManagedAppLanguage(languageName);
-                        } else {
-                            ChromeSharedPreferences.getInstance()
-                                    .writeString(
-                                            ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE,
-                                            languageName);
+                        try {
+                            if (shouldUseSystemManagedLocale()) {
+                                Log.i(TAG, "Using system managed locale for: " + languageName);
+                                setSystemManagedAppLanguage(languageName);
+                            } else {
+                                Log.i(TAG, "Setting shared preference for: " + languageName);
+                                ChromeSharedPreferences.getInstance()
+                                        .writeString(
+                                                ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE,
+                                                languageName);
+                            }
+                            Log.i(TAG, "Successfully set language preference: " + languageName);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to set language preference", e);
+                            success = false;
                         }
+                    } else {
+                        Log.e(TAG, "Failed to install language: " + languageName);
                     }
                     listener.onComplete(success);
                 };
 
-        // If this is not a bundle build or the default system language is being used the language
-        // split should not be installed. Instead indicate that the listener completed successfully
-        // since the language resources will already be present.
-        if (!BundleUtils.isBundle() || isFollowSystemLanguage(languageName)) {
-            wrappedListener.onComplete(true);
-        } else {
-            LanguageSplitInstaller.getInstance().installLanguage(languageName, wrappedListener);
+        try {
+            // If this is not a bundle build or the default system language is being used the language
+            // split should not be installed. Instead indicate that the listener completed successfully
+            // since the language resources will already be present.
+            if (!BundleUtils.isBundle() || isFollowSystemLanguage(languageName)) {
+                Log.i(TAG, "Non-bundle build or system language, completing immediately");
+                wrappedListener.onComplete(true);
+            } else {
+                if (!isSupportedUiLanguage(languageName)) {
+                    Log.e(TAG, "Unsupported UI language: " + languageName);
+                    wrappedListener.onComplete(false);
+                    return;
+                }
+                Log.i(TAG, "Installing language split for: " + languageName);
+                LanguageSplitInstaller.getInstance().installLanguage(languageName, wrappedListener);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Exception during language installation", e);
+            wrappedListener.onComplete(false);
         }
     }
 
@@ -252,7 +281,14 @@ public class AppLocaleUtils {
      * @param potentialUiLanguage BCP-47 language tag representing a locale (e.g. "en-US")
      */
     public static boolean isSupportedUiLanguage(String potentialUiLanguage) {
-        return isAvailableUiLanguage(potentialUiLanguage, BASE_LANGUAGE_COMPARATOR);
+        try {
+            boolean isSupported = AppLocaleUtils.isAvailableUiLanguage(potentialUiLanguage, BASE_LANGUAGE_COMPARATOR);
+            Log.i(TAG, "Language support check - " + potentialUiLanguage + ": " + isSupported);
+            return isSupported;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking language support for: " + potentialUiLanguage, e);
+            return false;
+        }
     }
 
     private static boolean isAvailableUiLanguage(
@@ -278,4 +314,61 @@ public class AppLocaleUtils {
                     return langA.compareTo(langB);
                 }
             };
+
+    /**
+     * Ensures the app locale is properly applied during application startup.
+     * This should be called from attachBaseContext() to ensure locale is set before any resources are loaded.
+     * @param context The application context
+     */
+    public static void ensureAppLocaleAppliedEarly(Context context) {
+        try {
+            String languagePref = getAppLanguagePrefStartUp(context);
+            Log.i(TAG, "Early locale application - preference: " + languagePref);
+            
+            if (languagePref != null) {
+                Locale locale = Locale.forLanguageTag(languagePref);
+                Configuration config = context.getResources().getConfiguration();
+                config.setLocale(locale);
+                context.getResources().updateConfiguration(config, context.getResources().getDisplayMetrics());
+                Log.i(TAG, "Successfully applied early locale: " + locale);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to apply early locale", e);
+        }
+    }
+
+    /**
+     * Ensures the app locale is properly preserved during restart.
+     * @param intent The intent used for restarting the application
+     */
+    public static void preserveLocaleForRestart(Intent intent) {
+        try {
+            String currentLocale = getAppLanguagePref();
+            Log.i(TAG, "Preserving locale for restart: " + currentLocale);
+            
+            if (currentLocale != null) {
+                intent.putExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE, currentLocale);
+                Log.i(TAG, "Successfully preserved locale in intent");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to preserve locale for restart", e);
+        }
+    }
+
+    /**
+     * Restores the app locale from a restart intent.
+     * @param intent The intent used to restart the application
+     */
+    public static void restoreLocaleFromRestart(Intent intent) {
+        try {
+            if (intent != null && intent.hasExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE)) {
+                String locale = intent.getStringExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE);
+                Log.i(TAG, "Restoring locale from restart: " + locale);
+                setAppLanguagePref(locale);
+                Log.i(TAG, "Successfully restored locale from restart");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to restore locale from restart", e);
+        }
+    }
 }

@@ -12,6 +12,7 @@ import android.os.Process;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
+import org.chromium.chrome.browser.language.AppLocaleUtils;
 
 /**
  * Kills and (optionally) restarts the main Chrome process, then immediately kills itself.
@@ -67,6 +68,10 @@ public class BrowserRestartActivity extends Activity {
             Intent restartIntent = new Intent(Intent.ACTION_MAIN);
             restartIntent.setPackage(context.getPackageName());
             restartIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            
+            // Preserve locale information in restart intent
+            AppLocaleUtils.preserveLocaleForRestart(restartIntent);
+            
             context.startActivity(restartIntent);
         }
 
