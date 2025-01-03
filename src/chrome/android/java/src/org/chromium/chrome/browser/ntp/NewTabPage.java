@@ -690,7 +690,8 @@ public class NewTabPage
         final int topControlsDistanceToRest =
                 mBrowserControlsStateProvider.getContentOffset()
                         - mBrowserControlsStateProvider.getTopControlsHeight();
-        final int topMargin = getToolbarExtraYOffset() + topControlsDistanceToRest;
+        final int topMargin = 0; 
+        // getToolbarExtraYOffset() + topControlsDistanceToRest;
 
         final int bottomMargin =
                 mBrowserControlsStateProvider.getBottomControlsHeight()
