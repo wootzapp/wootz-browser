@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 
 import org.chromium.base.Log;
+import org.chromium.base.ContextUtils;
 
 /**
  * Provides utility functions to assist with overriding the application language.
@@ -146,25 +147,83 @@ public class AppLocaleUtils {
     public static void setAppLanguagePref(
             String languageName, LanguageSplitInstaller.InstallListener listener) {
         Log.i(TAG, "Setting app language preference: " + languageName);
+        Log.i(TAG, "Current app language: " + getAppLanguagePref());
+        Log.i(TAG, "Is system managed locale: " + shouldUseSystemManagedLocale());
+        Log.i(TAG, "Android SDK version: " + Build.VERSION.SDK_INT);
+        Log.i(TAG, "Is bundle build: " + BundleUtils.isBundle());
         
-        // Wrap the install listener so that on success the app override preference is set.
+        // Validate language support first
+        if (!isSupportedUiLanguage(languageName)) {
+            Log.e(TAG, "Unsupported language: " + languageName);
+            listener.onComplete(false);
+            return;
+        }
+
+        // Create a wrapped listener that handles both installation and configuration
         LanguageSplitInstaller.InstallListener wrappedListener =
                 (success) -> {
                     if (success) {
                         try {
-                            if (shouldUseSystemManagedLocale()) {
-                                Log.i(TAG, "Using system managed locale for: " + languageName);
-                                setSystemManagedAppLanguage(languageName);
-                            } else {
-                                Log.i(TAG, "Setting shared preference for: " + languageName);
-                                ChromeSharedPreferences.getInstance()
-                                        .writeString(
-                                                ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE,
-                                                languageName);
+                            Context context = ContextUtils.getApplicationContext();
+                            
+                            // First verify if language is supported on this device
+                            if (!isLanguageSupportedOnDevice(languageName)) {
+                                Log.e(TAG, "Language not supported on this device: " + languageName);
+                                success = false;
+                                listener.onComplete(false);
+                                return;
                             }
-                            Log.i(TAG, "Successfully set language preference: " + languageName);
+                            
+                            // First update shared preferences
+                            ChromeSharedPreferences.getInstance()
+                                    .writeString(
+                                            ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE,
+                                            languageName);
+                            
+                            // Handle system-managed locale based on device manufacturer
+                            if (shouldUseSystemManagedLocale()) {
+                                try {
+                                    String manufacturer = Build.MANUFACTURER.toLowerCase();
+                                    Log.i(TAG, "Device manufacturer: " + manufacturer);
+                                    
+                                    if (manufacturer.contains("samsung") || manufacturer.contains("oneplus")) {
+                                        // For Samsung and OnePlus, we need to ensure configuration is updated first
+                                        updateAppConfiguration(context, languageName);
+                                        setSystemManagedAppLanguage(languageName);
+                                    } else {
+                                        // For other devices (like Pixel), use standard flow
+                                        setSystemManagedAppLanguage(languageName);
+                                        updateAppConfiguration(context, languageName);
+                                    }
+                                    
+                                    Log.i(TAG, "After setting system managed locale, app language is: " + getAppLanguagePref());
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error setting system managed locale", e);
+                                    success = false;
+                                }
+                            } else {
+                                // For non-system managed locale, just update configuration
+                                updateAppConfiguration(context, languageName);
+                            }
+                            
+                            // Verify language resources after configuration update
+                            if (!verifyLanguageResources(languageName)) {
+                                Log.e(TAG, "Language resources not available after configuration update: " + languageName);
+                                success = false;
+                            } else {
+                                // Notify GlobalAppLocaleController only if verification succeeds
+                                try {
+                                    GlobalAppLocaleController.getInstance().maybeSetupLocaleManager();
+                                    Log.i(TAG, "Notified GlobalAppLocaleController of locale change");
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error notifying locale change", e);
+                                }
+                            }
+                            
+                            Log.i(TAG, "Language change process completed with success: " + success);
                         } catch (Exception e) {
                             Log.e(TAG, "Failed to set language preference", e);
+                            e.printStackTrace();
                             success = false;
                         }
                     } else {
@@ -174,34 +233,120 @@ public class AppLocaleUtils {
                 };
 
         try {
-            // If this is not a bundle build or the default system language is being used the language
-            // split should not be installed. Instead indicate that the listener completed successfully
-            // since the language resources will already be present.
-            if (!BundleUtils.isBundle() || isFollowSystemLanguage(languageName)) {
-                Log.i(TAG, "Non-bundle build or system language, completing immediately");
+            if (!BundleUtils.isBundle()) {
+                Log.i(TAG, "Non-bundle build, completing immediately");
+                wrappedListener.onComplete(true);
+            } else if (isFollowSystemLanguage(languageName)) {
+                Log.i(TAG, "Using system language, completing immediately");
                 wrappedListener.onComplete(true);
             } else {
-                if (!isSupportedUiLanguage(languageName)) {
-                    Log.e(TAG, "Unsupported UI language: " + languageName);
-                    wrappedListener.onComplete(false);
-                    return;
-                }
                 Log.i(TAG, "Installing language split for: " + languageName);
-                LanguageSplitInstaller.getInstance().installLanguage(languageName, wrappedListener);
+                // Add retry mechanism for language installation
+                installLanguageWithRetry(languageName, wrappedListener, 3);
             }
         } catch (Exception e) {
             Log.e(TAG, "Exception during language installation", e);
+            e.printStackTrace();
             wrappedListener.onComplete(false);
         }
     }
 
+    private static void installLanguageWithRetry(String languageName, 
+            LanguageSplitInstaller.InstallListener listener, int maxRetries) {
+        installLanguageWithRetryInternal(languageName, listener, maxRetries, 0);
+    }
+
+    private static void installLanguageWithRetryInternal(String languageName,
+            LanguageSplitInstaller.InstallListener listener, int maxRetries, int currentRetry) {
+        if (currentRetry >= maxRetries) {
+            Log.e(TAG, "Failed to install language after " + maxRetries + " retries: " + languageName);
+            listener.onComplete(false);
+            return;
+        }
+
+        LanguageSplitInstaller.InstallListener retryListener = (success) -> {
+            if (success) {
+                listener.onComplete(true);
+            } else {
+                Log.w(TAG, "Retry " + (currentRetry + 1) + " failed for language: " + languageName);
+                // Wait briefly before retrying
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    // Ignore
+                }
+                installLanguageWithRetryInternal(languageName, listener, maxRetries, currentRetry + 1);
+            }
+        };
+
+        LanguageSplitInstaller.getInstance().installLanguage(languageName, retryListener);
+    }
+
+    private static boolean verifyLanguageResources(String languageName) {
+        try {
+            Context context = ContextUtils.getApplicationContext();
+            if (context == null) return false;
+
+            // Try to load a basic string resource with the new locale
+            Configuration config = new Configuration(context.getResources().getConfiguration());
+            config.setLocale(Locale.forLanguageTag(languageName));
+            Context localizedContext = context.createConfigurationContext(config);
+            
+            // Verify that resources can be loaded
+            try {
+                localizedContext.getResources().getString(android.R.string.ok);
+                Log.i(TAG, "Successfully verified language resources for: " + languageName);
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to load resources for language: " + languageName, e);
+                return false;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error verifying language resources", e);
+            return false;
+        }
+    }
+
     /**
-     * Sets the {@link LocaleManager} App language to |languageName|. TODO(crbug.com/40228013) Move
-     * to Android T.
+     * Sets the system managed locale for Android 13+ devices.
+     * @param languageName The BCP-47 language tag to set
      */
     @RequiresApi(Build.VERSION_CODES.S)
-    private static void setSystemManagedAppLanguage(String languageName) {
-        getAppLocaleManagerDelegate().setApplicationLocale(languageName);
+    public static void setSystemManagedAppLanguage(String languageName) {
+        try {
+            LocaleManagerDelegate delegate = getAppLocaleManagerDelegate();
+            if (languageName == null || isFollowSystemLanguage(languageName)) {
+                Log.i(TAG, "Clearing system managed locale to use system language");
+                delegate.setApplicationLocale(null);
+            } else {
+                Log.i(TAG, "Setting system managed locale to: " + languageName);
+                delegate.setApplicationLocale(languageName);
+            }
+            
+            // Also update configuration directly to ensure immediate effect
+            Context context = ContextUtils.getApplicationContext();
+            if (context != null) {
+                try {
+                    Configuration config = new Configuration(context.getResources().getConfiguration());
+                    Locale newLocale = Locale.forLanguageTag(languageName != null ? languageName : 
+                            Locale.getDefault().toLanguageTag());
+                    config.setLocale(newLocale);
+                    Locale.setDefault(newLocale);
+                    context.getResources().updateConfiguration(config, context.getResources().getDisplayMetrics());
+                    Log.i(TAG, "Updated configuration with locale: " + newLocale);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error updating configuration", e);
+                }
+            }
+            
+            // Verify the change
+            Locale currentLocale = delegate.getApplicationLocale();
+            Log.i(TAG, "System managed locale after change: " + 
+                (currentLocale != null ? currentLocale.toLanguageTag() : "null"));
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting system managed locale", e);
+            throw e; // Rethrow to handle in caller
+        }
     }
 
     /**
@@ -260,6 +405,11 @@ public class AppLocaleUtils {
      */
     @ChecksSdkIntAtLeast(api = 33)
     public static boolean shouldUseSystemManagedLocale() {
+        // For Android 15+, we'll use our own locale management
+        if (Build.VERSION.SDK_INT >= 35) {
+            return false;
+        }
+        // Use system locale management for Android 13-14
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU;
     }
 
@@ -281,10 +431,29 @@ public class AppLocaleUtils {
      * @param potentialUiLanguage BCP-47 language tag representing a locale (e.g. "en-US")
      */
     public static boolean isSupportedUiLanguage(String potentialUiLanguage) {
+        if (potentialUiLanguage == null) {
+            Log.w(TAG, "Null language provided for support check");
+            return false;
+        }
+
         try {
-            boolean isSupported = AppLocaleUtils.isAvailableUiLanguage(potentialUiLanguage, BASE_LANGUAGE_COMPARATOR);
-            Log.i(TAG, "Language support check - " + potentialUiLanguage + ": " + isSupported);
-            return isSupported;
+            // First check if it's a system language
+            if (isFollowSystemLanguage(potentialUiLanguage)) {
+                Log.i(TAG, "System language is always supported");
+                return true;
+            }
+
+            // Check if the exact language is available
+            boolean isExactMatch = isAvailableExactUiLanguage(potentialUiLanguage);
+            if (isExactMatch) {
+                Log.i(TAG, "Exact language match found for: " + potentialUiLanguage);
+                return true;
+            }
+
+            // If not an exact match, check if base language is supported
+            boolean isBaseMatch = isAvailableUiLanguage(potentialUiLanguage, BASE_LANGUAGE_COMPARATOR);
+            Log.i(TAG, "Base language support check for " + potentialUiLanguage + ": " + isBaseMatch);
+            return isBaseMatch;
         } catch (Exception e) {
             Log.e(TAG, "Error checking language support for: " + potentialUiLanguage, e);
             return false;
@@ -326,10 +495,26 @@ public class AppLocaleUtils {
             Log.i(TAG, "Early locale application - preference: " + languagePref);
             
             if (languagePref != null) {
+                // Create new configuration to avoid modifying the existing one
+                Configuration config = new Configuration(context.getResources().getConfiguration());
                 Locale locale = Locale.forLanguageTag(languagePref);
-                Configuration config = context.getResources().getConfiguration();
+                
+                // Set default locale first
+                Locale.setDefault(locale);
+                
+                // Update configuration
                 config.setLocale(locale);
                 context.getResources().updateConfiguration(config, context.getResources().getDisplayMetrics());
+                
+                // For Android 13-14, also use system locale management
+                if (shouldUseSystemManagedLocale()) {
+                    try {
+                        setSystemManagedAppLanguage(languagePref);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to set system managed locale early", e);
+                    }
+                }
+                
                 Log.i(TAG, "Successfully applied early locale: " + locale);
             }
         } catch (Exception e) {
@@ -348,6 +533,16 @@ public class AppLocaleUtils {
             
             if (currentLocale != null) {
                 intent.putExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE, currentLocale);
+                
+                // For Android 13+, also preserve in LocaleManager
+                if (shouldUseSystemManagedLocale()) {
+                    try {
+                        setSystemManagedAppLanguage(currentLocale);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to preserve system managed locale", e);
+                    }
+                }
+                
                 Log.i(TAG, "Successfully preserved locale in intent");
             }
         } catch (Exception e) {
@@ -364,11 +559,85 @@ public class AppLocaleUtils {
             if (intent != null && intent.hasExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE)) {
                 String locale = intent.getStringExtra(ChromePreferenceKeys.APPLICATION_OVERRIDE_LANGUAGE);
                 Log.i(TAG, "Restoring locale from restart: " + locale);
+                
+                if (shouldUseSystemManagedLocale()) {
+                    try {
+                        setSystemManagedAppLanguage(locale);
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Failed to restore system managed locale", ex);
+                    }
+                }
+                
                 setAppLanguagePref(locale);
                 Log.i(TAG, "Successfully restored locale from restart");
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to restore locale from restart", e);
+        }
+    }
+
+    /**
+     * Updates the application configuration with the new locale
+     */
+    private static void updateAppConfiguration(Context context, String languageName) {
+        if (context == null) return;
+        
+        try {
+            // Create new configuration to avoid modifying existing one
+            Configuration config = new Configuration(context.getResources().getConfiguration());
+            Locale newLocale = Locale.forLanguageTag(languageName != null ? languageName : 
+                    Locale.getDefault().toLanguageTag());
+            
+            // Set default locale first
+            Locale.setDefault(newLocale);
+            
+            // Update configuration
+            config.setLocale(newLocale);
+            context.getResources().updateConfiguration(
+                    config, context.getResources().getDisplayMetrics());
+            
+            Log.i(TAG, "Updated configuration with locale: " + newLocale);
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating configuration", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Checks if the language is supported on the current device
+     */
+    private static boolean isLanguageSupportedOnDevice(String languageName) {
+        if (languageName == null || isFollowSystemLanguage(languageName)) {
+            return true;
+        }
+        
+        try {
+            // Get available locales
+            Locale[] availableLocales = Locale.getAvailableLocales();
+            Locale targetLocale = Locale.forLanguageTag(languageName);
+            
+            // First try exact match
+            for (Locale locale : availableLocales) {
+                if (locale.equals(targetLocale)) {
+                    Log.i(TAG, "Found exact locale match for: " + languageName);
+                    return true;
+                }
+            }
+            
+            // Then try language match
+            String language = targetLocale.getLanguage();
+            for (Locale locale : availableLocales) {
+                if (locale.getLanguage().equals(language)) {
+                    Log.i(TAG, "Found language match for: " + languageName);
+                    return true;
+                }
+            }
+            
+            Log.w(TAG, "Language not found in available locales: " + languageName);
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking language support", e);
+            return false;
         }
     }
 }
