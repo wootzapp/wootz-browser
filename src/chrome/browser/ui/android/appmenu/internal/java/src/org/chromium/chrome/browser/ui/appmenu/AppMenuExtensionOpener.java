@@ -33,7 +33,8 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
-
+import android.content.pm.ActivityInfo;
+import android.app.Activity;
 import java.util.ArrayList;
 
 public class AppMenuExtensionOpener {
@@ -43,13 +44,20 @@ public class AppMenuExtensionOpener {
     private final WindowAndroid mWindowAndroid;
     private WebContents mCurrentWebContents;
     private static BottomSheetDialog mBottomSheetDialog;
+    private Activity mActivity;
 
     public AppMenuExtensionOpener(Context context, WindowAndroid windowAndroid) {
         mContext = context;
         mWindowAndroid = windowAndroid;
+        if (context instanceof Activity) {
+            mActivity = (Activity) context;
+        }
+        
     }
 
     public void openExtension(String extensionId) {
+
+        Log.d("KRITAGYA", "KRITAGYA: openExtension");
         int index = findExtensionIndexById(extensionId);
         if (index == -1) {
             Log.e(TAG, "JANGID: Extension not found with ID: " + extensionId);
@@ -67,6 +75,7 @@ public class AppMenuExtensionOpener {
 
     private View createWebView(int index) {
         try {
+            Log.d("KRITAGYA", "KRITAGYA: createWebView");
             Profile profile = ProfileManager.getLastUsedRegularProfile();
             mCurrentWebContents = WebContentsFactory.createWebContents(profile, true, false);
             ContentView contentView = ContentView.createContentView(mContext, null, mCurrentWebContents);
@@ -103,8 +112,14 @@ public class AppMenuExtensionOpener {
     }
 
     private void showWebViewInBottomSheet(View webView) {
+        Log.d("KRITAGYA", "KRITAGYA: showWebViewInBottomSheet");
+        Activity activity = (Activity) mContext;
+        if (activity != null) {
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
         mBottomSheetDialog = new BottomSheetDialog(mContext, R.style.ExtensionsBottomSheetDialogTheme);
         View bottomSheetView = LayoutInflater.from(mContext).inflate(R.layout.extension_bottom_sheet_layout, null);
+
         
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
@@ -113,9 +128,39 @@ public class AppMenuExtensionOpener {
 
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        mBottomSheetDialog.setCanceledOnTouchOutside(true);
+        
+        mBottomSheetDialog.setOnCancelListener(dialog -> {
+            Log.d("KRITAGYA", "Bottom sheet cancelled (back press)");
+            resetOrientation();
+        });
+        
+        mBottomSheetDialog.setOnDismissListener(dialog -> {
+            Log.d("KRITAGYA", "Bottom sheet dismissed");
+            resetOrientation();
+        });
+        
+        behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+            @Override
+            public void onStateChanged(View bottomSheet, int newState) {
+                if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+                    Log.d("KRITAGYA", "Bottom sheet hidden by drag");
+                    resetOrientation();
+                    mBottomSheetDialog.dismiss();
+                }
+            }
 
+            @Override
+            public void onSlide(View bottomSheet, float slideOffset) {}
+        });
         mBottomSheetDialog.show();
     }
+    private void resetOrientation() {
+        if (mActivity != null) {
+            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+    }
+    
 
     private int findExtensionIndexById(String extensionId) {
         ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
@@ -128,7 +173,9 @@ public class AppMenuExtensionOpener {
     }
 
     public static void closeBottomSheet() {
+        Log.d(TAG, "KRITAGYA: closeBottomSheet");
         if (mBottomSheetDialog != null && mBottomSheetDialog.isShowing()) {
+            Context context = mBottomSheetDialog.getContext();
             mBottomSheetDialog.dismiss();
         }
     }
