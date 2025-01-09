@@ -105,17 +105,22 @@ import org.chromium.chrome.browser.tab.Tab;
 import androidx.appcompat.content.res.AppCompatResources;
 
 /**
- * Shows a popup of menuitems anchored to a host view. When a item is selected we call
- * AppMenuHandlerImpl.AppMenuDelegate.onOptionsItemSelected with the appropriate MenuItem.
- *   - Only visible MenuItems are shown.
- *   - Disabled items are grayed out.
+ * Shows a popup of menuitems anchored to a host view. When a item is selected
+ * we call
+ * AppMenuHandlerImpl.AppMenuDelegate.onOptionsItemSelected with the appropriate
+ * MenuItem.
+ * - Only visible MenuItems are shown.
+ * - Disabled items are grayed out.
  */
 /*
- * This class has been revamped by Devendra(dkt) by adding BottomSheetDialogFragment
- * as the parent class of AppMenu which enables the use of BottomSheet directly when
+ * This class has been revamped by Devendra(dkt) by adding
+ * BottomSheetDialogFragment
+ * as the parent class of AppMenu which enables the use of BottomSheet directly
+ * when
  * Menu button is pressed while also implementing the exisiting interfaces.
  */
-public class AppMenu extends BottomSheetDialogFragment implements OnItemClickListener, OnKeyListener, AppMenuClickHandler {
+public class AppMenu extends BottomSheetDialogFragment
+        implements OnItemClickListener, OnKeyListener, AppMenuClickHandler {
     private static final String TAG = "AppMenu";
     private static final float LAST_ITEM_SHOW_FRACTION = 0.5f;
 
@@ -155,12 +160,14 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     /**
      * Creates and sets up the App Menu.
+     * 
      * @param itemRowHeight Desired height for each app menu row.
-     * @param handler AppMenuHandlerImpl receives callbacks from AppMenu.
-     * @param res Resources object used to get dimensions and style attributes.
+     * @param handler       AppMenuHandlerImpl receives callbacks from AppMenu.
+     * @param res           Resources object used to get dimensions and style
+     *                      attributes.
      */
     // By Devendra(dkt)
-    //Required empty constructor
+    // Required empty constructor
     public AppMenu() {
         mVerticalFadeDistance = 0;
         mNegativeSoftwareVerticalOffset = 0;
@@ -183,15 +190,20 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     private void initializeWithResources(Resources res) {
         mVerticalFadeDistance = res.getDimensionPixelSize(R.dimen.menu_vertical_fade_distance);
         mNegativeSoftwareVerticalOffset = res.getDimensionPixelSize(R.dimen.menu_negative_software_vertical_offset);
-        mNegativeVerticalOffsetNotTopAnchored = res.getDimensionPixelSize(R.dimen.menu_negative_vertical_offset_not_top_anchored);
+        mNegativeVerticalOffsetNotTopAnchored = res
+                .getDimensionPixelSize(R.dimen.menu_negative_vertical_offset_not_top_anchored);
         mChipHighlightExtension = res.getDimensionPixelOffset(R.dimen.menu_chip_highlight_extension);
     }
 
     /**
-     * Notifies the menu that the contents of the menu item specified by {@code menuRowId} have
-     * changed.  This should be called if icons, titles, etc. are changing for a particular menu
+     * Notifies the menu that the contents of the menu item specified by
+     * {@code menuRowId} have
+     * changed. This should be called if icons, titles, etc. are changing for a
+     * particular menu
      * item while the menu is open.
-     * @param menuRowId The id of the menu item to change.  This must be a row id and not a child
+     * 
+     * @param menuRowId The id of the menu item to change. This must be a row id and
+     *                  not a child
      *                  id.crollView = new NestedScrollView(getContext());
      */
     public void menuItemContentChanged(int menuRowId) {
@@ -209,16 +221,19 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                 break;
             }
         }
-        if (index == -1) return;
+        if (index == -1)
+            return;
 
         // Check if the item is visible.
         int startIndex = mGridView.getFirstVisiblePosition();
         int endIndex = mGridView.getLastVisiblePosition();
-        if (index < startIndex || index > endIndex) return;
+        if (index < startIndex || index > endIndex)
+            return;
 
         // Grab the correct View.
         View view = mGridView.getChildAt(index - startIndex);
-        if (view == null) return;
+        if (view == null)
+            return;
 
         // Cause the Adapter to re-populate the View.
         mAdapter.getView(index, view, mGridView);
@@ -232,20 +247,20 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         View view = createContentView(true);
         dialog.setContentView(view);
 
-        // Log.d(TAG,"mBottomSheet : " + view.getParent().toString()); 
+        // Log.d(TAG,"mBottomSheet : " + view.getParent().toString());
 
         // this code removes the dark scrim behind the menu
         Window window = dialog.getWindow();
         if (window != null) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        } 
+        }
 
         mBehavior = BottomSheetBehavior.from((View) view.getParent());
         mBehavior.setSkipCollapsed(true);
         mBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
 
         // Disable dragging on the BottomSheetBehavior
-        mBehavior.setDraggable(false);/*pass true for draggable behaviour */
+        mBehavior.setDraggable(false);/* pass true for draggable behaviour */
 
         return dialog;
     }
@@ -255,23 +270,22 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
-        
+
         // Create a FrameLayout to wrap the GridView
         FrameLayout gridViewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        
+
         // Set margins for the wrapper (adjust these values as needed)
         int margin = dpToPx(32); // Convert 16dp to pixels
         wrapperParams.setMargins(
-            0,
-            -margin, 
-            0, 
-            margin
-        );
+                0,
+                -margin,
+                0,
+                margin);
         gridViewWrapper.setLayoutParams(wrapperParams);
-        
+
         return scrollView;
     }
 
@@ -280,30 +294,30 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
-        
+
         // Set horizontal margins to create padding from screen edges
         int horizontalMargin = dpToPx(0);
         int verticalMargin = dpToPx(0);
         wrapperParams.setMargins(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin);
         viewWrapper.setLayoutParams(wrapperParams);
-    
+
         // Initialize WebView components only once
         if (mWebContents == null) {
             Profile profile = ProfileManager.getLastUsedRegularProfile();
             mWebContents = WebContentsFactory.createWebContents(profile, true, false);
             mContentView = ContentView.createContentView(getContext(), null, mWebContents);
             mWebContents.setDelegates(
-                VersionInfo.getProductVersion(),
-                ViewAndroidDelegate.createBasicDelegate(mContentView),
-                mContentView,
-                mHandler.getWindowAndroid(),
-                WebContents.createDefaultInternalsHolder());
-    
+                    VersionInfo.getProductVersion(),
+                    ViewAndroidDelegate.createBasicDelegate(mContentView),
+                    mContentView,
+                    mHandler.getWindowAndroid(),
+                    WebContents.createDefaultInternalsHolder());
+
             IntentRequestTracker intentRequestTracker = mHandler.getWindowAndroid().getIntentRequestTracker();
             mThinWebView = ThinWebViewFactory.create(
-                getContext(), new ThinWebViewConstraints(), intentRequestTracker);
+                    getContext(), new ThinWebViewConstraints(), intentRequestTracker);
             mThinWebView.attachWebContents(mWebContents, mContentView, null);
-            
+
             // Apply corner radius to the ThinWebView
             View webView = mThinWebView.getView();
             float cornerRadius = dpToPx(16); // Adjust this value for desired roundness
@@ -317,18 +331,19 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
             // Set minimal padding on the WebView itself
             webView.setPadding(0, 0, 0, 0);
-        
+
             // Ensure the WebView fills its container
             webView.setLayoutParams(new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
 
             // Set background color to match the design
-            // webView.setBackgroundColor(Color.parseColor("#1C1E21")); // Dark background color
+            // webView.setBackgroundColor(Color.parseColor("#1C1E21")); // Dark background
+            // color
         }
-    
+
         viewWrapper.addView(mThinWebView.getView());
-        
+
         // Apply same corner radius to the wrapper for consistency
         float wrapperCornerRadius = dpToPx(16);
         viewWrapper.setClipToOutline(true);
@@ -338,10 +353,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                 outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), wrapperCornerRadius);
             }
         });
-        
+
         // Set background color to wrapper as well
         // viewWrapper.setBackgroundColor(Color.parseColor("#1C1E21"));
-    
+
         return viewWrapper;
     }
 
@@ -361,20 +376,20 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        
+
         View parent = (View) getView().getParent();
         parent.setBackgroundColor(Color.TRANSPARENT);
 
         CoordinatorLayout.LayoutParams layoutParams = (CoordinatorLayout.LayoutParams) parent.getLayoutParams();
-        
+
         // Using hardcoded values: 16dp for left, right, and bottom margins
         int marginInPixels = dpToPx(16);
-        
+
         layoutParams.setMargins(
-            32,  // LEFT
-            -32,               // TOP set the margin here
-            32,  // RIGHT
-            32   // BOTTOM /* for some reson this doesn't work so set negative margin on top */
+                32, // LEFT
+                -32, // TOP set the margin here
+                32, // RIGHT
+                32 // BOTTOM /* for some reson this doesn't work so set negative margin on top */
         );
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             float borderRadius = dpToPx(24); // You can adjust this value as needed
@@ -395,7 +410,6 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         webView.setVisibility(View.GONE);
 
         // webView.addView(createWebView());
-
 
         // Set up bottom sheet callback to maintain bottom margin when expanded
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(parent);
@@ -424,7 +438,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     private void createExtensionsRow() {
         Context context = getContext();
         View view = getView();
-        if(view == null) return;
+        if (view == null)
+            return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
@@ -448,7 +463,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         ImageButton addExtensionButton = createRoundButton(context);
         addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
         addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        addExtensionButton.setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+        addExtensionButton
+                .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
         addExtensionButton.setOnClickListener(v -> openWebsite("https://github.com/wootzapp/ext-store"));
         extensionsContainer.addView(addExtensionButton);
 
@@ -463,7 +479,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                 extensionIcon.setImageTintList(null); // Remove any tint
             } else {
                 extensionIcon.setImageResource(R.drawable.test_extension_logo);
-                extensionIcon.setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+                extensionIcon
+                        .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
             }
 
             final int index = i;
@@ -491,15 +508,23 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
         params.setMargins(dpToPx(8), 0, dpToPx(8), 0); // Reduced margins
         button.setLayoutParams(params);
-    
+
         button.setBackground(AppCompatResources.getDrawable(context, R.drawable.extension_button_background));
         button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         button.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
-    
+
         return button;
     }
 
     private void openWebsite(String url) {
+        if (!Extensions.isUrlfromOfficialStore(url)) {
+            Context context = getContext();
+            if (context != null) {
+                Toast.makeText(context, "Install from official store", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+
         if (mHandler != null) {
             LoadUrlParams params = new LoadUrlParams(url);
             Tab tab = mHandler.getActivityTab();
@@ -512,22 +537,23 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     private void showDeleteExtensionDialog(int extensionIndex) {
         Context context = getContext();
-        if (context == null) return;
-    
+        if (context == null)
+            return;
+
         new androidx.appcompat.app.AlertDialog.Builder(context)
-            .setTitle("Delete Extension")
-            .setMessage("Do you want to delete this extension?")
-            .setPositiveButton("Delete", (dialog, which) -> {
-                deleteExtension(extensionIndex);
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+                .setTitle("Delete Extension")
+                .setMessage("Do you want to delete this extension?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    deleteExtension(extensionIndex);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void deleteExtension(int extensionIndex) {
         // Extensions.getExtensionsInfo().remove(extensionIndex);
         String extensionId = Extensions.getExtensionsInfo().get(extensionIndex).getId();
-        Log.d(TAG,"Deleting extension " + extensionId);
+        Log.d(TAG, "Deleting extension " + extensionId);
         Extensions.uninstallExtension(extensionId);
         createExtensionsRow();
     }
@@ -538,25 +564,25 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.GONE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.GONE);
-            
+
             FrameLayout webViewContainer = view.findViewById(R.id.web_view_container);
             webViewContainer.setVisibility(View.VISIBLE);
-            
+
             FrameLayout webViewFrame = view.findViewById(R.id.web_view);
             webViewFrame.removeAllViews();
             webViewFrame.setVisibility(View.VISIBLE);
-            
+
             if (mWebViewContainer == null) {
                 mWebViewContainer = createWebViewContainer();
             }
             webViewFrame.addView(mWebViewContainer);
-    
+
             // Load the extension URL
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
             mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
         }
     }
-    
+
     @Override
     public void onDestroyView() {
         super.onDestroyView();
@@ -622,15 +648,16 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     @Override
     public void onItemClick(PropertyModel model) {
-        if (!model.get(AppMenuItemProperties.ENABLED)) return;
+        if (!model.get(AppMenuItemProperties.ENABLED))
+            return;
 
         int id = model.get(AppMenuItemProperties.MENU_ITEM_ID);
         mSelectedItemBeforeDismiss = true;
         // dismiss();
         if (mHandler != null) {
-            Log.d(TAG,"Entering the onItemClick for " + id);
+            Log.d(TAG, "Entering the onItemClick for " + id);
             mHandler.onOptionsItemSelected(id);
-            Log.d(TAG,"Exiting the onItemClick for " + id);
+            Log.d(TAG, "Exiting the onItemClick for " + id);
         }
         // this dismiss is added after the option is selected
         dismiss();
@@ -638,23 +665,22 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     @Override
     public boolean onItemLongClick(PropertyModel model, View view) {
-        Log.d(TAG,"Enterning the onItemLongClick " + view);
-        if (!model.get(AppMenuItemProperties.ENABLED)) return false;
-        Log.d(TAG,"After the conditional check in onItemLongClick");
+        Log.d(TAG, "Enterning the onItemLongClick " + view);
+        if (!model.get(AppMenuItemProperties.ENABLED))
+            return false;
+        Log.d(TAG, "After the conditional check in onItemLongClick");
         mSelectedItemBeforeDismiss = true;
         CharSequence titleCondensed = model.get(AppMenuItemProperties.TITLE_CONDENSED);
-        CharSequence message =
-                TextUtils.isEmpty(titleCondensed)
-                        ? model.get(AppMenuItemProperties.TITLE)
-                        : titleCondensed;
+        CharSequence message = TextUtils.isEmpty(titleCondensed)
+                ? model.get(AppMenuItemProperties.TITLE)
+                : titleCondensed;
         return showToastForItem(message, view);
     }
 
     @VisibleForTesting
     boolean showToastForItem(CharSequence message, View view) {
         Context context = view.getContext();
-        final @ColorInt int backgroundColor =
-                ChromeColors.getSurfaceColor(context, R.dimen.toast_elevation);
+        final @ColorInt int backgroundColor = ChromeColors.getSurfaceColor(context, R.dimen.toast_elevation);
         return new Toast.Builder(context)
                 .withText(message)
                 .withAnchoredView(view)
@@ -665,7 +691,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     @Override
     public boolean onKey(View v, int keyCode, KeyEvent event) {
-        if (mGridView == null) return false;
+        if (mGridView == null)
+            return false;
         if (event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
                 event.startTracking();
@@ -684,8 +711,9 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
     /**
      * Update the menu items.
+     * 
      * @param newModelList The new menu item list will be displayed.
-     * @param adapter The adapter for visible items in the Menu.
+     * @param adapter      The adapter for visible items in the Menu.
      */
     void updateMenu(ModelList newModelList, ModelListAdapter adapter) {
         mModelList = newModelList;
@@ -696,8 +724,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     }
 
     /**
-     * Find the {@link PropertyModel} associated with the given id. If the menu item is not found,
+     * Find the {@link PropertyModel} associated with the given id. If the menu item
+     * is not found,
      * return null.
+     * 
      * @param itemId The id of the menu item to find.
      * @return The {@link PropertyModel} has the given id. null if not found.
      */
@@ -719,35 +749,42 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         return null;
     }
 
-    /** Invalidate the app menu data. See {@link AppMenuAdapter#notifyDataSetChanged}. */
+    /**
+     * Invalidate the app menu data. See
+     * {@link AppMenuAdapter#notifyDataSetChanged}.
+     */
     void invalidate() {
-        if (mAdapter != null) mAdapter.notifyDataSetChanged();
+        if (mAdapter != null)
+            mAdapter.notifyDataSetChanged();
     }
 
     private void inflateHeader(int headerResourceId, View contentView) {
-        if (headerResourceId == 0) return;
+        if (headerResourceId == 0)
+            return;
 
         View headerView = LayoutInflater.from(getContext()).inflate(headerResourceId, null);
         ViewGroup headerContainer = contentView.findViewById(R.id.app_menu_header);
         headerContainer.addView(headerView);
 
-        if (mHandler != null) mHandler.onHeaderViewInflated(headerView);
+        if (mHandler != null)
+            mHandler.onHeaderViewInflated(headerView);
     }
 
     private void inflateFooter(int footerResourceId, View contentView) {
-        if (footerResourceId == 0) return;
+        if (footerResourceId == 0)
+            return;
 
         View footerView = LayoutInflater.from(getContext()).inflate(footerResourceId, null);
         ViewGroup footerContainer = contentView.findViewById(R.id.app_menu_footer);
         footerContainer.addView(footerView);
 
-        if (mHandler != null) mHandler.onFooterViewInflated(footerView);
+        if (mHandler != null)
+            mHandler.onFooterViewInflated(footerView);
     }
 
     private void recordTimeToTakeActionHistogram() {
-        final String histogramName =
-                "Mobile.AppMenu.TimeToTakeAction."
-                        + (mSelectedItemBeforeDismiss ? "SelectedItem" : "Abandoned");
+        final String histogramName = "Mobile.AppMenu.TimeToTakeAction."
+                + (mSelectedItemBeforeDismiss ? "SelectedItem" : "Abandoned");
         final long timeToTakeActionMs = SystemClock.elapsedRealtime() - mMenuShownTimeMs;
         RecordHistogram.recordMediumTimesHistogram(histogramName, timeToTakeActionMs);
     }
@@ -791,11 +828,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         Log.d(TAG, "JANGID: Showing extension WebView directly for ID: " + extensionId);
         extensionOpener.openExtension(extensionId);
     }
-    
+
     public void closeExtensionBottomSheet(AppMenuExtensionOpener extensionOpener) {
         extensionOpener.closeBottomSheet();
     }
-    
 
     private class GridAdapter extends BaseAdapter {
         private ModelList mModelList;
@@ -828,8 +864,8 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
         private boolean isValidMenuItem(PropertyModel model) {
             return model != null &&
-                   !TextUtils.isEmpty(model.get(AppMenuItemProperties.TITLE)) &&
-                   model.get(AppMenuItemProperties.ICON) != null;
+                    !TextUtils.isEmpty(model.get(AppMenuItemProperties.TITLE)) &&
+                    model.get(AppMenuItemProperties.ICON) != null;
         }
 
         @Override
@@ -857,7 +893,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
 
             ViewHolder holder = (ViewHolder) convertView.getTag();
             PropertyModel model = (PropertyModel) getItem(position);
-            holder.bindModel(model,convertView);
+            holder.bindModel(model, convertView);
 
             return convertView;
         }
@@ -871,7 +907,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                 titleView = view.findViewById(R.id.item_title);
             }
 
-            void bindModel(PropertyModel model,View view) {
+            void bindModel(PropertyModel model, View view) {
                 Drawable icon = model.get(AppMenuItemProperties.ICON);
                 CharSequence title = model.get(AppMenuItemProperties.TITLE);
 
@@ -888,15 +924,15 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
                             .substring(0, 1)
                             .toUpperCase() + title.toString().substring(1);
                 }
-            
+
                 if (title != null) {
                     title = title.toString()
                             .substring(0, 1)
                             .toUpperCase() + title.toString().substring(1);
                 }
-                
+
                 titleView.setText(title);
-            
+
                 boolean isEnabled = model.get(AppMenuItemProperties.ENABLED);
                 view.setEnabled(isEnabled);
                 view.setAlpha(isEnabled ? 1.0f : 0.5f);
@@ -907,12 +943,12 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.app_menu_bottom_sheet_layout, container, false);
-        
+
         LinearLayout contentLayout = view.findViewById(R.id.app_menu_content);
-        
+
         // Add extensions row
         createExtensionsRow();
-        // contentLayout.addView(createExtensionsRow(), 0);  // Add at the top
+        // contentLayout.addView(createExtensionsRow(), 0); // Add at the top
 
         mGridView = view.findViewById(R.id.app_menu_grid);
         mGridView.setNumColumns(GRID_COLUMNS);
@@ -920,10 +956,10 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         if (mModelList == null) {
             return view;
         }
-        
+
         mGridAdapter = new GridAdapter(getContext(), mModelList);
         mGridView.setAdapter(mGridAdapter);
-        
+
         mGridView.setOnItemClickListener(this);
 
         // ImageButton backButton = view.findViewById(R.id.back_to_menu_button);
