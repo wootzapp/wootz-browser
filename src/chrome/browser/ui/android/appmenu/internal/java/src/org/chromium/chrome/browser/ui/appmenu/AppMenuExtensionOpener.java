@@ -38,7 +38,7 @@ import java.util.ArrayList;
 
 public class AppMenuExtensionOpener {
     private static final String TAG = "AppMenuExtensionOpener";
-    
+
     private final Context mContext;
     private final WindowAndroid mWindowAndroid;
     private WebContents mCurrentWebContents;
@@ -72,25 +72,26 @@ public class AppMenuExtensionOpener {
             ContentView contentView = ContentView.createContentView(mContext, null, mCurrentWebContents);
 
             mCurrentWebContents.setDelegates(
-                VersionInfo.getProductVersion(),
-                ViewAndroidDelegate.createBasicDelegate(contentView),
-                contentView,
-                mWindowAndroid,
-                WebContents.createDefaultInternalsHolder());
+                    VersionInfo.getProductVersion(),
+                    ViewAndroidDelegate.createBasicDelegate(contentView),
+                    contentView,
+                    mWindowAndroid,
+                    WebContents.createDefaultInternalsHolder());
 
             IntentRequestTracker intentRequestTracker = mWindowAndroid.getIntentRequestTracker();
             ThinWebView thinWebView = ThinWebViewFactory.create(
-                mContext, new ThinWebViewConstraints(), intentRequestTracker);
+                    mContext, new ThinWebViewConstraints(), intentRequestTracker);
             thinWebView.attachWebContents(mCurrentWebContents, contentView, null);
-            
-            // Adding deafult popup URL for SignMessage as this specific path is only for SignMessagePopup
+
+            // Adding deafult popup URL for SignMessage as this specific path is only for
+            // SignMessagePopup
 
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
 
-            Log.d(TAG,"JANGID: popup URL" + popupUrl);
+            Log.d(TAG, "JANGID: popup URL" + popupUrl);
 
-            Log.d(TAG,"JANGID: final popup URL" + popupUrl);
-            
+            Log.d(TAG, "JANGID: final popup URL" + popupUrl);
+
             mCurrentWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
 
             return thinWebView.getView();
@@ -105,14 +106,22 @@ public class AppMenuExtensionOpener {
     private void showWebViewInBottomSheet(View webView) {
         mBottomSheetDialog = new BottomSheetDialog(mContext, R.style.ExtensionsBottomSheetDialogTheme);
         View bottomSheetView = LayoutInflater.from(mContext).inflate(R.layout.extension_bottom_sheet_layout, null);
-        
+
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
 
         mBottomSheetDialog.setContentView(bottomSheetView);
 
+        // Get the BottomSheetBehavior and configure it
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        behavior.setDraggable(false); // Prevent bottom sheet from being draggable
+
+        // Disable bottom sheet touch events to prevent scrolling
+        ((View) bottomSheetView.getParent()).setNestedScrollingEnabled(false);
+
+        // Enable scrolling for the web view content
+        webView.setNestedScrollingEnabled(true);
 
         mBottomSheetDialog.show();
     }
