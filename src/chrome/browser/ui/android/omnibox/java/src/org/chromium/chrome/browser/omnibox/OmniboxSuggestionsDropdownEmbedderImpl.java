@@ -157,7 +157,7 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     }
     @Override
     public View getAnchorView() {
-        Log.d("KRITAGYA OMNI:", "getAnchorView");
+
         return mAnchorView;
     }
     @Nullable
@@ -179,13 +179,13 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     }
 
     public void setWhitePatchVisible(boolean visible) {
-        Log.d("KRITAGYA OMNI:", "setWhitePatchVisible");
+
         isWhitePatchVisible = visible;
         recalculateOmniboxAlignment();
     }
 
     public boolean isWhitePatchVisible() {
-        Log.d("KRITAGYA OMNI:", "isWhitePatchVisible");
+
         return isWhitePatchVisible;
     }
 
@@ -212,10 +212,10 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onAttachedToWindow() {
-        Log.d("KRITAGYA OMNI:", "onAttachedToWindow");
+
         Activity activity = (Activity) mContext;
         if(activity != null){
-            Log.d("KRITAGYA OMNI:", "onAttachedToWindow: setRequestedOrientation");
+
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
         mAnchorView.addOnLayoutChangeListener(this);
@@ -231,10 +231,10 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     @Override
     public void onDetachedFromWindow() {
         // Reset padding when detached
-        Log.d("KRITAGYA OMNI:", "onDetachedFromWindow");
+
         Activity activity = (Activity) mContext;
         if(activity != null){
-            Log.d("KRITAGYA OMNI:", "onDetachedFromWindow: setRequestedOrientation");
+
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         }
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
@@ -332,7 +332,6 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
      * </pre>
      */
     public void recalculateOmniboxAlignment() {
-        Log.d("KRITAGYA OMNI: recalculateOmniboxAlignment", "start");
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
         
         if(!mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView)) {
@@ -344,7 +343,7 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
         }
 
         int contentViewTopPadding = contentView == null ? 0 : contentView.getPaddingTop();
-        
+
         // If there is a base Chrome layout, calculate the relative position from it rather than
         // the content view. Sometimes, Chrome will add an intermediate layout to host certain
         // views above the toolbar, such as the top back button toolbar on automotive devices.
@@ -357,19 +356,11 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
 
         int top = mPositionArray[1] + mAnchorView.getMeasuredHeight() - contentViewTopPadding;
         top -= mPositionArray[1];
-        int orientation = mContext.getResources().getConfiguration().orientation;
-        boolean isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE;
         int left;
         int width;
         int paddingLeft;
         int paddingRight;
-        if(isLandscape){
-            width = contentView != null ? contentView.getWidth() : mAnchorView.getMeasuredWidth();
-            left = 0;
-            paddingLeft = 0;
-            paddingRight = 0;
-        }
-        else if (isTablet()) {
+        if (isTablet()) {
             ViewUtils.getRelativeLayoutPosition(mAnchorView, mAlignmentView, mPositionArray);
             // Width equal to alignment view and left equivalent to left of alignment view. Top
             // minus a small overlap.
@@ -425,7 +416,6 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
         int minSpaceAboveWindowBottom =
                 mContext.getResources()
                         .getDimensionPixelSize(R.dimen.omnibox_min_space_above_window_bottom);
-
         int windowSpace = Math.min(windowHeight - mKeyboardHeight, windowHeight - minSpaceAboveWindowBottom);
         // If content view is null, then omnibox might not be in the activity content.
         int contentSpace =
