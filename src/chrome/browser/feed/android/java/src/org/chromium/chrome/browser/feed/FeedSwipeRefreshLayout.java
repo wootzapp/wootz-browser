@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.feed;
-
+import android.util.Log;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.util.DisplayMetrics;
@@ -60,7 +60,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
             @NonNull Activity activity, @IdRes int anchorViewId) {
         FeedSwipeRefreshLayout instance = new FeedSwipeRefreshLayout(activity, anchorViewId);
         instance.setLayoutParams(
-                new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+                new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         instance.setProgressBackgroundColorSchemeColor(
                 ChromeColors.getSurfaceColor(activity, R.dimen.default_elevation_2));
         instance.setColorSchemeColors(SemanticColorUtils.getDefaultControlColorActive(activity));
@@ -202,6 +202,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+
         super.onLayout(changed, left, top, right, bottom);
         ensureTarget();
         if (mTarget == null) {
@@ -214,7 +215,9 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         final int childTop = getPaddingTop();
         final int childWidth = width - getPaddingLeft() - getPaddingRight();
         final int childHeight = height - getPaddingTop() - getPaddingBottom();
+
         child.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight);
+
     }
 
     @Override
@@ -229,8 +232,12 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
                         getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
                         MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(
-                        getMeasuredHeight() - getPaddingTop() - getPaddingBottom(),
-                        MeasureSpec.EXACTLY));
+                        0,  // Height of 0 with UNSPECIFIED lets the view size to its content
+                        MeasureSpec.UNSPECIFIED));  // UNSPECIFIED allows the view to determine its own size
+        
+        // Update the measured dimensions to match the child's height plus padding
+        setMeasuredDimension(getMeasuredWidth(), 
+                mTarget.getMeasuredHeight() + getPaddingTop() + getPaddingBottom());
     }
 
     @Override
@@ -316,6 +323,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     public void onHeaderOffsetChanged(int headerOffset) {
+
         mHeaderOffset = headerOffset;
     }
 }
