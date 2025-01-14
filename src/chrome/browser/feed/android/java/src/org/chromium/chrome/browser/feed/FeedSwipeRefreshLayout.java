@@ -237,7 +237,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         
         // Update the measured dimensions to match the child's height plus padding
         setMeasuredDimension(getMeasuredWidth(), 
-                mTarget.getMeasuredHeight() + getPaddingTop() + getPaddingBottom());
+                Math.max(mTarget.getMeasuredHeight() + getPaddingTop() + getPaddingBottom(), getMeasuredHeight()));
     }
 
     @Override
