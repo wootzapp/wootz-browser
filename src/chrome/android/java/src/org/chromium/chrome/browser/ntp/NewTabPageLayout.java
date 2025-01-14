@@ -348,11 +348,19 @@ public class NewTabPageLayout extends LinearLayout {
         manager.addDestructionObserver(NewTabPageLayout.this::onDestroy);
         mInitialized = true;
 
+        Log.d(TAG, "NewTabPageLayout initialized to the Extensions object!!");
+        Extensions.setNewTabPageLayout(this);
+        Log.d(TAG, "NewTabPageLayout set to the Extensions object!!");
+
         TraceEvent.end(TAG + ".initialize()");
     }
 
     public void reload() {
         // TODO(crbug.com/41487877): Add handler in Magic Stack and dispatcher.
+        Log.d(TAG, "Reload the NewTabPageLayout!!");
+        Log.d(TAG, "Detaching and Reattaching the NewTabPageLayout!!");
+        this.onDetachedFromWindow();
+        this.onAttachedToWindow();
     }
 
     /**
