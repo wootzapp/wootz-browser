@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.omnibox;
-
+import android.app.Activity;
+import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -155,6 +157,7 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     }
     @Override
     public View getAnchorView() {
+
         return mAnchorView;
     }
     @Nullable
@@ -176,11 +179,13 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     }
 
     public void setWhitePatchVisible(boolean visible) {
+
         isWhitePatchVisible = visible;
         recalculateOmniboxAlignment();
     }
 
     public boolean isWhitePatchVisible() {
+
         return isWhitePatchVisible;
     }
 
@@ -207,6 +212,12 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
 
     @Override
     public void onAttachedToWindow() {
+
+        Activity activity = (Activity) mContext;
+        if(activity != null){
+
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
         mAnchorView.addOnLayoutChangeListener(this);
         mAlignmentView.addOnLayoutChangeListener(this);
         mAnchorView.getViewTreeObserver().addOnGlobalLayoutListener(this);
@@ -220,6 +231,12 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     @Override
     public void onDetachedFromWindow() {
         // Reset padding when detached
+
+        Activity activity = (Activity) mContext;
+        if(activity != null){
+
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
         if (contentView != null) {
             ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);

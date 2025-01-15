@@ -11,6 +11,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.view.WindowManager;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.graphics.Rect;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -109,20 +113,50 @@ public class AppMenuExtensionOpener {
 
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
-
+        
+        // Set initial wrap_content height
+        ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        bottomSheetView.setLayoutParams(params);
+        
         mBottomSheetDialog.setContentView(bottomSheetView);
-
-        // Get the BottomSheetBehavior and configure it
-        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
+      
+ BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-        behavior.setDraggable(false); // Prevent bottom sheet from being draggable
-
+        behavior.setDraggable(false);
         // Disable bottom sheet touch events to prevent scrolling
         ((View) bottomSheetView.getParent()).setNestedScrollingEnabled(false);
-
         // Enable scrolling for the web view content
         webView.setNestedScrollingEnabled(true);
 
+        // Handle keyboard visibility changes
+        final View rootView = bottomSheetView.getRootView();
+        rootView.getViewTreeObserver().addOnGlobalLayoutListener(
+                new ViewTreeObserver.OnGlobalLayoutListener() {
+                    private final Rect r = new Rect();
+                    private final int defaultHeight = bottomSheetView.getLayoutParams().height;
+
+                    @Override
+                    public void onGlobalLayout() {
+                        rootView.getWindowVisibleDisplayFrame(r);
+                        int screenHeight = rootView.getHeight();
+                        int keypadHeight = screenHeight - r.bottom;
+
+                        if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
+                            bottomSheetView.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
+                        } else {
+                            bottomSheetView.getLayoutParams().height = defaultHeight;
+                        }
+                        bottomSheetView.requestLayout();
+                    }
+                });
+
+
+        // Set window soft input mode
+        mBottomSheetDialog.getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                
         mBottomSheetDialog.show();
     }
 
