@@ -6,6 +6,8 @@ Check out the official website: https://www.wootzapp.com/
 
 Please join our [discord](https://discord.gg/n9dqrRzJ8V)
 
+![Wootzapp Activity](https://repobeats.axiom.co/api/embed/357eacd94e24363c24caabd9e88aaa29fc980693.svg "Repobeats analytics image")
+
 ### System requirements for Build
 A 64-bit Intel machine running Linux with at least 8GB of RAM. More than 16GB is highly recommended.
 At least 100GB of free disk space.

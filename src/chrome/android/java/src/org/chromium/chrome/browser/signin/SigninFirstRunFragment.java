@@ -118,22 +118,51 @@ public class SigninFirstRunFragment extends Fragment
     @Override
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        mFragmentView = new FrameLayout(getActivity());
-        mMainView = inflateFragmentView(inflater, getResources().getConfiguration());
-        mFragmentView.addView(mMainView);
+        try {
+            mFragmentView = new FrameLayout(getActivity());
+            
+            // Check for Google Play Services and show a toast if not available
+            if (!isGooglePlayServicesAvailable()) {
+                android.widget.Toast.makeText(
+                        getActivity(),
+                        "This app requires Google Play Services which are not available on this device. Some features may not work.",
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+            
+            mMainView = inflateFragmentView(inflater, getResources().getConfiguration());
+            mFragmentView.addView(mMainView);
 
-        return mFragmentView;
+            return mFragmentView;
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to create view: " + e.getMessage());
+            // Return an empty view to prevent crash
+            return new FrameLayout(getActivity());
+        }
+    }
+
+    // Added try catch to avoid crash
+    private boolean isGooglePlayServicesAvailable() {
+        try {
+            return com.google.android.gms.common.GooglePlayServicesUtil.isGooglePlayServicesAvailable(
+                    getActivity()) == com.google.android.gms.common.ConnectionResult.SUCCESS;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == ADD_ACCOUNT_REQUEST_CODE
-                && resultCode == Activity.RESULT_OK
-                && data != null) {
-            String addedAccountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
-            if (addedAccountName != null) {
-                mFullscreenSigninCoordinator.onAccountSelected(addedAccountName);
+        try {
+            if (requestCode == ADD_ACCOUNT_REQUEST_CODE
+                    && resultCode == Activity.RESULT_OK
+                    && data != null) {
+                String addedAccountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
+                if (addedAccountName != null) {
+                    mFullscreenSigninCoordinator.onAccountSelected(addedAccountName);
+                }
             }
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to handle activity result: " + e.getMessage());
         }
     }
 
@@ -150,37 +179,57 @@ public class SigninFirstRunFragment extends Fragment
     /** Implements {@link FirstRunFragment}. */
     @Override
     public void reset() {
-        mFullscreenSigninCoordinator.reset();
+        try {
+            mFullscreenSigninCoordinator.reset();
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to reset: " + e.getMessage());
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
     public void addAccount() {
-        recordFreProgressHistogram(MobileFreProgress.WELCOME_ADD_ACCOUNT);
-        AccountManagerFacadeProvider.getInstance()
-                .createAddAccountIntent(
-                        (@Nullable Intent intent) -> {
-                            if (intent != null) {
-                                startActivityForResult(intent, ADD_ACCOUNT_REQUEST_CODE);
-                                return;
-                            }
+        try {
+            recordFreProgressHistogram(MobileFreProgress.WELCOME_ADD_ACCOUNT);
+            AccountManagerFacadeProvider.getInstance()
+                    .createAddAccountIntent(
+                            (@Nullable Intent intent) -> {
+                                try {
+                                    if (intent != null) {
+                                        startActivityForResult(intent, ADD_ACCOUNT_REQUEST_CODE);
+                                        return;
+                                    }
 
-                            // AccountManagerFacade couldn't create intent, use SigninUtils to open
-                            // settings instead.
-                            SigninUtils.openSettingsForAllAccounts(getActivity());
-                        });
+                                    // AccountManagerFacade couldn't create intent, use SigninUtils to open
+                                    // settings instead.
+                                    SigninUtils.openSettingsForAllAccounts(getActivity());
+                                } catch (Exception e) {
+                                    android.util.Log.w("SigninFirstRun", "Failed to handle account: " + e.getMessage());
+                                }
+                            });
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to add account: " + e.getMessage());
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
     public void acceptTermsOfService(boolean allowMetricsAndCrashUploading) {
-        getPageDelegate().acceptTermsOfService(allowMetricsAndCrashUploading);
+        try {
+            getPageDelegate().acceptTermsOfService(allowMetricsAndCrashUploading);
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to accept terms: " + e.getMessage());
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
     public void advanceToNextPage() {
-        getPageDelegate().advanceToNextPage();
+        try {
+            getPageDelegate().advanceToNextPage();
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to advance page: " + e.getMessage());
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
@@ -265,23 +314,29 @@ public class SigninFirstRunFragment extends Fragment
     }
 
     private View inflateFragmentView(LayoutInflater inflater, Configuration configuration) {
-        // Since the landscape view has two panes the minimum screenWidth to show it is set to
-        // 600dp for phones.
-        boolean useLandscapeLayout =
-                getPageDelegate().canUseLandscapeLayout()
-                        && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                        && configuration.screenWidthDp >= 600;
+        try {
+            // Since the landscape view has two panes the minimum screenWidth to show it is set to
+            // 600dp for phones.
+            boolean useLandscapeLayout =
+                    getPageDelegate().canUseLandscapeLayout()
+                            && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                            && configuration.screenWidthDp >= 600;
 
-        final FullscreenSigninView view =
-                (FullscreenSigninView)
-                        inflater.inflate(
-                                useLandscapeLayout
-                                        ? R.layout.fullscreen_signin_landscape_view
-                                        : R.layout.fullscreen_signin_portrait_view,
-                                null,
-                                false);
-        mFullscreenSigninCoordinator.setView(view);
-        return view;
+            final FullscreenSigninView view =
+                    (FullscreenSigninView)
+                            inflater.inflate(
+                                    useLandscapeLayout
+                                            ? R.layout.fullscreen_signin_landscape_view
+                                            : R.layout.fullscreen_signin_portrait_view,
+                                    null,
+                                    false);
+            mFullscreenSigninCoordinator.setView(view);
+            return view;
+        } catch (Exception e) {
+            android.util.Log.w("SigninFirstRun", "Failed to inflate view: " + e.getMessage());
+            // Return an empty view to prevent crash
+            return new FrameLayout(getActivity());
+        }
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
