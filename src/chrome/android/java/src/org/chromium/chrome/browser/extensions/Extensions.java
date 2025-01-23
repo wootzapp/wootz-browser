@@ -9,6 +9,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.List;
 import java.util.ArrayList;
+import org.chromium.chrome.browser.ntp.NewTabPageLayout;
 import android.content.Context;
 import android.widget.Toast;
 import org.chromium.base.ContextUtils;
@@ -17,6 +18,12 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 
 public class Extensions {
+    private static NewTabPageLayout newTabPageLayout;
+
+    public static void setNewTabPageLayout(NewTabPageLayout layout) {
+        newTabPageLayout = layout;
+    }
+
     public static ArrayList<ExtensionInfo> getExtensionsInfo() {
         String jsonString = ExtensionsJni.get().getExtensionsInfo();
         ArrayList<ExtensionInfo> result = new ArrayList<>();
@@ -69,7 +76,13 @@ public class Extensions {
     }
 
     public static void uninstallExtension(String extensionId) {
+        Log.d("Extensions", "Uninstalling extension: " + extensionId);
         ExtensionsJni.get().uninstallExtension(extensionId);
+        if (newTabPageLayout != null) {
+            Log.d("Extensions", "Reloading new tab page!!");
+            newTabPageLayout.reload();
+            Log.d("Extensions", "Reloaded new tab page!!");
+        }
     }
 
     @NativeMethods
