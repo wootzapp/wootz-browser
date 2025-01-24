@@ -442,16 +442,7 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
 
-        // Check if we're in incognito mode or tab switcher
-        if (mHandler != null && 
-            (mHandler.getActivityTab() == null || // Tab switcher case
-             mHandler.getActivityTab().isIncognito())) { // Incognito case
-            // Hide all extension-related views
-            extensionsDivider.setVisibility(View.GONE);
-            scrollView.setVisibility(View.GONE);
-            parent.setVisibility(View.GONE);
-            return;
-        }
+        
 
         extensionsContainer.removeAllViews();
 
