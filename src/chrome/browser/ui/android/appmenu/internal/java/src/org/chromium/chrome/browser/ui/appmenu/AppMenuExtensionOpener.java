@@ -11,6 +11,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.view.WindowManager;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.graphics.Rect;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -33,23 +37,31 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
-
+import android.content.pm.ActivityInfo;
+import android.app.Activity;
 import java.util.ArrayList;
 
 public class AppMenuExtensionOpener {
     private static final String TAG = "AppMenuExtensionOpener";
-    
+
     private final Context mContext;
     private final WindowAndroid mWindowAndroid;
     private WebContents mCurrentWebContents;
     private static BottomSheetDialog mBottomSheetDialog;
+    private Activity mActivity;
 
     public AppMenuExtensionOpener(Context context, WindowAndroid windowAndroid) {
         mContext = context;
         mWindowAndroid = windowAndroid;
+        if (context instanceof Activity) {
+            mActivity = (Activity) context;
+        }
+        
     }
 
     public void openExtension(String extensionId) {
+
+        Log.d("KRITAGYA", "KRITAGYA: openExtension");
         int index = findExtensionIndexById(extensionId);
         if (index == -1) {
             Log.e(TAG, "JANGID: Extension not found with ID: " + extensionId);
@@ -67,30 +79,32 @@ public class AppMenuExtensionOpener {
 
     private View createWebView(int index) {
         try {
+            Log.d("KRITAGYA", "KRITAGYA: createWebView");
             Profile profile = ProfileManager.getLastUsedRegularProfile();
             mCurrentWebContents = WebContentsFactory.createWebContents(profile, true, false);
             ContentView contentView = ContentView.createContentView(mContext, null, mCurrentWebContents);
 
             mCurrentWebContents.setDelegates(
-                VersionInfo.getProductVersion(),
-                ViewAndroidDelegate.createBasicDelegate(contentView),
-                contentView,
-                mWindowAndroid,
-                WebContents.createDefaultInternalsHolder());
+                    VersionInfo.getProductVersion(),
+                    ViewAndroidDelegate.createBasicDelegate(contentView),
+                    contentView,
+                    mWindowAndroid,
+                    WebContents.createDefaultInternalsHolder());
 
             IntentRequestTracker intentRequestTracker = mWindowAndroid.getIntentRequestTracker();
             ThinWebView thinWebView = ThinWebViewFactory.create(
-                mContext, new ThinWebViewConstraints(), intentRequestTracker);
+                    mContext, new ThinWebViewConstraints(), intentRequestTracker);
             thinWebView.attachWebContents(mCurrentWebContents, contentView, null);
-            
-            // Adding deafult popup URL for SignMessage as this specific path is only for SignMessagePopup
+
+            // Adding deafult popup URL for SignMessage as this specific path is only for
+            // SignMessagePopup
 
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
 
-            Log.d(TAG,"JANGID: popup URL" + popupUrl);
+            Log.d(TAG, "JANGID: popup URL" + popupUrl);
 
-            Log.d(TAG,"JANGID: final popup URL" + popupUrl);
-            
+            Log.d(TAG, "JANGID: final popup URL" + popupUrl);
+
             mCurrentWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
 
             return thinWebView.getView();
@@ -103,19 +117,96 @@ public class AppMenuExtensionOpener {
     }
 
     private void showWebViewInBottomSheet(View webView) {
+        Log.d("KRITAGYA", "KRITAGYA: showWebViewInBottomSheet");
+        Activity activity = (Activity) mContext;
+        if (activity != null) {
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
         mBottomSheetDialog = new BottomSheetDialog(mContext, R.style.ExtensionsBottomSheetDialogTheme);
         View bottomSheetView = LayoutInflater.from(mContext).inflate(R.layout.extension_bottom_sheet_layout, null);
-        
+
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
-
+        
+        // Set initial wrap_content height
+        ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        bottomSheetView.setLayoutParams(params);
+        
         mBottomSheetDialog.setContentView(bottomSheetView);
-
-        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
+      
+ BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+
+        mBottomSheetDialog.setCanceledOnTouchOutside(true);
+        
+        mBottomSheetDialog.setOnCancelListener(dialog -> {
+    
+            resetOrientation();
+        });
+        
+        mBottomSheetDialog.setOnDismissListener(dialog -> {
+   
+            resetOrientation();
+        });
+        
+        behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+            @Override
+            public void onStateChanged(View bottomSheet, int newState) {
+                if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+             
+                    resetOrientation();
+                    mBottomSheetDialog.dismiss();
+                }
+            }
+
+            @Override
+            public void onSlide(View bottomSheet, float slideOffset) {}
+        });
+
+        behavior.setDraggable(false);
+        // Disable bottom sheet touch events to prevent scrolling
+        ((View) bottomSheetView.getParent()).setNestedScrollingEnabled(false);
+        // Enable scrolling for the web view content
+        webView.setNestedScrollingEnabled(true);
+
+        // Handle keyboard visibility changes
+        final View rootView = bottomSheetView.getRootView();
+        rootView.getViewTreeObserver().addOnGlobalLayoutListener(
+                new ViewTreeObserver.OnGlobalLayoutListener() {
+                    private final Rect r = new Rect();
+                    private final int defaultHeight = bottomSheetView.getLayoutParams().height;
+
+                    @Override
+                    public void onGlobalLayout() {
+                        rootView.getWindowVisibleDisplayFrame(r);
+                        int screenHeight = rootView.getHeight();
+                        int keypadHeight = screenHeight - r.bottom;
+
+                        if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
+                            bottomSheetView.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
+                        } else {
+                            bottomSheetView.getLayoutParams().height = defaultHeight;
+                        }
+                        bottomSheetView.requestLayout();
+                    }
+                });
+
+
+        // Set window soft input mode
+        mBottomSheetDialog.getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+                
 
         mBottomSheetDialog.show();
     }
+    private void resetOrientation() {
+        if (mActivity != null) {
+            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+    }
+    
 
     private int findExtensionIndexById(String extensionId) {
         ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
@@ -128,7 +219,9 @@ public class AppMenuExtensionOpener {
     }
 
     public static void closeBottomSheet() {
+        Log.d(TAG, "KRITAGYA: closeBottomSheet");
         if (mBottomSheetDialog != null && mBottomSheetDialog.isShowing()) {
+            Context context = mBottomSheetDialog.getContext();
             mBottomSheetDialog.dismiss();
         }
     }

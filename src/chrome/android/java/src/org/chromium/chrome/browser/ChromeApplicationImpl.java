@@ -6,6 +6,7 @@ package org.chromium.chrome.browser;
 
 import android.app.Application;
 import android.content.res.Configuration;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 
@@ -45,6 +46,7 @@ import org.chromium.url.GURL;
 public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
     /** Lock on creation of sComponent. */
     private static final Object sLock = new Object();
+    private static final String TAG = "ChromeApplicationImpl";
 
     @Nullable private static volatile ChromeAppComponent sComponent;
 
@@ -55,6 +57,27 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
         super.onCreate();
 
         if (SplitCompatApplication.isBrowserProcess()) {
+            Log.i(TAG, "Initializing Chrome browser process");
+            
+            // Check for Google Play Services availability
+            try {
+                int result = com.google.android.gms.common.GooglePlayServicesUtil
+                        .isGooglePlayServicesAvailable(getApplication());
+                if (result != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                    android.widget.Toast.makeText(
+                            getApplication(),
+                            "This app requires Google Play Services which are not available on this device. Some features may not work.",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    Log.w(TAG, "Google Play Services not available, result code: " + result);
+                }
+            } catch (Exception e) {
+                android.widget.Toast.makeText(
+                        getApplication(),
+                        "This app requires Google Play Services which are not available on this device. Some features may not work.",
+                        android.widget.Toast.LENGTH_LONG).show();
+                Log.w(TAG, "Error checking Google Play Services: " + e.getMessage());
+            }
+
             FontPreloader.getInstance().load(getApplication());
 
             // Registers the extensions for all protos which would be in the Chrome split, whether
@@ -74,6 +97,7 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
             // "--disable-native-initialization" switch, and the CommandLine is not initialized at
             // this point to check.
             if (ProductConfig.IS_BUNDLE) {
+                Log.i(TAG, "Starting early native library initialization for bundle build");
                 // Kick off library loading in a separate thread so it's ready when we need it.
                 new Thread(() -> LibraryLoader.getInstance().ensureInitialized()).start();
             }
@@ -101,6 +125,8 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
             // Provide the supplier for CredManUiRecommender. This is set only for Chrome.
             CredManUiRecommenderProvider.getOrCreate()
                     .setCredManUiRecommenderSupplier(() -> new CredManUiRecommenderImpl());
+            
+            Log.i(TAG, "Chrome browser process initialization completed");
         }
     }
 
@@ -117,8 +143,10 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        Log.i(TAG, "Chrome configuration changed - handling locale changes");
         // TODO(huayinz): Add observer pattern for application configuration changes.
         if (SplitCompatApplication.isBrowserProcess()) {
+            Log.i(TAG, "Notifying system night mode monitor of config change");
             SystemNightModeMonitor.getInstance().onApplicationConfigurationChanged();
         }
     }
