@@ -145,44 +145,75 @@ void EthTxManager::AddUnapprovedTransaction(
     const mojom::AccountIdPtr& from,
     const std::optional<url::Origin>& origin,
     AddUnapprovedTransactionCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering EthTxManager::AddUnapprovedTransaction";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From account - Coin type: " << static_cast<int>(from->coin)
+             << ", Keyring ID: " << static_cast<int>(from->keyring_id)
+             << ", Address: " << from->address;
+
   DCHECK(tx_data_union->is_eth_tx_data() ||
          tx_data_union->is_eth_tx_data_1559());
+  
+  LOG(ERROR) << "JANGID_SIGN: Transaction type: " 
+             << (tx_data_union->is_eth_tx_data() ? "Legacy" : "EIP-1559");
+
   auto origin_val =
       origin.value_or(url::Origin::Create(GURL("wootzapp://wallet")));
+  LOG(ERROR) << "JANGID_SIGN: Using origin: " << origin_val.Serialize();
+
   if (tx_data_union->is_eth_tx_data()) {
+    LOG(ERROR) << "JANGID_SIGN: Processing legacy transaction";
     AddUnapprovedTransaction(chain_id,
                              std::move(tx_data_union->get_eth_tx_data()), from,
                              std::move(origin_val), std::move(callback));
   } else {
+    LOG(ERROR) << "JANGID_SIGN: Processing EIP-1559 transaction";
     AddUnapproved1559Transaction(
         chain_id, std::move(tx_data_union->get_eth_tx_data_1559()), from,
         std::move(origin_val), std::move(callback));
   }
+  LOG(ERROR) << "JANGID_SIGN: Transaction forwarded for processing";
 }
 
 void EthTxManager::AddUnapprovedEvmTransaction(
     mojom::NewEvmTransactionParamsPtr params,
     const std::optional<url::Origin>& origin,
     AddUnapprovedEvmTransactionCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering AddUnapprovedEvmTransaction";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << params->chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From address: " << params->from->address;
+  LOG(ERROR) << "JANGID_SIGN: From address: " << params->from->coin;
+  LOG(ERROR) << "JANGID_SIGN: To address: " << params->to;
+  LOG(ERROR) << "JANGID_SIGN: Value: " << params->value;
+  LOG(ERROR) << "JANGID_SIGN: Gas limit: " << params->gas_limit;
+
   auto origin_val =
       origin.value_or(url::Origin::Create(GURL("wootzapp://wallet")));
+  LOG(ERROR) << "JANGID_SIGN: Transaction origin: " << origin_val.Serialize();
 
+  LOG(ERROR) << "JANGID_SIGN: Creating base transaction data";
   auto tx_data =
       mojom::TxData::New("", "", params->gas_limit, params->to, params->value,
                          params->data, false, std::nullopt);
 
-  if (!json_rpc_service_->network_manager()
-           ->IsEip1559Chain(params->chain_id)
-           .value_or(false)) {
+  bool is_eip1559 = json_rpc_service_->network_manager()
+                        ->IsEip1559Chain(params->chain_id)
+                        .value_or(false);
+  LOG(ERROR) << "JANGID_SIGN: Is EIP1559 chain: " << (is_eip1559 ? "yes" : "no");
+
+  if (!is_eip1559) {
+    LOG(ERROR) << "JANGID_SIGN: Processing as legacy transaction";
     AddUnapprovedTransaction(params->chain_id, std::move(tx_data), params->from,
                              std::move(origin_val), std::move(callback));
   } else {
+    LOG(ERROR) << "JANGID_SIGN: Processing as EIP1559 transaction";
     auto tx_data_1559 = mojom::TxData1559::New(
         std::move(tx_data), params->chain_id, "", "", nullptr);
     AddUnapproved1559Transaction(params->chain_id, std::move(tx_data_1559),
                                  params->from, std::move(origin_val),
                                  std::move(callback));
   }
+  LOG(ERROR) << "JANGID_SIGN: Completed AddUnapprovedEvmTransaction processing";
 }
 
 void EthTxManager::AddUnapprovedTransaction(
@@ -191,27 +222,48 @@ void EthTxManager::AddUnapprovedTransaction(
     const mojom::AccountIdPtr& from,
     const url::Origin& origin,
     AddUnapprovedTransactionCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering AddUnapprovedTransaction (Legacy)";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From address: " << from->address;
+  LOG(ERROR) << "JANGID_SIGN: Origin: " << origin.Serialize();
+  LOG(ERROR) << "JANGID_SIGN: Transaction details:";
+  LOG(ERROR) << "JANGID_SIGN: To address: " << tx_data->to;
+  LOG(ERROR) << "JANGID_SIGN: Value: " << tx_data->value;
+  LOG(ERROR) << "JANGID_SIGN: Gas price: " << tx_data->gas_price;
+  LOG(ERROR) << "JANGID_SIGN: Gas limit: " << tx_data->gas_limit;
+  LOG(ERROR) << "JANGID_SIGN: Nonce: " << tx_data->nonce;
+  LOG(ERROR) << "JANGID_SIGN: Data length: " << tx_data->data.size();
+  LOG(ERROR) << "JANGID_SIGN: Sign only: " << (tx_data->sign_only ? "true" : "false");
+
   std::string error;
   if (!EthTxManager::ValidateTxData(tx_data, &error)) {
+    LOG(ERROR) << "JANGID_SIGN: Transaction validation failed: " << error;
     std::move(callback).Run(false, "", error);
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Transaction validation successful";
+
   auto tx = EthTransaction::FromTxData(tx_data, false);
   if (!tx) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to create EthTransaction from TxData";
     std::move(callback).Run(
         false, "",
         l10n_util::GetStringUTF8(IDS_WALLET_SEND_TRANSACTION_CONVERT_TX_DATA));
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Successfully created EthTransaction";
 
   auto tx_ptr = std::make_unique<EthTransaction>(*tx);
   const std::string gas_limit = Uint256ValueToHex(tx_ptr->gas_limit());
+  LOG(ERROR) << "JANGID_SIGN: Converted gas limit: " << gas_limit;
 
   // Use empty string for data to estimate gas when data array is empty,
   // as required by geth. This is typically the case with ETHSend.
   const std::string data = tx_data->data.empty() ? "" : ToHex(tx_data->data);
+  LOG(ERROR) << "JANGID_SIGN: Hex encoded data length: " << data.length();
 
   if (!tx_ptr->gas_price()) {
+    LOG(ERROR) << "JANGID_SIGN: Gas price not set, fetching from network";
     json_rpc_service_->GetGasPrice(
         chain_id,
         base::BindOnce(&EthTxManager::OnGetGasPrice, weak_factory_.GetWeakPtr(),
@@ -219,6 +271,7 @@ void EthTxManager::AddUnapprovedTransaction(
                        tx_data->value, data, gas_limit, std::move(tx_ptr),
                        std::move(callback), tx_data->sign_only));
   } else if (!tx_ptr->gas_limit()) {
+    LOG(ERROR) << "JANGID_SIGN: Gas limit not set, estimating gas";
     json_rpc_service_->GetEstimateGas(
         chain_id, from->address, tx_data->to, "" /* gas */, "" /* gas_price */,
         tx_data->value, data,
@@ -227,10 +280,12 @@ void EthTxManager::AddUnapprovedTransaction(
                        origin, std::move(tx_ptr), std::move(callback),
                        tx_data->sign_only));
   } else {
+    LOG(ERROR) << "JANGID_SIGN: Both gas price and limit set, continuing with transaction";
     ContinueAddUnapprovedTransaction(
         chain_id, from, origin, std::move(tx_ptr), std::move(callback),
         tx_data->sign_only, gas_limit, mojom::ProviderError::kSuccess, "");
   }
+  LOG(ERROR) << "JANGID_SIGN: Transaction processing initiated";
 }
 
 void EthTxManager::OnGetGasPrice(const std::string& chain_id,
@@ -281,32 +336,53 @@ void EthTxManager::ContinueAddUnapprovedTransaction(
     const std::string& result,
     mojom::ProviderError error,
     const std::string& error_message) {
+  LOG(ERROR) << "JANGID_SIGN: Entering ContinueAddUnapprovedTransaction";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From address: " << from->address;
+  LOG(ERROR) << "JANGID_SIGN: From coin: " << from->coin;
+  LOG(ERROR) << "JANGID_SIGN: Sign only: " << (sign_only ? "true" : "false");
+  LOG(ERROR) << "JANGID_SIGN: Gas estimation result: " << result;
+  LOG(ERROR) << "JANGID_SIGN: Provider error: " << static_cast<int>(error);
+  LOG(ERROR) << "JANGID_SIGN: Error message: " << error_message;
+
   uint256_t gas_limit;
   if (error != mojom::ProviderError::kSuccess ||
       !HexValueToUint256(result, &gas_limit)) {
+    LOG(ERROR) << "JANGID_SIGN: Gas estimation failed, using default values";
     gas_limit = 0;
     auto tx_info = GetTransactionInfoFromData(tx->data());
     if (tx_info) {
       mojom::TransactionType tx_type = std::get<0>(*tx_info);
+      LOG(ERROR) << "JANGID_SIGN: Detected transaction type: " << static_cast<int>(tx_type);
 
       // Try to use reasonable values when we can't get an estimation.
       // These are taken via looking through the different types of transactions
       // on etherscan and taking the next rounded up value for the largest found
       if (tx_type == mojom::TransactionType::ETHSend ||
           tx_type == mojom::TransactionType::ETHFilForwarderTransfer) {
+        LOG(ERROR) << "JANGID_SIGN: Using default ETH send gas limit: " << Uint256ValueToHex(gas_limit);
         gas_limit = kDefaultSendEthGasLimit;
       } else if (tx_type == mojom::TransactionType::ERC20Transfer) {
+        LOG(ERROR) << "JANGID_SIGN: Using default ERC20 transfer gas limit: " << Uint256ValueToHex(gas_limit);
         gas_limit = kDefaultERC20TransferGasLimit;
       } else if (tx_type == mojom::TransactionType::ERC721TransferFrom ||
                  tx_type == mojom::TransactionType::ERC721SafeTransferFrom) {
+        LOG(ERROR) << "JANGID_SIGN: Using default ERC721 transfer gas limit: " << Uint256ValueToHex(gas_limit);
         gas_limit = kDefaultERC721TransferGasLimit;
       } else if (tx_type == mojom::TransactionType::ERC20Approve) {
+        LOG(ERROR) << "JANGID_SIGN: Using default ERC20 approve gas limit: " << Uint256ValueToHex(gas_limit);
         gas_limit = kDefaultERC20ApproveGasLimit;
       }
+    } else {
+      LOG(ERROR) << "JANGID_SIGN: Could not determine transaction type";
     }
+  } else {
+    LOG(ERROR) << "JANGID_SIGN: Using estimated gas limit: " << Uint256ValueToHex(gas_limit);
   }
   tx->set_gas_limit(gas_limit);
 
+  LOG(ERROR) << "JANGID_SIGN: Creating transaction metadata";
+  LOG(ERROR) << "JANGID_SIGN: Coin type "<< from->coin;
   EthTxMeta meta(from, std::move(tx));
   meta.set_id(TxMeta::GenerateMetaID());
   meta.set_origin(origin);
@@ -314,11 +390,20 @@ void EthTxManager::ContinueAddUnapprovedTransaction(
   meta.set_status(mojom::TransactionStatus::Unapproved);
   meta.set_sign_only(sign_only);
   meta.set_chain_id(chain_id);
+
+  LOG(ERROR) << "JANGID_SIGN: Transaction metadata:";
+  LOG(ERROR) << "JANGID_SIGN: Transaction ID: " << meta.id();
+  LOG(ERROR) << "JANGID_SIGN: Status: Unapproved";
+  LOG(ERROR) << "JANGID_SIGN: Created time: " << meta.created_time();
+
   if (!tx_state_manager_->AddOrUpdateTx(meta)) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to add transaction to state manager";
     std::move(callback).Run(
         false, "", l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
+
+  LOG(ERROR) << "JANGID_SIGN: Successfully added transaction to state manager";
   std::move(callback).Run(true, meta.id(), "");
 }
 
@@ -328,29 +413,52 @@ void EthTxManager::AddUnapproved1559Transaction(
     const mojom::AccountIdPtr& from,
     const url::Origin& origin,
     AddUnapprovedTransactionCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering AddUnapproved1559Transaction";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From address: " << from->address;
+  LOG(ERROR) << "JANGID_SIGN: Origin: " << origin.Serialize();
+  LOG(ERROR) << "JANGID_SIGN: Transaction details:";
+  LOG(ERROR) << "  To: " << tx_data->base_data->to;
+  LOG(ERROR) << "  Value: " << tx_data->base_data->value;
+  LOG(ERROR) << "  Gas limit: " << tx_data->base_data->gas_limit;
+  LOG(ERROR) << "  Data size: " << tx_data->base_data->data.size();
+  LOG(ERROR) << "  Sign only: " << (tx_data->base_data->sign_only ? "true" : "false");
+  LOG(ERROR) << "  Max priority fee per gas: " << tx_data->max_priority_fee_per_gas;
+  LOG(ERROR) << "  Max fee per gas: " << tx_data->max_fee_per_gas;
+
   std::string error;
   if (!EthTxManager::ValidateTxData1559(tx_data, &error)) {
+    LOG(ERROR) << "JANGID_SIGN: Transaction validation failed: " << error;
     std::move(callback).Run(false, "", error);
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Transaction validation successful";
+
   auto tx = Eip1559Transaction::FromTxData(tx_data, false);
   if (!tx) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to create EIP1559 transaction from TxData";
     std::move(callback).Run(
         false, "",
         l10n_util::GetStringUTF8(IDS_WALLET_SEND_TRANSACTION_CONVERT_TX_DATA));
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Successfully created EIP1559 transaction";
 
   auto tx_ptr = std::make_unique<Eip1559Transaction>(*tx);
   std::string gas_limit = tx_data->base_data->gas_limit;
+  LOG(ERROR) << "JANGID_SIGN: Gas limit from transaction: " << gas_limit;
 
   // Use empty string for data to estimate gas when data array is empty,
   // as required by geth. This is typically the case with ETHSend.
   const std::string data =
       tx_data->base_data->data.empty() ? "" : ToHex(tx_data->base_data->data);
+  LOG(ERROR) << "JANGID_SIGN: Transaction data (hex): " << data;
+  
   bool sign_only = tx_data->base_data->sign_only;
+  LOG(ERROR) << "JANGID_SIGN: Sign only flag: " << (sign_only ? "true" : "false");
 
   if (!tx_ptr->max_priority_fee_per_gas() || !tx_ptr->max_fee_per_gas()) {
+    LOG(ERROR) << "JANGID_SIGN: Gas fees not set, fetching from network";
     GetGasEstimation1559(
         chain_id,
         base::BindOnce(&EthTxManager::OnGetGasOracleForUnapprovedTransaction,
@@ -359,6 +467,7 @@ void EthTxManager::AddUnapproved1559Transaction(
                        tx_data->base_data->value, data, gas_limit,
                        std::move(tx_ptr), std::move(callback), sign_only));
   } else if (gas_limit.empty()) {
+    LOG(ERROR) << "JANGID_SIGN: Gas limit not set, estimating gas";
     json_rpc_service_->GetEstimateGas(
         chain_id, from->address, tx_data->base_data->to, "" /* gas */,
         "" /* gas_price */, tx_data->base_data->value, data,
@@ -367,10 +476,12 @@ void EthTxManager::AddUnapproved1559Transaction(
                        origin, std::move(tx_ptr), std::move(callback),
                        sign_only));
   } else {
+    LOG(ERROR) << "JANGID_SIGN: All gas parameters set, continuing with transaction";
     ContinueAddUnapprovedTransaction(chain_id, from, origin, std::move(tx_ptr),
                                      std::move(callback), sign_only, gas_limit,
                                      mojom::ProviderError::kSuccess, "");
   }
+  LOG(ERROR) << "JANGID_SIGN: Exiting AddUnapproved1559Transaction";
 }
 
 void EthTxManager::OnGetGasOracleForUnapprovedTransaction(
@@ -441,20 +552,36 @@ void EthTxManager::GetNonceForHardwareTransaction(
 void EthTxManager::GetTransactionMessageToSign(
     const std::string& tx_meta_id,
     GetTransactionMessageToSignCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering GetTransactionMessageToSign";
+  LOG(ERROR) << "JANGID_SIGN: Transaction ID: " << tx_meta_id;
+
   std::unique_ptr<EthTxMeta> meta =
       GetEthTxStateManager()->GetEthTx(tx_meta_id);
   if (!meta) {
-    VLOG(1) << __FUNCTION__ << "No transaction found with id:" << tx_meta_id;
+    LOG(ERROR) << "JANGID_SIGN: No transaction found with id: " << tx_meta_id;
     std::move(callback).Run(nullptr);
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Found transaction metadata";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << meta->chain_id();
+  LOG(ERROR) << "JANGID_SIGN: From address: " << meta->from()->address;
+  LOG(ERROR) << "JANGID_SIGN: Transaction status: " << static_cast<int>(meta->status());
+
   uint256_t chain_id = 0;
   if (!HexValueToUint256(meta->chain_id(), &chain_id)) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to convert chain ID to uint256: " << meta->chain_id();
     std::move(callback).Run(nullptr);
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Converted chain ID to uint256";
+
   auto message = meta->tx()->GetMessageToSign(chain_id, false);
+  LOG(ERROR) << "JANGID_SIGN: Generated message to sign, length: " << message.size();
+
   auto encoded = wootz_wallet::ToHex(message);
+  LOG(ERROR) << "JANGID_SIGN: Encoded message to hex, length: " << encoded.length();
+  
+  LOG(ERROR) << "JANGID_SIGN: Successfully prepared message for signing";
   std::move(callback).Run(mojom::MessageToSignUnion::NewMessageStr(encoded));
 }
 
@@ -539,10 +666,12 @@ void EthTxManager::ContinueProcessHardwareSignature(
 
 void EthTxManager::ApproveTransaction(const std::string& tx_meta_id,
                                       ApproveTransactionCallback callback) {
+  LOG(ERROR) << "jangid_sign: ApproveTransaction started for ID: " << tx_meta_id;
+  
   std::unique_ptr<EthTxMeta> meta =
       GetEthTxStateManager()->GetEthTx(tx_meta_id);
   if (!meta) {
-    LOG(ERROR) << "No transaction found";
+    LOG(ERROR) << "jangid_sign: No transaction found for ID: " << tx_meta_id;
     std::move(callback).Run(
         false,
         mojom::ProviderErrorUnion::NewProviderError(
@@ -550,8 +679,13 @@ void EthTxManager::ApproveTransaction(const std::string& tx_meta_id,
         l10n_util::GetStringUTF8(IDS_WOOTZ_WALLET_TRANSACTION_NOT_FOUND));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Found transaction with ID: " << tx_meta_id;
+  LOG(ERROR) << "jangid_sign: Chain ID: " << meta->chain_id();
+  LOG(ERROR) << "jangid_sign: From address: " << meta->from()->address;
+  LOG(ERROR) << "jangid_sign: Transaction status: " << static_cast<int>(meta->status());
 
   if (!meta->tx()->nonce()) {
+    LOG(ERROR) << "jangid_sign: Nonce not set, getting next nonce";
     auto from = meta->from().Clone();
     auto chain_id = meta->chain_id();
     nonce_tracker_->GetNextNonce(
@@ -560,6 +694,7 @@ void EthTxManager::ApproveTransaction(const std::string& tx_meta_id,
                        weak_factory_.GetWeakPtr(), std::move(meta),
                        std::move(callback)));
   } else {
+    LOG(ERROR) << "jangid_sign: Using existing nonce: " << Uint256ValueToHex(meta->tx()->nonce().value());
     uint256_t nonce = meta->tx()->nonce().value();
     OnGetNextNonce(std::move(meta), std::move(callback), true, nonce);
   }
@@ -569,7 +704,12 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
                                   ApproveTransactionCallback callback,
                                   bool success,
                                   uint256_t nonce) {
+  LOG(ERROR) << "jangid_sign: OnGetNextNonce callback received";
+  LOG(ERROR) << "jangid_sign: Success: " << (success ? "true" : "false");
+  LOG(ERROR) << "jangid_sign: Nonce: " << Uint256ValueToHex(nonce);
+  
   if (!success) {
+    LOG(ERROR) << "jangid_sign: GetNextNonce failed";
     meta->set_status(mojom::TransactionStatus::Error);
     tx_state_manager_->AddOrUpdateTx(*meta);
     LOG(ERROR) << "GetNextNonce failed";
@@ -583,7 +723,7 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
 
   uint256_t chain_id = 0;
   if (!HexValueToUint256(meta->chain_id(), &chain_id)) {
-    LOG(ERROR) << "Could not convert chain ID";
+    LOG(ERROR) << "jangid_sign: Could not convert chain ID: " << meta->chain_id();
     std::move(callback).Run(
         false,
         mojom::ProviderErrorUnion::NewProviderError(
@@ -591,10 +731,13 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
         l10n_util::GetStringUTF8(IDS_WALLET_ETH_INVALID_CHAIN_ID_RPC));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Converted chain ID: " << Uint256ValueToHex(chain_id);
 
   meta->tx()->set_nonce(nonce);
+  LOG(ERROR) << "jangid_sign: Set nonce for transaction";
 
   if (keyring_service_->IsLockedSync()) {
+    LOG(ERROR) << "jangid_sign: Keyring is locked";
     std::move(callback).Run(
         false,
         mojom::ProviderErrorUnion::NewProviderError(
@@ -602,11 +745,15 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Keyring is unlocked, proceeding with signing";
 
   keyring_service_->SignTransactionByDefaultKeyring(*meta->from(), meta->tx(),
                                                     chain_id);
+  LOG(ERROR) << "jangid_sign: Transaction signed by default keyring";
+  
   meta->set_status(mojom::TransactionStatus::Approved);
   if (!tx_state_manager_->AddOrUpdateTx(*meta)) {
+    LOG(ERROR) << "jangid_sign: Failed to update transaction status to Approved";
     std::move(callback).Run(
         false,
         mojom::ProviderErrorUnion::NewProviderError(
@@ -614,6 +761,8 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Updated transaction status to Approved";
+
   if (!meta->tx()->IsSigned()) {
     LOG(ERROR) << "Transaction must be signed first";
     std::move(callback).Run(
@@ -623,10 +772,14 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
         l10n_util::GetStringUTF8(IDS_WALLET_SIGN_TRANSACTION_ERROR));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Transaction is signed successfully";
+
   if (meta->sign_only()) {
+    LOG(ERROR) << "jangid_sign: Sign-only transaction, updating status";
     meta->set_status(mojom::TransactionStatus::Signed);
     meta->set_tx_hash(meta->tx()->GetTransactionHash());
     if (!tx_state_manager_->AddOrUpdateTx(*meta)) {
+      LOG(ERROR) << "jangid_sign: Failed to update transaction status to Signed";
       std::move(callback).Run(
           false,
           mojom::ProviderErrorUnion::NewProviderError(
@@ -634,6 +787,7 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
           l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
       return;
     }
+    LOG(ERROR) << "jangid_sign: Updated transaction status to Signed";
 
     std::move(callback).Run(true,
                             mojom::ProviderErrorUnion::NewProviderError(
@@ -641,6 +795,7 @@ void EthTxManager::OnGetNextNonce(std::unique_ptr<EthTxMeta> meta,
                             "");
     UpdatePendingTransactions(meta->chain_id());
   } else {
+    LOG(ERROR) << "jangid_sign: Publishing transaction to network";
     PublishTransaction(meta->chain_id(), meta->id(),
                        meta->tx()->GetSignedTransaction(), std::move(callback));
   }
@@ -650,6 +805,12 @@ void EthTxManager::PublishTransaction(const std::string& chain_id,
                                       const std::string& tx_meta_id,
                                       const std::string& signed_transaction,
                                       ApproveTransactionCallback callback) {
+  LOG(ERROR) << "jangid_sign: Publishing transaction";
+  LOG(ERROR) << "jangid_sign: Chain ID: " << chain_id;
+  LOG(ERROR) << "jangid_sign: Transaction ID: " << tx_meta_id;
+  LOG(ERROR) << "jangid_sign: Signed transaction data length: " << signed_transaction.length();
+  LOG(ERROR) << "jangid_sign: Sending Raw Transaction";
+  
   json_rpc_service_->SendRawTransaction(
       chain_id, signed_transaction,
       base::BindOnce(&EthTxManager::OnPublishTransaction,
@@ -663,8 +824,16 @@ void EthTxManager::OnPublishTransaction(const std::string& chain_id,
                                         const std::string& tx_hash,
                                         mojom::ProviderError error,
                                         const std::string& error_message) {
+  LOG(ERROR) << "jangid_sign: OnPublishTransaction callback received";
+  LOG(ERROR) << "jangid_sign: Chain ID: " << chain_id;
+  LOG(ERROR) << "jangid_sign: Transaction ID: " << tx_meta_id;
+  LOG(ERROR) << "jangid_sign: Transaction hash: " << tx_hash;
+  LOG(ERROR) << "jangid_sign: Error code: " << static_cast<int>(error);
+  LOG(ERROR) << "jangid_sign: Error message: " << error_message;
+
   std::unique_ptr<TxMeta> meta = tx_state_manager_->GetTx(tx_meta_id);
   if (!meta) {
+    LOG(ERROR) << "jangid_sign: Transaction not found after publishing";
     DCHECK(false) << "Transaction should be found";
     std::move(callback).Run(
         false,
@@ -673,16 +842,20 @@ void EthTxManager::OnPublishTransaction(const std::string& chain_id,
         l10n_util::GetStringUTF8(IDS_WOOTZ_WALLET_TRANSACTION_NOT_FOUND));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Found transaction after publishing";
 
   if (error == mojom::ProviderError::kSuccess) {
+    LOG(ERROR) << "jangid_sign: Transaction published successfully";
     meta->set_status(mojom::TransactionStatus::Submitted);
     meta->set_submitted_time(base::Time::Now());
     meta->set_tx_hash(tx_hash);
   } else {
+    LOG(ERROR) << "jangid_sign: Transaction publishing failed";
     meta->set_status(mojom::TransactionStatus::Error);
   }
 
   if (!tx_state_manager_->AddOrUpdateTx(*meta)) {
+    LOG(ERROR) << "jangid_sign: Failed to update transaction status after publishing";
     std::move(callback).Run(
         false,
         mojom::ProviderErrorUnion::NewProviderError(
@@ -690,11 +863,14 @@ void EthTxManager::OnPublishTransaction(const std::string& chain_id,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
+  LOG(ERROR) << "jangid_sign: Updated transaction status after publishing";
 
   if (error == mojom::ProviderError::kSuccess) {
+    LOG(ERROR) << "jangid_sign: Updating pending transactions";
     UpdatePendingTransactions(chain_id);
   }
 
+  LOG(ERROR) << "jangid_sign: Completing transaction publishing process";
   std::move(callback).Run(error_message.empty(),
                           mojom::ProviderErrorUnion::NewProviderError(error),
                           error_message);

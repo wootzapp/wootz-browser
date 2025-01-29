@@ -11,6 +11,7 @@ import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
@@ -18,7 +19,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.preference.PreferenceManager;
 import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.text.TextUtils;
 import android.webkit.MimeTypeMap;
 
@@ -69,6 +72,7 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
     private static final String VIDEO_TYPE = "video";
     private static final String AUDIO_TYPE = "audio";
     private static final String ALL_TYPES = "*/*";
+    private static final String WOOTZ_SELECT_FILE = "Chrome.Wootzapp.SelectFile";
 
     // Duration before temporary camera file is cleaned up, in milliseconds.
     private static final long DURATION_BEFORE_FILE_CLEAN_UP_IN_MILLIS = TimeUnit.HOURS.toMillis(1);
@@ -116,6 +120,10 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
     static final int SHOWING_SUPPRESSED = 2;
     static final int SHOWING_ANDROID_PICKER_INDIRECT = 3;
     static final int SHOWING_ENUM_COUNT = SHOWING_ANDROID_PICKER_INDIRECT + 1;
+
+
+    private static final int SELECT_FILE_DIALOG_REQUEST_CODE = 100;
+    // private final Context mContext;
 
     /**
      * The FileSelectedUploadMethod tracks how media files are uploaded, split into the MediaPicker
@@ -254,6 +262,7 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
     private boolean mAllowMultiple;
     private Uri mCameraOutputUri;
     private WindowAndroid mWindowAndroid;
+    private Context mContext;
 
     /** Whether an Activity is available on the system to support capturing images (i.e. Camera). */
     private boolean mSupportsImageCapture;
@@ -1288,14 +1297,36 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
     protected void onFileSelected(
             long nativeSelectFileDialogImpl, String filePath, String displayName) {
-        recordImageCountHistograms(new String[] {filePath});
-        if (nativeSelectFileDialogImpl != 0) {
-            SelectFileDialogJni.get()
-                    .onFileSelected(
-                            nativeSelectFileDialogImpl,
-                            SelectFileDialog.this,
-                            filePath,
-                            displayName);
+        Log.i("JANGID_IMG_SELECT", "onFileSelected called with:");
+        Log.i("JANGID_IMG_SELECT", "  - nativeSelectFileDialogImpl: " + nativeSelectFileDialogImpl);
+        Log.i("JANGID_IMG_SELECT", "  - filePath: " + (filePath != null ? filePath : "null"));
+        Log.i("JANGID_IMG_SELECT", "  - displayName: " + (displayName != null ? displayName : "null"));
+
+        // Validate inputs
+        if (filePath == null) {
+            Log.e("JANGID_IMG_SELECT", "Error: filePath is null");
+            return;
+        }
+
+        try {
+            recordImageCountHistograms(new String[] {filePath});
+            Log.i("JANGID_IMG_SELECT", "Successfully recorded image histograms");
+
+            if (nativeSelectFileDialogImpl != 0) {
+                Log.i("JANGID_IMG_SELECT", "Calling native implementation...");
+                SelectFileDialogJni.get()
+                        .onFileSelected(
+                                nativeSelectFileDialogImpl,
+                                SelectFileDialog.this,
+                                filePath,
+                                displayName != null ? displayName : "");
+                Log.i("JANGID_IMG_SELECT", "Native call completed successfully");
+            } else {
+                Log.e("JANGID_IMG_SELECT", "Error: nativeSelectFileDialogImpl is 0");
+            }
+        } catch (Exception e) {
+            Log.e("JANGID_IMG_SELECT", "Exception in onFileSelected: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -1688,5 +1719,132 @@ public class SelectFileDialog implements WindowAndroid.IntentCallback, PhotoPick
 
         void onContactsSelected(
                 long nativeSelectFileDialogImpl, SelectFileDialog caller, String contacts);
+    }
+
+    public static void setupPreferenceWatcher() {
+        Log.d("JANGID+DEV+FILE", "Setting up preference watcher");
+        
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
+            ContextUtils.getApplicationContext());
+        prefs.registerOnSharedPreferenceChangeListener(new SharedPreferences.OnSharedPreferenceChangeListener() {
+            @Override
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                Log.d("JANGID+DEV+FILE", "Preference changed: " + key);
+                
+                if (WOOTZ_SELECT_FILE.equals(key)) {
+                    boolean showDialog = sharedPreferences.getString(key, "false").equals("true");
+                    Log.d("JANGID+DEV+FILE", "Show dialog value: " + showDialog);
+                    
+                    if (showDialog) {
+                        // Get current activity from application context
+                        Context context = ContextUtils.getApplicationContext();
+                        Log.d("JANGID+DEV+FILE", "Got context: " + context);
+                        
+                        if (context instanceof Activity) {
+                            Activity activity = (Activity) context;
+                            Log.d("JANGID+DEV+FILE", "Got activity: " + activity);
+                            
+                            // Create new SelectFileDialog with just the native pointer
+                            SelectFileDialog dialog = new SelectFileDialog(0L);
+                            Log.d("JANGID+DEV+FILE", "Created dialog");
+                            
+                            dialog.showFileDialog();
+                            Log.d("JANGID+DEV+FILE", "Showed file dialog");
+                        } else {
+                            Log.d("JANGID+DEV+FILE", "Context is not an Activity");
+                        }
+                        
+                        sharedPreferences.edit().putString(key, "false").apply();
+                        Log.d("JANGID+DEV+FILE", "Reset preference to false");
+                    }
+                }
+            }
+        });
+        
+        Log.d("JANGID+DEV+FILE", "Preference watcher setup complete");
+    }
+
+    private void showFileDialog() {
+        try {
+            List<String> mimeTypes = new ArrayList<>();
+            mimeTypes.add("image/*");
+            
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("image/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toArray(new String[0]));
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+
+            Activity activity = mWindowAndroid.getActivity().get();
+            if (activity != null) {
+                activity.startActivityForResult(
+                    Intent.createChooser(intent, "Select Image"),
+                    SELECT_FILE_DIALOG_REQUEST_CODE);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing file dialog", e);
+            onFileNotSelected();
+        }
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+    
+        if (requestCode != SELECT_FILE_DIALOG_REQUEST_CODE) {
+            return;
+        }
+
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            onFileNotSelected();
+            return;
+        }
+
+        Uri selectedFileUri = data.getData();
+        if (selectedFileUri == null) {
+            onFileNotSelected();
+            return;
+        }
+
+        // Get file path using ContentResolver
+        String filePath = null;
+        try {
+            filePath = ContentUriUtils.getDisplayName(
+                selectedFileUri, 
+                mContext, 
+                MediaStore.MediaColumns.DATA);
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting file path", e);
+        }
+
+        String displayName = getDisplayNameFromUri(selectedFileUri);
+
+        // Send result back through native interface
+        if (mNativeSelectFileDialog != 0) {
+            SelectFileDialogJni.get().onFileSelected(
+                mNativeSelectFileDialog,
+                this,
+                filePath != null ? filePath : selectedFileUri.toString(),
+                displayName != null ? displayName : "");
+        }
+
+        // Clear the preference
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
+            ContextUtils.getApplicationContext());
+        prefs.edit().putString("show_dialog_request", "false").apply();
+    }
+
+    private String getDisplayNameFromUri(Uri uri) {
+        String displayName = null;
+        try (Cursor cursor = mContext.getContentResolver().query(
+                uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (nameIndex != -1) {
+                    displayName = cursor.getString(nameIndex);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting display name", e);
+        }
+        return displayName;
     }
 }

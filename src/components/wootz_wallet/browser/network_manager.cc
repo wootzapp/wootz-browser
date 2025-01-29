@@ -264,7 +264,7 @@ const mojom::NetworkInfo* GetSepoliaTestNetwork() {
        {"https://sepolia.etherscan.io"},
        {},
        0,
-       {GetURLForKnownChainId(chain_id).value()},
+       {GURL("https://ethereum-sepolia-rpc.publicnode.com")},
        "ETH",
        "Ethereum",
        18,

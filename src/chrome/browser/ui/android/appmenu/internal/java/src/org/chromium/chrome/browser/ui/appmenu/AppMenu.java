@@ -61,6 +61,7 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
+import org.chromium.ui.base.SelectFileDialog;
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -79,6 +80,7 @@ import org.chromium.ui.widget.Toast;
 import android.widget.BaseAdapter;
 
 import java.beans.Visibility;
+import java.security.cert.Extension;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -513,7 +515,15 @@ public class AppMenu extends BottomSheetDialogFragment implements OnItemClickLis
     private void showDeleteExtensionDialog(int extensionIndex) {
         Context context = getContext();
         if (context == null) return;
-    
+        
+        // ExtensionInfo extension = Extensions.getExtensionsInfo().get(extensionIndex);
+        // String extensionName = extension.getName();
+
+        // if("Wootz Wallet".equals(extensionName)){
+        //     Toast.makeText(context, "You cannot remove this extension", Toast.LENGTH_SHORT).show();
+        //     return;
+        // }
+        
         new androidx.appcompat.app.AlertDialog.Builder(context)
             .setTitle("Delete Extension")
             .setMessage("Do you want to delete this extension?")

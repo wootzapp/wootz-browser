@@ -39,6 +39,7 @@ class WootzWalletProviderDelegateImpl : public WootzWalletProviderDelegate,
 
   bool IsTabVisible() override;
   void ShowPanel() override;
+  void ShowUnlockWalletAlert() override;
 
   content::WebContents* GetWebContents() override;
   

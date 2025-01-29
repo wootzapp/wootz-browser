@@ -2160,6 +2160,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             }
             // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
             // if (layout != null) {
+            // if (layout != null) {
             //     layout.showWalletPanel();
             // }
         });
@@ -2392,28 +2393,28 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     private void setupObservers() {
         ThreadUtils.assertOnUiThread();
         clearObservers();
-        mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.observe(
-                this, transactionInfo -> {
-                    if (transactionInfo == null) {
-                        return;
-                    }
-                    // don't show dapps panel if the wallet is locked and requests are being
-                    // processed by the approve dialog already
-                    mKeyringService.isLocked(locked -> {
-                        if (locked) {
-                            return;
-                        }
+        // mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.observe(
+        //         this, transactionInfo -> {
+        //             if (transactionInfo == null) {
+        //                 return;
+        //             }
+        //             // don't show dapps panel if the wallet is locked and requests are being
+        //             // processed by the approve dialog already
+        //             mKeyringService.isLocked(locked -> {
+        //                 if (locked) {
+        //                     return;
+        //                 }
 
-                        if (!mIsProcessingPendingDappsTxRequest) {
-                            mIsProcessingPendingDappsTxRequest = true;
-                            openWootzWalletDAppsActivity(
-                                    WootzWalletDAppsActivity.ActivityType.CONFIRM_TRANSACTION);
-                        }
+        //                 if (!mIsProcessingPendingDappsTxRequest) {
+        //                     mIsProcessingPendingDappsTxRequest = true;
+        //                     openWootzWalletDAppsActivity(
+        //                             WootzWalletDAppsActivity.ActivityType.CONFIRM_TRANSACTION);
+        //                 }
 
-                        // update badge if there's a pending tx
-                        updateWalletBadgeVisibility();
-                    });
-                });
+        //                 // update badge if there's a pending tx
+        //                 updateWalletBadgeVisibility();
+        //             });
+        //         });
 
         // mWalletModel.getDappsModel().mWalletIconNotificationVisible.observe(
         //         this, this::setWalletBadgeVisibility);

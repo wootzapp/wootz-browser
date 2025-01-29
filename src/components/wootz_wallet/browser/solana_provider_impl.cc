@@ -116,7 +116,7 @@ void SolanaProviderImpl::Connect(std::optional<base::Value::Dict> arg,
     pending_connect_callback_ = std::move(callback);
     pending_connect_arg_ = std::move(arg);
     keyring_service_->RequestUnlock();
-    delegate_->ShowPanel();
+    delegate_->ShowUnlockWalletAlert();
     return;
   }
 

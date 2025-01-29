@@ -17,6 +17,28 @@ import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.settings.WootzWalletPreferences;
 import org.chromium.content_public.browser.WebContents;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import org.chromium.chrome.browser.extensions.ExtensionInfo;
+import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.chrome.browser.extensions.OpenExtensionsById;
+
+import java.util.ArrayList;
+import android.app.Dialog;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.Window;
+import android.view.WindowManager;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.view.View;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.util.ConfigurationUtils;
+import org.chromium.chrome.browser.wootz_wallet.util.AndroidUtils;
+import android.graphics.drawable.GradientDrawable;
+
 @JNINamespace("wootz_wallet")
 public class WootzWalletProviderDelegateImplHelper {
     private static final String TAG = "WootzWalletProvider";
@@ -29,6 +51,61 @@ public class WootzWalletProviderDelegateImplHelper {
         } catch (ChromeActivity.ChromeActivityNotFoundException e) {
             Log.e(TAG, "showPanel " + e);
         }
+    }
+
+    @CalledByNative
+    public static void showUnlockWalletAlert() {
+        try {
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            
+            final String walletExtensionId = Extensions.getExtensionsInfo().stream()
+                    .filter(ext -> ext.getName().equals("Wootz Wallet"))
+                    .map(ExtensionInfo::getId)
+                    .findFirst()
+                    .orElse(null);
+
+            if (walletExtensionId != null) {
+                Dialog dialog = new Dialog(activity, R.style.WootzWalletDAppNotificationDialogBottom);
+                dialog.setContentView(R.layout.dapps_dialog);
+                
+                // Get root view for click listener
+                View rootView = dialog.findViewById(R.id.dapp_dialog_root);
+                rootView.setOnClickListener(v -> {
+                    OpenExtensionsById.openExtensionByIdNative(walletExtensionId);
+                    dialog.dismiss();
+                });
+                
+                // Configure dialog window
+                Window window = dialog.getWindow();
+                if (window != null) {
+                    WindowManager.LayoutParams params = window.getAttributes();
+                    params.width = dpToPx(activity, 320);
+                    params.height = dpToPx(activity, 250);
+                    params.gravity = Gravity.BOTTOM;
+                    window.setAttributes(params);
+                }
+                
+                dialog.setCancelable(true);
+                dialog.show();
+                
+                // Auto dismiss after 30 seconds
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (dialog != null && dialog.isShowing()) {
+                        dialog.dismiss();
+                    }
+                }, 30000);
+                
+            } else {
+                Log.e(TAG, "Failed to find Wootz Wallet extension");
+            }
+            
+        } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+            Log.e(TAG, "ShowUnlockWalletAlert " + e);
+        }
+    }
+
+    private static int dpToPx(Context context, int dp) {
+        return (int) (dp * context.getResources().getDisplayMetrics().density);
     }
 
     @CalledByNative

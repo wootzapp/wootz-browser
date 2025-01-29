@@ -239,6 +239,7 @@ class TxService : public mojom::TxService,
       ProcessFilHardwareSignatureCallback callback) override;
 
   TxStorageDelegate* GetDelegateForTesting();
+  EthTxManager* GetEthTxManager();
 
  private:
   friend class EthereumProviderImplUnitTest;
@@ -251,7 +252,6 @@ class TxService : public mojom::TxService,
   void MigrateTransactionsFromPrefsToDB(PrefService* prefs);
 
   TxManager* GetTxManager(mojom::CoinType coin_type);
-  EthTxManager* GetEthTxManager();
   SolanaTxManager* GetSolanaTxManager();
   FilTxManager* GetFilTxManager();
   BitcoinTxManager* GetBitcoinTxManager();

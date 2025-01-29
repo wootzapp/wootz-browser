@@ -9,10 +9,12 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/extension_icon_manager.h"
 #include "chrome/common/extensions/api/omnibox.h"
 #include "components/search_engines/template_url_service.h"
+#include "content/public/browser/file_select_listener.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_function_histogram_value.h"
@@ -21,8 +23,16 @@
 #include "extensions/common/extension_id.h"
 #include "ui/base/window_open_disposition.h"
 #include "components/wootz_wallet/common/wootz_wallet.mojom.h"
+#include "components/wootz_wallet/browser/tx_service.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog_android.h"
+#include "ui/shell_dialogs/selected_file_info.h"
+#include "third_party/blink/public/mojom/choosers/file_chooser.mojom.h"
+#include "mojo/public/cpp/bindings/receiver.h"
+
+#include "base/functional/callback.h"
 
 class Profile;
 
@@ -174,6 +184,57 @@ class WootzSignMessageFunction : public ExtensionFunction {
   static void OnGetPendingRequests(
       content::BrowserContext* context,
       std::vector<wootz_wallet::mojom::SignMessageRequestPtr> requests);
+};
+
+class WootzSendTransactionFunction : public ExtensionFunction,
+                                    public wootz_wallet::mojom::TxServiceObserver {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.sendTransaction", WOOTZ_SEND_TRANSACTION)
+  
+  WootzSendTransactionFunction();
+  WootzSendTransactionFunction(const WootzSendTransactionFunction&) = delete;
+  WootzSendTransactionFunction& operator=(const WootzSendTransactionFunction&) = delete;
+  ~WootzSendTransactionFunction() override;
+
+ protected:
+  ResponseAction Run() override;
+
+ private:  
+  // TxServiceObserver implementation
+  void OnNewUnapprovedTx(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
+  void OnTransactionStatusChanged(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
+  void OnUnapprovedTxUpdated(wootz_wallet::mojom::TransactionInfoPtr tx_info) override {}
+  void OnTxServiceReset() override {}
+
+  void OnTransactionAdded(bool success, 
+                         const std::string& tx_meta_id,
+                         const std::string& error_message);
+
+  // Keep track of transaction and observer
+  std::string pending_tx_id_;
+  mojo::Receiver<wootz_wallet::mojom::TxServiceObserver> observer_receiver_;
+  bool transaction_signed_ = false;
+  std::string transaction_hash_;
+
+};
+
+class WootzSignTransactionFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.signTransaction", WOOTZ_SIGN_TRANSACTION)
+  WootzSignTransactionFunction() = default;
+  WootzSignTransactionFunction(const WootzSignTransactionFunction&) = delete;
+  WootzSignTransactionFunction& operator=(const WootzSignTransactionFunction&) = delete;
+
+ protected:
+  ~WootzSignTransactionFunction() override {}
+  ResponseAction Run() override;
+
+ private:
+  void OnTransactionSigned(bool success,
+                          wootz_wallet::mojom::ProviderErrorUnionPtr error,
+                          const std::string& error_message);
+
+  void OnTransactionRejected(bool success);
 };
 // background service api
 class WootzSetJobFunction : public ExtensionFunction {

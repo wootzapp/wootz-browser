@@ -84,6 +84,9 @@ bool WootzWalletProviderDelegateImpl::IsTabVisible() {
 void WootzWalletProviderDelegateImpl::ShowPanel() {
   ::wootz_wallet::ShowPanel(web_contents_);
 }
+void WootzWalletProviderDelegateImpl::ShowUnlockWalletAlert() {
+  ::wootz_wallet::ShowUnlockWalletAlert(web_contents_);
+}
 
 void WootzWalletProviderDelegateImpl::ShowWalletBackup() {
   ::wootz_wallet::ShowWalletBackup();

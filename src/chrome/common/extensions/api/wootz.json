@@ -234,6 +234,92 @@
           }
         },
         {
+          "name": "sendTransaction",
+          "type": "function",
+          "description": "Sends a transaction",
+          "parameters": [
+            {
+              "name": "chainId",
+              "type": "string",
+              "description": "Chain ID"
+            },
+            {
+              "name": "from",
+              "type": "string",
+              "description": "Sender address"
+            },
+            {
+              "name": "to",
+              "type": "string",
+              "description": "Recipient address"
+            },
+            {
+              "name": "value",
+              "type": "string",
+              "description": "Transaction value in wei"
+            },
+            {
+              "name": "gasLimit",
+              "type": "string",
+              "description": "Gas limit"
+            },
+            {
+              "name": "data",
+              "type": "string",
+              "optional": true,
+              "description": "Transaction data in hex"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "txMetaId": {
+                    "type": "string",
+                    "description": "Transaction meta ID"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {    
+          "name": "signTransaction",
+          "type": "function",
+          "parameters": [
+            {
+              "name": "txMetaId",
+              "type": "string",
+              "description": "Transaction meta ID to sign"
+            },
+            {
+              "name": "approved",
+              "type": "boolean",
+              "description": "True to approve, false to reject the transaction"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "optional": true,
+                "properties": {
+                  "hash": {
+                    "type": "string",
+                    "optional": true,
+                    "description": "Transaction hash if approved and submitted"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
           "name": "helloWorld",
           "type": "function",
           "description": "Returns greeting message",
@@ -353,6 +439,40 @@
                 "origin": {"type": "string"},
                 "chainId": {"type": "string"},
                 "isEip712": {"type": "boolean"}
+              }
+            }
+          ]
+        },
+        {
+          "name": "OnNewUnapprovedTxAPI",
+          "type": "function",
+          "description": "Fired when a transaction needs user signature",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "from": { "type": "string" },
+                "tx_hash": { "type": "string" },
+                "chainId": { "type": "string" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "onTransactionStatusChangedAPI",
+          "type": "function",
+          "description": "Fired when transaction status changes",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "status": { "type": "string" },
+                "hash": { "type": "string", "optional": true },
+                "error": { "type": "string", "optional": true }
               }
             }
           ]

@@ -18,6 +18,7 @@
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
 #include "base/lazy_instance.h"
+#include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -26,6 +27,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/wootz_wallet/browser/eth_tx_manager.h"
+#include "components/wootz_wallet/browser/tx_service.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
@@ -35,6 +38,8 @@
 #include "extensions/browser/extension_prefs_factory.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/extension_id.h"
+#include "net/base/filename_util.h"
+#include "ui/android/window_android.h"
 #include "ui/gfx/image/image.h"
 #include "chrome/android/chrome_jni_headers/OpenExtensionsById_jni.h"
 #include "base/android/shared_preferences/shared_preferences_manager.h"
@@ -42,6 +47,13 @@
 #include "base/json/json_reader.h"
 #include "base/json/values_util.h"
 #include "base/time/time.h"
+#include "ui/shell_dialogs/select_file_dialog.h"
+#include "ui/shell_dialogs/select_file_dialog_android.h"
+#include "ui/shell_dialogs/select_file_policy.h"
+#include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/permissions/api_permission.h"
+#include "extensions/common/mojom/api_permission_id.mojom.h"
+#include "base/logging.h"
 
 namespace extensions {
 
@@ -407,15 +419,15 @@ void WootzSignMessageFunction::OnGetPendingRequests(
     event_args.Append(std::move(request_dict));
 
     // Fetch the Wootz Wallet extension ID
-    ExtensionId wootz_extension_id = GetWootzWalletExtensionId(context);
+    ExtensionId wootz_wallet_extension_id = GetWootzWalletExtensionId(context);
 
-    LOG(ERROR) << "JANGID: Wootz Wallet extension ID: " << wootz_extension_id;
+    LOG(ERROR) << "JANGID: Wootz Wallet extension ID: " << wootz_wallet_extension_id;
 
-    if (!wootz_extension_id.empty()) {
+    if (!wootz_wallet_extension_id.empty()) {
       // Get more information about the extension
       ExtensionRegistry* registry = ExtensionRegistry::Get(context);
       const Extension* extension = registry->GetExtensionById(
-          wootz_extension_id, ExtensionRegistry::ENABLED);
+          wootz_wallet_extension_id, ExtensionRegistry::ENABLED);
 
       if (extension) {
         LOG(ERROR) << "JANGID: Extension details:";
@@ -437,13 +449,13 @@ void WootzSignMessageFunction::OnGetPendingRequests(
           mojom::EventFilteringInfo::New());
 
       LOG(ERROR) << "JANGID: Dispatching event to extension: "
-                 << wootz_extension_id;
-      event_router->DispatchEventToExtension(wootz_extension_id,
+                 << wootz_wallet_extension_id;
+      event_router->DispatchEventToExtension(wootz_wallet_extension_id,
                                              std::move(event));
 
       
       // For opening Extension Automatically
-      OpenExtensionsById(wootz_extension_id);
+      OpenExtensionsById(wootz_wallet_extension_id);
       
       LOG(ERROR) << "JANGID: Event dispatched successfully";
     } else {
@@ -498,6 +510,392 @@ ExtensionFunction::ResponseAction WootzSignMessageFunction::Run() {
   closeExtensionBottomSheet();
 
   return RespondNow(WithArguments(base::Value(true)));
+}
+
+WootzSendTransactionFunction::WootzSendTransactionFunction() 
+    : observer_receiver_(this) {
+  LOG(ERROR) << "jangid_sign: Creating SendTransactionFunction";
+}
+
+WootzSendTransactionFunction::~WootzSendTransactionFunction() {
+  LOG(ERROR) << "jangid_sign: Destroying SendTransactionFunction";
+
+}
+
+ExtensionFunction::ResponseAction WootzSendTransactionFunction::Run() {
+  // Check arguments count
+  LOG(ERROR) << "wootz_api.cc: Starting WootzSendTransactionFunction ";
+  if (args().size() != 6) {
+    LOG(ERROR) << "wootz_api.cc: Incorrect number of arguments: " << args().size();
+    return RespondNow(Error("Incorrect number of arguments"));
+  }
+
+  // Validate argument types
+  if (!args()[0].is_string() || !args()[1].is_string() || 
+      !args()[2].is_string() || !args()[3].is_string() ||
+      !args()[4].is_string() || !args()[5].is_string()) {
+    LOG(ERROR) << "wootz_api.cc: Invalid argument types";
+    return RespondNow(Error("Invalid argument types"));
+  }
+
+  // Extract arguments
+  std::string chain_id = args()[0].GetString();
+  std::string from = args()[1].GetString();
+  std::string to = args()[2].GetString();
+  std::string value = args()[3].GetString();
+  std::string gas_limit = args()[4].GetString();
+  std::string data = args()[5].GetString();
+
+  LOG(ERROR) << "wootz_api.cc: Sending transaction with parameters:";
+  LOG(ERROR) << "chainId: " << chain_id;
+  LOG(ERROR) << "from: " << from;
+  LOG(ERROR) << "to: " << to;
+  LOG(ERROR) << "value: " << value;
+  LOG(ERROR) << "gasLimit: " << gas_limit;
+  LOG(ERROR) << "data: " << data;
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  auto* service = wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile);
+  if (!service || !service->tx_service()) {
+    return RespondNow(Error("Service not available"));
+  }
+
+  LOG(ERROR) << "wootz_api.cc: Setting up observer before transaction";
+  AddRef();
+
+  if (!observer_receiver_.is_bound()) {
+    LOG(ERROR) << "wootz_api.cc: Setting up observer before transaction";
+    
+    mojo::PendingRemote<wootz_wallet::mojom::TxServiceObserver> observer;
+    observer_receiver_.Bind(observer.InitWithNewPipeAndPassReceiver());
+    
+    service->tx_service()->AddObserver(std::move(observer));
+  }
+  // Now proceed with adding transaction
+  auto* tx_service = service->tx_service();
+  if (!tx_service) {
+    LOG(ERROR) << "wootz_api.cc: Transaction service not available";
+    return RespondNow(Error("Transaction service not available"));
+  }
+
+  auto* eth_tx_manager = tx_service->GetEthTxManager();
+  if (!tx_service) {
+    LOG(ERROR) << "wootz_api.cc: Transaction manager not available";
+    return RespondNow(Error("Transaction service not available"));
+  }
+
+  
+  auto from_account = wootz_wallet::mojom::AccountId::New();
+  from_account->address = from;
+  from_account->coin = wootz_wallet::mojom::CoinType::ETH;
+  from_account->keyring_id = wootz_wallet::mojom::KeyringId::kDefault;
+  from_account->kind = wootz_wallet::mojom::AccountKind::kDerived;
+  from_account->account_index = 0;
+  
+  // Generate unique key as per mojom definition
+  from_account->unique_key = base::StringPrintf("60_%d_%d_%s", 
+      static_cast<int>(from_account->keyring_id), 
+      static_cast<int>(from_account->kind), 
+      from_account->address.c_str());
+
+  LOG(ERROR) << "jangid_sign: Creating transaction with account:";
+  LOG(ERROR) << "jangid_sign: - Address: " << from_account->address;
+  LOG(ERROR) << "jangid_sign: - Coin Type: ETH";
+  LOG(ERROR) << "jangid_sign: - Keyring ID: " << static_cast<int>(from_account->keyring_id);
+  LOG(ERROR) << "jangid_sign: - Account Kind: " << static_cast<int>(from_account->kind);
+  LOG(ERROR) << "jangid_sign: - Unique Key: " << from_account->unique_key;
+
+  auto tx_params = wootz_wallet::mojom::NewEvmTransactionParams::New();
+  tx_params->chain_id = chain_id;
+  tx_params->from = std::move(from_account);
+  
+  tx_params->to = to;
+  tx_params->value = value;
+  tx_params->gas_limit = gas_limit;
+  
+  if (!data.empty()) {
+    std::vector<uint8_t> data_bytes;
+    if (!base::HexStringToBytes(data, &data_bytes)) {
+      LOG(ERROR) << "wootz_api.cc: Invalid hex data format: " << data;
+      return RespondNow(Error("Invalid hex data format"));
+    }
+    tx_params->data = data_bytes;
+    LOG(ERROR) << "wootz_api.cc: Data bytes size: " << data_bytes.size();
+  }
+
+  std::optional<url::Origin> origin;
+  if (extension()) {
+    origin = url::Origin::Create(extension()->url());
+    LOG(ERROR) << "wootz_api.cc: Extension origin: " << origin->Serialize();
+  }
+
+  LOG(ERROR) << "wootz_api.cc: Adding unapproved transaction...";
+  eth_tx_manager->AddUnapprovedEvmTransaction(
+      std::move(tx_params),
+      origin,
+      base::BindOnce(&WootzSendTransactionFunction::OnTransactionAdded,
+                     base::Unretained(this)));
+
+  LOG(ERROR) << "wootz_api.cc: Transaction result received:";
+  return RespondLater();
+}
+
+void WootzSendTransactionFunction::OnTransactionAdded(
+    bool success, 
+    const std::string& tx_meta_id,
+    const std::string& error_message) {
+  LOG(ERROR) << "wootz_api.cc: OnTransactionAdded called";
+  LOG(ERROR) << "wootz_api.cc: Success = " << (success ? "true" : "false");
+  LOG(ERROR) << "wootz_api.cc: Transaction ID = " << tx_meta_id;
+  
+  if (!success) {
+    LOG(ERROR) << "wootz_api.cc: Error = " << error_message;
+    Respond(Error(error_message));
+    Release(); 
+    return;
+  }
+
+  pending_tx_id_ = tx_meta_id;
+  
+}
+
+// Observer methods drive the UI flow
+void WootzSendTransactionFunction::OnNewUnapprovedTx(
+    wootz_wallet::mojom::TransactionInfoPtr tx_info) {
+  LOG(ERROR) << "jangid_sign: OnNewUnapprovedTx called";
+  LOG(ERROR) << "jangid_sign: Transaction ID: " << tx_info->id;
+  LOG(ERROR) << "jangid_sign: From address: " << tx_info->from_account_id->address;
+  LOG(ERROR) << "jangid_sign: Chain ID: " << tx_info->chain_id;
+  LOG(ERROR) << "jangid_sign: Hash: " << tx_info->tx_hash;
+
+  if (tx_info->id != pending_tx_id_) {
+    return;
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  LOG(ERROR) << "jangid_sign: Got profile from browser context";
+
+  ExtensionId wootz_wallet_extension_id = GetWootzWalletExtensionId(profile);
+  LOG(ERROR) << "jangid_sign: Wootz wallet extension ID: " << wootz_wallet_extension_id;
+
+  ExtensionRegistry* registry = ExtensionRegistry::Get(profile);
+  const Extension* extension = registry->GetExtensionById(
+      wootz_wallet_extension_id, ExtensionRegistry::ENABLED);
+
+  if (extension) {
+    LOG(ERROR) << "jangid_sign: Extension details:";
+    LOG(ERROR) << "jangid_sign: Name: " << extension->name();
+    LOG(ERROR) << "jangid_sign: Version: " << extension->version().GetString();
+    LOG(ERROR) << "jangid_sign: Description: " << extension->description();
+  } else {
+    LOG(ERROR) << "jangid_sign: Extension not found or not enabled";
+  }
+
+  auto* event_router = EventRouter::Get(profile);
+  if (!event_router) {
+    LOG(ERROR) << "jangid_sign: Event router not available";
+    return;
+  }
+  LOG(ERROR) << "jangid_sign: Got event router";
+
+  base::Value::List event_args;
+  base::Value::Dict tx_details;
+  tx_details.Set("txMetaId", tx_info->id);
+  tx_details.Set("from", tx_info->from_account_id->address);
+  tx_details.Set("tx_hash", tx_info->tx_hash);
+  tx_details.Set("chainId", tx_info->chain_id);
+  event_args.Append(std::move(tx_details));
+
+  LOG(ERROR) << "jangid_sign: Created event arguments";
+
+  std::unique_ptr<Event> event = std::make_unique<Event>(
+      events::WOOTZ_ON_NEW_UNAPPROVED_TX,
+      "wootz.OnNewUnapprovedTxAPI",
+      std::move(event_args), 
+      profile,
+      std::nullopt,
+      GURL(), 
+      EventRouter::USER_GESTURE_UNKNOWN,
+      mojom::EventFilteringInfo::New());
+
+  LOG(ERROR) << "jangid_sign: Created event object";
+  LOG(ERROR) << "jangid_sign: Dispatching event to extension: " << wootz_wallet_extension_id;
+  
+  event_router->DispatchEventToExtension(wootz_wallet_extension_id, std::move(event));
+  LOG(ERROR) << "jangid_sign: Event dispatched successfully";
+
+  OpenExtensionsById(wootz_wallet_extension_id);
+  LOG(ERROR) << "jangid_sign: Opened extension";
+}
+
+void WootzSendTransactionFunction::OnTransactionStatusChanged(
+    wootz_wallet::mojom::TransactionInfoPtr tx_info) {
+  LOG(ERROR) << "jangid_sign: OnTransactionStatusChanged called";
+  LOG(ERROR) << "jangid_sign: Transaction ID: " << tx_info->id;
+  LOG(ERROR) << "jangid_sign: Current status: " << static_cast<int>(tx_info->tx_status);
+
+  if (tx_info->id != pending_tx_id_ ) {
+    return;
+  }
+
+  base::Value::List event_args;
+  base::Value::Dict status_info;
+  status_info.Set("txMetaId", tx_info->id);
+  
+  std::string status_str;
+  if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Unapproved) {
+    status_str = "unapproved";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Approved) {
+    status_str = "approved";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Rejected) {
+    status_str = "rejected";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Submitted) {
+    status_str = "submitted";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Confirmed) {
+    status_str = "confirmed";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Error) {
+    status_str = "error";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Dropped) {
+    status_str = "dropped";
+  } else if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Signed) {
+    status_str = "signed";
+  } else {
+    status_str = "unknown";
+  }
+  
+  LOG(ERROR) << "jangid_sign: Status string: " << status_str;
+  
+  status_info.Set("status", status_str);
+  if (!tx_info->tx_hash.empty()) {
+    status_info.Set("hash", tx_info->tx_hash);
+    LOG(ERROR) << "jangid_sign: Transaction hash: " << tx_info->tx_hash;
+  }
+  event_args.Append(std::move(status_info));
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  ExtensionId wootz_wallet_extension_id = GetWootzWalletExtensionId(profile);
+  LOG(ERROR) << "jangid_sign: Extension ID for status change: " << wootz_wallet_extension_id;
+
+  auto* event_router = EventRouter::Get(profile);
+  if (!event_router) {
+    LOG(ERROR) << "jangid_sign: Event router not available for status change";
+    return;
+  }
+
+  std::unique_ptr<Event> event = std::make_unique<Event>(
+      events::WOOTZ_ON_TRANSACTION_STATUS_CHANGED,
+      "wootz.onTransactionStatusChangedAPI",
+      std::move(event_args), 
+      profile,
+      std::nullopt,
+      GURL(), 
+      EventRouter::USER_GESTURE_UNKNOWN,
+      mojom::EventFilteringInfo::New());
+  
+  LOG(ERROR) << "jangid_sign: Dispatching status change event";
+  event_router->DispatchEventToExtension(
+      wootz_wallet_extension_id, 
+      std::move(event));
+  LOG(ERROR) << "jangid_sign: Status change event dispatched successfully";
+
+  if (tx_info->tx_status == wootz_wallet::mojom::TransactionStatus::Signed) {
+    base::Value::List results;
+    base::Value::Dict response_dict;
+    response_dict.Set("txMetaId", tx_info->id);
+    response_dict.Set("status", "signed");
+    if (!tx_info->tx_hash.empty()) {
+      response_dict.Set("hash", tx_info->tx_hash);
+    }
+    results.Append(std::move(response_dict));
+    
+    LOG(ERROR) << "jangid_sign: Sending final response for signed transaction";
+    Respond(ArgumentList(std::move(results)));
+    Release();  // Important: Release reference after final response
+  }
+}
+
+ExtensionFunction::ResponseAction WootzSignTransactionFunction::Run() {
+  LOG(ERROR) << "jangid_sign: WootzSignTransactionFunction::Run started";
+
+  // Validate arguments
+  if (args().empty() || !args()[0].is_string() || args().size() < 2 || !args()[1].is_bool()) {
+    LOG(ERROR) << "jangid_sign: Invalid arguments provided";
+    return RespondNow(Error("Invalid arguments"));
+  }
+  
+  std::string tx_meta_id = args()[0].GetString();
+  bool approved = args()[1].GetBool();
+  
+  LOG(ERROR) << "jangid_sign: Transaction ID: " << tx_meta_id;
+  LOG(ERROR) << "jangid_sign: Approved: " << (approved ? "true" : "false");
+  
+  // Get services
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  LOG(ERROR) << "jangid_sign: Got profile from browser context";
+
+  auto* service = wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile);
+  if (!service || !service->tx_service()) {
+    LOG(ERROR) << "jangid_sign: Service not available";
+    return RespondNow(Error("Service not available"));
+  }
+  LOG(ERROR) << "jangid_sign: Got wallet service";
+
+  auto* eth_tx_manager = service->tx_service()->GetEthTxManager();
+  if (!eth_tx_manager) {
+    LOG(ERROR) << "jangid_sign: Transaction manager not available";
+    return RespondNow(Error("Transaction manager not available"));
+  }
+  LOG(ERROR) << "jangid_sign: Got ETH transaction manager";
+
+  if (approved) {
+    LOG(ERROR) << "jangid_sign: Approving transaction...";
+    eth_tx_manager->ApproveTransaction(
+        tx_meta_id,
+        base::BindOnce(&WootzSignTransactionFunction::OnTransactionSigned,
+                       this));
+  } else {
+    LOG(ERROR) << "jangid_sign: Rejecting transaction...";
+    eth_tx_manager->RejectTransaction(
+        tx_meta_id,
+        base::BindOnce(&WootzSignTransactionFunction::OnTransactionRejected,
+                       this));
+  }
+
+  LOG(ERROR) << "jangid_sign: Waiting for callback...";
+  closeExtensionBottomSheet();
+  return RespondLater();
+}
+
+void WootzSignTransactionFunction::OnTransactionSigned(
+    bool success,
+    wootz_wallet::mojom::ProviderErrorUnionPtr error,
+    const std::string& error_message) {
+  LOG(ERROR) << "jangid_sign: OnTransactionSigned callback received";
+  LOG(ERROR) << "jangid_sign: Success: " << (success ? "true" : "false");
+  
+  if (!success) {
+    LOG(ERROR) << "jangid_sign: Transaction signing failed: " << error_message;
+    Respond(Error(error_message));
+    return;
+  }
+  
+  LOG(ERROR) << "jangid_sign: Transaction signed successfully";
+  closeExtensionBottomSheet();
+  Respond(NoArguments());
+}
+
+void WootzSignTransactionFunction::OnTransactionRejected(bool success) {
+  LOG(ERROR) << "jangid_sign: OnTransactionRejected callback received";
+  LOG(ERROR) << "jangid_sign: Success: " << (success ? "true" : "false");
+  
+  if (!success) {
+    LOG(ERROR) << "jangid_sign: Transaction rejection failed";
+    Respond(Error("Failed to reject transaction"));
+    return;
+  }
+  
+  LOG(ERROR) << "jangid_sign: Transaction rejected successfully";
+  Respond(NoArguments());
 }
 
 // background worker

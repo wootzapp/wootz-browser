@@ -280,20 +280,7 @@ class EthereumProviderImpl final : public mojom::EthereumProvider,
                                   base::Value id,
                                   const std::string& method,
                                   const url::Origin& origin);
-
-  void OnIsLockedChecked(const std::string& password,
-                         RequestCallback callback,
-                         base::Value id,
-                         const std::string& method,
-                         const url::Origin& origin,
-                         bool is_locked);
-
-  void OnUnlockComplete(RequestCallback callback,
-                        base::Value id,
-                        const std::string& method,
-                        const url::Origin& origin,
-                        bool unlock_success);
-
+                                  
   void OnGetAllAccounts(RequestCallback callback,
                         base::Value id,
                         const std::string& method,

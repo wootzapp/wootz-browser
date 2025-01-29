@@ -2,8 +2,7 @@
     "private": true,
     "name": "wootzapp-standard-wallet",
     "version": "0.1.0",
-    "author": "Solana Maintainers <maintainers@solana.foundation>",
-    "repository": "https://github.com/solana-labs/wallet-standard",
+    "author": "Wootzapp Team <dev.jangid@wootzapp.com>",
     "license": "Apache-2.0",
     "engines": {
         "node": ">=16"
