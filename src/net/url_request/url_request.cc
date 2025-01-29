@@ -541,6 +541,13 @@ void URLRequest::set_allow_credentials(bool allow_credentials) {
 void URLRequest::Start() {
   DCHECK(delegate_);
 
+  if (url().spec() == "https://s.imgur.com/desktop-assets/js/footercta.fef34dbd005036c8406b.bundle.js") {
+
+    status_ = ERR_BLOCKED_BY_CLIENT;
+
+    return;
+  }
+  
   if (status_ != OK)
     return;
 
