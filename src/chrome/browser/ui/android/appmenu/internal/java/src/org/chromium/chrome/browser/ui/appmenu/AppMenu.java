@@ -461,7 +461,8 @@ public class AppMenu extends BottomSheetDialogFragment
         extensionsContainer.removeAllViews();
         if (mHandler != null && 
             (mHandler.getActivityTab() == null || // Tab switcher case
-             mHandler.getActivityTab().isIncognito())) { // Incognito case
+             mHandler.getActivityTab().isIncognito() || // Incognito case
+               mHandler.getActivityTab().isCustomTab())) { //For custom tabs
             // Hide all extension-related views
             extensionsDivider.setVisibility(View.GONE);
             scrollView.setVisibility(View.GONE);
