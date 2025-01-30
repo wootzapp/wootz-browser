@@ -25,8 +25,8 @@ const StarterPackEngine bookmarks = {
     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_BOOKMARKS_NAME,
     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_BOOKMARKS_KEYWORD,
     .favicon_url = nullptr,
-    .search_url = "wootzapp://bookmarks/?q={searchTerms}",
-    .destination_url = "wootzapp://bookmarks",
+    .search_url = "chrome://bookmarks/?q={searchTerms}",
+    .destination_url = "chrome://bookmarks",
     .id = StarterPackID::kBookmarks,
     .type = SEARCH_ENGINE_STARTER_PACK_BOOKMARKS,
 };
@@ -35,8 +35,8 @@ const StarterPackEngine history = {
     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_HISTORY_NAME,
     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_HISTORY_KEYWORD,
     .favicon_url = nullptr,
-    .search_url = "wootzapp://history/?q={searchTerms}",
-    .destination_url = "wootzapp://history",
+    .search_url = "chrome://history/?q={searchTerms}",
+    .destination_url = "chrome://history",
     .id = StarterPackID::kHistory,
     .type = SEARCH_ENGINE_STARTER_PACK_HISTORY,
 };
