@@ -1570,7 +1570,7 @@ public class NewTabPageLayout extends LinearLayout {
         cleanupWebContents();
     }
 
-    public void cleanupWebContents() {
+    private void cleanupWebContents() {
         Log.d(TAG, "cleanupWebContents called");
         if (mCurrentWebContents != null) {
             Log.d(TAG, "Destroying current WebContents");

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.ui.appmenu;
+
 import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -269,7 +270,7 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private View createContentView(boolean test) {
-        Log.d("KRITAGYA", "KRITAGYA: createContentView");
+
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -299,7 +300,7 @@ public class AppMenu extends BottomSheetDialogFragment
             alreadyReverted = true;
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
-        Log.d("KRITAGYA", "KRITAGYA: createWebViewContainer");
+
         FrameLayout viewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -373,7 +374,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private void returnToAppMenu() {
         View view = getView();
         if (view != null) {
-            
+
             view.findViewById(R.id.app_menu_grid).setVisibility(View.VISIBLE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.VISIBLE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.VISIBLE);
@@ -386,7 +387,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
-        Log.d("KRITAGYA", "KRITAGYA: onActivityCreated");
         super.onActivityCreated(savedInstanceState);
 
         View parent = (View) getView().getParent();
@@ -458,6 +458,16 @@ public class AppMenu extends BottomSheetDialogFragment
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
 
+        // Check if we're in incognito mode
+        if (mHandler != null && mHandler.getActivityTab() != null &&
+                mHandler.getActivityTab().isIncognito()) {
+            // Hide all extension-related views in incognito mode
+            extensionsDivider.setVisibility(View.GONE);
+            scrollView.setVisibility(View.GONE);
+            parent.setVisibility(View.GONE);
+            return;
+        }
+
         extensionsContainer.removeAllViews();
 
         List<ExtensionInfo> extensionsInfo = Extensions.getExtensionsInfo();
@@ -515,7 +525,6 @@ public class AppMenu extends BottomSheetDialogFragment
         scrollView.setLayoutParams(scrollParams);
 
         // Enable horizontal scrolling
-        Log.d("KRITAGYA", "KRITAGYA: scrollView.setHorizontalScrollBarEnabled");
         scrollView.setHorizontalScrollBarEnabled(true);
     }
 
@@ -534,14 +543,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openWebsite(String url) {
-        if (!Extensions.isUrlfromOfficialStore(url)) {
-            Context context = getContext();
-            if (context != null) {
-                Toast.makeText(context, "Install from official store", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        }
-
         if (mHandler != null) {
             LoadUrlParams params = new LoadUrlParams(url);
             Tab tab = mHandler.getActivityTab();
@@ -576,13 +577,11 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openExtensionWebView(int index) {
-        Log.d("KRITAGYA", "KRITAGYA: openExtensionWebView");
         View view = getView();
         if (view != null) {
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.GONE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.GONE);
-
             FrameLayout webViewContainer = view.findViewById(R.id.web_view_container);
             webViewContainer.setVisibility(View.VISIBLE);
 
@@ -594,7 +593,6 @@ public class AppMenu extends BottomSheetDialogFragment
                 mWebViewContainer = createWebViewContainer();
             }
             webViewFrame.addView(mWebViewContainer);
-
             // Load the extension URL
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
             mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
@@ -603,8 +601,7 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onDestroyView() {
-        Log.d("KRITAGYA", "KRITAGYA: onDestroyView");
-        
+
         super.onDestroyView();
         if (mWebContents != null) {
             mWebContents.destroy();
@@ -613,10 +610,9 @@ public class AppMenu extends BottomSheetDialogFragment
         mContentView = null;
         mThinWebView = null;
         mWebViewContainer = null;
-        if(mWebViewContainer == null){
+        if (mWebViewContainer == null) {
             Activity activity = getActivity();
             if (activity != null && alreadyReverted) {
-                Log.d("KRITAGYA", "KRITAGYA: reverting back to unspecifed");
                 activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
                 alreadyReverted = false;
             }
@@ -624,7 +620,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public boolean onBackPressed() {
-        Log.d("KRITAGYA", "KRITAGYA: onBackPressed");
         View view = getView();
         if (view != null && view.findViewById(R.id.app_menu_grid).getVisibility() == View.GONE) {
             returnToAppMenu();
@@ -652,7 +647,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void dismiss() {
-        Log.d("KRITAGYA", "KRITAGYA: dismiss called");
         Log.d(TAG, "dismiss called");
         try {
             super.dismiss();
@@ -860,7 +854,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public void closeExtensionBottomSheet(AppMenuExtensionOpener extensionOpener) {
-        
 
         extensionOpener.closeBottomSheet();
     }
@@ -999,5 +992,5 @@ public class AppMenu extends BottomSheetDialogFragment
 
         return view;
     }
-   
+
 }
