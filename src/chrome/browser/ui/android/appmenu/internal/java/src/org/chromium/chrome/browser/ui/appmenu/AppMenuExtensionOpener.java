@@ -49,19 +49,15 @@ public class AppMenuExtensionOpener {
     private WebContents mCurrentWebContents;
     private static BottomSheetDialog mBottomSheetDialog;
     private Activity mActivity;
-
     public AppMenuExtensionOpener(Context context, WindowAndroid windowAndroid) {
         mContext = context;
         mWindowAndroid = windowAndroid;
         if (context instanceof Activity) {
             mActivity = (Activity) context;
         }
-        
     }
 
     public void openExtension(String extensionId) {
-
-        Log.d("KRITAGYA", "KRITAGYA: openExtension");
         int index = findExtensionIndexById(extensionId);
         if (index == -1) {
             Log.e(TAG, "JANGID: Extension not found with ID: " + extensionId);
@@ -79,7 +75,6 @@ public class AppMenuExtensionOpener {
 
     private View createWebView(int index) {
         try {
-            Log.d("KRITAGYA", "KRITAGYA: createWebView");
             Profile profile = ProfileManager.getLastUsedRegularProfile();
             mCurrentWebContents = WebContentsFactory.createWebContents(profile, true, false);
             ContentView contentView = ContentView.createContentView(mContext, null, mCurrentWebContents);
@@ -117,7 +112,6 @@ public class AppMenuExtensionOpener {
     }
 
     private void showWebViewInBottomSheet(View webView) {
-        Log.d("KRITAGYA", "KRITAGYA: showWebViewInBottomSheet");
         Activity activity = (Activity) mContext;
         if (activity != null) {
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
@@ -127,35 +121,34 @@ public class AppMenuExtensionOpener {
 
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
-        
+
         // Set initial wrap_content height
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         bottomSheetView.setLayoutParams(params);
-        
-        mBottomSheetDialog.setContentView(bottomSheetView);
-      
- BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
-        behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
 
+        mBottomSheetDialog.setContentView(bottomSheetView);
+
+        BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
+        behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
         mBottomSheetDialog.setCanceledOnTouchOutside(true);
-        
+
         mBottomSheetDialog.setOnCancelListener(dialog -> {
-    
+
             resetOrientation();
         });
-        
+
         mBottomSheetDialog.setOnDismissListener(dialog -> {
-   
+
             resetOrientation();
         });
-        
+
         behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
             @Override
             public void onStateChanged(View bottomSheet, int newState) {
                 if (newState == BottomSheetBehavior.STATE_HIDDEN) {
-             
+
                     resetOrientation();
                     mBottomSheetDialog.dismiss();
                 }
@@ -184,8 +177,8 @@ public class AppMenuExtensionOpener {
                         int screenHeight = rootView.getHeight();
                         int keypadHeight = screenHeight - r.bottom;
 
-                        if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
-                            bottomSheetView.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
+                        if (keypadHeight > screenHeight * 0.10) { // Keyboard is visible
+                            bottomSheetView.getLayoutParams().height = screenHeight - keypadHeight - 200;
                         } else {
                             bottomSheetView.getLayoutParams().height = defaultHeight;
                         }
@@ -193,11 +186,9 @@ public class AppMenuExtensionOpener {
                     }
                 });
 
-
         // Set window soft input mode
         mBottomSheetDialog.getWindow().setSoftInputMode(
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-                
 
         mBottomSheetDialog.show();
     }
@@ -206,7 +197,6 @@ public class AppMenuExtensionOpener {
             mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         }
     }
-    
 
     private int findExtensionIndexById(String extensionId) {
         ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
@@ -219,7 +209,6 @@ public class AppMenuExtensionOpener {
     }
 
     public static void closeBottomSheet() {
-        Log.d(TAG, "KRITAGYA: closeBottomSheet");
         if (mBottomSheetDialog != null && mBottomSheetDialog.isShowing()) {
             Context context = mBottomSheetDialog.getContext();
             mBottomSheetDialog.dismiss();

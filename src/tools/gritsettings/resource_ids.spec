@@ -593,7 +593,7 @@
     "includes": [4760],
   },
    "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/throttle/resources.grd": {
-    "META": {"sizes": {"includes": [20]}},
+    "META": {"sizes": {"includes": [50]}},
     "includes": [4770],
   },
   "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/omnibox/resources.grd": {
