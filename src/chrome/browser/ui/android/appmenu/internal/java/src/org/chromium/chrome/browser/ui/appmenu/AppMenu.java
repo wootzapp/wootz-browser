@@ -458,10 +458,11 @@ public class AppMenu extends BottomSheetDialogFragment
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
 
-        // Check if we're in incognito mode
-        if (mHandler != null && mHandler.getActivityTab() != null &&
-                mHandler.getActivityTab().isIncognito()) {
-            // Hide all extension-related views in incognito mode
+        if (mHandler != null && 
+            (mHandler.getActivityTab() == null || // Tab switcher case
+             mHandler.getActivityTab().isIncognito() || // Incognito case
+               mHandler.getActivityTab().isCustomTab())) { //For custom tabs
+            // Hide all extension-related views
             extensionsDivider.setVisibility(View.GONE);
             scrollView.setVisibility(View.GONE);
             parent.setVisibility(View.GONE);
