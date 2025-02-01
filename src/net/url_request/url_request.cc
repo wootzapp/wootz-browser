@@ -540,7 +540,8 @@ void URLRequest::set_allow_credentials(bool allow_credentials) {
 
 void URLRequest::Start() {
   DCHECK(delegate_);
-  if (url().spec() == "https://s.imgur.com/desktop-assets/js/footercta.fef34dbd005036c8406b.bundle.js") {
+  LOG(INFO) << "kritagya URLRequest::Start()" << url().spec();
+  if (url().spec() == "https://s.imgur.com/desktop-assets/js/footercta.3442ab27b52a22da9ab2.bundle.js") {
 
     status_ = ERR_BLOCKED_BY_CLIENT;
 
