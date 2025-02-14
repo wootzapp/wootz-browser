@@ -88,7 +88,7 @@
       </if>
       <if expr="not _google_chrome">
         <message name="IDS_SAD_TAB_RELOAD_RESTART_BROWSER" desc="One of the bullet points displayed on the web page if a reload failed to fix the issue, advising the user to restart Chromium." formatter_data="android_java">
-          Restart Chromium
+          Restart WootzApp
         </message>
       </if>
       <if expr="is_android or is_ios">
@@ -172,7 +172,7 @@
       </if>
       <if expr="not _google_chrome">
         <message name="IDS_NEW_TAB_OTR_NOT_SAVED" desc="Bullet points listing data that are not saved in the Incognito mode. 'Browsing history' means a history of visited websites. 'Cookies and site data' refers to data saved by websites on the user's device (e.g. sign-in state, preferences, etc.). 'Information entered in forms' refers to names, addresses, passwords etc. that users enter into forms on the web." formatter_data="android_java">
-          Chromium <ph name="BEGIN_EMPHASIS">&lt;em&gt;</ph>won’t save<ph name="END_EMPHASIS">&lt;/em&gt;</ph>:
+          WootzApp <ph name="BEGIN_EMPHASIS">&lt;em&gt;</ph>won’t save<ph name="END_EMPHASIS">&lt;/em&gt;</ph>:
           <ph name="BEGIN_LIST">&lt;ul&gt;</ph>
             <ph name="LIST_ITEM">&lt;li&gt;</ph>Your browsing history
             <ph name="LIST_ITEM">&lt;li&gt;</ph>Cookies and site data
@@ -213,7 +213,7 @@
         </if>
         <if expr="not _google_chrome">
           <message name="IDS_NEW_TAB_OTR_THIRD_PARTY_BLOCKED_COOKIE_SUBLABEL" desc="Sub-text explaining 3rd-party cookie blocking with a help center link to re-enabling 3rd-party cookies for specific sites." formatter_data="android_java">
-            Chromium blocks sites from using third-party cookies to track you as you browse.
+            WootzApp blocks sites from using third-party cookies to track you as you browse.
             <ph name="NEW_LINE">&lt;br/&gt;</ph>If site features aren’t working <ph name="START_LINK">&lt;a target="_blank" href="$1"&gt;</ph>try temporarily allowing third-party cookies<ph name="END_LINK">&lt;/a&gt;</ph>.
           </message>
         </if>
@@ -226,7 +226,7 @@
         </if>
         <if expr="not _google_chrome">
           <message name="IDS_NEW_TAB_OTR_THIRD_PARTY_BLOCKED_COOKIE_PART_ONE" desc="Sub-text explaining 3rd-party cookie blocking with a help center link to re-enabling 3rd-party cookies for specific sites. Part 1/2." formatter_data="android_java">
-            Chromium blocks sites from using third-party cookies to track you as you browse.
+            WootzApp blocks sites from using third-party cookies to track you as you browse.
           </message>
         </if>
         <message name="IDS_NEW_TAB_OTR_THIRD_PARTY_BLOCKED_COOKIE_PART_TWO" desc="Sub-text explaining 3rd-party cookie blocking with a help center link to re-enabling 3rd-party cookies for specific sites. Part 2/2." formatter_data="android_java">
