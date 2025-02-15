@@ -106,7 +106,6 @@ template("chrome_extra_paks") {
     sources = [
       # Jai
       "$root_gen_dir/components/wootz_components_resources.pak",
-      
       "$root_gen_dir/chrome/hello_world_resources.pak",
       "$root_gen_dir/base/tracing/protos/tracing_proto_resources.pak",
       "$root_gen_dir/chrome/browser_resources.pak",
