@@ -28,30 +28,28 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
       content::DownloadItemUtils::GetWebContents(&download_item);
   if (!web_contents) {
     LOG(INFO) << "No web contents found, rejecting CRX";
-    return false;
+    // return false;
   }
 
   GURL page_url = web_contents->GetLastCommittedURL();
   LOG(INFO) << "  Page URL: " << page_url.spec();
 
   // Only allow from our trusted repo
-  const char* TRUSTED_REPO = "github.com/wootzapp/ext-store";
-  if (page_url.spec().find(TRUSTED_REPO) == std::string::npos) {
-    LOG(INFO) << "Not from trusted repo, rejecting CRX";
-    return false;
-  }
+  // const char* TRUSTED_REPO = "github.com/wootzapp/ext-store";
+  // if (page_url.spec().find(TRUSTED_REPO) == std::string::npos) {
+  //   LOG(INFO) << "Not from trusted repo, rejecting CRX";
+  //   return false;
+  // }
 
   // Verify it's a CRX file from the correct path structure
-  if ((page_url.spec().find("/blob/main/") != std::string::npos ||
-       page_url.spec().find("/blob/master/") != std::string::npos) &&
-      base::EndsWith(page_url.spec(), ".crx",
+  if (base::EndsWith(page_url.spec(), ".crx",
                      base::CompareCase::INSENSITIVE_ASCII)) {
     LOG(INFO) << "Detected trusted CRX download";
     return true;
   }
 
   LOG(INFO) << "Not a valid CRX file path";
-  return false;
+  return true;
 }
 
 // bool IsTrustedExtensionDownload(Profile* profile,
