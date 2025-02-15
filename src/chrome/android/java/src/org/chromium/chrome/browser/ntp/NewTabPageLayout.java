@@ -32,6 +32,9 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.widget.NestedScrollView;
+import androidx.cardview.widget.CardView;
+import android.widget.Button;
+import android.widget.TextView;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
@@ -185,6 +188,8 @@ public class NewTabPageLayout extends LinearLayout {
     private @LogoSizeForLogoPolish int mLogoSizeForLogoPolish;
     private View mFakeSearchBoxLayout;
     private Callback<Logo> mOnLogoAvailableCallback;
+    private View mExtensionStoreContainer;
+    private Button mExtensionStoreButton;
 
     /** Constructor for inflating from XML. */
     public NewTabPageLayout(Context context, AttributeSet attrs) {
@@ -348,19 +353,11 @@ public class NewTabPageLayout extends LinearLayout {
         manager.addDestructionObserver(NewTabPageLayout.this::onDestroy);
         mInitialized = true;
 
-        Log.d(TAG, "NewTabPageLayout initialized to the Extensions object!!");
-        Extensions.setNewTabPageLayout(this);
-        Log.d(TAG, "NewTabPageLayout set to the Extensions object!!");
-
         TraceEvent.end(TAG + ".initialize()");
     }
 
     public void reload() {
         // TODO(crbug.com/41487877): Add handler in Magic Stack and dispatcher.
-        Log.d(TAG, "Reload the NewTabPageLayout!!");
-        Log.d(TAG, "Detaching and Reattaching the NewTabPageLayout!!");
-        this.onDetachedFromWindow();
-        this.onAttachedToWindow();
     }
 
     /**
@@ -1419,142 +1416,107 @@ public class NewTabPageLayout extends LinearLayout {
     }
 
     private View createWebView(int i) {
-        try {
-            Log.d(TAG, "Creating WebView for extension index: " + i);
-            Log.d(TAG, "EXTS: " + Extensions.getExtensionsInfo().get(i).toString());
+        Log.d(TAG, "EXTS: " + Extensions.getExtensionsInfo().get(i).toString());
 
-            NestedScrollView scrollView = new NestedScrollView(getContext());
-            scrollView.setLayoutParams(new ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-            
-            // Create a FrameLayout to wrap the GridView
-            FrameLayout viewWrapper = new FrameLayout(getContext());
-            FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT);
-            
-            // Set margins for the wrapper (adjust these values as needed)
-            int margin = dpToPx(32); // Convert 16dp to pixels
-            wrapperParams.setMargins(
-                0,
-                -margin, 
-                0, 
-                margin
-            );
-            viewWrapper.setLayoutParams(wrapperParams);
-
-            Profile profile = ProfileManager.getLastUsedRegularProfile();
-            WebContents webContents = WebContentsFactory.createWebContents(profile, true, false);
-            ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
-            webContents.setDelegates(
-                VersionInfo.getProductVersion(),
-                ViewAndroidDelegate.createBasicDelegate(contentView),
-                contentView,
-                mWindowAndroid,
-                WebContents.createDefaultInternalsHolder());
-
-            Log.d(TAG, "contentview " + contentView.toString());
-            // viewWrapper.addView(contentView);
+        NestedScrollView scrollView = new NestedScrollView(getContext());
+        scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         
-            IntentRequestTracker intentRequestTracker = mWindowAndroid.getIntentRequestTracker();
-            ThinWebView thinWebView = ThinWebViewFactory.create(
-                getContext(), new ThinWebViewConstraints(), intentRequestTracker);
-            thinWebView.attachWebContents(webContents, contentView, null);
-            float borderRadius = dpToPx(24); // You can adjust this value as needed
-            thinWebView.getView().setClipToOutline(true);
-            thinWebView.getView().setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View view, Outline outline) {
-                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
-                }
-            });
+        // Create a FrameLayout to wrap the GridView
+        FrameLayout viewWrapper = new FrameLayout(getContext());
+        FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
+        
+        // Set margins for the wrapper (adjust these values as needed)
+        int margin = dpToPx(32); // Convert 16dp to pixels
+        wrapperParams.setMargins(
+            0,
+            -margin, 
+            0, 
+            margin
+        );
+        viewWrapper.setLayoutParams(wrapperParams);
+
+        Profile profile = ProfileManager.getLastUsedRegularProfile();
+        WebContents webContents = WebContentsFactory.createWebContents(profile, true, false);
+        ContentView contentView = ContentView.createContentView(getContext(), null, webContents);
+        webContents.setDelegates(
+            VersionInfo.getProductVersion(),
+            ViewAndroidDelegate.createBasicDelegate(contentView),
+            contentView,
+            mWindowAndroid,
+            WebContents.createDefaultInternalsHolder());
+
+        Log.d(TAG, "contentview " + contentView.toString());
+        // viewWrapper.addView(contentView);
+    
+        IntentRequestTracker intentRequestTracker = mWindowAndroid.getIntentRequestTracker();
+        ThinWebView thinWebView = ThinWebViewFactory.create(
+            getContext(), new ThinWebViewConstraints(), intentRequestTracker);
+        thinWebView.attachWebContents(webContents, contentView, null);
+        float borderRadius = dpToPx(24); // You can adjust this value as needed
+        thinWebView.getView().setClipToOutline(true);
+        thinWebView.getView().setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), borderRadius);
+            }
+        });
 
 
-            String widgetUrl = Extensions.getExtensionsInfo().get(i).getWidgetUrl();
-            Log.d(TAG, "Loading widget URL: " + widgetUrl);
-            webContents.getNavigationController().loadUrl(
-                    new LoadUrlParams(widgetUrl));
+        String widgetUrl = Extensions.getExtensionsInfo().get(i).getWidgetUrl();
+        webContents.getNavigationController().loadUrl(
+                new LoadUrlParams(widgetUrl));
 
-            // Create a FrameLayout to hold both the WebView and the overlay
-        FrameLayout container = new FrameLayout(getContext());
-            container.setLayoutParams(new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-            
-            View view = thinWebView.getView();
-            view.setTag(webContents);
+        // Create a FrameLayout to hold both the WebView and the overlay
+    FrameLayout container = new FrameLayout(getContext());
+        container.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        
+        View view = thinWebView.getView();
+        view.setTag(webContents);
 
-            mCurrentWebContents = webContents;
-            // setupFloatingBackButton();
-            container.addView(view);
+        mCurrentWebContents = webContents;
+        // setupFloatingBackButton();
+        container.addView(view);
 
-        // Add a transparent overlay View
-        View overlay = new View(getContext());
-            overlay.setLayoutParams(new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-            overlay.setBackgroundColor(Color.TRANSPARENT);
-            overlay.setOnClickListener(v -> {
-                try {
-                    ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
-                    String extensionId = extension.getId();
-                    Log.d(TAG, "Opening extension with ID: " + extensionId);
-                    OpenExtensionsById.openExtensionById(extensionId);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error opening extension", e);
-                    cleanupWebContents();
-                }
-            });
-            container.addView(overlay);
+    // Add a transparent overlay View
+    View overlay = new View(getContext());
+        overlay.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        overlay.setBackgroundColor(Color.TRANSPARENT);
+        overlay.setOnClickListener(v -> {
+            ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
+            String extensionId = extension.getId();
+            OpenExtensionsById.openExtensionById(extensionId);
+        });
+        container.addView(overlay);
 
-            return container;
-        } catch (Exception e) {
-            Log.e(TAG, "Error creating WebView", e);
-            Log.e(TAG, "Cleaning up WebContents");
-            cleanupWebContents();
-            return null;
-        }
+        return container;
     }
 
     private void initializeExtensionWebView(int index) {
-        try {
-            Log.d(TAG, "Initializing Extension WebView for index: " + index);
-            LinearLayout webViewContainer = findViewById(R.id.ntp_web_view_container);
-            webViewContainer.setVisibility(View.VISIBLE);
-            FrameLayout webViewFrame = findViewById(R.id.ntp_web_view);
-            webViewFrame.removeAllViews();
-            View webView = createWebView(index);
-            webViewFrame.addView(webView);
-        } catch (Exception e) {
-            Log.e(TAG, "Error initializing Extension WebView", e);
-            cleanupWebContents();
-        }
+        LinearLayout webViewContainer = findViewById(R.id.ntp_web_view_container);
+        webViewContainer.setVisibility(View.VISIBLE);
+        FrameLayout webViewFrame = findViewById(R.id.ntp_web_view);
+        webViewFrame.removeAllViews();
+        View webView = createWebView(index);
+        webViewFrame.addView(webView);
     }
     
     private void setupExtensionWebViewClick() {
-        try {
-            FrameLayout webViewFrame = findViewById(R.id.ntp_web_view);
-            if (webViewFrame != null) {
-                webViewFrame.setOnClickListener(v -> {
-                    try {
-                        // Get the extension ID from the Extensions list
-                        ExtensionInfo extensions = Extensions.getExtensionsInfo().get(1);
-                        String extensionId = extensions.getId();
-                        OpenExtensionsById.openExtensionById(extensionId);
-                    } catch (IndexOutOfBoundsException e) {
-                        Log.e(TAG, "Failed to get extension ID: Index out of bounds", e);
-                        cleanupWebContents();
-                    } catch (Exception e) {
-                        Log.e(TAG, "An unexpected error occurred while opening extension", e);
-                        cleanupWebContents();
-                    }
-                });
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error setting up extension WebView click listener", e);
-            Log.e(TAG, "Cleaning up WebContents");
-            cleanupWebContents();
+        FrameLayout webViewFrame = findViewById(R.id.ntp_web_view);
+        if (webViewFrame != null) {
+            webViewFrame.setOnClickListener(v -> {
+                // Get the extension ID from the Extensions list
+                ExtensionInfo extensions = Extensions.getExtensionsInfo().get(1);
+                String extensionId = extensions.getId();
+                OpenExtensionsById.openExtensionById(extensionId);
+            });
         }
     }
 
@@ -1566,21 +1528,15 @@ public class NewTabPageLayout extends LinearLayout {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        Log.d(TAG, "onDetachedFromWindow called");
         cleanupWebContents();
     }
 
     private void cleanupWebContents() {
-        Log.d(TAG, "cleanupWebContents called");
         if (mCurrentWebContents != null) {
-            Log.d(TAG, "Destroying current WebContents");
             mCurrentWebContents.destroy();
             mCurrentWebContents = null;
         }
         LinearLayout webViewContainer = findViewById(R.id.ntp_web_view_container);
-        if (webViewContainer != null) {
-            Log.d(TAG, "Hiding webViewContainer");
-            webViewContainer.setVisibility(View.GONE);
-        }
+        webViewContainer.setVisibility(View.GONE);
     }
 }
