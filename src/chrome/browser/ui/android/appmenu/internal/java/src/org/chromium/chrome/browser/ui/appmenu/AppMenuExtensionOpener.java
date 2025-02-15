@@ -37,8 +37,7 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
-import android.content.pm.ActivityInfo;
-import android.app.Activity;
+
 import java.util.ArrayList;
 
 public class AppMenuExtensionOpener {
@@ -48,13 +47,10 @@ public class AppMenuExtensionOpener {
     private final WindowAndroid mWindowAndroid;
     private WebContents mCurrentWebContents;
     private static BottomSheetDialog mBottomSheetDialog;
-    private Activity mActivity;
+
     public AppMenuExtensionOpener(Context context, WindowAndroid windowAndroid) {
         mContext = context;
         mWindowAndroid = windowAndroid;
-        if (context instanceof Activity) {
-            mActivity = (Activity) context;
-        }
     }
 
     public void openExtension(String extensionId) {
@@ -112,90 +108,52 @@ public class AppMenuExtensionOpener {
     }
 
     private void showWebViewInBottomSheet(View webView) {
-        Activity activity = (Activity) mContext;
-        if (activity != null) {
-            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        }
         mBottomSheetDialog = new BottomSheetDialog(mContext, R.style.ExtensionsBottomSheetDialogTheme);
         View bottomSheetView = LayoutInflater.from(mContext).inflate(R.layout.extension_bottom_sheet_layout, null);
-
+        
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
-
+        
         // Set initial wrap_content height
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         bottomSheetView.setLayoutParams(params);
-
+        
         mBottomSheetDialog.setContentView(bottomSheetView);
-
+        
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-        mBottomSheetDialog.setCanceledOnTouchOutside(true);
-
-        mBottomSheetDialog.setOnCancelListener(dialog -> {
-
-            resetOrientation();
-        });
-
-        mBottomSheetDialog.setOnDismissListener(dialog -> {
-
-            resetOrientation();
-        });
-
-        behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
-            @Override
-            public void onStateChanged(View bottomSheet, int newState) {
-                if (newState == BottomSheetBehavior.STATE_HIDDEN) {
-
-                    resetOrientation();
-                    mBottomSheetDialog.dismiss();
-                }
-            }
-
-            @Override
-            public void onSlide(View bottomSheet, float slideOffset) {}
-        });
-
         behavior.setDraggable(false);
-        // Disable bottom sheet touch events to prevent scrolling
-        ((View) bottomSheetView.getParent()).setNestedScrollingEnabled(false);
-        // Enable scrolling for the web view content
-        webView.setNestedScrollingEnabled(true);
 
         // Handle keyboard visibility changes
         final View rootView = bottomSheetView.getRootView();
         rootView.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
-                    private final Rect r = new Rect();
-                    private final int defaultHeight = bottomSheetView.getLayoutParams().height;
-
-                    @Override
-                    public void onGlobalLayout() {
-                        rootView.getWindowVisibleDisplayFrame(r);
-                        int screenHeight = rootView.getHeight();
-                        int keypadHeight = screenHeight - r.bottom;
-
-                        if (keypadHeight > screenHeight * 0.10) { // Keyboard is visible
-                            bottomSheetView.getLayoutParams().height = screenHeight - keypadHeight - 200;
-                        } else {
-                            bottomSheetView.getLayoutParams().height = defaultHeight;
-                        }
-                        bottomSheetView.requestLayout();
-                    }
-                });
+            private final Rect r = new Rect();
+            private final int defaultHeight = bottomSheetView.getLayoutParams().height;
+            
+            @Override
+            public void onGlobalLayout() {
+                rootView.getWindowVisibleDisplayFrame(r);
+                int screenHeight = rootView.getHeight();
+                int keypadHeight = screenHeight - r.bottom;
+                
+                if (keypadHeight > screenHeight * 0.15) { // Keyboard is visible
+                    bottomSheetView.getLayoutParams().height = 
+                            ViewGroup.LayoutParams.MATCH_PARENT;
+                } else {
+                    bottomSheetView.getLayoutParams().height = defaultHeight;
+                }
+                bottomSheetView.requestLayout();
+            }
+        });
 
         // Set window soft input mode
         mBottomSheetDialog.getWindow().setSoftInputMode(
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-
+                
         mBottomSheetDialog.show();
-    }
-    private void resetOrientation() {
-        if (mActivity != null) {
-            mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-        }
     }
 
     private int findExtensionIndexById(String extensionId) {
@@ -210,7 +168,6 @@ public class AppMenuExtensionOpener {
 
     public static void closeBottomSheet() {
         if (mBottomSheetDialog != null && mBottomSheetDialog.isShowing()) {
-            Context context = mBottomSheetDialog.getContext();
             mBottomSheetDialog.dismiss();
         }
     }
