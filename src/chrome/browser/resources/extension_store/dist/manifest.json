@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Extension Store",
+  "version": "1.0",
+  "description": "A custom extension store",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Extension Store"
+  },
+  "permissions": [
+    "downloads"
+  ]
+} 

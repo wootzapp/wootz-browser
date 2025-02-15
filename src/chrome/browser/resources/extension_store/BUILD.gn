@@ -1,0 +1,23 @@
+import("//tools/grit/grit_rule.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+import("//ui/webui/resources/tools/generate_grd.gni")
+
+# preprocess_folder = "preprocessed"
+# preprocess_manifest = "preprocessed_manifest.json"
+
+grit("extension_store_resources") {
+  enable_input_discovery_for_gn_analyze = false
+  source = "dist/extension_store_resources.grd"
+  # deps = [ ":build_grd" ]
+  outputs = [
+    "grit/extension_store_page_resources.h",
+    "grit/extension_store_page_resources_map.h",
+    "grit/extension_store_page_resources_map.cc",
+    "extension_store_page_resources.pak",
+  ]
+  output_dir = "$root_gen_dir/chrome"
+}
+
+group("extension_store_app") {
+  public_deps = [ ":extension_store_resources" ]
+}

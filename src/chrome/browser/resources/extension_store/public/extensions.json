@@ -1,0 +1,22 @@
+{
+  "extensions": [
+    {
+      "id": "1",
+      "name": "AdBlock Plus",
+      "author": "AdBlock Team",
+      "description": "Block ads and pop-ups on YouTube, Facebook, and all other websites.",
+      "version": "3.13.0",
+      "rating": 4.5,
+      "github_url": "https://github.com/wootzapp/ext-store/blob/main/Artifact.crx",
+      "download_url": "https://github.com/wootzapp/ext-store/raw/refs/heads/main/Artifact.crx",
+      "icon": "https://raw.githubusercontent.com/author/adblock-plus/main/icon.png",
+      "tags": ["privacy", "ad-blocker"],
+      "created_at": "2024-03-27T00:00:00Z",
+      "updated_at": "2024-03-27T00:00:00Z"
+    }
+  ],
+  "metadata": {
+    "total_extensions": 1,
+    "last_updated": "2024-03-27T00:00:00Z"
+  }
+} 
