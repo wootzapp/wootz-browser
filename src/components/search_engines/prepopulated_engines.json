@@ -73,13 +73,13 @@
       "id": 3
     },
 
-    "brave": {
-      "name": "Brave",
-      "keyword": "search.brave.com",
-      "favicon_url": "https://cdn.search.brave.com/serp/favicon.ico",
-      "search_url": "https://search.brave.com/search?q={searchTerms}",
-      "suggest_url": "https://search.brave.com/api/suggest?q={searchTerms}",
-      "type": "SEARCH_ENGINE_BRAVE",
+    "wootz": {
+      "name": "Wootz",
+      "keyword": "search.wootz.com",
+      "favicon_url": "https://cdn.search.wootz.com/serp/favicon.ico",
+      "search_url": "https://search.wootz.com/search?q={searchTerms}",
+      "suggest_url": "https://search.wootz.com/api/suggest?q={searchTerms}",
+      "type": "SEARCH_ENGINE_WOOTZ",
       "id": 109
     },
 
