@@ -9,13 +9,13 @@
 #include <memory>
 
 #include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/webstore_installer.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/android/tab_model/tab_model.h"
-#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -63,9 +63,8 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
       // }
       // web_contents = browser->tab_strip_model()->GetActiveWebContents();
       for (const TabModel* model : TabModelList::models()) {
-        if (model->IsActiveModel()) {
+        if (model->IsActiveModel())
           web_contents = model->GetActiveWebContents();
-        }
       }
     }
     return std::make_unique<ExtensionInstallPrompt>(web_contents);
@@ -96,9 +95,10 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
 
   scoped_refptr<extensions::CrxInstaller> installer(
       extensions::CrxInstaller::Create(
-          service, CreateExtensionInstallPrompt(profile, download_item),
-          nullptr));  // woots exts patch
-  // WebstoreInstaller::GetAssociatedApproval(download_item)));
+          service,
+          CreateExtensionInstallPrompt(profile, download_item),
+          nullptr)); // woots exts patch
+          // WebstoreInstaller::GetAssociatedApproval(download_item)));
 
   installer->set_error_on_unsupported_requirements(true);
   installer->set_delete_source(true);
@@ -114,9 +114,9 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
 //       DownloadItem::TARGET_DISPOSITION_PROMPT)
 //     return false;
 
-// if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
-//     extensions::UserScript::IsURLUserScript(download_item.GetURL(),
-//                                             download_item.GetMimeType())) {
+  // if (download_item.GetMimeType() == extensions::Extension::kMimeType ||
+  //     extensions::UserScript::IsURLUserScript(download_item.GetURL(),
+  //                                             download_item.GetMimeType())) {
 //     return true;
 //   } else {
 //     return false;
