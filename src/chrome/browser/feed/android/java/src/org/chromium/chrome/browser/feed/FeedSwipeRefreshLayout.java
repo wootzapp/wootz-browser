@@ -227,18 +227,15 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         if (mTarget == null) {
             return;
         }
-        
-        // Force the target view to be measured with a very large height
-        // This will push any bottom content (like search box) off screen
         mTarget.measure(
                 MeasureSpec.makeMeasureSpec(
                         getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
                         MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(
-                        Integer.MAX_VALUE,  
-                        MeasureSpec.AT_MOST));  
+                        0,  // Height of 0 with UNSPECIFIED lets the view size to its content
+                        MeasureSpec.UNSPECIFIED));  // UNSPECIFIED allows the view to determine its own size
         
-        // Set the measured dimension to be very tall
+        // Update the measured dimensions to match the child's height plus padding
         setMeasuredDimension(getMeasuredWidth(), 
                 Math.max(mTarget.getMeasuredHeight() + getPaddingTop() + getPaddingBottom(), getMeasuredHeight()));
     }
