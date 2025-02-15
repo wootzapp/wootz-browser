@@ -28,6 +28,8 @@ namespace chrome {
 
 const char kChromeUIAboutHost[] = "about";
 const char kChromeUIAboutURL[] = "wootzapp://about/";
+const char kChromeUIExtensionStoreURL[] = "wootzapp://extension-store/";
+const char kChromeUIExtensionStoreHost[] = "extension-store";
 const char kChromeUIActivateSafetyCheckSettingsURL[] =
     "wootzapp://settings/safetyCheck?activateSafetyCheck";
 const char kChromeUIAccessibilityHost[] = "accessibility";
