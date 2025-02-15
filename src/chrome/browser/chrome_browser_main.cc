@@ -385,6 +385,17 @@
 #include "base/files/file_path.h"
 #include "base/path_service.h"
 
+#include "services/network/public/cpp/resource_request.h"
+#include "services/network/public/cpp/simple_url_loader.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
+#include "base/files/file.h"
+
+#include "chrome/browser/extensions/crx_installer.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/common/extension.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/manifest.h"
+
 namespace {
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
     BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
@@ -614,6 +625,71 @@ void StartWatchingForProcessShutdownHangs() {
   std::ignore = watcher;
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+// Downloads a CRX file from the given URL and returns the path to the downloaded file
+base::FilePath DownloadCrxFile(Profile* profile, const GURL& url) {
+  LOG(INFO) << "SagarCrx: Starting CRX download from URL: " << url;
+
+  // Create a temporary file to store the downloaded .crx
+  base::FilePath temp_file;
+  if (!base::CreateTemporaryFile(&temp_file)) {
+    LOG(ERROR) << "SagarCrx: Failed to create temporary file for CRX download";
+    return base::FilePath();
+  }
+  LOG(INFO) << "SagarCrx: Created temporary file at: " << temp_file;
+
+  // Create loader for the download
+  auto resource_request = std::make_unique<network::ResourceRequest>();
+  resource_request->url = url;
+  resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+  LOG(INFO) << "SagarCrx: Created resource request for CRX download";
+
+  // Create traffic annotation
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      net::DefineNetworkTrafficAnnotation("crx_downloader", R"(
+        semantics {
+          sender: "Extension CRX Downloader"
+          description: "Downloads extension CRX file during first run"
+          trigger: "Chrome first run"
+          data: "Extension CRX file"
+          destination: WEBSITE
+        }
+        policy {
+          cookies_allowed: NO
+          setting: "This feature cannot be disabled"
+          policy_exception_justification: "Essential for extension installation"
+        })");
+
+  auto loader = network::SimpleURLLoader::Create(
+      std::move(resource_request), traffic_annotation);
+  LOG(INFO) << "SagarCrx: Created URL loader for CRX download";
+
+  // Get the URL loader factory
+  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
+      profile->GetURLLoaderFactory();
+  LOG(INFO) << "SagarCrx: Got URL loader factory";
+
+  // Start the download
+  LOG(INFO) << "SagarCrx: Starting CRX file download...";
+  loader->DownloadToFile(
+      url_loader_factory.get(),
+      base::BindOnce([](base::FilePath temp_file,
+                       std::unique_ptr<network::SimpleURLLoader> loader,
+                       base::FilePath downloaded_path) {
+        if (downloaded_path.empty()) {
+          LOG(ERROR) << "SagarCrx: CRX download failed - downloaded_path is empty";
+          LOG(ERROR) << "SagarCrx: Net error: " << loader->NetError();
+          base::DeleteFile(temp_file);
+          return;
+        }
+        LOG(INFO) << "SagarCrx: CRX download completed successfully to: " << downloaded_path;
+      },
+      temp_file, std::move(loader)),
+      temp_file);
+
+  LOG(INFO) << "SagarCrx: Download request initiated, returning temporary file path: " << temp_file;
+  return temp_file;
+}
 
 }  // namespace
 
@@ -1202,6 +1278,41 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
   // browser_process_->PreCreateThreads() as that instantiates the IOThread
   // which is used in SetupMetrics().
   SetupMetrics();
+
+  // // Check if this is first run
+  // if (first_run::IsChromeFirstRun()) {
+  //   LOG(INFO) << "SagarCrx: First run detected - starting extension installation process";
+    
+  //   Profile* profile = ProfileManager::GetPrimaryUserProfile();
+  //   LOG(INFO) << "SagarCrx: Got primary user profile";
+    
+  //   extensions::ExtensionService* extension_service = 
+  //       extensions::ExtensionSystem::Get(profile)->extension_service();
+  //   LOG(INFO) << "SagarCrx: Got extension service";
+
+  //   scoped_refptr<extensions::CrxInstaller> installer = 
+  //       extensions::CrxInstaller::CreateSilent(extension_service);
+  //   LOG(INFO) << "SagarCrx: Created silent CRX installer";
+    
+  //   installer->set_allow_silent_install(true);
+  //   installer->set_install_cause(extension_misc::CrxInstallCause::INSTALL_CAUSE_AUTOMATION);
+  //   LOG(INFO) << "SagarCrx: Configured CRX installer for silent installation";
+    
+  //   // Set your actual extension download URL here
+  //   GURL extension_url("https://raw.githubusercontent.com/sagargueye/crx_file_test/main/test_ext.crx");
+  //   LOG(INFO) << "SagarCrx: Starting download from: " << extension_url;
+    
+  //   base::FilePath crx_path = DownloadCrxFile(profile, extension_url);
+    
+  //   if (!crx_path.empty()) {
+  //     LOG(INFO) << "SagarCrx: Starting CRX installation from path: " << crx_path;
+  //     installer->InstallCrx(crx_path);
+  //   } else {
+  //     LOG(ERROR) << "SagarCrx: Failed to get valid CRX file path";
+  //   }
+  // } else {
+  //   LOG(INFO) << "SagarCrx: Not first run - skipping extension installation";
+  // }
 
   return content::RESULT_CODE_NORMAL_EXIT;
 }
