@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
+import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.content.Context;
@@ -103,6 +104,9 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import org.chromium.chrome.browser.tab.Tab;
 import androidx.appcompat.content.res.AppCompatResources;
+import android.app.Activity;
+import android.content.pm.ActivityInfo;
+
 
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected
@@ -136,6 +140,7 @@ public class AppMenu extends BottomSheetDialogFragment
 
     private GridView mGridView;
     private static final int GRID_COLUMNS = 3; // Adjust as needed
+    private boolean alreadyReverted;
 
     private ModelListAdapter mAdapter;
     private AppMenuHandlerImpl mHandler;
@@ -157,6 +162,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private ContentView mContentView;
     private ThinWebView mThinWebView;
     private View mWebViewContainer;
+    private Activity mActivity;
 
     /**
      * Creates and sets up the App Menu.
@@ -290,6 +296,11 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private View createWebViewContainer() {
+        Activity activity = getActivity();
+        if (activity != null) {
+            alreadyReverted = true;
+            activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
         FrameLayout viewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -446,6 +457,17 @@ public class AppMenu extends BottomSheetDialogFragment
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
 
+        if (mHandler != null && 
+            (mHandler.getActivityTab() == null || // Tab switcher case
+             mHandler.getActivityTab().isIncognito() || // Incognito case
+               mHandler.getActivityTab().isCustomTab())) { //For custom tabs
+            // Hide all extension-related views
+            extensionsDivider.setVisibility(View.GONE);
+            scrollView.setVisibility(View.GONE);
+            parent.setVisibility(View.GONE);
+            return;
+        }
+
         extensionsContainer.removeAllViews();
 
         List<ExtensionInfo> extensionsInfo = Extensions.getExtensionsInfo();
@@ -484,7 +506,10 @@ public class AppMenu extends BottomSheetDialogFragment
             }
 
             final int index = i;
-            extensionIcon.setOnClickListener(v -> openExtensionWebView(index));
+            extensionIcon.setOnClickListener(v -> {
+                openExtensionWebView(index);
+
+            });
             extensionIcon.setOnLongClickListener(v -> {
                 showDeleteExtensionDialog(index);
                 return true;
@@ -517,13 +542,13 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openWebsite(String url) {
-        if (!Extensions.isUrlfromOfficialStore(url)) {
-            Context context = getContext();
-            if (context != null) {
-                Toast.makeText(context, "Install from official store", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        }
+        // if (!Extensions.isUrlfromOfficialStore(url)) {
+        //     Context context = getContext();
+        //     if (context != null) {
+        //         Toast.makeText(context, "Install from official store", Toast.LENGTH_SHORT).show();
+        //         return;
+        //     }
+        // }
 
         if (mHandler != null) {
             LoadUrlParams params = new LoadUrlParams(url);
@@ -593,6 +618,13 @@ public class AppMenu extends BottomSheetDialogFragment
         mContentView = null;
         mThinWebView = null;
         mWebViewContainer = null;
+        if (mWebViewContainer == null) {
+            Activity activity = getActivity();
+            if (activity != null && alreadyReverted) {
+                activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                alreadyReverted = false;
+            }
+        }
     }
 
     public boolean onBackPressed() {
@@ -825,7 +857,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public void showExtensionWebViewDirectly(String extensionId, AppMenuExtensionOpener extensionOpener) {
-        Log.d(TAG, "JANGID: Showing extension WebView directly for ID: " + extensionId);
         extensionOpener.openExtension(extensionId);
     }
 
