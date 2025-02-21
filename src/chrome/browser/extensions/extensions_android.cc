@@ -132,7 +132,7 @@ void JNI_Extensions_InstallExtension(
   base_url = base::ToLowerASCII(base_url);
   LOG(INFO) << "base_url: " << base_url;
   LOG(INFO) << "url: " << url;
-  const std::string kofficialStore = "https://github.com/wootzapp/ext-store";
+  const std::string kofficialStore = "wootzapp://extension-store";
   if (base_url != kofficialStore) {
     LOG(ERROR) << "Install from official store , WRONG URL = " << url;
     return;
@@ -140,41 +140,35 @@ void JNI_Extensions_InstallExtension(
   Profile* profile = ProfileManager::GetActiveUserProfile();
   if (!profile) {
     LOG(ERROR) << "No Active Profile FOUND";
-    return; 
+    return;
   }
 
   extensions::ExtensionService* extension_service =
       extensions::ExtensionSystem::Get(profile)->extension_service();
 
-      if (!extension_service) {
-        LOG(ERROR) << "Extension Service Not Available";
-        return;
-      }
-      
-    }
+  if (!extension_service) {
+    LOG(ERROR) << "Extension Service Not Available";
+    return;
+  }
+}
 
+void JNI_Extensions_UninstallExtension(
+    JNIEnv* env,
+    const base::android::JavaParamRef<jstring>& j_extension_id) {
+  std::string extension_id =
+      base::android::ConvertJavaStringToUTF8(env, j_extension_id);
 
+  Profile* profile = ProfileManager::GetActiveUserProfile();
+  if (!profile) {
+    return;
+  }
 
-    void JNI_Extensions_UninstallExtension(
-        JNIEnv * env,
-        const base::android::JavaParamRef<jstring>& j_extension_id) {
-          std::string extension_id =
-          base::android::ConvertJavaStringToUTF8(env, j_extension_id);
+  extensions::ExtensionService* extension_service =
+      extensions::ExtensionSystem::Get(profile)->extension_service();
+  if (!extension_service) {
+    return;
+  }
 
-          
-
-      Profile* profile = ProfileManager::GetActiveUserProfile();
-      if (!profile) {
-        return;
-      }
-
-      extensions::ExtensionService* extension_service =
-          extensions::ExtensionSystem::Get(profile)->extension_service();
-      if (!extension_service) {
-        return;
-      }
-
-
-      extension_service->UninstallExtension(
-          extension_id, extensions::UNINSTALL_REASON_USER_INITIATED, nullptr);
-    }
+  extension_service->UninstallExtension(
+      extension_id, extensions::UNINSTALL_REASON_USER_INITIATED, nullptr);
+}
