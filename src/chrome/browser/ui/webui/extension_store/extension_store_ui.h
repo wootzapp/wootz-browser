@@ -13,7 +13,7 @@ class ExtensionStoreUI : public content::WebUIController,
   // WebUIMessageHandler overrides.
   void RegisterMessages() override;
 
- private:
+//  private:
   void HandleFetchExtensions(const base::Value::List& args);
   void OnFetchExtensionsComplete(std::unique_ptr<std::string> response_body);
   void FetchIcon(const std::string& icon_url, base::Value::Dict extension_dict);
@@ -23,5 +23,6 @@ class ExtensionStoreUI : public content::WebUIController,
 
   base::WeakPtrFactory<ExtensionStoreUI> weak_factory_{this};
 };
+
 
 #endif  // CHROME_BROWSER_UI_WEBUI_EXTENSION_STORE_EXTENSION_STORE_UI_H_

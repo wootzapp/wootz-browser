@@ -449,8 +449,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private void createExtensionsRow() {
         Context context = getContext();
         View view = getView();
-        if (view == null)
-            return;
+        if (view == null) return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
@@ -477,18 +476,29 @@ public class AppMenu extends BottomSheetDialogFragment
         scrollView.setVisibility(View.VISIBLE);
         parent.setVisibility(View.VISIBLE);
 
-        int buttonSize = dpToPx(48);
-        int buttonMargin = dpToPx(4);
-        int containerWidth = buttonSize * 5 + buttonMargin * 10; // Adjusted for new margins
+        // Check if we're on the extension store page
+        boolean isOnExtensionStore = false;
+        if (mHandler != null && mHandler.getActivityTab() != null) {
+            String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
+            isOnExtensionStore = "wootzapp://extension-store/".equals(currentUrl);
+            Log.d(TAG, "Current URL: " + currentUrl);
+            Log.d(TAG, "Is on extension store: " + isOnExtensionStore);
+            Log.d(TAG, "URL comparison: '" + currentUrl + "' vs 'wootzapp://extension-store/'");
+        } else {
+            Log.d(TAG, "Handler or ActivityTab is null. Handler: " + (mHandler != null) + 
+                  ", ActivityTab: " + (mHandler != null ? mHandler.getActivityTab() != null : "handler null"));
+        }
 
-        // Add "Add Extension" button
-        ImageButton addExtensionButton = createRoundButton(context);
-        addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
-        addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        addExtensionButton
-                .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
-        addExtensionButton.setOnClickListener(v -> openWebsite("wootzapp://extension-store/"));
-        extensionsContainer.addView(addExtensionButton);
+        // Only add the "Add Extension" button if we're not on the extension store
+        if (!isOnExtensionStore) {
+            ImageButton addExtensionButton = createRoundButton(context);
+            addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
+            addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            addExtensionButton
+                    .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+            addExtensionButton.setOnClickListener(v -> openWebsite("wootzapp://extension-store/"));
+            extensionsContainer.addView(addExtensionButton);
+        }
 
         for (int i = 0; i < extensionCount; i++) {
             ExtensionInfo extension = extensionsInfo.get(i);

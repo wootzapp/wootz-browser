@@ -18,8 +18,8 @@
 		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_SAPIEN_ICON_DCBEPCGK_PNG" file="assets/sapien_icon-DcbEpcgk.png" type="BINDATA" />
 		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_DATAHIVE_ICON_CZL21UOK_PNG" file="assets/datahive_icon-Czl21uoK.png" type="BINDATA" />
 		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_MAIN_CQG1NZDH_CSS" file="assets/main-CQg1nZDh.css" type="BINDATA" />
-		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_MAIN_B_SRHFEL_JS" file="assets/main-B-SrHFel.js" type="BINDATA" />
 		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_CAMPNETWORK_ICON_BTWUT38L_PNG" file="assets/campnetwork_icon-Btwut38l.png" type="BINDATA" />
+		<include name="IDR_EXTENSION_STORE_PAGE_ASSETS_MAIN_BM2MAOGY_JS" file="assets/main-BM2mAogY.js" type="BINDATA" />
     </includes>
 </release>
 </grit>

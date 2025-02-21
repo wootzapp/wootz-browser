@@ -40,18 +40,22 @@ ExtensionStoreUI::ExtensionStoreUI(content::WebUI* web_ui)
   source->AddString("message", "Hello World!");
 
   // Register message handlers.
-  web_ui->AddMessageHandler(base::WrapUnique(this));
+  // web_ui->AddMessageHandler(base::WrapUnique(this)); // Commented out message handler registration
 }
 
 ExtensionStoreUI::~ExtensionStoreUI() = default;
 
 void ExtensionStoreUI::RegisterMessages() {
-  // Explicitly use WebUIController's web_ui() method.
-  content::WebUIController::web_ui()->RegisterMessageCallback(
-      "fetchExtensions",
-      base::BindRepeating(&ExtensionStoreUI::HandleFetchExtensions,
-                          base::Unretained(this)));
+    // No implementation needed, but must be defined to satisfy the base class.
 }
+// Removed the RegisterMessages method completely
+// void ExtensionStoreUI::RegisterMessages() {
+//   // Explicitly use WebUIController's web_ui() method.
+//   content::WebUIController::web_ui()->RegisterMessageCallback(
+//       "fetchExtensions",
+//       base::BindRepeating(&ExtensionStoreUI::HandleFetchExtensions,
+//                           base::Unretained(this)));
+// }
 
 void ExtensionStoreUI::HandleFetchExtensions(const base::Value::List& args) {
   LOG(ERROR) << "Starting to fetch extensions...";

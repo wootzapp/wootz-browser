@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ExtensionList from './components/ExtensionList';
-import BrowserBridge from './components/browserbridge';
+// import BrowserBridge from './components/browserbridge';
 import extensionsData from './components/extensionsData';
 
 const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
@@ -10,7 +10,7 @@ function App() {
   const [extensions, setExtensions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const browserBridge = BrowserBridge.getInstance();
+  // const browserBridge = BrowserBridge.getInstance();
 
   if (window.location.href.includes('wootzapp://extension-store')) {
     document.body.style.overscrollBehavior = 'none';
@@ -18,44 +18,44 @@ function App() {
 
   useEffect(() => {
     setLoading(false);
-    fetchExtensions();
+    // fetchExtensions();
   }, []);
 
-  const fetchExtensions = async () => {
-    try {
-      // Check cache first
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          setExtensions(data);
-          return;
-        }
-      }
+  // const fetchExtensions = async () => {
+  //   try {
+  //     // Check cache first
+  //     const cached = localStorage.getItem(CACHE_KEY);
+  //     if (cached) {
+  //       const { data, timestamp } = JSON.parse(cached);
+  //       if (Date.now() - timestamp < CACHE_DURATION) {
+  //         setExtensions(data);
+  //         return;
+  //       }
+  //     }
 
-      // Fetch extensions from the C++ backend
-      const data = await browserBridge.fetchExtensions();
+  //     // Fetch extensions from the C++ backend
+  //     const data = await browserBridge.fetchExtensions();
       
-      if (!data || !data.extensions) {
-        throw new Error('Invalid data format');
-      }
+  //     if (!data || !data.extensions) {
+  //       throw new Error('Invalid data format');
+  //     }
 
-      // Update cache
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        data: data.extensions,
-        timestamp: Date.now(),
-      }));
+  //     // Update cache
+  //     localStorage.setItem(CACHE_KEY, JSON.stringify({
+  //       data: data.extensions,
+  //       timestamp: Date.now(),
+  //     }));
 
-      setExtensions(data.extensions);
-      setError(null);
-    } catch (error) {
-      console.error('Error fetching extensions:', error);
-      setError(error.message);
-      setExtensions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  //     setExtensions(data.extensions);
+  //     setError(null);
+  //   } catch (error) {
+  //     console.error('Error fetching extensions:', error);
+  //     setError(error.message);
+  //     setExtensions([]);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div className="w-full min-h-screen bg-white">
