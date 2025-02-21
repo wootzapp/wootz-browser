@@ -227,7 +227,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         if (mTarget == null) {
             return;
         }
-
+        
         // Force the target view to be measured with a very large height
         // This will push any bottom content (like search box) off screen
         mTarget.measure(
@@ -236,7 +236,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
                         MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(
                         Integer.MAX_VALUE,  
-                        MeasureSpec.AT_MOST));
+                        MeasureSpec.AT_MOST));  
         
         // Set the measured dimension to be very tall
         setMeasuredDimension(getMeasuredWidth(), 

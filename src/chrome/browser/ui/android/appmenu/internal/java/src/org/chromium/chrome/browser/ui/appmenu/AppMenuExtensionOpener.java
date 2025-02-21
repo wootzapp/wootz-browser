@@ -38,7 +38,7 @@ import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import android.content.pm.ActivityInfo;
-import android.app.Activity;    
+import android.app.Activity;
 import java.util.ArrayList;
 
 public class AppMenuExtensionOpener {
@@ -118,18 +118,18 @@ public class AppMenuExtensionOpener {
         }
         mBottomSheetDialog = new BottomSheetDialog(mContext, R.style.ExtensionsBottomSheetDialogTheme);
         View bottomSheetView = LayoutInflater.from(mContext).inflate(R.layout.extension_bottom_sheet_layout, null);
-        
+
         FrameLayout webViewContainer = bottomSheetView.findViewById(R.id.web_view_container);
         webViewContainer.addView(webView);
-        
+
         // Set initial wrap_content height
         ViewGroup.LayoutParams params = new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         bottomSheetView.setLayoutParams(params);
-        
+
         mBottomSheetDialog.setContentView(bottomSheetView);
-        
+
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from((View) bottomSheetView.getParent());
         behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
         mBottomSheetDialog.setCanceledOnTouchOutside(true);
@@ -189,10 +189,9 @@ public class AppMenuExtensionOpener {
         // Set window soft input mode
         mBottomSheetDialog.getWindow().setSoftInputMode(
                 WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-                
+
         mBottomSheetDialog.show();
     }
-
     private void resetOrientation() {
         if (mActivity != null) {
             mActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);

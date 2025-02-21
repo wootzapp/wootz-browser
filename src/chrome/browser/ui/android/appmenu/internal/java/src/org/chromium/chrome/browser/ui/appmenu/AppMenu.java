@@ -107,7 +107,6 @@ import androidx.appcompat.content.res.AppCompatResources;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 
-
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected
  * we call
@@ -141,7 +140,6 @@ public class AppMenu extends BottomSheetDialogFragment
     private GridView mGridView;
     private static final int GRID_COLUMNS = 3; // Adjust as needed
     private boolean alreadyReverted;
-
     private ModelListAdapter mAdapter;
     private AppMenuHandlerImpl mHandler;
     private int mCurrentScreenRotation = -1;
@@ -272,6 +270,7 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private View createContentView(boolean test) {
+
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -301,6 +300,7 @@ public class AppMenu extends BottomSheetDialogFragment
             alreadyReverted = true;
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
+
         FrameLayout viewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -374,6 +374,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private void returnToAppMenu() {
         View view = getView();
         if (view != null) {
+
             view.findViewById(R.id.app_menu_grid).setVisibility(View.VISIBLE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.VISIBLE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.VISIBLE);
@@ -510,6 +511,7 @@ public class AppMenu extends BottomSheetDialogFragment
                 extensionIcon.setImageBitmap(extension.getIconBitmap());
                 extensionIcon.setImageTintList(null); // Remove any tint
             } else {
+
                 extensionIcon.setImageResource(R.drawable.test_extension_logo);
                 extensionIcon
                         .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
@@ -599,7 +601,6 @@ public class AppMenu extends BottomSheetDialogFragment
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.GONE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.GONE);
-
             FrameLayout webViewContainer = view.findViewById(R.id.web_view_container);
             webViewContainer.setVisibility(View.VISIBLE);
 
@@ -611,7 +612,6 @@ public class AppMenu extends BottomSheetDialogFragment
                 mWebViewContainer = createWebViewContainer();
             }
             webViewFrame.addView(mWebViewContainer);
-
             // Load the extension URL
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
             mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
@@ -620,6 +620,7 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onDestroyView() {
+
         super.onDestroyView();
         if (mWebContents != null) {
             mWebContents.destroy();
@@ -1008,4 +1009,5 @@ public class AppMenu extends BottomSheetDialogFragment
 
         return view;
     }
+    
 }

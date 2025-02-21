@@ -28,18 +28,10 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
       content::DownloadItemUtils::GetWebContents(&download_item);
   if (!web_contents) {
     LOG(INFO) << "No web contents found, rejecting CRX";
-    // return false;
   }
 
   GURL page_url = web_contents->GetLastCommittedURL();
   LOG(INFO) << "  Page URL: " << page_url.spec();
-
-  // Only allow from our trusted repo
-  // const char* TRUSTED_REPO = "github.com/wootzapp/ext-store";
-  // if (page_url.spec().find(TRUSTED_REPO) == std::string::npos) {
-  //   LOG(INFO) << "Not from trusted repo, rejecting CRX";
-  //   return false;
-  // }
 
   // Verify it's a CRX file from the correct path structure
   if (base::EndsWith(page_url.spec(), ".crx",
@@ -51,11 +43,5 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
   LOG(INFO) << "Not a valid CRX file path";
   return true;
 }
-
-// bool IsTrustedExtensionDownload(Profile* profile,
-//                                 const download::DownloadItem& item) {
-//   // Webstore exts are not supported
-//   return false;
-// }
 
 }  // namespace download_crx_util
