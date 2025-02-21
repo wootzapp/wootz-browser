@@ -58,7 +58,7 @@ function ExtensionCard({ extension }) {
     <div className="flex flex-row p-3 border border-gray-200 rounded-lg gap-3 hover:shadow-md transition-shadow w-full">
       <div className="w-16 h-16 flex-shrink-0 relative">
         <img 
-          src={!imageError ? (extension.icon_url || placeholderIcon) : placeholderIcon}
+          src={!imageError ? "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt" : placeholderIcon}
           alt={extension.name} 
           className="w-full h-full object-cover rounded"
           onError={handleImageError}

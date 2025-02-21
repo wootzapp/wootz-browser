@@ -1,8 +1,3 @@
-import artifactIcon from '../assets/artifact_icon.png';
-import walletIcon from '../assets/wallet_icon.png';
-import dataHiveIcon from '../assets/datahive_icon.png';
-import campNetworkIcon from '../assets/campnetwork_icon.png';
-import sapienIcon from '../assets/sapien_icon.png';
 export const extensionsData = {
     "extensions": [
       {
@@ -12,7 +7,7 @@ export const extensionsData = {
         "version": "0.0.1",
         "author": "Wootzapp Team",
         "download_url": "https://github.com/wootzapp/ext-store/raw/refs/heads/main/Artifact/Artifact.crx",
-        "icon_url": artifactIcon,
+        "icon_url": "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt",
         "github_url": "https://github.com/1311-hack1/Extension-Store/tree/main/extensions/artifact",
         "tags": [
           "Rewards",
@@ -28,7 +23,7 @@ export const extensionsData = {
         "version": "1.0.1",
         "author": "Kartik",
         "download_url": "https://github.com/wootzapp/ext-store/raw/refs/heads/main/Camp%20Network/CampNetwork.crx",
-        "icon_url": campNetworkIcon,
+        "icon_url": "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt",
         "github_url": "https://github.com/1311-hack1/Extension-Store/tree/main/extensions/test-2",
         "tags": [
           "Scrapping",
@@ -45,7 +40,7 @@ export const extensionsData = {
         "version": "1.2.4",
         "author": "Wootzapp Team",
         "download_url": "https://raw.githubusercontent.com/itskartike910/extensions/main/data-hive/data-hive.crx",
-        "icon_url": dataHiveIcon,
+        "icon_url": "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt",
         "github_url": "https://github.com/1311-hack1/Extension-Store/tree/main/extensions/data-hive",
         "tags": [
           "data",
@@ -62,7 +57,7 @@ export const extensionsData = {
         "version": "1.0.1",
         "author": "Wootzapp Team",
         "download_url": "https://github.com/wootzapp/ext-store/raw/refs/heads/main/Sapien/Sapien.crx",
-        "icon_url": sapienIcon,
+        "icon_url": "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt",
         "github_url": "https://github.com/1311-hack1/Extension-Store/tree/main/extensions/data-hive",
         "tags": [
           "games",
@@ -78,7 +73,7 @@ export const extensionsData = {
         "version": "1.0.1",
         "author": "Wootzapp Team",
         "download_url": "https://github.com/wootzapp/ext-store/raw/refs/heads/main/Wootzapp%20Wallet/Wootzapp%20Wallet.crx",
-        "icon_url": walletIcon,
+        "icon_url": "https://drive.google.com/uc?export=view&id=1VPJ-Jjno7_gD6C4uKFIexd97VcCtwbbt",
         "github_url": "https://github.com/1311-hack1/Extension-Store/tree/main/extensions/data-hive",
         "tags": [
           "wallet",
