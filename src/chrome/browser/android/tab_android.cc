@@ -396,40 +396,23 @@ void WillRemoveWebContentsFromTab(content::WebContents* contents) {
 }  // namespace
 
 void TabAndroid::DestroyWebContents(JNIEnv* env) {
-    // Log the entry into the method
-    LOG(INFO) << "DestroyWebContents called for TabAndroid: " << this;
+  WillRemoveWebContentsFromTab(web_contents());
 
-    WillRemoveWebContentsFromTab(web_contents());
+  // Terminate the renderer process if this is the last tab.
+  // If there's no unload listener, FastShutdownIfPossible kills the
+  // renderer process. Otherwise, we go with the slow path where renderer
+  // process shuts down itself when ref count becomes 0.
+  // This helps the render process exit quickly which avoids some issues
+  // during shutdown. See https://codereview.chromium.org/146693011/
+  // and http://crbug.com/338709 for details.
+  content::RenderProcessHost* process =
+      web_contents()->GetPrimaryMainFrame()->GetProcess();
+  if (process)
+    process->FastShutdownIfPossible(1, false);
 
-    // Log the current state of web_contents
-    if (web_contents()) {
-        LOG(INFO) << "Current WebContents: " << web_contents()->GetURL().spec();
-    } else {
-        LOG(WARNING) << "WebContents is null.";
-    }
+  web_contents_.reset();
 
-    // Terminate the renderer process if this is the last tab.
-    content::RenderProcessHost* process =
-        web_contents() ? web_contents()->GetPrimaryMainFrame()->GetProcess() : nullptr;
-
-    if (process) {
-        LOG(INFO) << "Terminating renderer process for TabAndroid: " << this;
-        process->FastShutdownIfPossible(1, false);
-    } else {
-        LOG(WARNING) << "No render process found for TabAndroid: " << this;
-    }
-
-    // Reset the web contents
-    web_contents_.reset();
-    LOG(INFO) << "WebContents reset for TabAndroid: " << this;
-
-    // Reset synced tab delegate
-    if (synced_tab_delegate_) {
-        synced_tab_delegate_->ResetWebContents();
-        LOG(INFO) << "SyncedTabDelegate reset for TabAndroid: " << this;
-    } else {
-        LOG(WARNING) << "SyncedTabDelegate is null for TabAndroid: " << this;
-    }
+  synced_tab_delegate_->ResetWebContents();
 }
 
 void TabAndroid::ReleaseWebContents(JNIEnv* env) {
