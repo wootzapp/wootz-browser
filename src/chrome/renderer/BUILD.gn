@@ -195,6 +195,7 @@ static_library("renderer") {
     "//components/pdf/common:util",
     "//components/permissions:permissions_common",
     "//components/plugins/renderer",
+    "//components/replace_element/content/renderer",
     "//components/resources:components_resources",
     "//components/resources:components_scaled_resources",
     "//components/safe_browsing:buildflags",

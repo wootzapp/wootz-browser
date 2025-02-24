@@ -336,6 +336,36 @@
           "type": "function",
           "description": "Clear all jobs and results",
           "parameters": []
+        },
+        {
+          "name": "replaceElement",
+          "type": "function",
+          "description": "Replaces an element in the DOM",
+          "parameters": [
+            {
+              "name": "element",
+              "type": "string",
+              "description": "ID of the element to replace"
+            },
+            {
+              "name": "jsonData",
+              "type": "string",
+              "description": "JSON data to replace the element with"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "isCreated": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

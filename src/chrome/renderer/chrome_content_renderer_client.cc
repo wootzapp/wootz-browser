@@ -106,6 +106,7 @@
 #include "components/pdf/common/constants.h"
 #include "components/pdf/common/pdf_util.h"
 #include "components/permissions/features.h"
+#include "components/replace_element/content/renderer/replace_element_agent.h"
 #include "components/safe_browsing/buildflags.h"
 #include "components/safe_browsing/content/renderer/threat_dom_details.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
@@ -716,6 +717,7 @@ void ChromeContentRendererClient::RenderFrameCreated(
         std::move(password_generation_agent), associated_interfaces);
 
 #if BUILDFLAG(IS_ANDROID)
+    new replace_element::ReplaceElementAgent(render_frame, associated_interfaces);
     if (render_frame->IsMainFrame() &&
         base::FeatureList::IsEnabled(
             payments::facilitated::kEnablePixDetection)) {

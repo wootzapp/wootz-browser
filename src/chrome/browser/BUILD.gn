@@ -2425,6 +2425,7 @@ static_library("browser") {  sources = [
     "//components/reading_list/features:flags",
     "//components/reduce_accept_language/browser:browser",
     "//components/renderer_context_menu",
+    "//components/replace_element/content/browser",
     "//components/reporting/client:report_queue",
     "//components/reporting/client:report_queue_configuration",
     "//components/reporting/client:report_queue_factory",

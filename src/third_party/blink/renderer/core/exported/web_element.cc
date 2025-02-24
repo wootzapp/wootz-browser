@@ -105,6 +105,10 @@ bool WebElement::HasHTMLTagName(const WebString& tag_name) const {
          html_element->localName() == String(tag_name).LowerASCII();
 }
 
+void WebElement::ReplaceElement(String new_element){
+    Unwrap<Element>()->setOuterHTML(new_element);
+  }
+
 bool WebElement::HasAttribute(const WebString& attr_name) const {
   return ConstUnwrap<Element>()->hasAttribute(attr_name);
 }
