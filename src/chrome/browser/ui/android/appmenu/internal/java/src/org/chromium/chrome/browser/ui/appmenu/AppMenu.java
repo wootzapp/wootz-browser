@@ -107,6 +107,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 
+
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected
  * we call
@@ -140,6 +141,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private GridView mGridView;
     private static final int GRID_COLUMNS = 3; // Adjust as needed
     private boolean alreadyReverted;
+
     private ModelListAdapter mAdapter;
     private AppMenuHandlerImpl mHandler;
     private int mCurrentScreenRotation = -1;
@@ -270,7 +272,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private View createContentView(boolean test) {
-
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -300,7 +301,6 @@ public class AppMenu extends BottomSheetDialogFragment
             alreadyReverted = true;
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
-
         FrameLayout viewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -374,7 +374,6 @@ public class AppMenu extends BottomSheetDialogFragment
     private void returnToAppMenu() {
         View view = getView();
         if (view != null) {
-
             view.findViewById(R.id.app_menu_grid).setVisibility(View.VISIBLE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.VISIBLE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.VISIBLE);
@@ -450,8 +449,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private void createExtensionsRow() {
         Context context = getContext();
         View view = getView();
-        if (view == null)
-            return;
+        if (view == null) return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
@@ -478,18 +476,29 @@ public class AppMenu extends BottomSheetDialogFragment
         scrollView.setVisibility(View.VISIBLE);
         parent.setVisibility(View.VISIBLE);
 
-        int buttonSize = dpToPx(48);
-        int buttonMargin = dpToPx(4);
-        int containerWidth = buttonSize * 5 + buttonMargin * 10; // Adjusted for new margins
+        // Check if we're on the extension store page
+        boolean isOnExtensionStore = false;
+        if (mHandler != null && mHandler.getActivityTab() != null) {
+            String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
+            isOnExtensionStore = "wootzapp://flow-store/".equals(currentUrl);
+            Log.d(TAG, "Current URL: " + currentUrl);
+            Log.d(TAG, "Is on extension store: " + isOnExtensionStore);
+            Log.d(TAG, "URL comparison: '" + currentUrl + "' vs 'wootzapp://flow-store/'");
+        } else {
+            Log.d(TAG, "Handler or ActivityTab is null. Handler: " + (mHandler != null) + 
+                  ", ActivityTab: " + (mHandler != null ? mHandler.getActivityTab() != null : "handler null"));
+        }
 
-        // Add "Add Extension" button
-        ImageButton addExtensionButton = createRoundButton(context);
-        addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
-        addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        addExtensionButton
-                .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
-        addExtensionButton.setOnClickListener(v -> openWebsite("https://github.com/wootzapp/ext-store"));
-        extensionsContainer.addView(addExtensionButton);
+        // Only add the "Add Extension" button if we're not on the extension store
+        if (!isOnExtensionStore) {
+            ImageButton addExtensionButton = createRoundButton(context);
+            addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
+            addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            addExtensionButton
+                    .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+            addExtensionButton.setOnClickListener(v -> openWebsite("wootzapp://flow-store/"));
+            extensionsContainer.addView(addExtensionButton);
+        }
 
         for (int i = 0; i < extensionCount; i++) {
             ExtensionInfo extension = extensionsInfo.get(i);
@@ -511,7 +520,6 @@ public class AppMenu extends BottomSheetDialogFragment
                 openExtensionWebView(index);
 
             });
-
             extensionIcon.setOnLongClickListener(v -> {
                 showDeleteExtensionDialog(index);
                 return true;
@@ -544,6 +552,7 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openWebsite(String url) {
+
         if (mHandler != null) {
             LoadUrlParams params = new LoadUrlParams(url);
             Tab tab = mHandler.getActivityTab();
@@ -583,6 +592,7 @@ public class AppMenu extends BottomSheetDialogFragment
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.GONE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.GONE);
+
             FrameLayout webViewContainer = view.findViewById(R.id.web_view_container);
             webViewContainer.setVisibility(View.VISIBLE);
 
@@ -594,6 +604,7 @@ public class AppMenu extends BottomSheetDialogFragment
                 mWebViewContainer = createWebViewContainer();
             }
             webViewFrame.addView(mWebViewContainer);
+
             // Load the extension URL
             String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
             mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
@@ -602,7 +613,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onDestroyView() {
-
         super.onDestroyView();
         if (mWebContents != null) {
             mWebContents.destroy();
@@ -850,12 +860,10 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public void showExtensionWebViewDirectly(String extensionId, AppMenuExtensionOpener extensionOpener) {
-
         extensionOpener.openExtension(extensionId);
     }
 
     public void closeExtensionBottomSheet(AppMenuExtensionOpener extensionOpener) {
-
         extensionOpener.closeBottomSheet();
     }
 
