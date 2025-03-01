@@ -1,0 +1,23 @@
+import("//ui/webui/resources/tools/build_webui.gni")
+import("//tools/grit/grit_rule.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+
+build_webui("build") {
+  grd_prefix = "extension_store"
+
+  static_files = [ "extension_store.html", "extension_store.css", "Wootzapp.png", "extension_store.js" ]
+
+  non_web_component_files = [ "app.ts", "app.html.ts" ]
+  css_files = [ "app.css" ]
+
+  ts_deps = [
+    "//third_party/lit/v3_0:build_ts",
+    "//ui/webui/resources/js:build_ts",
+  ]
+}
+preprocess_if_expr("preprocess") {
+  in_files = [
+    "extension_store.html",
+    "browser_bridge.js",
+  ]
+}
