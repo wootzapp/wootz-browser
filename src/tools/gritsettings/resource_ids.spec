@@ -1303,7 +1303,7 @@
     "META": {"sizes": {"includes": [20]}},
     "includes": [8390],
   },
- 
+  
   "<(SHARED_INTERMEDIATE_DIR)/ui/webui/resources/webui_resources.grd": {
     "META": {"sizes": {"includes": [500]}},
     "includes": [8400],
@@ -1326,6 +1326,11 @@
   "<(SHARED_INTERMEDIATE_DIR)/resources/inspector_overlay/inspector_overlay_resources.grd": {
     "META": {"sizes": {"includes": [50],}},
     "includes": [8460],
+  },
+
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/extension_store/resources.grd": {
+    "META": {"sizes": {"includes": [50]}},
+    "includes": [8500],
   },
 
   # Thinking about appending to the end?

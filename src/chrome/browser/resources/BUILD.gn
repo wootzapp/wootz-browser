@@ -22,6 +22,7 @@ group("resources") {
     "hello_world:resources",
     ":app_icon_resources",
     ":component_extension_resources",
+    "extension_store:resources",
   ]
 
   if (!is_android) {
