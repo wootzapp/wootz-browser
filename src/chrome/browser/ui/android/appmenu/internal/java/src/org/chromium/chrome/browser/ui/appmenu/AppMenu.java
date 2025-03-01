@@ -62,7 +62,6 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
-import org.chromium.ui.base.SelectFileDialog;
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;

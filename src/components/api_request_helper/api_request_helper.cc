@@ -78,15 +78,10 @@ APIRequestResult ToAPIRequestResult(
   auto final_url = loader->GetFinalURL();
   base::flat_map<std::string, std::string> headers;
 
-  LOG(ERROR) << "jangid_sign: ToAPIRequestResult - Starting response processing";
-  LOG(ERROR) << "jangid_sign: Initial error_code: " << error_code;
-
   if (loader->ResponseInfo()) {
-    LOG(ERROR) << "jangid_sign: ResponseInfo is available";
     auto headers_list = loader->ResponseInfo()->headers;
     if (headers_list) {
       response_code = headers_list->response_code();
-      LOG(ERROR) << "jangid_sign: Response code from headers: " << response_code;
       
       size_t header_iter = 0;
       std::string key;
@@ -94,17 +89,10 @@ APIRequestResult ToAPIRequestResult(
       while (headers_list->EnumerateHeaderLines(&header_iter, &key, &value)) {
         key = base::ToLowerASCII(key);
         headers[key] = value;
-        LOG(ERROR) << "jangid_sign: Header - " << key << ": " << value;
+        DVLOG(2) << "< " << key << ": " << value;
       }
-    } else {
-      LOG(ERROR) << "jangid_sign: No headers list available";
     }
-  } else {
-    LOG(ERROR) << "jangid_sign: No ResponseInfo available";
   }
-
-  LOG(ERROR) << "jangid_sign: Final response_code: " << response_code;
-  LOG(ERROR) << "jangid_sign: Final URL: " << final_url.spec();
 
   return APIRequestResult(response_code, base::Value(), std::move(headers),
                           error_code, final_url);
