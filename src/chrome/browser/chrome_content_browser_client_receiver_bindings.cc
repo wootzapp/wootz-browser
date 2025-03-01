@@ -34,6 +34,7 @@
 #include "components/content_capture/browser/onscreen_content_provider.h"
 #include "components/metrics/call_stacks/call_stack_profile_collector.h"
 #include "components/offline_pages/buildflags/buildflags.h"
+#include "components/replace_element/content/browser/content_replace_element_driver_factory.h"
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
 #include "components/password_manager/content/browser/content_password_manager_driver_factory.h"
 #include "components/safe_browsing/buildflags.h"
@@ -432,6 +433,15 @@ void ChromeContentBrowserClient::
             BindPasswordManagerDriver(std::move(receiver), render_frame_host);
       },
       &render_frame_host));
+  associated_registry.AddInterface<replace_element::mojom::ReplaceElementDriver>(
+      base::BindRepeating(
+          [](content::RenderFrameHost* render_frame_host,
+             mojo::PendingAssociatedReceiver<replace_element::mojom::ReplaceElementDriver>
+                 receiver) {
+            replace_element::ContentReplaceElementDriverFactory::BindReplaceElementDriver(
+                std::move(receiver), render_frame_host);
+          },
+          &render_frame_host));
   associated_registry.AddInterface<chrome::mojom::NetworkDiagnostics>(
       base::BindRepeating(
           [](content::RenderFrameHost* render_frame_host,

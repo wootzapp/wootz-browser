@@ -1,0 +1,22 @@
+# Copyright 2025 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("browser") {
+  sources = [
+    "content_replace_element_driver_factory.cc",
+    "content_replace_element_driver_factory.h",
+    "content_replace_element_driver.cc",
+    "content_replace_element_driver.h",
+
+  ]
+
+  public_deps = [ "//components/replace_element/content/common/mojom" ]
+
+  deps = [
+    "//base",
+    "//components/replace_element/core",
+    "//content/public/browser",
+    "//mojo/public/cpp/system"
+  ]
+}

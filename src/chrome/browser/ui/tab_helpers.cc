@@ -150,6 +150,7 @@
 #include "components/permissions/features.h"
 #include "components/permissions/permission_recovery_success_rate_tracker.h"
 #include "components/permissions/permission_request_manager.h"
+#include "components/replace_element/content/browser/content_replace_element_driver_factory.h"
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer.h"
 #include "components/safe_browsing/content/browser/safe_browsing_tab_observer.h"
 #include "components/safe_browsing/core/common/features.h"
@@ -451,6 +452,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
 #if BUILDFLAG(IS_ANDROID)
 
     wootz_wallet::WootzWalletTabHelper::CreateForWebContents(web_contents);
+    replace_element::ContentReplaceElementDriverFactory::CreateForWebContents(web_contents);
 
     // If enabled, save sensitivity data for each non-incognito non-custom
     // android tab

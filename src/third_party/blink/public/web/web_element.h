@@ -38,6 +38,7 @@
 #include "third_party/blink/public/web/web_node.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "v8/include/v8-forward.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace gfx {
 class Rect;
@@ -64,6 +65,8 @@ class BLINK_EXPORT WebElement : public WebNode {
     return *this;
   }
   void Assign(const WebElement& e) { WebNode::Assign(e); }
+
+  void ReplaceElement(String new_element);
 
   bool IsFormControlElement() const;
   // If the element is editable, for example by being contenteditable or being

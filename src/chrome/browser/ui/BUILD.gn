@@ -623,6 +623,7 @@ static_library("ui") {
     "//components/query_parser",
     "//components/reading_list/core",
     "//components/reading_list/features:flags",
+    "//components/replace_element/content/browser",
     "//components/renderer_context_menu",
     "//components/resources",
     "//components/safe_browsing/content/browser",

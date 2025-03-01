@@ -25,6 +25,10 @@
 // #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#include "components/replace_element/content/browser/content_replace_element_driver.h"
+#include "components/replace_element/content/browser/content_replace_element_driver_factory.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/wootz_wallet/browser/wootz_wallet_service.h"
 #include "content/public/browser/web_contents.h"
@@ -596,6 +600,42 @@ ExtensionFunction::ResponseAction WootzCleanJobsFunction::Run() {
   prefs.RemoveKey(kWootzJobResultsKey);
 
   return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction WootzReplaceElementFunction::Run() {
+  // Check if we have the correct number of arguments
+  if (args().size() != 2) {
+    return RespondNow(Error("Incorrect number of arguments"));
+  }
+
+  // Validate argument types
+  if (!args()[0].is_string() || !args()[1].is_string()) {
+    return RespondNow(Error("Invalid argument types"));
+  }
+  LOG(INFO) << "ElementReplacer: Replace Element Function is called from Extension";
+
+  std::string element = args()[0].GetString();
+  std::string json_data = args()[1].GetString();
+  LOG(INFO) << "ElementReplacer: element::" << element;
+  LOG(INFO) << "ElementReplacer: json_data::" << json_data;
+
+  content::WebContents* web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
+
+  if (!web_contents) {
+    return RespondNow(Error("Unable to get WebContents"));
+  }
+  auto* factory =
+      replace_element::ContentReplaceElementDriverFactory::FromWebContents(
+          web_contents);
+
+  if (!factory) {
+    return RespondNow(
+        Error("ContentReplaceElementDriverFactory not available"));
+  }
+  factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame())
+      ->ReplaceElement(element, json_data);
+
+  return RespondNow(WithArguments(base::Value(true)));
 }
 
 // ExtensionFunction::ResponseAction

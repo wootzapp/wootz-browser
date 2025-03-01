@@ -242,6 +242,21 @@ protected:
  ResponseAction Run() override;
 };
 
+class WootzReplaceElementFunction : public ExtensionFunction {
+public:
+ DECLARE_EXTENSION_FUNCTION("wootz.replaceElement", WOOTZ_REPLACE_ELEMENT)
+
+ WootzReplaceElementFunction() = default;
+
+ WootzReplaceElementFunction(const WootzReplaceElementFunction&) = delete;
+ WootzReplaceElementFunction& operator=(const WootzReplaceElementFunction&) = delete;
+
+protected:
+ ~WootzReplaceElementFunction() override {}
+
+ ResponseAction Run() override;
+};
+
 
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_
