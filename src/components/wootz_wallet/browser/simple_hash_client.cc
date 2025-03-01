@@ -62,6 +62,7 @@ constexpr char kBsc[] = "bsc";
 constexpr char kEthereumGoerli[] = "ethereum-goerli";
 constexpr char kSolanaTestnet[] = "solana-testnet";
 constexpr char kSolanaDevnet[] = "solana-devnet";
+constexpr char kEclipseMainnet[] = "eclipse-mainnet";
 constexpr char kArbitrumNova[] = "arbitrum-nova";
 constexpr char kGnosis[] = "gnosis";
 constexpr char kGodwoken[] = "godwoken";
@@ -85,6 +86,7 @@ std::optional<std::string> ChainIdToSimpleHashChainId(
           {wootz_wallet::mojom::kGoerliChainId, kEthereumGoerli},
           {wootz_wallet::mojom::kSolanaTestnet, kSolanaTestnet},
           {wootz_wallet::mojom::kSolanaDevnet, kSolanaDevnet},
+          {wootz_wallet::mojom::kEclipseMainnetChainId, kEclipseMainnet},
           {wootz_wallet::mojom::kArbitrumNovaChainId, kArbitrumNova},
           {wootz_wallet::mojom::kGnosisChainId, kGnosis},
           {wootz_wallet::mojom::kGodwokenChainId, kGodwoken},
@@ -113,6 +115,7 @@ std::optional<std::string> SimpleHashChainIdToChainId(
           {kEthereumGoerli, wootz_wallet::mojom::kGoerliChainId},
           {kSolanaTestnet, wootz_wallet::mojom::kSolanaTestnet},
           {kSolanaDevnet, wootz_wallet::mojom::kSolanaDevnet},
+          {kEclipseMainnet, wootz_wallet::mojom::kEclipseMainnetChainId},
           {kArbitrumNova, wootz_wallet::mojom::kArbitrumNovaChainId},
           {kGnosis, wootz_wallet::mojom::kGnosisChainId},
           {kGodwoken, wootz_wallet::mojom::kGodwokenChainId},

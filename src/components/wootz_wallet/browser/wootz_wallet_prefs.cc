@@ -103,6 +103,7 @@ base::Value::Dict GetDefaultHiddenNetworks() {
   sol_hidden.Append(mojom::kSolanaDevnet);
   sol_hidden.Append(mojom::kSolanaTestnet);
   sol_hidden.Append(mojom::kLocalhostChainId);
+  sol_hidden.Append(mojom::kEclipseMainnetChainId);
   hidden_networks.Set(kSolanaPrefKey, std::move(sol_hidden));
 
   base::Value::List btc_hidden;

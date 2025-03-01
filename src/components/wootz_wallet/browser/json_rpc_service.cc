@@ -682,8 +682,28 @@ void JsonRpcService::FireNetworkChanged(
 
 std::string JsonRpcService::GetChainIdSync(
     mojom::CoinType coin,
-    const std::optional<::url::Origin>& origin) const {
-  return network_manager_->GetCurrentChainId(coin, origin);
+    const std::optional<::url::Origin>& origin) {
+  LOG(ERROR) << "GetChainIdSync - Coin Type: " << static_cast<int>(coin);
+  
+  if (origin && (origin->host() == "tap.eclipse.xyz" || origin->host() == "relay.link")) {
+    LOG(ERROR) << "jangid_sign: Eclipse origin detected, returning Eclipse chain ID";
+    // Set the network first
+    if (SetNetwork(mojom::kEclipseMainnetChainId, coin, origin)) {
+      LOG(ERROR) << "jangid_sign: Successfully set Eclipse chain ID";
+      // return mojom::kEclipseMainnetChainId;
+    }
+  }
+
+  std::string chain_id = network_manager_->GetCurrentChainId(coin, origin);
+
+  LOG(ERROR) << "GetChainIdSync - Resolved Chain ID: " << chain_id;
+  if (origin.has_value()) {
+    LOG(ERROR) << "GetChainIdSync - Origin: " << origin->Serialize();
+  } else {
+    LOG(ERROR) << "GetChainIdSync - No origin specified";
+  }
+  
+  return chain_id;
 }
 
 void JsonRpcService::GetDefaultChainId(

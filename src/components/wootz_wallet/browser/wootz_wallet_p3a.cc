@@ -455,7 +455,8 @@ void WootzWalletP3A::OnTransactionStatusChanged(
     }
     if (!count_test_networks && (chain_id == mojom::kSolanaTestnet ||
                                  chain_id == mojom::kSolanaDevnet ||
-                                 chain_id == mojom::kLocalhostChainId)) {
+                                 chain_id == mojom::kLocalhostChainId ||
+                                 chain_id == mojom::kEclipseMainnetChainId)) {
       return;
     }
   } else if (tx_coin == mojom::CoinType::BTC) {

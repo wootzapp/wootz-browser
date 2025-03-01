@@ -282,7 +282,7 @@ void SolanaProviderImpl::ContinueSignTransaction(
       base::BindOnce(&SolanaProviderImpl::OnSignTransactionRequestProcessed,
                      weak_factory_.GetWeakPtr(), std::move(tx), account.Clone(),
                      std::move(callback)));
-  delegate_->ShowPanel();
+  extensions::WootzSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(profile_);
 }
 
 void SolanaProviderImpl::OnSignTransactionRequestProcessed(
@@ -548,7 +548,7 @@ void SolanaProviderImpl::OnAddUnapprovedTransaction(
   }
 
   sign_and_send_tx_callbacks_[tx_meta_id] = std::move(callback);
-  delegate_->ShowPanel();
+  // delegate_->ShowPanel();
 }
 
 void SolanaProviderImpl::OnTransactionStatusChanged(
