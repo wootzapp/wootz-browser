@@ -1,10 +1,13 @@
-# <img src="https://www.wootzapp.com/image/logo2.png" alt="Logo" width="200" height="150"> WootzApp
+# <img src="https://github.com/user-attachments/assets/8bab3a01-ddbd-4218-922d-0233f53cce65" alt="Logo" width="200" height="150">
+
 
 ## WootzApp
 
 Check out the official website: https://www.wootzapp.com/
 
 Please join our [discord](https://discord.gg/n9dqrRzJ8V)
+
+[Play Store](https://play.google.com/store/apps/details?id=com.wootzapp.web) 
 
 ![Wootzapp Activity](https://repobeats.axiom.co/api/embed/357eacd94e24363c24caabd9e88aaa29fc980693.svg "Repobeats analytics image")
 

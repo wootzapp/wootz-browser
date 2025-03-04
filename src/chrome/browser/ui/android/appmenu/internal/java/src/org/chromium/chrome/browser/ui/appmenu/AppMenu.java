@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.ui.appmenu;
+
 import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -106,6 +107,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 
+
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected
  * we call
@@ -139,6 +141,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private GridView mGridView;
     private static final int GRID_COLUMNS = 3; // Adjust as needed
     private boolean alreadyReverted;
+
     private ModelListAdapter mAdapter;
     private AppMenuHandlerImpl mHandler;
     private int mCurrentScreenRotation = -1;
@@ -269,7 +272,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private View createContentView(boolean test) {
-        Log.d("KRITAGYA", "KRITAGYA: createContentView");
         NestedScrollView scrollView = new NestedScrollView(getContext());
         scrollView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -299,7 +301,6 @@ public class AppMenu extends BottomSheetDialogFragment
             alreadyReverted = true;
             activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
-        Log.d("KRITAGYA", "KRITAGYA: createWebViewContainer");
         FrameLayout viewWrapper = new FrameLayout(getContext());
         FrameLayout.LayoutParams wrapperParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -373,7 +374,6 @@ public class AppMenu extends BottomSheetDialogFragment
     private void returnToAppMenu() {
         View view = getView();
         if (view != null) {
-            
             view.findViewById(R.id.app_menu_grid).setVisibility(View.VISIBLE);
             view.findViewById(R.id.app_menu_extensions).setVisibility(View.VISIBLE);
             view.findViewById(R.id.extensions_divider).setVisibility(View.VISIBLE);
@@ -386,7 +386,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
-        Log.d("KRITAGYA", "KRITAGYA: onActivityCreated");
         super.onActivityCreated(savedInstanceState);
 
         View parent = (View) getView().getParent();
@@ -450,13 +449,23 @@ public class AppMenu extends BottomSheetDialogFragment
     private void createExtensionsRow() {
         Context context = getContext();
         View view = getView();
-        if (view == null)
-            return;
+        if (view == null) return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
+
+        if (mHandler != null && 
+            (mHandler.getActivityTab() == null || // Tab switcher case
+             mHandler.getActivityTab().isIncognito() || // Incognito case
+               mHandler.getActivityTab().isCustomTab())) { //For custom tabs
+            // Hide all extension-related views
+            extensionsDivider.setVisibility(View.GONE);
+            scrollView.setVisibility(View.GONE);
+            parent.setVisibility(View.GONE);
+            return;
+        }
 
         extensionsContainer.removeAllViews();
 
@@ -467,18 +476,29 @@ public class AppMenu extends BottomSheetDialogFragment
         scrollView.setVisibility(View.VISIBLE);
         parent.setVisibility(View.VISIBLE);
 
-        int buttonSize = dpToPx(48);
-        int buttonMargin = dpToPx(4);
-        int containerWidth = buttonSize * 5 + buttonMargin * 10; // Adjusted for new margins
+        // Check if we're on the extension store page
+        boolean isOnExtensionStore = false;
+        if (mHandler != null && mHandler.getActivityTab() != null) {
+            String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
+            isOnExtensionStore = "wootzapp://flow-store/".equals(currentUrl);
+            Log.d(TAG, "Current URL: " + currentUrl);
+            Log.d(TAG, "Is on extension store: " + isOnExtensionStore);
+            Log.d(TAG, "URL comparison: '" + currentUrl + "' vs 'wootzapp://flow-store/'");
+        } else {
+            Log.d(TAG, "Handler or ActivityTab is null. Handler: " + (mHandler != null) + 
+                  ", ActivityTab: " + (mHandler != null ? mHandler.getActivityTab() != null : "handler null"));
+        }
 
-        // Add "Add Extension" button
-        ImageButton addExtensionButton = createRoundButton(context);
-        addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
-        addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        addExtensionButton
-                .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
-        addExtensionButton.setOnClickListener(v -> openWebsite("https://github.com/wootzapp/ext-store"));
-        extensionsContainer.addView(addExtensionButton);
+        // Only add the "Add Extension" button if we're not on the extension store
+        if (!isOnExtensionStore) {
+            ImageButton addExtensionButton = createRoundButton(context);
+            addExtensionButton.setImageResource(R.drawable.ic_add_extensions);
+            addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            addExtensionButton
+                    .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
+            addExtensionButton.setOnClickListener(v -> openWebsite("wootzapp://flow-store/"));
+            extensionsContainer.addView(addExtensionButton);
+        }
 
         for (int i = 0; i < extensionCount; i++) {
             ExtensionInfo extension = extensionsInfo.get(i);
@@ -500,7 +520,6 @@ public class AppMenu extends BottomSheetDialogFragment
                 openExtensionWebView(index);
 
             });
-
             extensionIcon.setOnLongClickListener(v -> {
                 showDeleteExtensionDialog(index);
                 return true;
@@ -515,7 +534,6 @@ public class AppMenu extends BottomSheetDialogFragment
         scrollView.setLayoutParams(scrollParams);
 
         // Enable horizontal scrolling
-        Log.d("KRITAGYA", "KRITAGYA: scrollView.setHorizontalScrollBarEnabled");
         scrollView.setHorizontalScrollBarEnabled(true);
     }
 
@@ -534,13 +552,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openWebsite(String url) {
-        if (!Extensions.isUrlfromOfficialStore(url)) {
-            Context context = getContext();
-            if (context != null) {
-                Toast.makeText(context, "Install from official store", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        }
 
         if (mHandler != null) {
             LoadUrlParams params = new LoadUrlParams(url);
@@ -576,7 +587,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openExtensionWebView(int index) {
-        Log.d("KRITAGYA", "KRITAGYA: openExtensionWebView");
         View view = getView();
         if (view != null) {
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
@@ -603,8 +613,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void onDestroyView() {
-        Log.d("KRITAGYA", "KRITAGYA: onDestroyView");
-        
         super.onDestroyView();
         if (mWebContents != null) {
             mWebContents.destroy();
@@ -613,10 +621,9 @@ public class AppMenu extends BottomSheetDialogFragment
         mContentView = null;
         mThinWebView = null;
         mWebViewContainer = null;
-        if(mWebViewContainer == null){
+        if (mWebViewContainer == null) {
             Activity activity = getActivity();
             if (activity != null && alreadyReverted) {
-                Log.d("KRITAGYA", "KRITAGYA: reverting back to unspecifed");
                 activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
                 alreadyReverted = false;
             }
@@ -624,7 +631,6 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public boolean onBackPressed() {
-        Log.d("KRITAGYA", "KRITAGYA: onBackPressed");
         View view = getView();
         if (view != null && view.findViewById(R.id.app_menu_grid).getVisibility() == View.GONE) {
             returnToAppMenu();
@@ -652,7 +658,6 @@ public class AppMenu extends BottomSheetDialogFragment
 
     @Override
     public void dismiss() {
-        Log.d("KRITAGYA", "KRITAGYA: dismiss called");
         Log.d(TAG, "dismiss called");
         try {
             super.dismiss();
@@ -855,13 +860,10 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     public void showExtensionWebViewDirectly(String extensionId, AppMenuExtensionOpener extensionOpener) {
-
         extensionOpener.openExtension(extensionId);
     }
 
     public void closeExtensionBottomSheet(AppMenuExtensionOpener extensionOpener) {
-        
-
         extensionOpener.closeBottomSheet();
     }
 
@@ -999,5 +1001,5 @@ public class AppMenu extends BottomSheetDialogFragment
 
         return view;
     }
-   
+
 }
