@@ -28,6 +28,7 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
       content::DownloadItemUtils::GetWebContents(&download_item);
   if (!web_contents) {
     LOG(INFO) << "No web contents found, rejecting CRX";
+    return false;
   }
 
   GURL page_url = web_contents->GetLastCommittedURL();
