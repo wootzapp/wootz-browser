@@ -127,7 +127,6 @@ LOG(ERROR) << "JANGID: Successfully retrieved HDKey for address: " << address;
   LOG(ERROR) << "JANGID: Message size: " << message.size();
   LOG(ERROR) << "JANGID: Message (hex): " << base::HexEncode(message.data(), message.size());
 
-  // ... (later in the function)
 
   LOG(ERROR) << "JANGID: Hash size: " << hash.size();
   LOG(ERROR) << "JANGID: Hash (hex): " << base::HexEncode(hash.data(), hash.size());

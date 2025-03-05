@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base transparent layer -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#99000000"/>
+            <corners android:radius="20dp"/>
+        </shape>
+    </item>
+    <!-- Semi-transparent gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#CCFF3B30"
+                android:endColor="#CCFF8C00"
+                android:angle="0"/>
+            <corners android:radius="20dp"/>
+        </shape>
+    </item>
+    <!-- Subtle overlay for depth -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#15FFFFFF"
+                android:endColor="#05FFFFFF"
+                android:angle="45"/>
+            <corners android:radius="20dp"/>
+        </shape>
+    </item>
+</layer-list>

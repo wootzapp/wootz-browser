@@ -682,8 +682,28 @@ void JsonRpcService::FireNetworkChanged(
 
 std::string JsonRpcService::GetChainIdSync(
     mojom::CoinType coin,
-    const std::optional<::url::Origin>& origin) const {
-  return network_manager_->GetCurrentChainId(coin, origin);
+    const std::optional<::url::Origin>& origin) {
+  LOG(ERROR) << "GetChainIdSync - Coin Type: " << static_cast<int>(coin);
+  
+  if (origin && (origin->host() == "tap.eclipse.xyz" || origin->host() == "relay.link")) {
+    LOG(ERROR) << "jangid_sign: Eclipse origin detected, returning Eclipse chain ID";
+    // Set the network first
+    if (SetNetwork(mojom::kEclipseMainnetChainId, coin, origin)) {
+      LOG(ERROR) << "jangid_sign: Successfully set Eclipse chain ID";
+      // return mojom::kEclipseMainnetChainId;
+    }
+  }
+
+  std::string chain_id = network_manager_->GetCurrentChainId(coin, origin);
+
+  LOG(ERROR) << "GetChainIdSync - Resolved Chain ID: " << chain_id;
+  if (origin.has_value()) {
+    LOG(ERROR) << "GetChainIdSync - Origin: " << origin->Serialize();
+  } else {
+    LOG(ERROR) << "GetChainIdSync - No origin specified";
+  }
+  
+  return chain_id;
 }
 
 void JsonRpcService::GetDefaultChainId(
@@ -1127,33 +1147,54 @@ void JsonRpcService::OnGetTransactionReceipt(
 void JsonRpcService::SendRawTransaction(const std::string& chain_id,
                                         const std::string& signed_tx,
                                         SendRawTxCallback callback) {
+  LOG(ERROR) << "jangid_sign: SendRawTransaction started";
+  LOG(ERROR) << "jangid_sign: Chain ID: " << chain_id;
+  LOG(ERROR) << "jangid_sign: Signed transaction length: " << signed_tx.length();
+
+  auto network_url = GetNetworkURL(chain_id, mojom::CoinType::ETH);
+  LOG(ERROR) << "jangid_sign: Network URL: " << network_url.spec();
+
   auto internal_callback =
       base::BindOnce(&JsonRpcService::OnSendRawTransaction,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
+
+  LOG(ERROR) << "jangid_sign: Sending eth_sendRawTransaction request";
   RequestInternal(eth::eth_sendRawTransaction(signed_tx), true,
-                  GetNetworkURL(chain_id, mojom::CoinType::ETH),
-                  std::move(internal_callback));
+                  network_url, std::move(internal_callback));
 }
 
 void JsonRpcService::OnSendRawTransaction(SendRawTxCallback callback,
                                           APIRequestResult api_request_result) {
+  LOG(ERROR) << "jangid_sign: OnSendRawTransaction callback received";
+  LOG(ERROR) << "jangid_sign: Response code: " << api_request_result.response_code();
+  LOG(ERROR) << "jangid_sign: Response body length: " << api_request_result.value_body();
+
   if (!api_request_result.Is2XXResponseCode()) {
+    LOG(ERROR) << "jangid_sign: Request failed with non-2XX response code";
+    LOG(ERROR) << "jangid_sign: Response body: " << api_request_result.value_body();
     std::move(callback).Run(
         "", mojom::ProviderError::kInternalError,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
     return;
   }
+
+  LOG(ERROR) << "jangid_sign: Parsing transaction hash from response";
   auto tx_hash =
       eth::ParseEthSendRawTransaction(api_request_result.value_body());
   if (!tx_hash) {
+    LOG(ERROR) << "jangid_sign: Failed to parse transaction hash";
     mojom::ProviderError error;
     std::string error_message;
     ParseErrorResult<mojom::ProviderError>(api_request_result.value_body(),
                                            &error, &error_message);
+    LOG(ERROR) << "jangid_sign: Error code: " << static_cast<int>(error);
+    LOG(ERROR) << "jangid_sign: Error message: " << error_message;
     std::move(callback).Run("", error, error_message);
     return;
   }
 
+  LOG(ERROR) << "jangid_sign: Successfully sent transaction";
+  LOG(ERROR) << "jangid_sign: Transaction hash: " << *tx_hash;
   std::move(callback).Run(*tx_hash, mojom::ProviderError::kSuccess, "");
 }
 
@@ -1871,6 +1912,14 @@ void JsonRpcService::GetEstimateGas(const std::string& chain_id,
                                     const std::string& value,
                                     const std::string& data,
                                     GetEstimateGasCallback callback) {
+  LOG(INFO) << "jangid_sign: GetEstimateGas called with chain_id: " << chain_id
+            << ", from_address: " << from_address
+            << ", to_address: " << to_address
+            << ", gas: " << gas
+            << ", gas_price: " << gas_price
+            << ", value: " << value
+            << ", data: " << data;
+
   auto internal_callback =
       base::BindOnce(&JsonRpcService::OnGetEstimateGas,
                      weak_ptr_factory_.GetWeakPtr(), std::move(callback));
@@ -1882,7 +1931,12 @@ void JsonRpcService::GetEstimateGas(const std::string& chain_id,
 
 void JsonRpcService::OnGetEstimateGas(GetEstimateGasCallback callback,
                                       APIRequestResult api_request_result) {
+  LOG(INFO) << "jangid_sign: OnGetEstimateGas received response with status: "
+            << api_request_result.response_code();
+
   if (!api_request_result.Is2XXResponseCode()) {
+    LOG(ERROR) << "jangid_sign: OnGetEstimateGas failed with error code: "
+               << api_request_result.error_code();
     std::move(callback).Run(
         "", mojom::ProviderError::kInternalError,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
@@ -1895,16 +1949,23 @@ void JsonRpcService::OnGetEstimateGas(GetEstimateGasCallback callback,
     std::string error_message;
     ParseErrorResult<mojom::ProviderError>(api_request_result.value_body(),
                                            &error, &error_message);
+    LOG(ERROR) << "jangid_sign: OnGetEstimateGas parsing failed with error: "
+               << error_message;
     std::move(callback).Run("", error, error_message);
     return;
   }
 
+  LOG(INFO) << "jangid_sign: OnGetEstimateGas succeeded with result: " << *result;
   std::move(callback).Run(*result, mojom::ProviderError::kSuccess, "");
 }
 
 void JsonRpcService::GetGasPrice(const std::string& chain_id,
                                  GetGasPriceCallback callback) {
+  LOG(INFO) << "jangid_sign: GetGasPrice called with chain_id: " << chain_id;
+
   if (gas_price_for_testing_) {
+    LOG(INFO) << "jangid_sign: Using gas price for testing: "
+              << *gas_price_for_testing_;
     std::move(callback).Run(*gas_price_for_testing_,
                             mojom::ProviderError::kSuccess, "");
     return;
@@ -1920,7 +1981,12 @@ void JsonRpcService::GetGasPrice(const std::string& chain_id,
 
 void JsonRpcService::OnGetGasPrice(GetGasPriceCallback callback,
                                    APIRequestResult api_request_result) {
+  LOG(INFO) << "jangid_sign: OnGetGasPrice received response with status: "
+            << api_request_result.error_code();
+
   if (!api_request_result.Is2XXResponseCode()) {
+    LOG(ERROR) << "jangid_sign: OnGetGasPrice failed with error code: "
+               << api_request_result.error_code();
     std::move(callback).Run(
         "", mojom::ProviderError::kInternalError,
         l10n_util::GetStringUTF8(IDS_WALLET_INTERNAL_ERROR));
@@ -1933,12 +1999,16 @@ void JsonRpcService::OnGetGasPrice(GetGasPriceCallback callback,
     std::string error_message;
     ParseErrorResult<mojom::ProviderError>(api_request_result.value_body(),
                                            &error, &error_message);
+    LOG(ERROR) << "jangid_sign: OnGetGasPrice parsing failed with error: "
+               << error_message;
     std::move(callback).Run("", error, error_message);
     return;
   }
 
+  LOG(INFO) << "jangid_sign: OnGetGasPrice succeeded with result: " << *result;
   std::move(callback).Run(*result, mojom::ProviderError::kSuccess, "");
 }
+
 
 // Retrieves the BASEFEE per gas for a given chain ID.
 //

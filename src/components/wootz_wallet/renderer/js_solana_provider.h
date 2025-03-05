@@ -65,6 +65,7 @@ class JSSolanaProvider final : public gin::Wrappable<JSSolanaProvider>,
   bool EnsureConnected();
 
   bool GetIsPhantom(gin::Arguments* arguments);
+  bool GetIsBackpack(gin::Arguments* arguments);
   bool GetIsWootzWallet(gin::Arguments* arguments);
   bool GetIsConnected(gin::Arguments* arguments);
   // returns solanaWeb3.PublicKey

@@ -31,6 +31,7 @@ class WootzWalletProviderDelegate {
 
   virtual bool IsTabVisible() = 0;
   virtual void ShowPanel() = 0;
+  virtual void ShowUnlockWalletAlert() = 0;
 
   virtual content::WebContents* GetWebContents() = 0;
 

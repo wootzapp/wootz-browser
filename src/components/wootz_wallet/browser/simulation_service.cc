@@ -60,7 +60,8 @@ std::optional<std::string> GetRelativeScanPath(const std::string& chain_id,
         chain_id_lookup(
             {{wootz_wallet::mojom::kSolanaMainnet, "solana/v0/mainnet/scan"},
              {wootz_wallet::mojom::kSolanaTestnet, "solana/v0/testnet/scan"},
-             {wootz_wallet::mojom::kSolanaDevnet, "solana/v0/devnet/scan"}});
+             {wootz_wallet::mojom::kSolanaDevnet, "solana/v0/devnet/scan"},
+             {wootz_wallet::mojom::kEclipseMainnetChainId, "eclipse/v0/mainnet/scan"}});
 
     if (!chain_id_lookup->contains(chain_id)) {
       return std::nullopt;

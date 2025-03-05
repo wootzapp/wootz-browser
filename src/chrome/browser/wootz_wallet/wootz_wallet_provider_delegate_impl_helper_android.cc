@@ -23,6 +23,11 @@ void ShowPanel(content::WebContents*) {
   Java_WootzWalletProviderDelegateImplHelper_showPanel(env);
 }
 
+void ShowUnlockWalletAlert(content::WebContents*) {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_WootzWalletProviderDelegateImplHelper_showUnlockWalletAlert(env);
+}
+
 void ShowWalletBackup() {
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_WootzWalletProviderDelegateImplHelper_showWalletBackup(env);

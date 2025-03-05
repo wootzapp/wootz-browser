@@ -962,7 +962,7 @@ CHAR_LIMIT guidelines:
       Switch network
     </message>
     <message name="IDS_WOOTZ_WALLET_DAPPS_CONNECTION_REQUEST_MSG" desc="A message shown to user when a DApp site request to connect with Wootz wallet">
-    This page wants to interact with Wootz Wallet
+    This page wants to interact with Wootzapp Wallet
     </message>
     <message name="IDS_WALLET_FEATURED" desc="Header for featured networks">
       Featured

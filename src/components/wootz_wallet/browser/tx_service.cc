@@ -28,6 +28,7 @@
 #include "components/value_store/value_store_factory_impl.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/origin.h"
+#include "base/logging.h"
 
 namespace wootz_wallet {
 
@@ -188,21 +189,39 @@ void TxService::AddUnapprovedTransactionWithOrigin(
     mojom::AccountIdPtr from,
     const std::optional<url::Origin>& origin,
     AddUnapprovedTransactionCallback callback) {
+  LOG(ERROR) << "JANGID_SIGN: Entering AddUnapprovedTransactionWithOrigin";
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: From account - Coin type: " << static_cast<int>(from->coin)
+             << ", Keyring ID: " << static_cast<int>(from->keyring_id)
+             << ", Unique key: " << from->unique_key;
+  LOG(ERROR) << "JANGID_SIGN: Origin present: " << (origin.has_value() ? "yes" : "no");
+  if (origin.has_value()) {
+    LOG(ERROR) << "JANGID_SIGN: Origin: " << origin->Serialize();
+  }
+
   if (!account_resolver_delegate_->ValidateAccountId(from)) {
+    LOG(ERROR) << "JANGID_SIGN: Account validation failed";
     std::move(callback).Run(
         false, "",
         l10n_util::GetStringUTF8(IDS_WALLET_SEND_TRANSACTION_FROM_EMPTY));
     return;
   }
+  LOG(ERROR) << "JANGID_SIGN: Account validation successful";
 
-  if (BlockchainRegistry::GetInstance()->IsOfacAddress(
-          GetToAddressFromTxDataUnion(*tx_data_union))) {
+  std::string to_address = GetToAddressFromTxDataUnion(*tx_data_union);
+  LOG(ERROR) << "JANGID_SIGN: To address: " << to_address;
+
+  if (BlockchainRegistry::GetInstance()->IsOfacAddress(to_address)) {
+    LOG(ERROR) << "JANGID_SIGN: OFAC restricted address detected";
     std::move(callback).Run(
         false, "", l10n_util::GetStringUTF8(IDS_WALLET_OFAC_RESTRICTION));
     return;
   }
 
   auto coin_type = GetCoinTypeFromTxDataUnion(*tx_data_union);
+  LOG(ERROR) << "JANGID_SIGN: Transaction coin type: " << static_cast<int>(coin_type);
+  
+  LOG(ERROR) << "JANGID_SIGN: Forwarding to appropriate TxManager for approval";
   GetTxManager(coin_type)->AddUnapprovedTransaction(
       chain_id, std::move(tx_data_union), from, origin, std::move(callback));
 }
@@ -240,7 +259,21 @@ void TxService::ApproveTransaction(mojom::CoinType coin_type,
                                    const std::string& chain_id,
                                    const std::string& tx_meta_id,
                                    ApproveTransactionCallback callback) {
-  GetTxManager(coin_type)->ApproveTransaction(tx_meta_id, std::move(callback));
+  LOG(ERROR) << "JANGID_SIGN: Entering TxService::ApproveTransaction";
+  LOG(ERROR) << "JANGID_SIGN: Coin Type: " << static_cast<int>(coin_type);
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain_id;
+  LOG(ERROR) << "JANGID_SIGN: Transaction ID: " << tx_meta_id;
+
+  auto* tx_manager = GetTxManager(coin_type);
+  if (!tx_manager) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to get transaction manager for coin type: " 
+               << static_cast<int>(coin_type);
+    return;
+  }
+
+  LOG(ERROR) << "JANGID_SIGN: Forwarding approval request to transaction manager";
+  tx_manager->ApproveTransaction(tx_meta_id, std::move(callback));
+  LOG(ERROR) << "JANGID_SIGN: Approval request forwarded successfully";
 }
 
 void TxService::RejectTransaction(mojom::CoinType coin_type,
@@ -313,36 +346,89 @@ void TxService::GetTransactionMessageToSign(
 
 void TxService::AddObserver(
     ::mojo::PendingRemote<mojom::TxServiceObserver> observer) {
+  LOG(INFO) << "jangid_sign: TxService::AddObserver - Starting";
+  LOG(INFO) << "jangid_sign: Current observer count: " << observers_.size();
   observers_.Add(std::move(observer));
+  LOG(INFO) << "jangid_sign: Current observer count: " << observers_.size();
+  LOG(INFO) << "jangid_sign: TxService::AddObserver - Completed";
 }
 
 void TxService::OnTransactionStatusChanged(mojom::TransactionInfoPtr tx_info) {
+  LOG(INFO) << "jangid_sign: TxService::OnTransactionStatusChanged - Starting";
+  LOG(INFO) << "jangid_sign: Transaction ID: " << tx_info->id;
+  LOG(INFO) << "jangid_sign: Transaction Status: " << static_cast<int>(tx_info->tx_status);
+  LOG(INFO) << "jangid_sign: Chain ID: " << tx_info->chain_id;
+  // LOG(INFO) << "jangid_sign: From Address: " << tx_info->from->address;
+
+  int observer_count = 0;
   for (const auto& observer : observers_) {
+    observer_count++;
+    LOG(INFO) << "jangid_sign: Notifying observer " << observer_count << " about status change";
     observer->OnTransactionStatusChanged(tx_info->Clone());
   }
+  LOG(INFO) << "jangid_sign: Total observers notified for status change: " << observer_count;
 }
 
 void TxService::OnNewUnapprovedTx(mojom::TransactionInfoPtr tx_info) {
+  LOG(INFO) << "jangid_sign: TxService::OnNewUnapprovedTx - Starting";
+  LOG(INFO) << "jangid_sign: New Transaction ID: " << tx_info->id;
+  LOG(INFO) << "jangid_sign: Chain ID: " << tx_info->chain_id;
+  // LOG(INFO) << "jangid_sign: From Address: " << tx_info->from->address;
+  // LOG(INFO) << "jangid_sign: To Address: " << tx_info->tx_data_union->get_tx_data()->to;
+  // LOG(INFO) << "jangid_sign: Value: " << tx_info->tx_data_union->get_tx_data()->value;
+
+  int observer_count = 0;
   for (const auto& observer : observers_) {
+    observer_count++;
+    LOG(INFO) << "jangid_sign: Notifying observer " << observer_count << " about new transaction";
     observer->OnNewUnapprovedTx(tx_info->Clone());
   }
+  LOG(INFO) << "jangid_sign: Total observers notified for new transaction: " << observer_count;
 }
 
 void TxService::OnUnapprovedTxUpdated(mojom::TransactionInfoPtr tx_info) {
+  LOG(INFO) << "jangid_sign: TxService::OnUnapprovedTxUpdated - Starting";
+  LOG(INFO) << "jangid_sign: Updated Transaction ID: " << tx_info->id;
+  LOG(INFO) << "jangid_sign: Chain ID: " << tx_info->chain_id;
+  LOG(INFO) << "jangid_sign: Current Status: " << static_cast<int>(tx_info->tx_status);
+
+  int observer_count = 0;
   for (const auto& observer : observers_) {
+    observer_count++;
+    LOG(INFO) << "jangid_sign: Notifying observer " << observer_count << " about transaction update";
     observer->OnUnapprovedTxUpdated(tx_info->Clone());
   }
+  LOG(INFO) << "jangid_sign: Total observers notified for transaction update: " << observer_count;
 }
 
 void TxService::Reset() {
+  LOG(INFO) << "jangid_sign: TxService::Reset - Starting service reset";
+  
+  LOG(INFO) << "jangid_sign: Clearing TxService profile preferences";
   ClearTxServiceProfilePrefs(prefs_);
+  
+  LOG(INFO) << "jangid_sign: Clearing delegate data";
   delegate_->Clear();
+  
+  LOG(INFO) << "jangid_sign: Resetting transaction managers";
+  int manager_count = 0;
   for (auto const& service : tx_manager_map_) {
+    manager_count++;
+    LOG(INFO) << "jangid_sign: Resetting manager " << manager_count 
+              << " for coin type: " << static_cast<int>(service.first);
     service.second->Reset();
   }
+  LOG(INFO) << "jangid_sign: Total transaction managers reset: " << manager_count;
+
+  LOG(INFO) << "jangid_sign: Notifying observers about service reset";
+  int observer_count = 0;
   for (const auto& observer : observers_) {
+    observer_count++;
+    LOG(INFO) << "jangid_sign: Notifying observer " << observer_count << " about service reset";
     observer->OnTxServiceReset();
   }
+  LOG(INFO) << "jangid_sign: Total observers notified about reset: " << observer_count;
+  LOG(INFO) << "jangid_sign: TxService::Reset - Completed";
 }
 
 void TxService::MakeFilForwarderTransferData(

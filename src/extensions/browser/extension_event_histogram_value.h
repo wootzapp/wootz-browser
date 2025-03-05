@@ -578,6 +578,9 @@ enum HistogramValue {
   OS_DIAGNOSTICS_ON_ROUTINE_FINISHED = 556,
 
   WOOTZ_ON_SIGN_MESSAGE_REQUESTED = 557,
+  WOOTZ_ON_NEW_UNAPPROVED_TX = 558,
+  WOOTZ_ON_TRANSACTION_STATUS_CHANGED = 559,
+  WOOTZ_ON_SOLANA_SIGN_TRANSACTION_REQUESTED = 560,
   
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py

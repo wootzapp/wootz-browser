@@ -1199,6 +1199,7 @@ const string kMainnetChainId = "0x1";
 const string kGoerliChainId = "0x5";
 const string kSepoliaChainId = "0xaa36a7";
 const string kLocalhostChainId = "0x539";
+const string kEclipseMainnetChainId = "0x1e2";
 const string kPolygonMainnetChainId = "0x89";
 const string kBnbSmartChainMainnetChainId = "0x38";
 const string kAvalancheMainnetChainId = "0xa86a"; // Avalanche C-Chain

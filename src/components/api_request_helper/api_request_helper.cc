@@ -77,11 +77,12 @@ APIRequestResult ToAPIRequestResult(
   auto error_code = loader->NetError();
   auto final_url = loader->GetFinalURL();
   base::flat_map<std::string, std::string> headers;
+
   if (loader->ResponseInfo()) {
     auto headers_list = loader->ResponseInfo()->headers;
     if (headers_list) {
       response_code = headers_list->response_code();
-      DVLOG(1) << "Response code: " << response_code;
+      
       size_t header_iter = 0;
       std::string key;
       std::string value;

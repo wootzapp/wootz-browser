@@ -15,6 +15,7 @@ mojom::AccountIdPtr AccountResolverDelegateImpl::ResolveAccountId(
     const std::string* from_account_id,
     const std::string* from_address) {
   const auto& accounts = keyring_service_->GetAllAccountInfos();
+
   if (from_account_id) {
     for (auto& account : accounts) {
       DCHECK(!account->account_id->unique_key.empty());

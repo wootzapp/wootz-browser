@@ -300,7 +300,7 @@ bool JSEthereumProvider::GetIsWootzWallet() {
 }
 
 bool JSEthereumProvider::GetIsMetaMask() {
-  return false;
+  return true;
 }
 
 gin::WrapperInfo JSEthereumProvider::MetaMask::kWrapperInfo = {
@@ -363,16 +363,16 @@ void JSEthereumProvider::MetaMask::OnIsUnlocked(
 
 v8::Local<v8::Value> JSEthereumProvider::GetMetaMask(v8::Isolate* isolate) {
   // Set non-writable _metamask obj with non-writable isUnlocked method.
-  // gin::Handle<MetaMask> metamask =
-  //     gin::CreateHandle(isolate, new MetaMask(render_frame()));
-  // if (metamask.IsEmpty()) {
+  gin::Handle<MetaMask> metamask =
+      gin::CreateHandle(isolate, new MetaMask(render_frame()));
+  if (metamask.IsEmpty()) {
     return v8::Undefined(isolate);
-  // }
-  // v8::Local<v8::Value> metamask_value = metamask.ToV8();
-  // SetOwnPropertyWritable(isolate->GetCurrentContext(),
-  //                        metamask_value.As<v8::Object>(),
-  //                        gin::StringToV8(isolate, kIsUnlocked), false);
-  // return metamask_value;
+  }
+  v8::Local<v8::Value> metamask_value = metamask.ToV8();
+  SetOwnPropertyWritable(isolate->GetCurrentContext(),
+                         metamask_value.As<v8::Object>(),
+                         gin::StringToV8(isolate, kIsUnlocked), false);
+  return metamask_value;
 }
 
 std::string JSEthereumProvider::GetChainId() {
@@ -410,8 +410,8 @@ gin::ObjectTemplateBuilder JSEthereumProvider::GetObjectTemplateBuilder(
   // kEthereumProxyHandlerScript too otherwise the function call would fail.
   return gin::Wrappable<JSEthereumProvider>::GetObjectTemplateBuilder(isolate)
       .SetProperty(kIsWootzWallet, &JSEthereumProvider::GetIsWootzWallet)
-      // .SetProperty(kIsMetaMask, &JSEthereumProvider::GetIsMetaMask)
-      // .SetProperty(kMetaMask, &JSEthereumProvider::GetMetaMask)
+      .SetProperty(kIsMetaMask, &JSEthereumProvider::GetIsMetaMask)
+      .SetProperty(kMetaMask, &JSEthereumProvider::GetMetaMask)
       .SetProperty("chainId", &JSEthereumProvider::GetChainId)
       .SetProperty("networkVersion", &JSEthereumProvider::GetNetworkVersion)
       .SetProperty("selectedAddress", &JSEthereumProvider::GetSelectedAddress)

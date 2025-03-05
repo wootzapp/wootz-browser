@@ -21,6 +21,8 @@ namespace wootz_wallet {
 // ...etc.
 void ShowPanel(content::WebContents* web_contents);
 
+void ShowUnlockWalletAlert(content::WebContents* web_contents);
+
 // Show native Wootz Wallet backup UI - Used only by Android.
 void ShowWalletBackup();
 

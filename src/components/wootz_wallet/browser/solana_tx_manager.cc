@@ -368,6 +368,13 @@ void SolanaTxManager::OnGetLatestBlockhash(std::unique_ptr<SolanaTxMeta> meta,
   meta->tx()->set_wired_tx(
       meta->tx()->GetSignedTransaction(keyring_service_, meta->from()));
 
+  auto send_options = SolanaTransaction::SendOptions(5, std::nullopt, true);
+  meta->tx()->set_send_options(send_options);
+
+  LOG(ERROR) << "JANGID_TX_MANAGER: Send options max retries: " << send_options.max_retries.value_or(0);
+  LOG(ERROR) << "JANGID_TX_MANAGER: Send options skip preflight: " << send_options.skip_preflight.value_or(false);
+  LOG(ERROR) << "JANGID_TX_MANAGER: Send options preflight commitment: " << send_options.preflight_commitment.value_or("none");
+
   if (!tx_state_manager_->AddOrUpdateTx(*meta)) {
     std::move(callback).Run(
         false,

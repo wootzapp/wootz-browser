@@ -477,33 +477,52 @@ public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogF
     }
 
     private void approveTransaction() {
+        Log.e("JANGID_SIGN", "Entering approveTransaction in ApproveTxBottomSheetDialogFragment");
+        
         TxService txService = getTxService();
         if (txService == null) {
+            Log.e("JANGID_SIGN", "TxService is null, cannot approve transaction");
             return;
         }
+        
+        Log.e("JANGID_SIGN", "Transaction details:");
+        Log.e("JANGID_SIGN", "Coin Type: " + mCoinType);
+        Log.e("JANGID_SIGN", "Chain ID: " + mTxInfo.chainId);
+        Log.e("JANGID_SIGN", "Transaction ID: " + mTxInfo.id);
+        
+        Log.e("JANGID_SIGN", "Calling txService.approveTransaction");
         txService.approveTransaction(
                 mCoinType,
                 mTxInfo.chainId,
                 mTxInfo.id,
                 (success, error, errorMessage) -> {
                     if (!success) {
+                        Log.e("JANGID_SIGN", "Transaction approval failed");
+                        Log.e("JANGID_SIGN", "Error message: " + errorMessage);
+                        
                         int providerError = -1;
                         switch (error.which()) {
                             case ProviderErrorUnion.Tag.ProviderError:
                                 providerError = error.getProviderError();
+                                Log.e("JANGID_SIGN", "Provider error: " + providerError);
                                 break;
                             case ProviderErrorUnion.Tag.SolanaProviderError:
                                 providerError = error.getSolanaProviderError();
+                                Log.e("JANGID_SIGN", "Solana provider error: " + providerError);
                                 break;
                             case ProviderErrorUnion.Tag.FilecoinProviderError:
                                 providerError = error.getFilecoinProviderError();
+                                Log.e("JANGID_SIGN", "Filecoin provider error: " + providerError);
                                 break;
                             case ProviderErrorUnion.Tag.BitcoinProviderError:
                                 providerError = error.getBitcoinProviderError();
+                                Log.e("JANGID_SIGN", "Bitcoin provider error: " + providerError);
                                 break;
                             default:
+                                Log.e("JANGID_SIGN", "Unknown error type");
                                 assert false : "unknown error " + errorMessage;
                         }
+                        
                         assert success
                                 : "tx is not approved error: "
                                         + providerError
@@ -516,10 +535,18 @@ public class ApproveTxBottomSheetDialogFragment extends WalletBottomSheetDialogF
                                 errorMessage);
                         return;
                     }
+
+                    Log.e("JANGID_SIGN", "Transaction approved successfully");
                     mApproved = true;
+                    
                     if (mTransactionConfirmationListener != null) {
+                        Log.e("JANGID_SIGN", "Notifying transaction confirmation listener");
                         mTransactionConfirmationListener.onApproveTransaction();
+                    } else {
+                        Log.e("JANGID_SIGN", "No transaction confirmation listener registered");
                     }
+                    
+                    Log.e("JANGID_SIGN", "Dismissing approval dialog");
                     dismiss();
                 });
     }

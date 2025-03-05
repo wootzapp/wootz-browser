@@ -233,6 +233,49 @@
             ]
           }
         },
+        {    
+          "name": "signTransaction",
+          "type": "function",
+          "parameters": [
+            {
+              "name": "txMetaId",
+              "type": "string",
+              "description": "Transaction meta ID to sign"
+            },
+            {
+              "name": "chainId",
+              "type": "string",
+              "description": "The chain ID for the transaction"
+            },
+            {
+              "name": "coinType",
+              "type": "integer",
+              "description": "The coin type for the transaction"
+            },
+            {
+              "name": "approved",
+              "type": "boolean",
+              "description": "True to approve, false to reject the transaction"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "optional": true,
+                "properties": {
+                  "hash": {
+                    "type": "string",
+                    "optional": true,
+                    "description": "Transaction hash if approved and submitted"
+                  }
+                }
+              }
+            ]
+          }
+        },
         {
           "name": "helloWorld",
           "type": "function",
@@ -336,6 +379,36 @@
           "type": "function",
           "description": "Clear all jobs and results",
           "parameters": []
+        },
+        {
+          "name": "signSolanaTransaction",
+          "type": "function",
+          "description": "Responds to a Solana transaction sign request",
+          "parameters": [
+            {
+              "name": "requestId",
+              "type": "integer",
+              "description": "ID of the sign request"
+            },
+            {
+              "name": "approved",
+              "type": "boolean",
+              "description": "Whether the transaction was approved"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [
@@ -353,6 +426,60 @@
                 "origin": {"type": "string"},
                 "chainId": {"type": "string"},
                 "isEip712": {"type": "boolean"}
+              }
+            }
+          ]
+        },
+        {
+          "name": "OnNewUnapprovedTxAPI",
+          "type": "function",
+          "description": "Fired when a transaction needs user signature",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "from": { "type": "string" },
+                "tx_hash": { "type": "string" },
+                "chainId": { "type": "string" },
+                "coinType": { "type": "integer" },
+                "origin": { "type": "string" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "onTransactionStatusChangedAPI",
+          "type": "function",
+          "description": "Fired when transaction status changes",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "status": { "type": "string" },
+                "hash": { "type": "string", "optional": true },
+                "error": { "type": "string", "optional": true }
+              }
+            }
+          ]
+        },
+        {
+          "name": "onSolanaSignTransactionRequested",
+          "type": "function",
+          "description": "Fired when a Solana transaction needs user signature",
+          "parameters": [
+            {
+              "name": "request",
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"},
+                "address": {"type": "string"},
+                "origin": {"type": "string"},
+                "chainId": {"type": "string"},
+                "encodedMessage": {"type": "string"}
               }
             }
           ]

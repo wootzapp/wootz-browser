@@ -308,12 +308,19 @@ void EthereumProviderImpl::SendOrSignTransactionInternal(
     base::Value id,
     const std::string& normalized_json_request,
     bool sign_only) {
+  LOG(ERROR) << "JANGID_SIGN: Entering SendOrSignTransactionInternal";
+  LOG(ERROR) << "JANGID_SIGN: Sign only flag: " << (sign_only ? "true" : "false");
+  LOG(ERROR) << "JANGID_SIGN: Normalized JSON request: " << normalized_json_request;
+
   url::Origin origin = delegate_->GetOrigin();
+  LOG(ERROR) << "JANGID_SIGN: Origin: " << origin.Serialize();
+
   mojom::NetworkInfoPtr chain =
       json_rpc_service_->GetNetworkSync(mojom::CoinType::ETH, origin);
 
   bool reject = false;
   if (!chain) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to get network info";
     mojom::ProviderError code = mojom::ProviderError::kInternalError;
     std::string message = "Internal JSON-RPC error";
     base::Value formed_response = GetProviderErrorDictionary(code, message);
@@ -322,11 +329,14 @@ void EthereumProviderImpl::SendOrSignTransactionInternal(
                             "", false);
     return;
   }
+
+  LOG(ERROR) << "JANGID_SIGN: Chain ID: " << chain->chain_id;
 
   std::string from;
   mojom::TxData1559Ptr tx_data_1559 =
       ParseEthTransaction1559Params(normalized_json_request, &from);
   if (!tx_data_1559) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to parse EIP-1559 transaction parameters";
     mojom::ProviderError code = mojom::ProviderError::kInternalError;
     std::string message = "Internal JSON-RPC error";
     base::Value formed_response = GetProviderErrorDictionary(code, message);
@@ -335,19 +345,40 @@ void EthereumProviderImpl::SendOrSignTransactionInternal(
                             "", false);
     return;
   }
+
+  LOG(ERROR) << "JANGID_SIGN: Transaction details:";
+  LOG(ERROR) << "JANGID_SIGN: From address: " << from;
+  LOG(ERROR) << "JANGID_SIGN: To address: " << tx_data_1559->base_data->to;
+  LOG(ERROR) << "JANGID_SIGN: Value: " << tx_data_1559->base_data->value;
+  LOG(ERROR) << "JANGID_SIGN: Max fee per gas: " << tx_data_1559->max_fee_per_gas;
+  LOG(ERROR) << "JANGID_SIGN: Max priority fee per gas: " << tx_data_1559->max_priority_fee_per_gas;
+  LOG(ERROR) << "JANGID_SIGN: Nonce: " << tx_data_1559->base_data->nonce;
+
   tx_data_1559->base_data->sign_only = sign_only;
 
   const auto account_id = FindAuthenticatedAccountByAddress(from, id, callback);
   if (!account_id) {
+    LOG(ERROR) << "JANGID_SIGN: Failed to find authenticated account for address: " << from;
     return;
   }
 
-  if (ShouldCreate1559Tx(tx_data_1559.Clone(),
-                         wootz_wallet_service_->network_manager()
-                             ->IsEip1559Chain(chain->chain_id)
-                             .value_or(false),
-                         keyring_service_->GetAllAccountInfos(), account_id)) {
-    // Set chain_id to current chain_id.
+  LOG(ERROR) << "JANGID_SIGN: Found authenticated account:";
+  LOG(ERROR) << "JANGID_SIGN: Account coin type: " << static_cast<int>(account_id->coin);
+  LOG(ERROR) << "JANGID_SIGN: Account keyring ID: " << static_cast<int>(account_id->keyring_id);
+  LOG(ERROR) << "JANGID_SIGN: Account unique key: " << account_id->unique_key;
+
+  bool should_use_1559 = ShouldCreate1559Tx(
+      tx_data_1559.Clone(),
+      wootz_wallet_service_->network_manager()
+          ->IsEip1559Chain(chain->chain_id)
+          .value_or(false),
+      keyring_service_->GetAllAccountInfos(),
+      account_id);
+
+  LOG(ERROR) << "JANGID_SIGN: Should use EIP-1559 transaction: " << (should_use_1559 ? "yes" : "no");
+
+  if (should_use_1559) {
+    LOG(ERROR) << "JANGID_SIGN: Creating EIP-1559 transaction";
     tx_data_1559->chain_id = chain->chain_id;
     tx_service_->AddUnapprovedTransactionWithOrigin(
         mojom::TxDataUnion::NewEthTxData1559(std::move(tx_data_1559)),
@@ -356,6 +387,7 @@ void EthereumProviderImpl::SendOrSignTransactionInternal(
                        weak_factory_.GetWeakPtr(), std::move(callback),
                        std::move(id)));
   } else {
+    LOG(ERROR) << "JANGID_SIGN: Creating legacy transaction";
     tx_service_->AddUnapprovedTransactionWithOrigin(
         mojom::TxDataUnion::NewEthTxData(std::move(tx_data_1559->base_data)),
         chain->chain_id, account_id.Clone(), origin,
@@ -363,6 +395,7 @@ void EthereumProviderImpl::SendOrSignTransactionInternal(
                        weak_factory_.GetWeakPtr(), std::move(callback),
                        std::move(id)));
   }
+  LOG(ERROR) << "JANGID_SIGN: Transaction submitted for approval";
 }
 
 void EthereumProviderImpl::IsLocked(IsLockedCallback callback) {
@@ -396,7 +429,7 @@ void EthereumProviderImpl::OnAddUnapprovedTransaction(
   if (error == mojom::ProviderError::kSuccess) {
     add_tx_callbacks_[tx_meta_id] = std::move(callback);
     add_tx_ids_[tx_meta_id] = std::move(id);
-    delegate_->ShowPanel();
+    // delegate_->ShowPanel();
   } else {
     base::Value formed_response =
         GetProviderErrorDictionary(error, error_message);
@@ -1080,9 +1113,19 @@ void EthereumProviderImpl::CommonRequestOrSendAsync(
     }
     SwitchEthereumChain(chain_id, std::move(callback), std::move(id));
   } else if (method == kEthSendTransaction) {
+    LOG(ERROR) << "JANGID_SIGN: eth_sendTransaction request received";
+    LOG(ERROR) << "JANGID_SIGN: Normalized JSON request: " << normalized_json_request;
+    LOG(ERROR) << "JANGID_SIGN: Method: " << method;
+    LOG(ERROR) << "JANGID_SIGN: Sign only flag: false";
+    
     SendOrSignTransactionInternal(std::move(callback), std::move(id),
                                   std::move(normalized_json_request), false);
   } else if (method == kEthSignTransaction) {
+    LOG(ERROR) << "JANGID_SIGN: eth_signTransaction request received";
+    LOG(ERROR) << "JANGID_SIGN: Normalized JSON request: " << normalized_json_request;
+    LOG(ERROR) << "JANGID_SIGN: Method: " << method;
+    LOG(ERROR) << "JANGID_SIGN: Sign only flag: true";
+    
     SendOrSignTransactionInternal(std::move(callback), std::move(id),
                                   std::move(normalized_json_request), true);
   } else if (method == kEthSendRawTransaction) {
@@ -1366,8 +1409,6 @@ void EthereumProviderImpl::RequestEthereumPermissions(
     const std::string& method,
     const url::Origin& origin) {
   
-  
-  
   std::vector<std::string> addresses;
   for (auto& account_info : keyring_service_->GetAllAccountInfos()) {
     if (account_info->account_id->coin == mojom::CoinType::ETH) {
@@ -1382,68 +1423,20 @@ void EthereumProviderImpl::RequestEthereumPermissions(
     return;
   }
 
-  LOG(ERROR) << "RequestEthereum addresses JANGID: addresses allaccounts infos " 
-             << base::JoinString(addresses, ", ");
-
-  LOG(ERROR) << "RequestEthereum: Starting unlock process JANGID";
-
-  const std::string password = keyring_service_->GetPassword();
-
-  LOG(ERROR) << "JANGID: Password in Ethereum "<<password;
-  
-    // Check if the wallet is already unlocked
-  keyring_service_->IsLocked(base::BindOnce(
-      &EthereumProviderImpl::OnIsLockedChecked,
-      weak_factory_.GetWeakPtr(),
-      password,
-      std::move(callback),
-      std::move(id),
-      method,
-      origin));
-
-  LOG(ERROR) << "RequestEthereum: IsLocked check initiated JANGID";
-}
-
-void EthereumProviderImpl::OnIsLockedChecked(
-    const std::string& password,
-    RequestCallback callback,
-    base::Value id,
-    const std::string& method,
-    const url::Origin& origin,
-    bool is_locked) {
-  
-  if (!is_locked) {
-    LOG(ERROR) << "RequestEthereum: Wallet is already unlocked JANGID";
-    // Call OnUnlockComplete directly with success=true
-    OnUnlockComplete(std::move(callback), std::move(id), method, origin, true);
-    return;
-  }
-
-  LOG(ERROR) << "RequestEthereum: Wallet is locked, proceeding with unlock JANGID";
-  keyring_service_->Unlock(
-      password,
-      base::BindOnce(&EthereumProviderImpl::OnUnlockComplete,
-                     weak_factory_.GetWeakPtr(),
-                     std::move(callback),
-                     std::move(id),
-                     method,
-                     origin));
-
-}
-
-void EthereumProviderImpl::OnUnlockComplete(
-    RequestCallback callback,
-    base::Value id,
-    const std::string& method,
-    const url::Origin& origin,
-    bool unlock_success) {
-  
-  LOG(ERROR) << "RequestEthereum: Unlock complete, success =  JANGID " << unlock_success;
-
-  if (!unlock_success) {
-    OnRequestEthereumPermissions(std::move(callback), std::move(id), method,
-                                 origin, RequestPermissionsError::kInternal,
-                                 std::nullopt);
+  // Check if wallet is locked using sync method
+  if (keyring_service_->IsLockedSync()) {
+    if (pending_request_ethereum_permissions_callback_) {
+      OnRequestEthereumPermissions(
+          std::move(callback), std::move(id), method, origin,
+          RequestPermissionsError::kRequestInProgress, std::nullopt);
+      return;
+    }
+    pending_request_ethereum_permissions_callback_ = std::move(callback);
+    pending_request_ethereum_permissions_id_ = std::move(id);
+    pending_request_ethereum_permissions_method_ = method;
+    pending_request_ethereum_permissions_origin_ = origin;
+    keyring_service_->RequestUnlock();
+    delegate_->ShowUnlockWalletAlert();
     return;
   }
 

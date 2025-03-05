@@ -80,6 +80,7 @@ const std::string GetChainSubdomain(const std::string& chain_id) {
 
                   // SVM chains
                   {mojom::kSolanaMainnet, "solana-mainnet"},
+                  {mojom::kEclipseMainnetChainId, "eclipse-mainnet"},
 
                   // Other chains
                   {mojom::kBitcoinMainnet, "bitcoin-mainnet"}});
@@ -96,6 +97,10 @@ std::optional<GURL> GetURLForKnownChainId(const std::string& chain_id) {
   auto subdomain = wootz_wallet::GetChainSubdomain(chain_id);
   if (subdomain.empty()) {
     return std::nullopt;
+  }
+
+  if (chain_id == mojom::kEclipseMainnetChainId) {
+    return GURL("https://mainnetbeta-rpc.eclipse.xyz");
   }
   // return GURL(
   //     base::StringPrintf("https://%s.wallet.wootz.com", subdomain.c_str()));
@@ -264,7 +269,7 @@ const mojom::NetworkInfo* GetSepoliaTestNetwork() {
        {"https://sepolia.etherscan.io"},
        {},
        0,
-       {GetURLForKnownChainId(chain_id).value()},
+       {GURL("https://ethereum-sepolia-rpc.publicnode.com")},
        "ETH",
        "Ethereum",
        18,
@@ -371,6 +376,7 @@ const mojom::NetworkInfo* GetSolMainnet() {
 }
 
 const mojom::NetworkInfo* GetSolTestnet() {
+  LOG(ERROR) << "jangid_mint GetSolTestnet";
   const auto coin = mojom::CoinType::SOL;
   const auto* chain_id = mojom::kSolanaTestnet;
 
@@ -428,10 +434,32 @@ const mojom::NetworkInfo* GetSolLocalhost() {
   return network_info.get();
 }
 
+const mojom::NetworkInfo* GetEclipseMainnet() {
+  const auto coin = mojom::CoinType::SOL;
+  const auto* chain_id = mojom::kEclipseMainnetChainId;
+
+  static base::NoDestructor<mojom::NetworkInfo> network_info(
+      {chain_id,
+       "Eclipse Mainnet",
+       {"https://eclipsescan.xyz"},
+       {},
+       0,
+       {GURL("https://mainnetbeta-rpc.eclipse.xyz")},
+       "ETH",
+       "Ethereum",
+       9,
+       coin,
+       GetSupportedKeyringsForNetwork(coin, chain_id)});
+
+  return network_info.get();
+}
+
 const std::vector<const mojom::NetworkInfo*>& GetKnownSolNetworks() {
+  LOG(ERROR) << "jangid_mint GetKnownSolNetworks";
   static base::NoDestructor<std::vector<const mojom::NetworkInfo*>> networks({
       // clang-format off
       GetSolMainnet(),
+      GetEclipseMainnet(),
       GetSolTestnet(),
       GetSolDevnet(),
       GetSolLocalhost(),

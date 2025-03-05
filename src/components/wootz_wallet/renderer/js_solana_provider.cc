@@ -215,6 +215,7 @@ gin::ObjectTemplateBuilder JSSolanaProvider::GetObjectTemplateBuilder(
   // kSolanaProxyHandlerScript too otherwise the function call would fail.
   return gin::Wrappable<JSSolanaProvider>::GetObjectTemplateBuilder(isolate)
       .SetProperty("isPhantom", &JSSolanaProvider::GetIsPhantom)
+      .SetProperty("isBackpack", &JSSolanaProvider::GetIsBackpack)
       .SetProperty("isWootzWallet", &JSSolanaProvider::GetIsWootzWallet)
       .SetProperty("isConnected", &JSSolanaProvider::GetIsConnected)
       .SetProperty("publicKey", &JSSolanaProvider::GetPublicKey)
@@ -290,6 +291,10 @@ bool JSSolanaProvider::EnsureConnected() {
 }
 
 bool JSSolanaProvider::GetIsPhantom(gin::Arguments* arguments) {
+  return true;
+}
+
+bool JSSolanaProvider::GetIsBackpack(gin::Arguments* arguments) {
   return true;
 }
 
