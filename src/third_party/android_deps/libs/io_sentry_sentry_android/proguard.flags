@@ -1,0 +1,9 @@
+# Sentry ProGuard Rules
+-keep class io.sentry.** { *; }
+-dontwarn io.sentry.**
+-keepattributes LineNumberTable,SourceFile
+-keepattributes *Annotation*
+-keep class io.sentry.android.core.** { *; }
+-keep class io.sentry.core.** { *; }
+-dontwarn io.sentry.android.fragment.**
+-dontwarn io.sentry.android.timber.**
