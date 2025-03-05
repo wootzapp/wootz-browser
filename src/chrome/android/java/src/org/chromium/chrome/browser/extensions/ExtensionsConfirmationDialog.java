@@ -29,6 +29,12 @@ public class ExtensionsConfirmationDialog {
                 Log.d("exts", "cancel");
                 ExtensionsConfirmationDialogJni.get().onDialogResult(doneCallback, false);
             })
+            .setOnCancelListener(dialog -> {
+                // This handles both clicking outside the dialog and pressing the back button
+                Log.d("exts", "dialog canceled (outside click or back button)");
+                ExtensionsConfirmationDialogJni.get().onDialogResult(doneCallback, false);
+            })
+            .setCancelable(true)
             .show();
     }
 
