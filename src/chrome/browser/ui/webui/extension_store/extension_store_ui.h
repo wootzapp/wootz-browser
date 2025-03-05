@@ -50,6 +50,9 @@ class ExtensionStoreMessageHandler : public content::WebUIMessageHandler,
 
   // Handles the message for fetching an icon.
   void HandleFetchIcon(const base::Value::List& args);
+  
+  // Handles the message for fetching installed extensions.
+  void HandleFetchInstalledExtensions(const base::Value::List& args);
 
   // Called when the extensions list has been fetched.
   void OnFetchExtensionsComplete(std::unique_ptr<std::string> response_body);
