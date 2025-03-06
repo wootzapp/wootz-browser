@@ -465,7 +465,8 @@ function createExtensionCard(extension) {
        event.stopPropagation();
        if (!extension.installed || extension.needsUpdate) {
            // Show "Installing..." state immediately
-           this.textContent = 'Installing...';
+           this.textContent = '';
+           this.classList.add('loading');
            this.disabled = true;
            
            console.log(' Clicked ' + (extension.needsUpdate ? 'Update' : 'Install') + ' button for', extension.name);
@@ -524,12 +525,14 @@ function handleDownload(extension, button) {
         console.log('Extension already installed:', extension.name);
         button.textContent = 'Installed';
         button.disabled = true;
+        button.classList.remove('loading');
         button.className = 'install-button installed prevent-card-click';
         return;
     }
     
     // Update button state
-    button.textContent = 'Installing...';
+    button.textContent = '';
+    button.classList.add('loading');
     button.disabled = true;
     
     // Store the extension ID in the button's dataset for reference
@@ -585,6 +588,7 @@ function handleDownload(extension, button) {
         
     } catch (error) {
         console.error('Installation failed:', error);
+        button.classList.remove('loading');
         button.textContent = extension.needsUpdate ? 'Update' : 'Retry';
         button.disabled = false;
         button.className = extension.needsUpdate ? 
@@ -600,6 +604,7 @@ function handleDownload(extension, button) {
  */
 function updateInstalledState(extension, button) {
     console.log('Updating UI for installed extension:', extension.name, '(ID:', extension.id, ')');
+    button.classList.remove('loading');
     button.textContent = 'Installed';
     button.className = 'install-button installed prevent-card-click';
     button.disabled = true;
