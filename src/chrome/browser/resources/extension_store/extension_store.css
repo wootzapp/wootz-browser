@@ -235,3 +235,32 @@ h1 span {
 .prevent-card-click {
     pointer-events: auto;
 }
+
+@keyframes loading-spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.install-button.loading {
+  position: relative;
+  color: transparent;
+  min-width: 80px;
+  background: transparent; /* Match the original orange background */
+  border: none;
+  box-shadow: none; /* Remove bottom shadow */
+}
+
+.install-button.loading::after {
+  content: "";
+  position: absolute;
+  width: 20px; /* Increased from 16px */
+  height: 20px; /* Increased from 16px */
+  top: 50%;
+  left: 50%;
+  margin-top: -10px; /* Adjusted for new size */
+  margin-left: -10px; /* Adjusted for new size */
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.3); /* Lighter border */
+  border-top: 2.5px solid #ff8c00; /* White spinner color */
+  animation: loading-spinner 1s linear infinite;
+}
