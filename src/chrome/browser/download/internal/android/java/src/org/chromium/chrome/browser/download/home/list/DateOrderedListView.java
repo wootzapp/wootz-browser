@@ -9,7 +9,7 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.view.View;
-
+import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -411,7 +411,23 @@ class DateOrderedListView {
         @Override
         public void onBindViewHolder(
                 ListItemViewHolder viewHolder, int position, @Nullable Void payload) {
-            viewHolder.bind(mModel.getProperties(), mModel.get(position));
+            ListItem item = mModel.get(position);
+            Log.d("DateOrderedListView", "Showing downloaded files");
+            // Skip rendering .crx files
+            if (item instanceof OfflineItemListItem) {
+                OfflineItemListItem offlineItem = (OfflineItemListItem) item;
+                String filePath = offlineItem.item.title;
+                if (filePath != null && filePath.toLowerCase().endsWith(".crx")) {
+                    // Hide this view
+                    Log.d("DateOrderedListView", "CRX file hidden from the list");
+                    viewHolder.itemView.setVisibility(View.GONE);
+                    return;
+                }
+            }
+            
+            // Make sure visibility is restored for non-.crx files
+            viewHolder.itemView.setVisibility(View.VISIBLE);
+            viewHolder.bind(mModel.getProperties(), item);
         }
 
         @Override

@@ -27,6 +27,9 @@
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "chrome/browser/profiles/profile.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/common/extension.h"
 
 namespace {
 
@@ -124,6 +127,12 @@ void ExtensionStoreMessageHandler::RegisterMessages() {
   web_ui_->RegisterMessageCallback(
       "fetchIcon",
       base::BindRepeating(&ExtensionStoreMessageHandler::HandleFetchIcon,
+                         base::Unretained(this)));
+                         
+  // Register the message callback for fetching installed extensions
+  web_ui_->RegisterMessageCallback(
+      "fetchInstalledExtensions",
+      base::BindRepeating(&ExtensionStoreMessageHandler::HandleFetchInstalledExtensions,
                          base::Unretained(this)));
 }
 
@@ -393,4 +402,63 @@ void ExtensionStoreMessageHandler::HandleFetchIcon(const base::Value::List& args
 
   // Call the FetchIcon method with both the icon_url and extension_id
   FetchIcon(icon_url, extension_id);
+}
+
+void ExtensionStoreMessageHandler::HandleFetchInstalledExtensions(const base::Value::List& args) {
+  if (is_destroyed_) {
+    return;
+  }
+  
+  LOG(INFO) << " HandleFetchInstalledExtensions called";
+  
+  Profile* profile = Profile::FromWebUI(web_ui_);
+  if (!profile) {
+    LOG(ERROR) << " Failed to get profile in HandleFetchInstalledExtensions";
+    web_ui_->CallJavascriptFunctionUnsafe(
+        "handleError", base::Value("Failed to get profile"));
+    return;
+  }
+  
+  LOG(INFO) << " Successfully retrieved profile";
+  
+  // Get the extension registry
+  extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(profile);
+  if (!registry) {
+    LOG(ERROR) << " Failed to get extension registry";
+    web_ui_->CallJavascriptFunctionUnsafe(
+        "handleError", base::Value("Failed to get extension registry"));
+    return;
+  }
+  
+  LOG(INFO) << " Successfully retrieved extension registry";
+  
+  // Create a list to hold installed extension info
+  base::Value::List installed_extensions_list;
+  
+  // Get the enabled (installed) extensions
+  const extensions::ExtensionSet& installed_extensions = registry->enabled_extensions();
+  
+  LOG(INFO) << " Number of installed extensions found: " << installed_extensions.size();
+  
+  // Iterate through installed extensions and add their info to the list
+  for (const auto& extension : installed_extensions) {
+    base::Value::Dict extension_info;
+    
+    extension_info.Set("id", extension->id());
+    extension_info.Set("name", extension->name());
+    extension_info.Set("version", extension->version().GetString());
+    extension_info.Set("description", extension->description());
+    
+    LOG(INFO) << " Adding installed extension: " << extension->id() << " - " << extension->name();
+    
+    installed_extensions_list.Append(std::move(extension_info));
+  }
+  
+  LOG(INFO) << " Sending " << installed_extensions_list.size() << " installed extensions to frontend";
+  
+  // Send the installed extensions info to the frontend
+  web_ui_->CallJavascriptFunctionUnsafe(
+      "handleInstalledExtensionsData", base::Value(std::move(installed_extensions_list)));
+      
+  LOG(INFO) << " Completed sending installed extensions data to frontend";
 }

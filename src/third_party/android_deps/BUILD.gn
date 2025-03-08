@@ -1498,7 +1498,6 @@ if (!limit_android_deps) {
       ":org_robolectric_plugins_maven_dependency_resolver_java",
       ":org_robolectric_resources_java",
       ":org_robolectric_sandbox_java",
-      ":org_robolectric_shadowapi_java",
       ":org_robolectric_shadows_framework_java",
       ":org_robolectric_utils_java",
       ":org_robolectric_utils_reflector_java",
