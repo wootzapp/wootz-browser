@@ -1410,6 +1410,22 @@ by a child template that "extends" this file.
       {% endblock %}
       {% block extra_application_definitions_for_test %}
       {% endblock %}
+
+       <meta-data android:name="io.sentry.dsn" android:value="https://fc38a4ab40405f6cda3e680c1659226e@o4508518313230336.ingest.us.sentry.io/4508642172862464" />
+
+        <!-- Add data like request headers, user ip adress and device name, see https://docs.sentry.io/platforms/android/data-management/data-collected/ for more info -->
+        <meta-data android:name="io.sentry.send-default-pii" android:value="true" />
+
+        <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
+        <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
+        <!-- enable screenshot for crashes -->
+        <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
+        <!-- enable view hierarchy for crashes -->
+        <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
+
+        <!-- enable the performance API by setting a sample-rate, adjust in production env -->
+        <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
+
     </application>
     {% block extra_root_definitions %}
     {% endblock %}

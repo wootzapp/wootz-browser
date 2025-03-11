@@ -12,7 +12,10 @@ body {
 .container {
     max-width: 800px;
     margin: 0 auto;
-    padding: 20px;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-top: 10px;
+    padding-bottom: 20px;
 }
 
 /* App Bar Styles */
@@ -20,7 +23,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     height: 60px;
 }
 
@@ -41,7 +44,28 @@ body {
 h1 {
     text-align: center;
     margin: 0;
-    font-size: 24px;
+    font-size: 26px;
+    font-weight: bold;
+    background-image: linear-gradient(to right, #d60b00, #fe8c00);
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+h1 span {
+    display: inline-block;
+}
+
+.title-icon {
+    height: 32px;
+    width: auto;
+    margin-right: -8px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
 }
 
 .extensions-list {
@@ -53,7 +77,7 @@ h1 {
 .extension-card {
     background: #eaeaea;
     border-radius: 12px;
-    padding: 15px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 8px rgba(0,0,0,0.12);
@@ -84,7 +108,7 @@ h1 {
 .extension-info {
     flex: 1;
     min-width: 0; /* Ensures text truncation works properly */
-    padding-right: 100px; /* Make space for the button */
+    padding-right: 85px; /* Make space for the button */
 }
 
 .extension-header {
@@ -159,7 +183,26 @@ h1 {
 }
 
 .install-button.installed {
-    background: #e67e00;
+    background: #fd910ee3;  /* Light orange for installed */
+    border: 1px solid #E65100;
+    color: white;
+}
+
+.install-button.update {
+    background: #4CAF50;  /* Green for update */
+    border: 1px solid #388E3C;
+    color: white;
+}
+
+.install-button.installing {
+    background: #fd910ee3;  /* Light orange for installing */
+    border: 1px solid #E65100;
+    color: white;
+}
+
+.install-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .github-button {
@@ -191,4 +234,33 @@ h1 {
 /* Helper class for clicks on buttons inside card */
 .prevent-card-click {
     pointer-events: auto;
+}
+
+@keyframes loading-spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.install-button.loading {
+  position: relative;
+  color: transparent;
+  min-width: 80px;
+  background: transparent; /* Match the original orange background */
+  border: none;
+  box-shadow: none; /* Remove bottom shadow */
+}
+
+.install-button.loading::after {
+  content: "";
+  position: absolute;
+  width: 20px; /* Increased from 16px */
+  height: 20px; /* Increased from 16px */
+  top: 50%;
+  left: 50%;
+  margin-top: -10px; /* Adjusted for new size */
+  margin-left: -10px; /* Adjusted for new size */
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.3); /* Lighter border */
+  border-top: 2.5px solid #ff8c00; /* White spinner color */
+  animation: loading-spinner 1s linear infinite;
 }

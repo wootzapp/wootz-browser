@@ -18,6 +18,5 @@ build_webui("build") {
 preprocess_if_expr("preprocess") {
   in_files = [
     "extension_store.html",
-    "browser_bridge.js",
   ]
 }

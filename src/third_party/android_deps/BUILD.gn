@@ -2070,6 +2070,53 @@ if (!limit_android_deps) {
     ]
   }
 
+  # Base Sentry JAR
+  android_library("sentry_base_java") {
+    jar_path = "libs/io_sentry_sentry_android/sentry-6.28.0.jar"
+    deps = [
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Sentry Android Core
+  android_aar_prebuilt("sentry_android_core_java") {
+    aar_path = "libs/io_sentry_sentry_android/sentry-android-core-6.28.0.aar"
+    info_path = "libs/io_sentry_sentry_android/sentry_android_core.info"
+    deps = [
+      ":sentry_base_java",
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Main Sentry Android
+  android_aar_prebuilt("sentry_android_java") {
+    aar_path = "libs/io_sentry_sentry_android/sentry-android-6.28.0.aar"
+    info_path = "libs/io_sentry_sentry_android/sentry_android.info"
+    deps = [
+      ":sentry_base_java",
+      ":sentry_android_core_java",
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Add this to disable the missing integrations
+  config("sentry_config") {
+    defines = [
+      "SENTRY_DISABLE_FRAGMENT_INTEGRATION",
+      "SENTRY_DISABLE_TIMBER_INTEGRATION",
+    ]
+  }
+
+  # Convenience group target
+  java_group("sentry_java") {
+    public_deps = [
+      ":sentry_android_java",
+      ":sentry_android_core_java",
+      ":sentry_base_java",
+    ]
+    public_configs = [ ":sentry_config" ]
+  }
+
   # This is generated, do not edit. Update BuildConfigGenerator.groovy instead.
   if (google_play_services_package == "//third_party/android_deps") {
     java_prebuilt("google_firebase_firebase_annotations_java") {

@@ -90,7 +90,8 @@ void SolanaProviderImpl::Connect(std::optional<base::Value::Dict> arg,
     // Prompt users to create a Solana account. If wallet is not setup, users
     // will be lead to onboarding first.
     if (!account_creation_shown_) {
-      delegate_->ShowAccountCreation(mojom::CoinType::SOL);
+      // delegate_->ShowAccountCreation(mojom::CoinType::SOL);
+      delegate_->ShowWalletOnboarding();
       account_creation_shown_ = true;
     }
     std::move(callback).Run(mojom::SolanaProviderError::kInternalError,

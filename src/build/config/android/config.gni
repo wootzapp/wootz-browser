@@ -225,10 +225,10 @@ if (is_android || is_chromeos) {
 
     # Forced Android versionCode
 
-    android_override_version_code = "43"
+    android_override_version_code = "47"
 
     # Forced Android versionName
-    android_override_version_name = "0.31"
+    android_override_version_name = "0.34"
 
     # The path to the keystore to use for signing builds.
     android_keystore_path = default_android_keystore_path

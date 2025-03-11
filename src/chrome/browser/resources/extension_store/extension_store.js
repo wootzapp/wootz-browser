@@ -22,14 +22,24 @@ let ExtensionInfo;
 class BrowserBridge {
  /** @private */
  constructor() {
-   /** @private {?function(!Array<ExtensionInfo>)} */
-   this.extensionsChangedListener_ = null;
-   
-   /** @private {Object<string, ExtensionInfo>} */
+   /** @private {Object<string, Object>} */
    this.cachedExtensions_ = {};
    
-   // Set up handlers for messages coming from C++
+   /** @private {Object<string, Object>} */
+   this.installedExtensions_ = {};
+   
+   /** @private {?function(!Array<!Object>)} */
+   this.extensionsChangedListener_ = null;
+   
    this.setupMessageHandlers_();
+   
+   // Initialize by fetching installed extensions
+   this.fetchInstalledExtensions();
+   
+   // Set up a periodic refresh of installed extensions (every 10 seconds)
+   setInterval(() => {
+     this.fetchInstalledExtensions();
+   }, 10000);
  }
 
  /**
@@ -141,6 +151,74 @@ class BrowserBridge {
  }
 
  /**
+  * Fetches all installed extensions from the browser.
+  * @return {!Promise<void>}
+  */
+ fetchInstalledExtensions() {
+   console.log(' Requesting installed extensions from browser');
+   
+   /** @private {Object<string, Object>} */
+   this.installedExtensions_ = this.installedExtensions_ || {};
+   
+   // Set up handler for installed extensions data if not already set
+   if (!window.handleInstalledExtensionsData) {
+     window.handleInstalledExtensionsData = (installedExtensionsData) => {
+       console.log(' Received installed extensions data from C++:', 
+                   installedExtensionsData ? installedExtensionsData.length : 0, 'extensions');
+       
+       // Log the raw data for debugging
+       console.log('Raw installed extensions data:', JSON.stringify(installedExtensionsData));
+       
+       // Clear existing installed extensions data
+       this.installedExtensions_ = {};
+       
+       // Process each installed extension
+       if (installedExtensionsData && installedExtensionsData.length) {
+         installedExtensionsData.forEach(extension => {
+           if (extension && extension.id) {
+             console.log(' Processing installed extension:', extension.id, extension.name, extension.version);
+             
+             // Store in map with ID as key
+             this.installedExtensions_[extension.id] = {
+               id: extension.id,
+               name: extension.name || '',
+               version: extension.version || '',
+               description: extension.description || ''
+             };
+           }
+         });
+       }
+       
+       console.log(' Total installed extensions in map:', Object.keys(this.installedExtensions_).length);
+       
+       // Dispatch event for components that need to react to installed extensions
+       window.dispatchEvent(new CustomEvent('installed-extensions-updated', {
+         detail: this.getInstalledExtensions()
+       }));
+     };
+   }
+   
+   return this.sendWithLogging_('fetchInstalledExtensions', []);
+ }
+ 
+ /**
+  * Gets the map of installed extensions.
+  * @return {!Object<string, Object>}
+  */
+ getInstalledExtensions() {
+   return this.installedExtensions_ || {};
+ }
+ 
+ /**
+  * Checks if an extension is installed by ID.
+  * @param {string} extensionId The extension ID to check.
+  * @return {boolean}
+  */
+ isExtensionInstalled(extensionId) {
+   return !!(this.installedExtensions_ && this.installedExtensions_[extensionId]);
+ }
+
+ /**
   * Installs an extension from the provided download URL.
   * @param {string} downloadUrl The URL to download the extension from.
   * @return {!Promise<void>}
@@ -231,6 +309,10 @@ class BrowserBridge {
    // Fetch extensions on initialization
    console.log('INIT: Triggering initial extension fetch');
    this.fetchExtensions();
+   
+   // Fetch installed extensions on initialization
+   console.log(' Triggering initial installed extensions fetch');
+   this.fetchInstalledExtensions();
  }
 }
 
@@ -242,6 +324,25 @@ const browserBridge = BrowserBridge.getInstance();
 
 // Function to convert backend extension format to UI format
 function convertToUIFormat(extension) {
+   // Check if this extension is installed by ID
+   const isInstalled = browserBridge.isExtensionInstalled(extension.id);
+   const installedExtension = isInstalled ? browserBridge.installedExtensions_[extension.id] : null;
+   
+   // Check if an update is available (only if installed)
+   let needsUpdate = false;
+   let installedVersion = null;
+   
+   if (isInstalled && extension.version && installedExtension && installedExtension.version) {
+     installedVersion = installedExtension.version;
+     console.log(' Comparing versions for', extension.name, '- Store:', extension.version, 'Installed:', installedVersion);
+     
+     // Simple version comparison (assumes semantic versioning x.y.z)
+     needsUpdate = compareVersions(extension.version, installedVersion) > 0;
+     if (needsUpdate) {
+       console.log(' Update available for', extension.name, 'from', installedVersion, 'to', extension.version);
+     }
+   }
+   
    return {
        id: extension.id || '',
        name: extension.name || '',
@@ -252,9 +353,35 @@ function convertToUIFormat(extension) {
              (extension.icon_url || 'https://placeholder.com/60x60'),
        tags: extension.tags || [],
        download_url: extension.download_url || '',
-       installed: false, // Default to not installed
-       author: extension.author || ''
+       installed: isInstalled,
+       needsUpdate: needsUpdate,
+       installedVersion: installedVersion,
+       author: extension.author || '',
+       // Store the real extension ID for reference
+       realExtensionId: extension.id
    };
+}
+
+/**
+ * Compare two version strings
+ * @param {string} v1 First version
+ * @param {string} v2 Second version
+ * @return {number} 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+ */
+function compareVersions(v1, v2) {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  // Compare each part of the version
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const part1 = i < parts1.length ? parts1[i] : 0;
+    const part2 = i < parts2.length ? parts2[i] : 0;
+    
+    if (part1 > part2) return 1;
+    if (part1 < part2) return -1;
+  }
+  
+  return 0; // Versions are equal
 }
 
 // Function to create extension cards
@@ -309,15 +436,41 @@ function createExtensionCard(extension) {
    actionContainer.className = 'extension-actions';
    
    const button = document.createElement('button');
-   button.className = `install-button prevent-card-click ${extension.installed ? 'installed' : ''}`;
-   button.textContent = extension.installed ? 'Installed' : 'Install';
+   
+   // Set button state based on installation status and version
+   if (extension.installed) {
+     if (extension.needsUpdate) {
+       // Update available
+       button.className = 'install-button update prevent-card-click';
+       button.textContent = 'Update';
+       button.disabled = false;
+     } else {
+       // Already installed with latest version
+       button.className = 'install-button installed prevent-card-click';
+       button.textContent = 'Installed';
+       button.disabled = true;
+     }
+   } else {
+     // Not installed
+     button.className = 'install-button prevent-card-click';
+     button.textContent = 'Install';
+     button.disabled = false;
+   }
+   
    button.dataset.downloadUrl = extension.download_url;
+   button.dataset.extensionId = extension.id;
    
    // Prevent button click from triggering card expansion
    button.addEventListener('click', function(event) {
        event.stopPropagation();
-       if (!extension.installed) {
-           handleDownload(extension, button);
+       if (!extension.installed || extension.needsUpdate) {
+           // Show "Installing..." state immediately
+           this.textContent = '';
+           this.classList.add('loading');
+           this.disabled = true;
+           
+           console.log(' Clicked ' + (extension.needsUpdate ? 'Update' : 'Install') + ' button for', extension.name);
+           handleDownload(extension, this);
        }
    });
    
@@ -367,30 +520,80 @@ function createExtensionCard(extension) {
 function handleDownload(extension, button) {
     console.log('Starting download process for:', extension.name);
     
+    // Check if the extension is already installed
+    if (extension.installed && !extension.needsUpdate) {
+        console.log('Extension already installed:', extension.name);
+        button.textContent = 'Installed';
+        button.disabled = true;
+        button.classList.remove('loading');
+        button.className = 'install-button installed prevent-card-click';
+        return;
+    }
+    
     // Update button state
-    button.textContent = 'Installing...';
+    button.textContent = '';
+    button.classList.add('loading');
     button.disabled = true;
+    
+    // Store the extension ID in the button's dataset for reference
+    button.dataset.extensionId = extension.id;
 
-    // Use chrome.downloads API if available, fallback to regular navigation
-    if (chrome.downloads && chrome.downloads.download) {
-        chrome.downloads.download({
-            url: extension.download_url,
-            filename: `${extension.name}.crx`,
-            saveAs: false
-        }, (downloadId) => {
-            if (chrome.runtime.lastError) {
-                console.error('Download failed:', chrome.runtime.lastError);
-                button.textContent = 'Retry';
-                button.disabled = false;
-            } else {
-                console.log('Download started with ID:', downloadId);
-                updateInstalledState(extension, button);
-            }
-        });
-    } else {
-        // Fallback to regular navigation
+    try {
+        // Use direct navigation to the download URL
+        console.log('Navigating to download URL:', extension.download_url);
         window.location.href = extension.download_url;
-        updateInstalledState(extension, button);
+        
+        // Set up a retry mechanism to check installation status multiple times
+        let checkCount = 0;
+        const maxChecks = 5;
+        const checkInterval = 2000; // 2 seconds between checks
+        
+        const checkInstallation = () => {
+            checkCount++;
+            console.log(`Check #${checkCount} for installation of ${extension.name} (ID: ${extension.id})`);
+            
+            // Refresh the installed extensions list
+            browserBridge.fetchInstalledExtensions();
+            
+            // Wait a bit for the fetch to complete
+            setTimeout(() => {
+                // Check if the extension is now installed by ID
+                const isNowInstalled = browserBridge.isExtensionInstalled(extension.id);
+                console.log(`Installation check #${checkCount} result for ${extension.name} (ID: ${extension.id}):`, isNowInstalled);
+                
+                // If the button still exists and the extension is installed, update it
+                if (button) {
+                    if (isNowInstalled) {
+                        console.log('Extension is now installed:', extension.name);
+                        updateInstalledState(extension, button);
+                    } else if (checkCount < maxChecks) {
+                        // Try again after a delay
+                        console.log(`Installation not detected yet, trying again in ${checkInterval/1000} seconds...`);
+                        setTimeout(checkInstallation, checkInterval);
+                    } else {
+                        // If still not installed after all checks, revert the button
+                        console.log('Extension installation not detected after', maxChecks, 'attempts:', extension.name);
+                        button.textContent = extension.needsUpdate ? 'Update' : 'Install';
+                        button.disabled = false;
+                        button.className = extension.needsUpdate ? 
+                            'install-button update prevent-card-click' : 
+                            'install-button prevent-card-click';
+                    }
+                }
+            }, 500); // Short delay after fetching
+        };
+        
+        // Start the first check after a delay
+        setTimeout(checkInstallation, 2000);
+        
+    } catch (error) {
+        console.error('Installation failed:', error);
+        button.classList.remove('loading');
+        button.textContent = extension.needsUpdate ? 'Update' : 'Retry';
+        button.disabled = false;
+        button.className = extension.needsUpdate ? 
+            'install-button update prevent-card-click' : 
+            'install-button prevent-card-click';
     }
 }
 
@@ -400,10 +603,21 @@ function handleDownload(extension, button) {
  * @param {HTMLButtonElement} button The button element to update
  */
 function updateInstalledState(extension, button) {
+    console.log('Updating UI for installed extension:', extension.name, '(ID:', extension.id, ')');
+    button.classList.remove('loading');
     button.textContent = 'Installed';
-    button.className = 'install-button installed';
-    button.disabled = false;
+    button.className = 'install-button installed prevent-card-click';
+    button.disabled = true;
+    
+    // Store the extension ID for reference (using data attribute)
+    button.dataset.extensionId = extension.id;
+    
+    // Mark as installed in the extension object
     extension.installed = true;
+    extension.needsUpdate = false;
+    
+    // Refresh installed extensions information
+    browserBridge.fetchInstalledExtensions();
 }
 
 // Function to clear and update the extensions list
@@ -452,6 +666,17 @@ window.addEventListener('extension-data-updated', (event) => {
     console.log('Extension data updated:', event.detail);
     if (event.detail && event.detail.id) {
         updateExtensionCard(event.detail);
+    }
+});
+
+// Listen for installed extensions updates
+window.addEventListener('installed-extensions-updated', (event) => {
+    console.log('Installed extensions updated, refreshing UI');
+    
+    // Get current extensions and update their cards with new installation status
+    const extensions = browserBridge.getCachedExtensions();
+    if (extensions && extensions.length > 0) {
+        updateExtensionsList(extensions);
     }
 });
 

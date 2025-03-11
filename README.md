@@ -93,6 +93,9 @@ enable_nacl = false
 proprietary_codecs = true
 ffmpeg_branding = "Chrome"
 remove_webcore_debug_symbols = true
+
+# For the first build add this arg
+update_android_aar_prebuilts = true
 ```
 
 #### Build Chromium
