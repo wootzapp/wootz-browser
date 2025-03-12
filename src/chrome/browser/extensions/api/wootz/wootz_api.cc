@@ -945,6 +945,28 @@ ExtensionFunction::ResponseAction WootzCleanJobsFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+// Implementation of the new WootzGetBrowserInfoFunction
+ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
+  // Create a dictionary to store the browser information
+  base::Value::Dict browser_info;
+  
+  // Set hardcoded values that identify this as Wootzapp Browser
+  browser_info.Set("name", "Wootzapp Browser");
+  browser_info.Set("vendor", "Wootzapp Inc.");
+  
+  // Get the Chrome version information
+  const base::android::BuildInfo* build_info = base::android::BuildInfo::GetInstance();
+  std::string version = build_info->package_version_name();
+  browser_info.Set("version", version);
+  
+  // Generate a unique build identifier
+  // This could be a combination of build date, channel, and other non-spoofable information
+  std::string build_id = version + "-wootz-" + build_info->android_build_id();
+  browser_info.Set("buildId", build_id);
+  
+  return RespondNow(WithArguments(std::move(browser_info)));
+}
+
 // ExtensionFunction::ResponseAction
 // WootzShowConsentDialogAndMaybeStartServiceFunction::Run() {
 //   JNIEnv* env = base::android::AttachCurrentThread();
