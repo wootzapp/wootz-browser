@@ -1093,7 +1093,7 @@
       "F740D260E7E2107B3AE454F512B65AE6CF244433"   // http://b/273392894
     ]
   },
-  "wootz": {
+  "wootzapp": {
     "channel": "stable",
     "extension_types": ["extension"]
   }

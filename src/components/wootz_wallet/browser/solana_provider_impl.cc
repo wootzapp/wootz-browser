@@ -283,7 +283,7 @@ void SolanaProviderImpl::ContinueSignTransaction(
       base::BindOnce(&SolanaProviderImpl::OnSignTransactionRequestProcessed,
                      weak_factory_.GetWeakPtr(), std::move(tx), account.Clone(),
                      std::move(callback)));
-  extensions::WootzSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(profile_);
+  extensions::WootzappSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(profile_);
 }
 
 void SolanaProviderImpl::OnSignTransactionRequestProcessed(
@@ -650,7 +650,7 @@ void SolanaProviderImpl::SignMessage(
       base::BindOnce(&SolanaProviderImpl::OnSignMessageRequestProcessed,
                      weak_factory_.GetWeakPtr(), blob_msg, std::move(account),
                      std::move(callback)));
-  extensions::WootzSignMessageFunction::NotifyExtensionOfPendingRequest(profile_);
+  extensions::WootzappSignMessageFunction::NotifyExtensionOfPendingRequest(profile_);
 }
 
 void SolanaProviderImpl::Request(base::Value::Dict arg,

@@ -878,7 +878,7 @@ void EthereumProviderImpl::SignMessageInternal(
   
 
   
-  extensions::WootzSignMessageFunction::NotifyExtensionOfPendingRequest(profile_);
+  extensions::WootzappSignMessageFunction::NotifyExtensionOfPendingRequest(profile_);
 }
 
 void EthereumProviderImpl::OnSignMessageRequestProcessed(

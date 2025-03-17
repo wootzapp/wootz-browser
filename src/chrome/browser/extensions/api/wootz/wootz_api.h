@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_
-#define CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_
+#ifndef CHROME_BROWSER_EXTENSIONS_API_WOOTZAPP_WOOTZAPP_API_H_
+#define CHROME_BROWSER_EXTENSIONS_API_WOOTZAPP_WOOTZAPP_API_H_
 
 #include <set>
 #include <string>
@@ -75,159 +75,159 @@ class WootzAPI : public BrowserContextKeyedAPI,
   static const bool kServiceIsNULLWhileTesting = true;
 };
 
-class WootzInfoFunction : public ExtensionFunction {
+class WootzappInfoFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.info", WOOTZ_INFO)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.info", WOOTZAPP_INFO)
 
-  WootzInfoFunction() = default;
+  WootzappInfoFunction() = default;
 
-  WootzInfoFunction(
-      const WootzInfoFunction&) = delete;
-  WootzInfoFunction& operator=(
-      const WootzInfoFunction&) = delete;
+  WootzappInfoFunction(
+      const WootzappInfoFunction&) = delete;
+  WootzappInfoFunction& operator=(
+      const WootzappInfoFunction&) = delete;
 
  protected:
-  ~WootzInfoFunction() override {}
+  ~WootzappInfoFunction() override {}
 
   ResponseAction Run() override;
 };
 
-class WootzHelloWorldFunction : public ExtensionFunction {
+class WootzappHelloWorldFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.helloWorld", WOOTZ_HELLOWORLD)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.helloWorld", WOOTZAPP_HELLOWORLD)
 
-  WootzHelloWorldFunction() = default;
+  WootzappHelloWorldFunction() = default;
 
-  WootzHelloWorldFunction(const WootzHelloWorldFunction&) = delete;
-  WootzHelloWorldFunction& operator=(const WootzHelloWorldFunction&) = delete;
+  WootzappHelloWorldFunction(const WootzappHelloWorldFunction&) = delete;
+  WootzappHelloWorldFunction& operator=(const WootzappHelloWorldFunction&) = delete;
 
  protected:
-  ~WootzHelloWorldFunction() override {}
+  ~WootzappHelloWorldFunction() override {}
 
   ResponseAction Run() override;
 };
 
-class WootzShowDialogFunction : public ExtensionFunction {
-    DECLARE_EXTENSION_FUNCTION("wootz.showDialog", WOOTZ_SHOWDIALOG)
-    WootzShowDialogFunction() = default;
+class WootzappShowDialogFunction : public ExtensionFunction {
+    DECLARE_EXTENSION_FUNCTION("wootzapp.showDialog", WOOTZAPP_SHOWDIALOG)
+    WootzappShowDialogFunction() = default;
 
-    WootzShowDialogFunction(const WootzShowDialogFunction&) = delete;
-    WootzShowDialogFunction& operator=(const WootzShowDialogFunction&) = delete;
+    WootzappShowDialogFunction(const WootzappShowDialogFunction&) = delete;
+    WootzappShowDialogFunction& operator=(const WootzappShowDialogFunction&) = delete;
 
   protected:
-    ~WootzShowDialogFunction() override {}
+    ~WootzappShowDialogFunction() override {}
 
     ResponseAction Run() override;
 };
 
-class WootzLogFunction : public ExtensionFunction {
+class WootzappLogFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.log", WOOTZ_LOG)
-  WootzLogFunction() = default;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.log", WOOTZAPP_LOG)
+  WootzappLogFunction() = default;
 
-  WootzLogFunction(
-      const WootzLogFunction&) = delete;
-  WootzLogFunction& operator=(
-      const WootzLogFunction&) = delete;
+  WootzappLogFunction(
+      const WootzappLogFunction&) = delete;
+  WootzappLogFunction& operator=(
+      const WootzappLogFunction&) = delete;
 
  protected:
-  ~WootzLogFunction() override {}
+  ~WootzappLogFunction() override {}
 
   ResponseAction Run() override;
 };
 
-class WootzSetSelectedChainsFunction : public ExtensionFunction {
+class WootzappSetSelectedChainsFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.setSelectedChains", WOOTZ_SELECT_CHAIN)
-  WootzSetSelectedChainsFunction() = default;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.setSelectedChains", WOOTZAPP_SELECT_CHAIN)
+  WootzappSetSelectedChainsFunction() = default;
 
  protected:
-  ~WootzSetSelectedChainsFunction() override = default;
+  ~WootzappSetSelectedChainsFunction() override = default;
   ResponseAction Run() override;
 };
 
-class WootzCreateWalletFunction : public ExtensionFunction {
+class WootzappCreateWalletFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.createWallet", WOOTZ_CREATE_WALLET)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.createWallet", WOOTZAPP_CREATE_WALLET)
  protected:
-  ~WootzCreateWalletFunction() override {}
+  ~WootzappCreateWalletFunction() override {}
   ResponseAction Run() override;
  private:
   void OnWalletCreated(const std::optional<std::string>& recovery_phrase);
 };
 
-class WootzIsWalletCreatedFunction : public ExtensionFunction {
+class WootzappIsWalletCreatedFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.isWalletCreated", WOOTZ_IS_WALLET_CREATED)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.isWalletCreated", WOOTZAPP_IS_WALLET_CREATED)
  protected:
-  ~WootzIsWalletCreatedFunction() override {}
+  ~WootzappIsWalletCreatedFunction() override {}
   ResponseAction Run() override;
 };
 
-class WootzUnlockWalletFunction : public ExtensionFunction {
+class WootzappUnlockWalletFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.unlockWallet", WOOTZ_UNLOCK_WALLET)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.unlockWallet", WOOTZAPP_UNLOCK_WALLET)
  protected:
-  ~WootzUnlockWalletFunction() override {}
+  ~WootzappUnlockWalletFunction() override {}
   ResponseAction Run() override;
  private:
   void OnUnlocked(bool success);
 };
 
-class WootzLockWalletFunction : public ExtensionFunction {
+class WootzappLockWalletFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.lockWallet", WOOTZ_LOCK_WALLET)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.lockWallet", WOOTZAPP_LOCK_WALLET)
  protected:
-  ~WootzLockWalletFunction() override {}
+  ~WootzappLockWalletFunction() override {}
   ResponseAction Run() override;
 };
 
-class WootzIsLockedFunction : public ExtensionFunction {
+class WootzappIsLockedFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.isLocked", WOOTZ_IS_LOCKED)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.isLocked", WOOTZAPP_IS_LOCKED)
  protected:
-  ~WootzIsLockedFunction() override {}
+  ~WootzappIsLockedFunction() override {}
   ResponseAction Run() override;
  private:
   void OnIsLocked(bool is_locked);
 };
 
-class WootzGetAllAccountsFunction : public ExtensionFunction {
+class WootzappGetAllAccountsFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.getAllAccounts", WOOTZAPP_GET_ALL_ACCOUNTS)
  protected:
-  ~WootzGetAllAccountsFunction() override {}
+  ~WootzappGetAllAccountsFunction() override {}
   ResponseAction Run() override;
 
  private:
   void OnGetAllAccounts(wootz_wallet::mojom::AllAccountsInfoPtr all_accounts_info);
   
-  base::WeakPtrFactory<WootzGetAllAccountsFunction> weak_factory_{this};
+  base::WeakPtrFactory<WootzappGetAllAccountsFunction> weak_factory_{this};
 };
 
-class WootzSignMessageFunction : public ExtensionFunction {
+class WootzappSignMessageFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.signMessage", WOOTZ_SIGN_MESSAGE)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.signMessage", WOOTZAPP_SIGN_MESSAGE)
   
   static void NotifyExtensionOfPendingRequest(content::BrowserContext* context);
 
  private:
-  ~WootzSignMessageFunction() override {}
+  ~WootzappSignMessageFunction() override {}
   ResponseAction Run() override;
   static void OnGetPendingRequests(
       content::BrowserContext* context,
       std::vector<wootz_wallet::mojom::SignMessageRequestPtr> requests);
 };
 
-class WootzSignTransactionFunction : public ExtensionFunction {
+class WootzappSignTransactionFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.signTransaction", WOOTZ_SIGN_TRANSACTION)
-  WootzSignTransactionFunction() = default;
-  WootzSignTransactionFunction(const WootzSignTransactionFunction&) = delete;
-  WootzSignTransactionFunction& operator=(const WootzSignTransactionFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.signTransaction", WOOTZAPP_SIGN_TRANSACTION)
+  WootzappSignTransactionFunction() = default;
+  WootzappSignTransactionFunction(const WootzappSignTransactionFunction&) = delete;
+  WootzappSignTransactionFunction& operator=(const WootzappSignTransactionFunction&) = delete;
 
  protected:
-  ~WootzSignTransactionFunction() override {}
+  ~WootzappSignTransactionFunction() override {}
   ResponseAction Run() override;
 
  private:
@@ -239,14 +239,14 @@ class WootzSignTransactionFunction : public ExtensionFunction {
   
 }; 
 
-class WootzSignSolanaTransactionFunction : public ExtensionFunction {
+class WootzappSignSolanaTransactionFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.signSolanaTransaction", WOOTZ_SIGN_SOLANA_TRANSACTION)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.signSolanaTransaction", WOOTZAPP_SIGN_SOLANA_TRANSACTION)
   
   static void NotifyExtensionOfPendingRequest(content::BrowserContext* context);
 
  protected:
-  ~WootzSignSolanaTransactionFunction() override {}
+  ~WootzappSignSolanaTransactionFunction() override {}
   ResponseAction Run() override;
  
  private:
@@ -256,83 +256,83 @@ class WootzSignSolanaTransactionFunction : public ExtensionFunction {
 };
 
 // background service api
-class WootzSetJobFunction : public ExtensionFunction {
+class WootzappSetJobFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.setJob", WOOTZ_SETJOB)
-  WootzSetJobFunction() = default;
-  WootzSetJobFunction(const WootzSetJobFunction&) = delete;
-  WootzSetJobFunction& operator=(const WootzSetJobFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.setJob", WOOTZAPP_SETJOB)
+  WootzappSetJobFunction() = default;
+  WootzappSetJobFunction(const WootzappSetJobFunction&) = delete;
+  WootzappSetJobFunction& operator=(const WootzappSetJobFunction&) = delete;
 
  protected:
-  ~WootzSetJobFunction() override = default;
+  ~WootzappSetJobFunction() override = default;
   ResponseAction Run() override;
 };
 
-class WootzRemoveJobFunction : public ExtensionFunction {
+class WootzappRemoveJobFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.removeJob", WOOTZ_REMOVEJOB)
-  WootzRemoveJobFunction() = default;
-  WootzRemoveJobFunction(const WootzRemoveJobFunction&) = delete;
-  WootzRemoveJobFunction& operator=(const WootzRemoveJobFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.removeJob", WOOTZAPP_REMOVEJOB)
+  WootzappRemoveJobFunction() = default;
+  WootzappRemoveJobFunction(const WootzappRemoveJobFunction&) = delete;
+  WootzappRemoveJobFunction& operator=(const WootzappRemoveJobFunction&) = delete;
 
  protected:
-  ~WootzRemoveJobFunction() override = default;
+  ~WootzappRemoveJobFunction() override = default;
   ResponseAction Run() override;
 };
 
-class WootzGetJobsFunction : public ExtensionFunction {
+class WootzappGetJobsFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.getJobs", WOOTZ_GETJOBS)
-  WootzGetJobsFunction() = default;
-  WootzGetJobsFunction(const WootzGetJobsFunction&) = delete;
-  WootzGetJobsFunction& operator=(const WootzGetJobsFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("wootzapp.getJobs", WOOTZAPP_GETJOBS)
+  WootzappGetJobsFunction() = default;
+  WootzappGetJobsFunction(const WootzappGetJobsFunction&) = delete;
+  WootzappGetJobsFunction& operator=(const WootzappGetJobsFunction&) = delete;
 
  protected:
-  ~WootzGetJobsFunction() override = default;
+  ~WootzappGetJobsFunction() override = default;
   ResponseAction Run() override;
 };
 
-class WootzListJobsFunction : public ExtensionFunction {
+class WootzappListJobsFunction : public ExtensionFunction {
 public:
- DECLARE_EXTENSION_FUNCTION("wootz.listJobs", WOOTZ_LISTJOBS)
+ DECLARE_EXTENSION_FUNCTION("wootzapp.listJobs", WOOTZAPP_LISTJOBS)
 
- WootzListJobsFunction() = default;
+ WootzappListJobsFunction() = default;
 
- WootzListJobsFunction(const WootzListJobsFunction&) = delete;
- WootzListJobsFunction& operator=(const WootzListJobsFunction&) = delete;
+ WootzappListJobsFunction(const WootzappListJobsFunction&) = delete;
+ WootzappListJobsFunction& operator=(const WootzappListJobsFunction&) = delete;
 
 protected:
- ~WootzListJobsFunction() override {}
+ ~WootzappListJobsFunction() override {}
 
  ResponseAction Run() override;
 };
 
-class WootzCleanJobsFunction : public ExtensionFunction {
+class WootzappCleanJobsFunction : public ExtensionFunction {
 public:
- DECLARE_EXTENSION_FUNCTION("wootz.cleanJobs", WOOTZ_CLEANJOBS)
+ DECLARE_EXTENSION_FUNCTION("wootzapp.cleanJobs", WOOTZAPP_CLEANJOBS)
 
- WootzCleanJobsFunction() = default;
+ WootzappCleanJobsFunction() = default;
 
- WootzCleanJobsFunction(const WootzCleanJobsFunction&) = delete;
- WootzCleanJobsFunction& operator=(const WootzCleanJobsFunction&) = delete;
+ WootzappCleanJobsFunction(const WootzappCleanJobsFunction&) = delete;
+ WootzappCleanJobsFunction& operator=(const WootzappCleanJobsFunction&) = delete;
 
 protected:
- ~WootzCleanJobsFunction() override {}
+ ~WootzappCleanJobsFunction() override {}
 
  ResponseAction Run() override;
 };
 
-class WootzGetBrowserInfoFunction : public ExtensionFunction {
+class WootzappGetBrowserInfoFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.getBrowserInfo", WOOTZ_GET_BROWSER_INFO)
+  DECLARE_EXTENSION_FUNCTION("wootzapp.getBrowserInfo", WOOTZAPP_GET_BROWSER_INFO)
 
-  WootzGetBrowserInfoFunction() = default;
+  WootzappGetBrowserInfoFunction() = default;
 
-  WootzGetBrowserInfoFunction(const WootzGetBrowserInfoFunction&) = delete;
-  WootzGetBrowserInfoFunction& operator=(const WootzGetBrowserInfoFunction&) = delete;
+  WootzappGetBrowserInfoFunction(const WootzappGetBrowserInfoFunction&) = delete;
+  WootzappGetBrowserInfoFunction& operator=(const WootzappGetBrowserInfoFunction&) = delete;
 
  protected:
-  ~WootzGetBrowserInfoFunction() override {}
+  ~WootzappGetBrowserInfoFunction() override {}
 
   ResponseAction Run() override;
 };

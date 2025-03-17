@@ -1063,7 +1063,7 @@
     "dependencies": ["permission:wmDesksPrivate"],
     "contexts": ["privileged_extension"]
   },
-  "wootz": {
+  "wootzapp": {
     "channel": "stable", 
     "contexts": ["privileged_extension", "webui"]
   }

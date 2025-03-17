@@ -187,8 +187,8 @@ void WootzAPI::OnNewUnapprovedTx(
   LOG(ERROR) << "jangid_sign: Event arguments: " << event_args;
 
   std::unique_ptr<Event> event = std::make_unique<Event>(
-      events::WOOTZ_ON_NEW_UNAPPROVED_TX,
-      "wootz.OnNewUnapprovedTxAPI",
+      events::WOOTZAPP_ON_NEW_UNAPPROVED_TX,
+      "wootzapp.OnNewUnapprovedTxAPI",
       std::move(event_args), 
       profile,
       std::nullopt,
@@ -253,8 +253,8 @@ void WootzAPI::OnTransactionStatusChanged(
   }
 
   std::unique_ptr<Event> event = std::make_unique<Event>(
-      events::WOOTZ_ON_TRANSACTION_STATUS_CHANGED,
-      "wootz.onTransactionStatusChangedAPI",
+      events::WOOTZAPP_ON_TRANSACTION_STATUS_CHANGED,
+      "wootzapp.onTransactionStatusChangedAPI",
       std::move(event_args), 
       profile,
       std::nullopt,
@@ -278,7 +278,7 @@ void WootzAPI::OnTxServiceReset() {
     LOG(ERROR) << "Transaction service reset";
 }
 
-ExtensionFunction::ResponseAction WootzInfoFunction::Run() {
+ExtensionFunction::ResponseAction WootzappInfoFunction::Run() {
   const base::android::BuildInfo* build_info =
       base::android::BuildInfo::GetInstance();
 
@@ -309,7 +309,7 @@ ExtensionFunction::ResponseAction WootzInfoFunction::Run() {
   return RespondNow(WithArguments(json_string));
 }
 
-ExtensionFunction::ResponseAction WootzHelloWorldFunction::Run() {
+ExtensionFunction::ResponseAction WootzappHelloWorldFunction::Run() {
   base::Value::Dict result;
   result.Set("message", "Hello, World!");
 
@@ -319,7 +319,7 @@ ExtensionFunction::ResponseAction WootzHelloWorldFunction::Run() {
   return RespondNow(WithArguments(json_string));
 }
 
-ExtensionFunction::ResponseAction WootzLogFunction::Run() {
+ExtensionFunction::ResponseAction WootzappLogFunction::Run() {
   if (args().size() < 1) {
     return RespondNow(NoArguments());
   }
@@ -328,7 +328,7 @@ ExtensionFunction::ResponseAction WootzLogFunction::Run() {
 }
 
 [[maybe_unused]]
-ExtensionFunction::ResponseAction WootzShowDialogFunction::Run() {
+ExtensionFunction::ResponseAction WootzappShowDialogFunction::Run() {
 #if 0
     JNIEnv* env = base::android::AttachCurrentThread();
     
@@ -342,7 +342,7 @@ ExtensionFunction::ResponseAction WootzShowDialogFunction::Run() {
     return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction WootzSetSelectedChainsFunction::Run() {
+ExtensionFunction::ResponseAction WootzappSetSelectedChainsFunction::Run() {
   if (args().empty() || !args()[0].is_list()) {
     return RespondNow(Error("Invalid arguments"));
   }
@@ -377,7 +377,7 @@ ExtensionFunction::ResponseAction WootzSetSelectedChainsFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
-ExtensionFunction::ResponseAction WootzCreateWalletFunction::Run() {
+ExtensionFunction::ResponseAction WootzappCreateWalletFunction::Run() {
   if (args().empty() || !args()[0].is_string()) {
     return RespondNow(Error("Invalid arguments"));
   }
@@ -398,12 +398,12 @@ ExtensionFunction::ResponseAction WootzCreateWalletFunction::Run() {
 
   keyring_service->CreateWallet(
       password,
-      base::BindOnce(&WootzCreateWalletFunction::OnWalletCreated, this));
+      base::BindOnce(&WootzappCreateWalletFunction::OnWalletCreated, this));
 
   return RespondLater();
 }
 
-void WootzCreateWalletFunction::OnWalletCreated(
+void WootzappCreateWalletFunction::OnWalletCreated(
     const std::optional<std::string>& recovery_phrase) {
   base::Value::Dict result;
   result.Set("success", recovery_phrase.has_value());
@@ -418,7 +418,7 @@ void WootzCreateWalletFunction::OnWalletCreated(
   Respond(ArgumentList(std::move(result_list)));
 }
 
-ExtensionFunction::ResponseAction WootzIsWalletCreatedFunction::Run() {
+ExtensionFunction::ResponseAction WootzappIsWalletCreatedFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());
 
   if (!keyring_service) {
@@ -431,7 +431,7 @@ ExtensionFunction::ResponseAction WootzIsWalletCreatedFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
-ExtensionFunction::ResponseAction WootzUnlockWalletFunction::Run() {
+ExtensionFunction::ResponseAction WootzappUnlockWalletFunction::Run() {
   if (args().empty() || !args()[0].is_string()) {
     return RespondNow(Error("Invalid arguments"));
   }
@@ -445,7 +445,7 @@ ExtensionFunction::ResponseAction WootzUnlockWalletFunction::Run() {
    std::string input_password = args()[0].GetString();
 
   keyring_service->Unlock(
-      input_password, base::BindOnce(&WootzUnlockWalletFunction::OnUnlocked, this));
+      input_password, base::BindOnce(&WootzappUnlockWalletFunction::OnUnlocked, this));
 
   // Set the password again after unlocking
   keyring_service->SetPassword(input_password);
@@ -453,7 +453,7 @@ ExtensionFunction::ResponseAction WootzUnlockWalletFunction::Run() {
   return RespondLater();
 }
 
-void WootzUnlockWalletFunction::OnUnlocked(bool success) {
+void WootzappUnlockWalletFunction::OnUnlocked(bool success) {
   base::Value::Dict result;
   result.Set("success", success);
   if (!success) {
@@ -465,7 +465,7 @@ void WootzUnlockWalletFunction::OnUnlocked(bool success) {
   Respond(ArgumentList(std::move(result_list)));
 }
 
-ExtensionFunction::ResponseAction WootzLockWalletFunction::Run() {
+ExtensionFunction::ResponseAction WootzappLockWalletFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());
 
   if (!keyring_service) {
@@ -480,7 +480,7 @@ ExtensionFunction::ResponseAction WootzLockWalletFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
-ExtensionFunction::ResponseAction WootzIsLockedFunction::Run() {
+ExtensionFunction::ResponseAction WootzappIsLockedFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());
 
   if (!keyring_service) {
@@ -488,12 +488,12 @@ ExtensionFunction::ResponseAction WootzIsLockedFunction::Run() {
   }
 
   keyring_service->IsLocked(
-      base::BindOnce(&WootzIsLockedFunction::OnIsLocked, this));
+      base::BindOnce(&WootzappIsLockedFunction::OnIsLocked, this));
 
   return RespondLater();
 }
 
-void WootzIsLockedFunction::OnIsLocked(bool is_locked) {
+void WootzappIsLockedFunction::OnIsLocked(bool is_locked) {
   base::Value::Dict result;
   result.Set("isLocked", is_locked);
 
@@ -503,7 +503,7 @@ void WootzIsLockedFunction::OnIsLocked(bool is_locked) {
 }
 
 
-ExtensionFunction::ResponseAction WootzGetAllAccountsFunction::Run() {
+ExtensionFunction::ResponseAction WootzappGetAllAccountsFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());
 
   if (!keyring_service) {
@@ -511,13 +511,13 @@ ExtensionFunction::ResponseAction WootzGetAllAccountsFunction::Run() {
   }
 
   keyring_service->GetAllAccounts(
-      base::BindOnce(&WootzGetAllAccountsFunction::OnGetAllAccounts,
+      base::BindOnce(&WootzappGetAllAccountsFunction::OnGetAllAccounts,
                      weak_factory_.GetWeakPtr()));
 
   return RespondLater();
 }
 
-void WootzGetAllAccountsFunction::OnGetAllAccounts(
+void WootzappGetAllAccountsFunction::OnGetAllAccounts(
     wootz_wallet::mojom::AllAccountsInfoPtr all_accounts_info) {
 
   base::Value::Dict result;
@@ -541,7 +541,7 @@ void WootzGetAllAccountsFunction::OnGetAllAccounts(
 
 // static
 
-void WootzSignMessageFunction::NotifyExtensionOfPendingRequest(
+void WootzappSignMessageFunction::NotifyExtensionOfPendingRequest(
     content::BrowserContext* context) {
 
   auto* service = wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
@@ -553,12 +553,12 @@ void WootzSignMessageFunction::NotifyExtensionOfPendingRequest(
   }
 
   service->GetPendingSignMessageRequests(
-      base::BindOnce(&WootzSignMessageFunction::OnGetPendingRequests,
+      base::BindOnce(&WootzappSignMessageFunction::OnGetPendingRequests,
                      base::Unretained(context)));
 }
 
 // static
-void WootzSignMessageFunction::OnGetPendingRequests(
+void WootzappSignMessageFunction::OnGetPendingRequests(
     content::BrowserContext* context,
     std::vector<wootz_wallet::mojom::SignMessageRequestPtr> requests) {
   if (requests.empty()) {
@@ -608,8 +608,8 @@ void WootzSignMessageFunction::OnGetPendingRequests(
       }
 
       std::unique_ptr<Event> event = std::make_unique<Event>(
-          events::WOOTZ_ON_SIGN_MESSAGE_REQUESTED,
-          "wootz.onSignMessageRequested",
+          events::WOOTZAPP_ON_SIGN_MESSAGE_REQUESTED,
+          "wootzapp.onSignMessageRequested",
           std::move(event_args), 
           context,
           std::nullopt,
@@ -641,7 +641,7 @@ void WootzSignMessageFunction::OnGetPendingRequests(
     LOG(ERROR) << "JANGID: OnGetPendingRequests: Failed to get EventRouter";
   }
 }
-ExtensionFunction::ResponseAction WootzSignMessageFunction::Run() {
+ExtensionFunction::ResponseAction WootzappSignMessageFunction::Run() {
 
   // Check if we have the correct number of arguments
   if (args().size() < 2 || args().size() > 3) {
@@ -681,7 +681,7 @@ ExtensionFunction::ResponseAction WootzSignMessageFunction::Run() {
   return RespondNow(WithArguments(base::Value(true)));
 }
 
-ExtensionFunction::ResponseAction WootzSignTransactionFunction::Run() {
+ExtensionFunction::ResponseAction WootzappSignTransactionFunction::Run() {
   LOG(ERROR) << "jangid_sign: Args: " << args().size();
   
   // Validate arguments
@@ -719,7 +719,7 @@ ExtensionFunction::ResponseAction WootzSignTransactionFunction::Run() {
         coin_type,
         chain_id,
         tx_meta_id,
-        base::BindOnce(&WootzSignTransactionFunction::OnTransactionSigned,
+        base::BindOnce(&WootzappSignTransactionFunction::OnTransactionSigned,
                        this));
   } else {
     LOG(ERROR) << "jangid_sign: Rejecting transaction...";
@@ -727,7 +727,7 @@ ExtensionFunction::ResponseAction WootzSignTransactionFunction::Run() {
         coin_type,
         chain_id,
         tx_meta_id,
-        base::BindOnce(&WootzSignTransactionFunction::OnTransactionRejected,
+        base::BindOnce(&WootzappSignTransactionFunction::OnTransactionRejected,
                        this));
   }
 
@@ -736,7 +736,7 @@ ExtensionFunction::ResponseAction WootzSignTransactionFunction::Run() {
   return RespondLater();
 }
 
-void WootzSignTransactionFunction::OnTransactionSigned(
+void WootzappSignTransactionFunction::OnTransactionSigned(
     bool success,
     wootz_wallet::mojom::ProviderErrorUnionPtr error,
     const std::string& error_message) {
@@ -752,7 +752,7 @@ void WootzSignTransactionFunction::OnTransactionSigned(
   Respond(NoArguments());
 }
 
-void WootzSignTransactionFunction::OnTransactionRejected(bool success) {  
+void WootzappSignTransactionFunction::OnTransactionRejected(bool success) {  
   if (!success) {
     LOG(ERROR) << "jangid_sign: Transaction rejection failed";
     Respond(Error("Failed to reject transaction"));
@@ -764,7 +764,7 @@ void WootzSignTransactionFunction::OnTransactionRejected(bool success) {
 }
 
 
-void WootzSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(
+void WootzappSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(
     content::BrowserContext* context) {
 
   auto* service = wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(
@@ -776,11 +776,11 @@ void WootzSignSolanaTransactionFunction::NotifyExtensionOfPendingRequest(
   }
 
   service->GetPendingSignTransactionRequests(
-      base::BindOnce(&WootzSignSolanaTransactionFunction::OnGetPendingRequests,
+      base::BindOnce(&WootzappSignSolanaTransactionFunction::OnGetPendingRequests,
                      base::Unretained(context)));
 }
 
-void WootzSignSolanaTransactionFunction::OnGetPendingRequests(
+void WootzappSignSolanaTransactionFunction::OnGetPendingRequests(
     content::BrowserContext* context,
     std::vector<wootz_wallet::mojom::SignTransactionRequestPtr> requests) {
 
@@ -803,8 +803,8 @@ void WootzSignSolanaTransactionFunction::OnGetPendingRequests(
   event_args.Append(std::move(request_dict));
 
   std::unique_ptr<Event> event = std::make_unique<Event>(
-      events::WOOTZ_ON_SOLANA_SIGN_TRANSACTION_REQUESTED,
-      "wootz.onSolanaSignTransactionRequested",
+      events::WOOTZAPP_ON_SOLANA_SIGN_TRANSACTION_REQUESTED,
+      "wootzapp.onSolanaSignTransactionRequested",
       std::move(event_args), 
       context,
       std::nullopt,
@@ -819,7 +819,7 @@ void WootzSignSolanaTransactionFunction::OnGetPendingRequests(
   OpenExtensionsById(wootz_wallet_extension_id);
 }
 
-ExtensionFunction::ResponseAction WootzSignSolanaTransactionFunction::Run() {
+ExtensionFunction::ResponseAction WootzappSignSolanaTransactionFunction::Run() {
   LOG(ERROR) << "JANGID: WootzSignSolanaTransactionFunction::Run started";
 
   int request_id = args()[0].GetInt();
@@ -852,7 +852,7 @@ ExtensionFunction::ResponseAction WootzSignSolanaTransactionFunction::Run() {
 const char kWootzJobsListKey[] = "Chrome.Wootzapp.Jobs";
 const char kWootzJobResultsKey[] = "Chrome.Wootzapp.JobsResult";
 
-ExtensionFunction::ResponseAction WootzSetJobFunction::Run() {
+ExtensionFunction::ResponseAction WootzappSetJobFunction::Run() {
   if (!args()[0].GetIfString())
     return RespondNow(Error("URL must be a string"));
   std::string url = *args()[0].GetIfString();
@@ -876,7 +876,7 @@ ExtensionFunction::ResponseAction WootzSetJobFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction WootzRemoveJobFunction::Run() {
+ExtensionFunction::ResponseAction WootzappRemoveJobFunction::Run() {
   if (!args()[0].GetIfString())
     return RespondNow(Error("URL must be a string"));
   std::string url = *args()[0].GetIfString();
@@ -906,7 +906,7 @@ ExtensionFunction::ResponseAction WootzRemoveJobFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction WootzGetJobsFunction::Run() {
+ExtensionFunction::ResponseAction WootzappGetJobsFunction::Run() {
   auto prefs = android::shared_preferences::GetChromeSharedPreferences();
   std::string results_json = prefs.ReadString(kWootzJobResultsKey, "[]");
   
@@ -920,7 +920,7 @@ ExtensionFunction::ResponseAction WootzGetJobsFunction::Run() {
   return RespondNow(WithArguments(std::move(*parsed)));
 }
 
-ExtensionFunction::ResponseAction WootzListJobsFunction::Run() {
+ExtensionFunction::ResponseAction WootzappListJobsFunction::Run() {
   auto prefs = android::shared_preferences::GetChromeSharedPreferences();
   std::string jobs_json = prefs.ReadString(kWootzJobsListKey, "[]");
   
@@ -935,7 +935,7 @@ ExtensionFunction::ResponseAction WootzListJobsFunction::Run() {
   return RespondNow(WithArguments(std::move(*parsed)));
 }
 
-ExtensionFunction::ResponseAction WootzCleanJobsFunction::Run() {
+ExtensionFunction::ResponseAction WootzappCleanJobsFunction::Run() {
   auto prefs = android::shared_preferences::GetChromeSharedPreferences();
   
   // Clear both jobs and results
@@ -946,7 +946,7 @@ ExtensionFunction::ResponseAction WootzCleanJobsFunction::Run() {
 }
 
 // Implementation of the new WootzGetBrowserInfoFunction
-ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
+ExtensionFunction::ResponseAction WootzappGetBrowserInfoFunction::Run() {
   // Create a dictionary to store the browser information
   base::Value::Dict browser_info;
   
@@ -961,7 +961,7 @@ ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
   
   // Generate a unique build identifier
   // This could be a combination of build date, channel, and other non-spoofable information
-  std::string build_id = version + "-wootz-" + build_info->android_build_id();
+  std::string build_id = version + "-wootzapp-" + build_info->android_build_id();
   browser_info.Set("buildId", build_id);
   
   return RespondNow(WithArguments(std::move(browser_info)));
