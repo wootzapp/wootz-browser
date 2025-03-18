@@ -2473,8 +2473,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     @MainThread
     private void clearObservers() {
         ThreadUtils.assertOnUiThread();
-        mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.removeObservers(
-                this);
+        // mWalletModel.getCryptoModel().getPendingTxHelper().mSelectedPendingRequest.removeObservers(
+        //         this);
         mWalletModel.getDappsModel().mWalletIconNotificationVisible.removeObservers(this);
         mWalletModel.getCryptoModel()
                 .getNetworkModel()
