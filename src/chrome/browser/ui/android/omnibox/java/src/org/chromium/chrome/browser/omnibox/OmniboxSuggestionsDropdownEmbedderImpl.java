@@ -334,23 +334,10 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     public void recalculateOmniboxAlignment() {
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
         
-        if(!mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView)) {
-            // Immediately reset everything if keyboard is hidden
-            mKeyboardHeight = 0;
-            ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
-            contentView.requestLayout();
-            return; // Exit early to prevent any delayed adjustments
-        }
-
         int contentViewTopPadding = contentView == null ? 0 : contentView.getPaddingTop();
 
         // If there is a base Chrome layout, calculate the relative position from it rather than
-        // the content view. Sometimes, Chrome will add an intermediate layout to host certain
-        // views above the toolbar, such as the top back button toolbar on automotive devices.
-        // Since the omnibox alignment top padding will position the omnibox relative to this base
-        // layout, rather than the content view, the base layout should be used here to avoid
-        // "double counting" and creating a gap between the browser controls and omnibox
-        // suggestions.
+        // the content view.
         View baseRelativeLayout = mBaseChromeLayout != null ? mBaseChromeLayout : contentView;
         ViewUtils.getRelativeLayoutPosition(baseRelativeLayout, mAnchorView, mPositionArray);
 
@@ -360,10 +347,9 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
         int width;
         int paddingLeft;
         int paddingRight;
+        
         if (isTablet()) {
             ViewUtils.getRelativeLayoutPosition(mAnchorView, mAlignmentView, mPositionArray);
-            // Width equal to alignment view and left equivalent to left of alignment view. Top
-            // minus a small overlap.
             top -=
                     mContext.getResources()
                             .getDimensionPixelSize(R.dimen.omnibox_suggestion_list_toolbar_overlap);
@@ -371,7 +357,6 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
             width = mAlignmentView.getMeasuredWidth() + 2 * sideSpacing;
 
             if (mAnchorView.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL) {
-                // The view will be shifted to the left, so the adjustment needs to be negative.
                 left = -(mAnchorView.getMeasuredWidth() - width - mPositionArray[0] + sideSpacing);
             } else {
                 left = mPositionArray[0] - sideSpacing;
@@ -379,75 +364,57 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
             paddingLeft = 0;
             paddingRight = 0;
         } else {
-            // Case 3: phones or phone-sized windows on tablets. Full bleed width with no padding or
-            // positioning adjustments.
             left = 0;
             width = mAnchorView.getMeasuredWidth();
             paddingLeft = 0;
             paddingRight = 0;
         }
 
-        // int keyboardHeight = 
-                // mDeferredIMEWindowInsetApplicationCallback != null
-                //         ? mDeferredIMEWindowInsetApplicationCallback.getCurrentKeyboardHeight() : 0;
-                
-
-        int windowHeight;
+        int windowHeight = DisplayUtil.dpToPx(mWindowAndroid.getDisplay(), mWindowHeightDp);
         if (BuildInfo.getInstance().isAutomotive
                 && contentView != null
                 && contentView.getRootWindowInsets() != null) {
-            // Some automotive devices dismiss bottom system bars when bringing up the keyboard,
-            // preventing the height of those bottom bars from being subtracted from the keyboard.
-            // To avoid a bottom-bar-sized gap above the keyboard, Chrome needs to calculate a new
-            // window height from the display with the new system bar insets, rather than rely on
-            // the cached mWindowHeightDp (that implicitly assumes persistence of the now-dismissed
-            // bottom system bars).
             WindowInsetsCompat windowInsets =
                     WindowInsetsCompat.toWindowInsetsCompat(contentView.getRootWindowInsets());
             Insets systemBars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-            windowHeight =
-                    mWindowAndroid.getDisplay().getDisplayHeight()
-                            - systemBars.top
-                            - systemBars.bottom;
-        } else {
-            windowHeight = DisplayUtil.dpToPx(mWindowAndroid.getDisplay(), mWindowHeightDp);
+            windowHeight = mWindowAndroid.getDisplay().getDisplayHeight()
+                    - systemBars.top
+                    - systemBars.bottom;
         }
 
-        int minSpaceAboveWindowBottom =
-                mContext.getResources()
-                        .getDimensionPixelSize(R.dimen.omnibox_min_space_above_window_bottom);
-        int windowSpace = Math.min(windowHeight - mKeyboardHeight, windowHeight - minSpaceAboveWindowBottom);
-        // If content view is null, then omnibox might not be in the activity content.
-        int contentSpace =
-                contentView == null
-                        ? Integer.MAX_VALUE
-                        : (contentView.getMeasuredHeight() - mKeyboardHeight);
-        int height = Math.min(windowSpace, Integer.MAX_VALUE/*contentSpace*/) - top;
-        int offset = -25;
-        Log.d("Omnibox", "windowSpace: " + windowSpace + 
-        " contentSpace: " + contentSpace + 
-        " height: " + height + 
-        " KeyboardHeight: " + mKeyboardHeight +
-        " windowHeight: " + windowHeight +
-        " contentViewHeight: " + (contentView != null ? contentView.getMeasuredHeight() : "null"));
-
-        if(mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView) || (mKeyboardHeight > 0)){
-            // Only add padding if keyboard is showing and there's a gap
-            if(windowSpace - mKeyboardHeight - contentSpace < offset){
+        boolean isKeyboardVisible = mKeyboardVisibilityDelegate.isKeyboardShowing(mContext, contentView);
+        
+        // Calculate height based on keyboard state
+        int height;
+        if (isKeyboardVisible) {
+            // When keyboard is showing, adjust for keyboard height
+            int availableHeight = windowHeight - mKeyboardHeight;
+            height = availableHeight - top;
+            
+            // Apply padding only when keyboard is showing
+            if (contentView != null && isWhitePatchVisible && mKeyboardHeight > 0) {
                 ViewCompat.setPaddingRelative(contentView, 0, 0, 0, mKeyboardHeight);
             }
         } else {
-            // Reset padding when keyboard is hidden
-            ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
+            // When keyboard is hidden, use full height
+            height = windowHeight - top;
+            // Reset padding and keyboard height
+            if (contentView != null) {
+                ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
+            }
             mKeyboardHeight = 0;
         }
+
+        // Ensure minimum height
+        int minHeight = mContext.getResources()
+                .getDimensionPixelSize(R.dimen.omnibox_suggestion_content_height);
+        height = Math.max(height, minHeight);
 
         // Force layout refresh
         if (contentView != null) {
             contentView.requestLayout();
         }
 
-        top = 0;
         OmniboxAlignment omniboxAlignment =
                 new OmniboxAlignment(left, top, width, height, paddingLeft, paddingRight);
         mOmniboxAlignmentSupplier.set(omniboxAlignment);
@@ -478,3 +445,5 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
         return result;
     }
 }
+
+
