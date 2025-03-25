@@ -52,7 +52,8 @@ found in the LICENSE file.
         <org.chromium.chrome.browser.ui.BottomContainer
             android:id="@+id/bottom_container"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
+            android:minHeight="48dp"
             android:layout_gravity="start|bottom" />
 
         <org.chromium.ui.AsyncViewStub
@@ -60,7 +61,8 @@ found in the LICENSE file.
             android:inflatedId="@+id/keyboard_accessory"
             android:layout_height="@dimen/keyboard_accessory_height_with_shadow"
             android:layout_width="match_parent"
-            android:layout_gravity="start|bottom"/>
+            android:layout_gravity="start|bottom"
+            android:visibility="gone"/>
 
         <org.chromium.ui.AsyncViewStub
             android:id="@+id/keyboard_accessory_sheet_stub"
@@ -94,8 +96,13 @@ found in the LICENSE file.
         <org.chromium.ui.AsyncViewStub
             android:id="@+id/omnibox_results_container_stub"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:layout_anchor="@id/control_container"
+            android:layout_height="match_parent"
+            android:layout_gravity="fill_vertical"
+            android:layout_marginTop="-56dp"
+            android:layout_marginBottom="48dp"
+            android:elevation="100dp"
+            android:translationZ="100dp"
+            android:stateListAnimator="@null"
             android:inflatedId="@+id/omnibox_results_container"
             app:layout="@layout/omnibox_results_container" />
 
@@ -110,7 +117,8 @@ found in the LICENSE file.
         <ViewStub
             android:id="@+id/bottom_controls_stub"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="32dp"
+            android:minHeight="32dp"
             android:layout_gravity="start|bottom"
             android:inflatedId="@+id/bottom_controls"
             android:layout="@layout/bottom_control_container" />
