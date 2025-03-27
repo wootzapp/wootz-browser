@@ -6,15 +6,25 @@ found in the LICENSE file.
 -->
 
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/omnibox_results_container"
     android:visibility="gone"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    android:windowSoftInputMode="adjustResize"
+    android:fitsSystemWindows="true"
     android:importantForAccessibility="yes"
     android:descendantFocusability="blocksDescendants">
-  <org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdown
-      android:id="@+id/omnibox_suggestions_dropdown"
-      android:visibility="gone"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent" />
+
+    <org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdown
+        android:id="@+id/omnibox_suggestions_dropdown"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="fill_vertical"
+        android:clipToPadding="false"
+        android:fitsSystemWindows="true"
+        android:adjustViewBounds="true" />
+
 </FrameLayout>

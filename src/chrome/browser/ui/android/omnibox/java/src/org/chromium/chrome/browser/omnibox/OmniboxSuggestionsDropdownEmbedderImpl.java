@@ -334,13 +334,13 @@ public class OmniboxSuggestionsDropdownEmbedderImpl
     public void recalculateOmniboxAlignment() {
         View contentView = mAnchorView.getRootView().findViewById(android.R.id.content);
         
-        if(!mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView)) {
-            // Immediately reset everything if keyboard is hidden
-            mKeyboardHeight = 0;
-            ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
-            contentView.requestLayout();
-            return; // Exit early to prevent any delayed adjustments
-        }
+        // if(!mKeyboardVisibilityDelegate.isKeyboardShowing(mContext,contentView)) {
+        //     // Immediately reset everything if keyboard is hidden
+        //     mKeyboardHeight = 0;
+        //     ViewCompat.setPaddingRelative(contentView, 0, 0, 0, 0);
+        //     contentView.requestLayout();
+        //     return; // Exit early to prevent any delayed adjustments
+        // }
 
         int contentViewTopPadding = contentView == null ? 0 : contentView.getPaddingTop();
 
