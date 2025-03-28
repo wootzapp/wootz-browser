@@ -1,0 +1,26 @@
+name: NEAR Protocol Rewards Tracking
+on:
+  schedule:
+    - cron: '0 */12 * * *'  # Every 12 hours
+  workflow_dispatch:        # Manual trigger
+  push:
+    branches: [ near ]     # Start on main branch updates
+
+jobs:
+  calculate-rewards:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Calculate Rewards
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: npx near-protocol-rewards calculate
