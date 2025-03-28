@@ -159,29 +159,29 @@ public class PendingTxHelper implements TxServiceObserverImplDelegate {
 
     public void setAccountInfos(AccountInfo[] accountInfos) {
         this.mAccountInfos = accountInfos;
-        fetchTransactions(null);
+        // fetchTransactions(null);
     }
 
     public void setAccountInfos(List<AccountInfo> accountInfos) {
         this.mAccountInfos = accountInfos.toArray(new AccountInfo[0]);
-        fetchTransactions(null);
+        // fetchTransactions(null);
     }
 
     @Override
     public void onNewUnapprovedTx(TransactionInfo txInfo) {
-        fetchTransactions(null);
+        // fetchTransactions(null);
     }
 
     @Override
     public void onUnapprovedTxUpdated(TransactionInfo txInfo) {
-        processTx(txInfo, TxActionType.UNAPPROVED_TRANSACTION_UPDATED);
-        updateTxInfosMap(txInfo);
+        // processTx(txInfo, TxActionType.UNAPPROVED_TRANSACTION_UPDATED);
+        // updateTxInfosMap(txInfo);
     }
 
     @Override
     public void onTransactionStatusChanged(TransactionInfo txInfo) {
-        processTx(txInfo, TxActionType.TRANSACTION_STATUS_CHANGED);
-        updateTxInfosMap(txInfo);
+        // processTx(txInfo, TxActionType.TRANSACTION_STATUS_CHANGED);
+        // updateTxInfosMap(txInfo);
     }
 
     public List<TransactionInfo> getPendingTransactions() {

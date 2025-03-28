@@ -322,6 +322,20 @@ protected:
  ResponseAction Run() override;
 };
 
+class WootzGetBrowserInfoFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.getBrowserInfo", WOOTZ_GET_BROWSER_INFO)
+
+  WootzGetBrowserInfoFunction() = default;
+
+  WootzGetBrowserInfoFunction(const WootzGetBrowserInfoFunction&) = delete;
+  WootzGetBrowserInfoFunction& operator=(const WootzGetBrowserInfoFunction&) = delete;
+
+ protected:
+  ~WootzGetBrowserInfoFunction() override {}
+
+  ResponseAction Run() override;
+};
 
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

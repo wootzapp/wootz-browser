@@ -381,6 +381,27 @@
           "parameters": []
         },
         {
+          "name": "getBrowserInfo",
+          "type": "function",
+          "description": "Returns secure browser identification information that cannot be spoofed by web content",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "browserInfo",
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "description": "Browser name (e.g., 'Wootzapp Browser')"},
+                  "vendor": {"type": "string", "description": "Browser vendor (e.g., 'Wootzapp Inc.')"},
+                  "version": {"type": "string", "description": "Browser version"},
+                  "buildId": {"type": "string", "description": "Unique build identifier"}
+                }
+              }
+            ]
+          }
+        },
+        {
           "name": "signSolanaTransaction",
           "type": "function",
           "description": "Responds to a Solana transaction sign request",

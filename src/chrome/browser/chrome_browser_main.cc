@@ -64,6 +64,7 @@
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
+#include "chrome/browser/extensions/api/wootz/wootz_api.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/language/url_language_histogram_factory.h"
@@ -816,6 +817,9 @@ int ChromeBrowserMainParts::PreEarlyInitialization() {
   // Create BrowserProcess in PreEarlyInitialization() so that we can load
   // field trials (and all it depends upon).
   browser_process_ = std::make_unique<BrowserProcessImpl>(startup_data_);
+
+  LOG(WARNING) << "Jangid_observer: Initializing WootzAPI in PreEarlyInitialization";
+  extensions::WootzAPI::GetFactoryInstance();
 
 #if BUILDFLAG(IS_ANDROID)
   startup_data_->CreateProfilePrefService();
