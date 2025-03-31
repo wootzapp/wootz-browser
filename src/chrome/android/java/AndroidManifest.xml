@@ -30,7 +30,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Android 10+ permissions -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" /> -->
 
     <!--
       Enable runtime permissions as uses-permission in tip of tree builds
@@ -75,7 +75,7 @@ by a child template that "extends" this file.
 
     <!-- TODO(crbug.com/40259231): Remove this tools:ignore attribute once it's no longer necessary. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" tools:ignore="SystemPermissionTypo" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:ignore="SystemPermissionTypo" />
+    <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:ignore="SystemPermissionTypo" /> -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
 
     <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
@@ -815,7 +815,7 @@ by a child template that "extends" this file.
             android:process=":launch_failed">
         </activity>
 
-         <service
+         <!-- <service
             android:name="org.chromium.chrome.browser.browserservices.WootzAppBackgroundService"
             android:enabled="true"
             android:exported="false"
@@ -828,7 +828,7 @@ by a child template that "extends" this file.
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
-        </service>
+        </service> -->
 
         <!-- Components for Trusted Web Activities -->
         <receiver android:name="org.chromium.chrome.browser.browserservices.InstalledWebappBroadcastReceiver"
