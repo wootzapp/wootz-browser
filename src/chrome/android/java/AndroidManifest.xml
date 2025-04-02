@@ -71,10 +71,10 @@ by a child template that "extends" this file.
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.DOWNLOAD_WITHOUT_NOTIFICATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE" /> -->
 
     <!-- TODO(crbug.com/40259231): Remove this tools:ignore attribute once it's no longer necessary. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" tools:ignore="SystemPermissionTypo" />
+    <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" tools:ignore="SystemPermissionTypo" /> -->
     <!-- <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:ignore="SystemPermissionTypo" /> -->
     <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
 
