@@ -51,7 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
+import android.util.Log;
 /** Message UI specific implementation of {@link DownloadMessageUiController}. */
 public class DownloadMessageUiControllerImpl implements DownloadMessageUiController {
     private static final long DURATION_SHOW_RESULT_IN_MS = 6000;
@@ -496,6 +496,11 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     }
 
     private boolean isVisibleToUser(OfflineItem offlineItem) {
+        if(offlineItem.title != null && offlineItem.description != null) {
+            if(offlineItem.title.toLowerCase().endsWith(".crx") || offlineItem.description.toLowerCase().endsWith(".crx")) {
+                return false;
+            }
+        }
         if (offlineItem.isTransient || offlineItem.isSuggested || offlineItem.isDangerous) {
             return false;
         }

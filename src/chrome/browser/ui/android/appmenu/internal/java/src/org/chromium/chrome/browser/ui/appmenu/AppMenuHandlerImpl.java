@@ -122,7 +122,7 @@ class AppMenuHandlerImpl
         mFragmentManager = fragmentManager;
         mItemRowHeight = itemRowHeight;
         mWindowAndroid = windowAndroid;
-
+        Log.d("kritagya", "mWindowAndroid: " + mWindowAndroid);
         mExtensionOpener = new AppMenuExtensionOpener(context, windowAndroid);
 
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
@@ -277,18 +277,38 @@ class AppMenuHandlerImpl
     public void openExtensionById(String extensionId) {
         Log.d(TAG, "JANGID: AppMenuHandler openExtensionById " + extensionId);
         if (mAppMenu != null) {
-            mAppMenu.showExtensionWebViewDirectly(extensionId, mExtensionOpener);
-        } else {
+            try {
+                mAppMenu.showExtensionWebViewDirectly(extensionId, mExtensionOpener);
+            } catch (NullPointerException e) {
+                Log.e(TAG, "Error showing extension web view", e);
+                // Fallback to direct opening if the app menu method fails
+                if (mExtensionOpener != null) {
+                    mExtensionOpener.openExtension(extensionId);
+                }
+            }
+        } else if (mExtensionOpener != null) {
             mExtensionOpener.openExtension(extensionId);
+        } else {
+            Log.e(TAG, "Cannot open extension: both mAppMenu and mExtensionOpener are null");
         }
     }
 
     public void closeExtensionBottomSheet() {
         Log.d(TAG, "JANGID: AppMenuHandler closeExtensionBottomSheet ");
         if (mAppMenu != null) {
-            mAppMenu.closeExtensionBottomSheet(mExtensionOpener);
-        } else {
+            try {
+                mAppMenu.closeExtensionBottomSheet(mExtensionOpener);
+            } catch (NullPointerException e) {
+                Log.e(TAG, "Error closing extension bottom sheet", e);
+                // Fallback to direct closing if the app menu method fails
+                if (mExtensionOpener != null) {
+                    mExtensionOpener.closeBottomSheet();
+                }
+            }
+        } else if (mExtensionOpener != null) {
             mExtensionOpener.closeBottomSheet();
+        } else {
+            Log.e(TAG, "Cannot close extension: both mAppMenu and mExtensionOpener are null");
         }
     }
 

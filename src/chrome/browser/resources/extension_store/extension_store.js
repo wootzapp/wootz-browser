@@ -38,7 +38,7 @@ class BrowserBridge {
    
    // Set up a periodic refresh of installed extensions (every 10 seconds)
    setInterval(() => {
-     this.fetchInstalledExtensions();
+     this.fetchInstalledExtensions()
    }, 10000);
  }
 
@@ -520,7 +520,7 @@ function createExtensionCard(extension) {
 function handleDownload(extension, button) {
     console.log('Starting download process for:', extension.name);
     
-    // Check if the extension is already installed
+    // Check if already installed
     if (extension.installed && !extension.needsUpdate) {
         console.log('Extension already installed:', extension.name);
         button.textContent = 'Installed';
@@ -530,70 +530,41 @@ function handleDownload(extension, button) {
         return;
     }
     
-    // Update button state
+    // Show loading state
     button.textContent = '';
     button.classList.add('loading');
     button.disabled = true;
     
-    // Store the extension ID in the button's dataset for reference
-    button.dataset.extensionId = extension.id;
-
     try {
-        // Use direct navigation to the download URL
+        // Initiate download
         console.log('Navigating to download URL:', extension.download_url);
         window.location.href = extension.download_url;
         
-        // Set up a retry mechanism to check installation status multiple times
-        let checkCount = 0;
-        const maxChecks = 5;
-        const checkInterval = 2000; // 2 seconds between checks
-        
+        // Check installation status
         const checkInstallation = () => {
-            checkCount++;
-            console.log(`Check #${checkCount} for installation of ${extension.name} (ID: ${extension.id})`);
-            
-            // Refresh the installed extensions list
+            // Refresh installed extensions list
             browserBridge.fetchInstalledExtensions();
             
-            // Wait a bit for the fetch to complete
+            // Check if installed after a short delay
             setTimeout(() => {
-                // Check if the extension is now installed by ID
                 const isNowInstalled = browserBridge.isExtensionInstalled(extension.id);
-                console.log(`Installation check #${checkCount} result for ${extension.name} (ID: ${extension.id}):`, isNowInstalled);
                 
-                // If the button still exists and the extension is installed, update it
-                if (button) {
-                    if (isNowInstalled) {
-                        console.log('Extension is now installed:', extension.name);
-                        updateInstalledState(extension, button);
-                    } else if (checkCount < maxChecks) {
-                        // Try again after a delay
-                        console.log(`Installation not detected yet, trying again in ${checkInterval/1000} seconds...`);
-                        setTimeout(checkInstallation, checkInterval);
-                    } else {
-                        // If still not installed after all checks, revert the button
-                        console.log('Extension installation not detected after', maxChecks, 'attempts:', extension.name);
-                        button.textContent = extension.needsUpdate ? 'Update' : 'Install';
-                        button.disabled = false;
-                        button.className = extension.needsUpdate ? 
-                            'install-button update prevent-card-click' : 
-                            'install-button prevent-card-click';
-                    }
+                if (isNowInstalled) {
+                    // Update UI to installed state
+                    updateInstalledState(extension, button);
+                } else {
+                    // Keep checking
+                    setTimeout(checkInstallation, 2000);
                 }
-            }, 500); // Short delay after fetching
+            }, 1);
         };
         
-        // Start the first check after a delay
+        // Start checking after initial delay
         setTimeout(checkInstallation, 2000);
         
     } catch (error) {
         console.error('Installation failed:', error);
-        button.classList.remove('loading');
-        button.textContent = extension.needsUpdate ? 'Update' : 'Retry';
-        button.disabled = false;
-        button.className = extension.needsUpdate ? 
-            'install-button update prevent-card-click' : 
-            'install-button prevent-card-click';
+        // Keep showing loading state since installation will continue anyway
     }
 }
 
