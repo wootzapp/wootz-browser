@@ -6,11 +6,13 @@ package org.chromium.chrome.browser;
 
 import static org.chromium.components.webapk.lib.common.WebApkConstants.WEBAPK_PACKAGE_PREFIX;
 
+import android.app.Activity;
 import android.app.KeyguardManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.PowerManager;
@@ -18,6 +20,7 @@ import android.provider.Browser;
 import android.speech.RecognizerResultsIntent;
 import android.text.TextUtils;
 import android.util.Pair;
+import android.content.SharedPreferences;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -26,7 +29,7 @@ import androidx.browser.customtabs.CustomTabsSessionToken;
 
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
-
+import org.jni_zero.CalledByNative;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.FileUtils;
 import org.chromium.base.IntentUtils;
@@ -64,9 +67,13 @@ import org.chromium.network.mojom.ReferrerPolicy;
 import org.chromium.ui.base.PageTransition;
 import org.chromium.url.GURL;
 import org.chromium.url.Origin;
+import org.chromium.chrome.browser.icon.IconSwitcher;
+import org.chromium.chrome.browser.splash_screen.BrowserSplashScreen;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -76,6 +83,42 @@ import java.util.Map;
 @JNINamespace("chrome::android")
 public class IntentHandler {
     private static final String TAG = "IntentHandler";
+    public static String ext_utm_source;
+    /**
+     * Extracts a UTM parameter from a URI.
+     * @param uri The URI to extract the parameter from.
+     * @param paramName The name of the UTM parameter to extract (e.g., "utm_source").
+     * @return The value of the UTM parameter, or null if not present.
+     */
+    public static String extractUtmParameter(Uri uri, String paramName) {
+        if (uri == null) return null;
+        
+        try {
+            String value = uri.getQueryParameter(paramName);
+            Log.d("IntentHandler", "extractUtmParameter: " + value);
+            return value;
+        } catch (Exception e) {
+            Log.e(TAG, "Error extracting UTM parameter: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Checks if the intent has an "artifact" UTM source and shows the splash screen if it does.
+     * @param activity The activity to use for showing the splash screen.
+     * @param intent The intent to check.
+     * @return True if the splash screen was shown, false otherwise.
+     */
+    public static boolean checkAndShowCustomSplash(Activity activity, Intent intent) {
+        if (intent != null && intent.getData() != null) {
+            Uri uri = intent.getData();
+            String utmSource = extractUtmParameter(uri, "utm_source");
+            Log.e("IntentHandler", "UTM source: of the god itself " + (utmSource != null ? utmSource : "null"));
+            onIntentReceived(intent);
+        }
+        return false;
+    }
+
 
     /** Tab ID to use when creating a new Tab. */
     private static final String EXTRA_TAB_ID = "com.android.chrome.tab_id";
@@ -1490,5 +1533,91 @@ public class IntentHandler {
     @NativeMethods
     interface Natives {
         boolean isCorsSafelistedHeader(String name, String value);
+        void storeUtmSource(String utmSource);
+    }
+
+    /**
+     * Handles the intent from a main-intent source (e.g. icon click, notification click, intent URL).
+     * @param intent The intent to handle.
+     */
+    public static void onIntentReceived(Intent intent) {
+        Log.d("IntentHandler", "onIntentReceived");
+        // Check for UTM parameters and switch icon if needed
+        if (intent.getData() != null) {
+            Log.d("IntentHandler", "intent.getData() != null");
+            Uri uri = intent.getData();
+            String utmSource = uri.getQueryParameter("utm_source");
+            ext_utm_source = utmSource;
+            Log.d("IntentHandler", "utmSource: " + utmSource);
+            if (utmSource != null) {
+                Log.d("IntentHandler", "utmSource != null");
+                switchIconBasedOnUtm(utmSource);
+                // Store UTM source in shared preferences
+                storeUtmSource(utmSource);
+            }
+        }
+    }
+
+    /**
+     * Switches the app icon based on the UTM source parameter.
+     * @param utmSource The UTM source parameter
+     */
+    private static void switchIconBasedOnUtm(String utmSource) {
+        // Map UTM source to icon type
+        Log.d("IntentHandler", "switchIconBasedOnUtm");
+        if ("camp".equalsIgnoreCase(utmSource)) {
+            Log.d("IntentHandler", "utmSource == camp");
+            utmSource = "camp";
+        } else if ("artifact".equalsIgnoreCase(utmSource)) {
+            utmSource = "artifact";
+        } else if ("sapien".equalsIgnoreCase(utmSource)) {
+            utmSource = "sapien";
+        } else if ("blockmesh".equalsIgnoreCase(utmSource)) {
+            utmSource = "blockmesh";
+        } else if ("eclipse".equalsIgnoreCase(utmSource)) {
+            utmSource = "eclipse";
+        }
+        
+        // Switch the icon
+        Log.d("IntentHandler", "IconSwitcher.setIcon(utmSource)");
+        IconSwitcher.setIcon(utmSource);
+    }
+
+    /**
+     * Stores the UTM source in shared preferences for later use.
+     * @param utmSource The UTM source to store
+     */
+    private static void storeUtmSource(String utmSource) {
+        // Normalize the UTM source
+        if ("camp".equalsIgnoreCase(utmSource)) {
+            utmSource = "camp";
+        } else if ("artifact".equalsIgnoreCase(utmSource)) {
+            utmSource = "artifact";
+        } else if ("sapien".equalsIgnoreCase(utmSource) || "sapiens".equalsIgnoreCase(utmSource)) {
+            utmSource = "sapiens";
+        } else if ("blockmesh".equalsIgnoreCase(utmSource)) {
+            utmSource = "blockmesh";
+        } else if ("eclipse".equalsIgnoreCase(utmSource)) {
+            utmSource = "eclipse";
+        } else {
+            // Default to artifact if not recognized
+            utmSource = "artifact";
+        }
+        
+        try {
+            // Store in Android SharedPreferences
+            Context context = ContextUtils.getApplicationContext();
+            SharedPreferences prefs = context.getSharedPreferences("utm_prefs", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("utm_source", utmSource);
+            editor.apply();
+            
+            Log.d("IntentHandler", "Stored UTM source in preferences: " + utmSource);
+            
+            // Comment out the JNI call until it's properly implemented
+            IntentHandlerJni.get().storeUtmSource(utmSource);
+        } catch (Exception e) {
+            Log.e("IntentHandler", "Error storing UTM source: " + e.getMessage());
+        }
     }
 }

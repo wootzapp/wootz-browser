@@ -1333,6 +1333,10 @@
     "includes": [8500],
   },
 
+  "<(SHARED_INTERMEDIATE_DIR)/chrome/browser/resources/startup_crx_install/resources.grd": {
+    "META": {"sizes": {"includes": [50]}},
+    "includes": [8520],
+  },
   # Thinking about appending to the end?
   # Please read the header and find the right section above instead.
 }

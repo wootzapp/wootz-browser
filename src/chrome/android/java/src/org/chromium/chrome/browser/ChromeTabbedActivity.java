@@ -27,6 +27,8 @@ import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.Window;
 import android.view.WindowManager;
+import android.content.Context;
+import android.content.SharedPreferences;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -260,6 +262,8 @@ import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
+import org.chromium.chrome.browser.IntentHandler;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
@@ -276,7 +280,7 @@ import java.util.function.DoubleConsumer;
 public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent>
         implements MismatchedIndicesHandler {
     private static final String TAG = "ChromeTabbedActivity";
-
+    private boolean isFirstRun = true;
     protected static final String WINDOW_INDEX = "window_index";
 
     private static final int INVALID_WINDOW_ID = TabWindowManager.INVALID_WINDOW_INDEX;
@@ -505,6 +509,9 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     // Manager for tab group visual data lifecycle updates.
     private TabGroupVisualDataManager mTabGroupVisualDataManager;
+
+    private static final String PREF_WOOTZAPP_FIRST_RUN = "wootzapp_first_run";
+    private SharedPreferences prefs;
 
     /**
      * This class is used to warm up the chrome split ClassLoader. See SplitChromeApplication for
@@ -1833,22 +1840,37 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
         // If the start surface or grid tab switcher will be shown on start, do not create a new
         // tab.
-        String url = null;
+        String url = null, crx_url = null;
         boolean shouldShowOverviewPageOnStart = shouldShowOverviewPageOnStart();
         if (!shouldShowOverviewPageOnStart) {
-            GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
-            if (homepageGurl.isEmpty()) {
-                url = UrlConstants.NTP_URL;
-            } else {
-                // Migrate legacy NTP URLs (chrome://newtab) to the newer format
-                // (chrome-native://newtab)
-                if (UrlUtilities.isNtpUrl(homepageGurl)) {
+                GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
+                if (homepageGurl.isEmpty()) {
                     url = UrlConstants.NTP_URL;
                 } else {
-                    url = homepageGurl.getSpec();
+                    // Migrate legacy NTP URLs (chrome://newtab) to the newer format
+                    // (chrome-native://newtab)
+                    if (UrlUtilities.isNtpUrl(homepageGurl)) {
+                        url = UrlConstants.NTP_URL;
+                    } else {
+                        url = homepageGurl.getSpec();
+                    }
                 }
-            }
+
             getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
+            String utm_source = IntentHandler.ext_utm_source;
+            if (utm_source != null) {
+                if (isFirstRun && utm_source != "") {
+                    // Mark first run as completed
+                    prefs.edit().putBoolean(PREF_WOOTZAPP_FIRST_RUN, true).apply();
+                    // Load the extension installer WebUI
+                    crx_url = "wootzapp://startup-crx-install/";
+                    Log.d("Wootzapp", "First run detected - Loading installer WebUI");
+                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
+                }
+                prefs = getSharedPreferences("wootzapp_prefs", Context.MODE_PRIVATE);
+            }
+            isFirstRun = !prefs.getBoolean(PREF_WOOTZAPP_FIRST_RUN, false);
+
         }
         PartnerBrowserCustomizations.getInstance()
                 .onCreateInitialTab(
@@ -1870,6 +1892,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         // Launch history as a fresh instance of Chrome.
         maybeLaunchHistory();
     }
+
 
     private void recordExternalIntentSourceUMA(Intent intent) {
         @IntentHandler.ExternalAppId
@@ -2170,6 +2193,10 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     @Override
     public void performPreInflationStartup() {
         super.performPreInflationStartup();
+
+        // Initialize Wootzapp preferences
+        prefs = getSharedPreferences("wootzapp_prefs", Context.MODE_PRIVATE);
+        isFirstRun = !prefs.getBoolean(PREF_WOOTZAPP_FIRST_RUN, false);
 
         // Android FrameMetrics allow tracking of java views and their deadline misses (frame
         // drops/janks).

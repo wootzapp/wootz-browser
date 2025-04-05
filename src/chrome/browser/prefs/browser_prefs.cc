@@ -196,6 +196,7 @@
 #include "printing/buildflags/buildflags.h"
 #include "rlz/buildflags/buildflags.h"
 #include "services/screen_ai/buildflags/buildflags.h"
+#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
 #include "chrome/browser/background/background_mode_manager.h"
@@ -1106,7 +1107,6 @@ inline constexpr char kDefaultSearchProviderChoiceLocationPrefName[] =
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
 
 wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
-
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   registry->RegisterDictionaryPref(kEasyUnlockHardlockState);
@@ -1248,7 +1248,6 @@ void RegisterProfilePrefsForMigration(
     user_prefs::PrefRegistrySyncable* registry) {
   chrome_browser_net::secure_dns::RegisterProbesSettingBackupPref(registry);
   wootz_wallet::RegisterProfilePrefsForMigration(registry);
-
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1906,6 +1905,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
   wootz_wallet::RegisterProfilePrefs(registry);
   throttle_webui::RegisterProfilePrefs(registry);
+  startup_crx_install::RegisterProfilePrefs(registry);
   // User prefs. Please keep this list alphabetized.
   AccessibilityLabelsService::RegisterProfilePrefs(registry);
   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
@@ -1998,6 +1998,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   translate::TranslatePrefs::RegisterProfilePrefs(registry);
   omnibox::RegisterProfilePrefs(registry);
   ZeroSuggestProvider::RegisterProfilePrefs(registry);
+
 
 #if !BUILDFLAG(IS_ANDROID) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   promos_utils::RegisterProfilePrefs(registry);
