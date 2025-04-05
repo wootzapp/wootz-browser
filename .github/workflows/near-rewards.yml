@@ -1,10 +1,10 @@
 name: NEAR Protocol Rewards Tracking
 on:
   schedule:
-    - cron: '0 */12 * * *'  # Every 12 hours
+    - cron: '0 0 * * *'     # Every 24 hours at midnight
   workflow_dispatch:        # Manual trigger
   push:
-    branches: [ near ]     # Start on main branch updates
+    branches: [ near ]     # Start on develop branch updates
 
 jobs:
   calculate-rewards:
@@ -13,6 +13,7 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      id-token: write
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -23,4 +24,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
-        run: npx near-protocol-rewards calculate
+          WALLET_ID:   8aed835ca3809c5574d14cfe06616dc0a43d8392edfa6506803867c3d000eb22
+          NETWORK_ID: testnet
+        run: |
+          npm install -g near-protocol-rewards@latest
+          near-protocol-rewards calculate
