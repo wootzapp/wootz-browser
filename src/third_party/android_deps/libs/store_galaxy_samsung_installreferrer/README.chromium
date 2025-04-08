@@ -1,0 +1,11 @@
+Name: Samsung Galaxy Store Install Referrer
+Short Name: samsung-galaxy-store-install-referrer
+URL: https://developer.samsung.com/galaxy-store/android
+Version: 4.0.0
+License: Proprietary
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+Samsung Galaxy Store Install Referrer library for attribution.

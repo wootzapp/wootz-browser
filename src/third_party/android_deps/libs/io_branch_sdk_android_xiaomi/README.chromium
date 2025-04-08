@@ -1,0 +1,11 @@
+Name: Xiaomi GetApps Store Referrer
+Short Name: xiaomi-getapps-referrer
+URL: https://github.com/BranchMetrics/android-branch-deep-linking-attribution
+Version: 1.0.0.7
+License: MIT
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+Xiaomi GetApps Store Referrer library for attribution on Xiaomi devices.

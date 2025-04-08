@@ -1,0 +1,12 @@
+Name: Google Play Services Ads Identifier
+Short Name: play-services-ads-identifier
+URL: https://developers.google.com/android/guides/setup
+Version: 18.0.1
+License: Android Software Development Kit License
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+Google Play Services Ads Identifier library provides access to the Advertising ID on Android devices.
+This is used by the Branch SDK for attribution and tracking purposes.
