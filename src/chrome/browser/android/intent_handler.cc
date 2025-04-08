@@ -68,28 +68,32 @@ void JNI_IntentHandler_StoreUtmSource(JNIEnv* env, const JavaParamRef<jstring>& 
   }
 }
 
-jstring JNI_IntentHandler_GetUtmSource(JNIEnv* env) {
-  // Get the last used profile
+static jstring JNI_IntentHandler_GetUtmSource(JNIEnv* env) {
   Profile* profile = ProfileManager::GetLastUsedProfile();
   if (!profile) {
-    LOG(ERROR) << "Failed to get profile for getting UTM source";
+    LOG(ERROR) << "Failed to get profile in GetUtmSource";
     return base::android::ConvertUTF8ToJavaString(env, "").Release();
   }
-  
-  // Get the UTM source from user preferences
+
   PrefService* prefs = profile->GetPrefs();
   if (!prefs) {
-    LOG(ERROR) << "Failed to get preferences for getting UTM source";
+    LOG(ERROR) << "Failed to get prefs in GetUtmSource";
     return base::android::ConvertUTF8ToJavaString(env, "").Release();
   }
-  
-  // Try to get from the namespaced preference first
+
   std::string utm_source;
   if (prefs->FindPreference(startup_crx_install::kUtmSourcePref)) {
     utm_source = prefs->GetString(startup_crx_install::kUtmSourcePref);
   } else if (prefs->FindPreference("utm_source")) {
     // Fall back to the non-namespaced preference
     utm_source = prefs->GetString("utm_source");
+  }
+  
+  // Also check shared preferences as a fallback
+  if (utm_source.empty()) {
+    // Try to get from shared preferences via JNI
+    // This would require implementing a method to access Android shared prefs from C++
+    LOG(INFO) << "UTM source from prefs was empty, could try shared prefs";
   }
   
   LOG(INFO) << "Retrieved UTM source in intent_handler: " << utm_source;

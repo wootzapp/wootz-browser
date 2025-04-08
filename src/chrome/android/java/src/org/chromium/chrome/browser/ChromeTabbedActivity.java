@@ -262,7 +262,9 @@ import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
-import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.icon.IconSwitcher;
+import org.chromium.base.ContextUtils;
+
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -458,6 +460,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     private OneshotSupplierImpl<ModuleRegistry> mModuleRegistrySupplier =
             new OneshotSupplierImpl<>();
 
+
     private final IncognitoTabHost mIncognitoTabHost =
             new IncognitoTabHost() {
                 @Override
@@ -510,8 +513,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     // Manager for tab group visual data lifecycle updates.
     private TabGroupVisualDataManager mTabGroupVisualDataManager;
 
-    private static final String PREF_WOOTZAPP_FIRST_RUN = "wootzapp_first_run";
-    private SharedPreferences prefs;
 
     /**
      * This class is used to warm up the chrome split ClassLoader. See SplitChromeApplication for
@@ -1836,7 +1837,10 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     /** Create an initial tab for cold start without restored tabs. */
     private void createInitialTab() {
         Log.i(TAG, "#createInitialTab executed.");
+        
         mPendingInitialTabCreation = false;
+        SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+        String utmSource = prefs.getString("last_utm_source", "");
 
         // If the start surface or grid tab switcher will be shown on start, do not create a new
         // tab.
@@ -1857,19 +1861,16 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 }
 
             getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
-            String utm_source = IntentHandler.ext_utm_source;
-            if (utm_source != null) {
-                if (isFirstRun && utm_source != "") {
-                    // Mark first run as completed
-                    prefs.edit().putBoolean(PREF_WOOTZAPP_FIRST_RUN, true).apply();
+            if (!TextUtils.isEmpty(utmSource)) {
+                if (isFirstRun) {
                     // Load the extension installer WebUI
                     crx_url = "wootzapp://startup-crx-install/";
-                    Log.d("Wootzapp", "First run detected - Loading installer WebUI");
+                    Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
-                prefs = getSharedPreferences("wootzapp_prefs", Context.MODE_PRIVATE);
             }
-            isFirstRun = !prefs.getBoolean(PREF_WOOTZAPP_FIRST_RUN, false);
+
+            isFirstRun = false;
 
         }
         PartnerBrowserCustomizations.getInstance()
@@ -2194,9 +2195,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void performPreInflationStartup() {
         super.performPreInflationStartup();
 
-        // Initialize Wootzapp preferences
-        prefs = getSharedPreferences("wootzapp_prefs", Context.MODE_PRIVATE);
-        isFirstRun = !prefs.getBoolean(PREF_WOOTZAPP_FIRST_RUN, false);
+
 
         // Android FrameMetrics allow tracking of java views and their deadline misses (frame
         // drops/janks).

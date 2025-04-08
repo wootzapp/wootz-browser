@@ -68,7 +68,9 @@ import org.chromium.ui.base.PageTransition;
 import org.chromium.url.GURL;
 import org.chromium.url.Origin;
 import org.chromium.chrome.browser.icon.IconSwitcher;
-import org.chromium.chrome.browser.splash_screen.BrowserSplashScreen;
+import org.chromium.base.ContextUtils;
+
+
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -1588,36 +1590,47 @@ public class IntentHandler {
      * @param utmSource The UTM source to store
      */
     private static void storeUtmSource(String utmSource) {
-        // Normalize the UTM source
-        if ("camp".equalsIgnoreCase(utmSource)) {
-            utmSource = "camp";
-        } else if ("artifact".equalsIgnoreCase(utmSource)) {
-            utmSource = "artifact";
-        } else if ("sapien".equalsIgnoreCase(utmSource) || "sapiens".equalsIgnoreCase(utmSource)) {
-            utmSource = "sapiens";
-        } else if ("blockmesh".equalsIgnoreCase(utmSource)) {
-            utmSource = "blockmesh";
-        } else if ("eclipse".equalsIgnoreCase(utmSource)) {
-            utmSource = "eclipse";
-        } else {
-            // Default to artifact if not recognized
-            utmSource = "artifact";
+        // Normalize the UTM source once
+        if (utmSource != null) {
+            String normalizedUtm = normalizeUtmSource(utmSource);
+            
+            // Only store if we have a valid UTM source
+            if (!normalizedUtm.isEmpty()) {
+                try {
+                    // Store in SharedPreferences for access from ChromeTabbedActivity
+                    SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+                    SharedPreferences.Editor editor = prefs.edit();
+                    editor.putString("last_utm_source", normalizedUtm);
+                    editor.apply();
+                    
+                    // Also make the JNI call if needed
+                    IntentHandlerJni.get().storeUtmSource(normalizedUtm);
+                    Log.d("IntentHandler", "Stored UTM source: " + normalizedUtm + " in SharedPreferences");
+                } catch (Exception e) {
+                    Log.e("IntentHandler", "Error storing UTM source", e);
+                }
+            }
         }
+    }
+
+    /**
+     * Gets the last stored UTM source from SharedPreferences.
+     * @return The last UTM source or empty string if none exists
+     */
+    public static String getLastUtmSource() {
+        SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+        return prefs.getString("last_utm_source", "");
+    }
+
+    private static String normalizeUtmSource(String utmSource) {
+        if (utmSource == null) return "";
         
-        try {
-            // Store in Android SharedPreferences
-            Context context = ContextUtils.getApplicationContext();
-            SharedPreferences prefs = context.getSharedPreferences("utm_prefs", Context.MODE_PRIVATE);
-            SharedPreferences.Editor editor = prefs.edit();
-            editor.putString("utm_source", utmSource);
-            editor.apply();
-            
-            Log.d("IntentHandler", "Stored UTM source in preferences: " + utmSource);
-            
-            // Comment out the JNI call until it's properly implemented
-            IntentHandlerJni.get().storeUtmSource(utmSource);
-        } catch (Exception e) {
-            Log.e("IntentHandler", "Error storing UTM source: " + e.getMessage());
-        }
+        String lowerCase = utmSource.toLowerCase(Locale.ROOT);
+        if ("camp".equals(lowerCase)) return "camp";
+        if ("artifact".equals(lowerCase)) return "artifact";
+        if ("sapien".equals(lowerCase) || "sapiens".equals(lowerCase)) return "sapiens";
+        if ("blockmesh".equals(lowerCase)) return "blockmesh";
+        if ("eclipse".equals(lowerCase)) return "eclipse";
+        return "";
     }
 }

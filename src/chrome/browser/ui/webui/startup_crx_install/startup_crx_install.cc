@@ -122,27 +122,21 @@ void StartupCrxInstallMessageHandler::HandleGetUtmSource(const base::Value::List
 
 void StartupCrxInstallMessageHandler::SendUtmToFrontend(const std::string& utm_source) {
   if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
     return;
   }
   
-  LOG(INFO) << "About to call JavaScript function with UTM source: " << utm_source;
+  LOG(INFO) << "Sending UTM source to frontend: " << utm_source;
   
-  // Try with a simple string value
+  // Create a base::Value for the UTM source
   base::Value utm_value(utm_source);
   
-  // Debug the value being sent
   std::string debug_json;
   base::JSONWriter::Write(utm_value, &debug_json);
   LOG(INFO) << "UTM value as JSON: " << debug_json;
   
   // Call the JavaScript function
   web_ui_->CallJavascriptFunctionUnsafe("handleUtmSource", utm_value);
-  
-  // Also try with a direct string for testing
-  if (utm_source.empty()) {
-    LOG(INFO) << "UTM source is empty, sending test value";
-    web_ui_->CallJavascriptFunctionUnsafe("handleUtmSource", base::Value("test_utm_value"));
-  }
   
   LOG(INFO) << "Sent UTM source to JS: " << utm_source;
 }
