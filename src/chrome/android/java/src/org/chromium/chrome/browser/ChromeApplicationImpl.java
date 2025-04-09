@@ -10,6 +10,8 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import io.branch.referral.Branch;
+
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.version_info.Channel;
 import org.chromium.base.version_info.VersionConstants;
@@ -58,6 +60,16 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
 
         if (SplitCompatApplication.isBrowserProcess()) {
             Log.i(TAG, "Initializing Chrome browser process");
+            
+            // Initialize Branch SDK
+            try {
+                Log.i(TAG, "Initializing Branch SDK");
+                io.branch.referral.Branch.enableLogging();
+                io.branch.referral.Branch.getAutoInstance(getApplication());
+                Log.i(TAG, "Branch SDK initialized successfully");
+            } catch (Exception e) {
+                Log.e(TAG, "Error initializing Branch SDK: " + e.getMessage(), e);
+            }
             
             // Check for Google Play Services availability
             try {

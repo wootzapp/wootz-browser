@@ -306,8 +306,6 @@ by a child template that "extends" this file.
                 <category android:name="android.intent.category.APP_BROWSER" />
             </intent-filter>
         </activity-alias>
-        
-
         <activity-alias android:name="com.google.android.apps.chrome.IntentDispatcher"
             android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
             android:exported="true">
@@ -1279,7 +1277,13 @@ by a child template that "extends" this file.
             android:exported="false"/>
         <receiver android:name="org.chromium.chrome.browser.offlinepages.AutoFetchNotifier$InProgressCancelReceiver"
             android:exported="false"/>
-
+        
+        <receiver android:name="org.chromium.chrome.browser.install.InstallReferrerReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
         <service android:name="org.chromium.chrome.browser.media.MediaCaptureNotificationService"
             android:exported="false"/>
         <service android:name="org.chromium.chrome.browser.media.ui.ChromeMediaNotificationControllerServices$PlaybackListenerService"
@@ -1508,7 +1512,15 @@ by a child template that "extends" this file.
         <!-- enable the performance API by setting a sample-rate, adjust in production env -->
         <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
 
+        <!-- Branch SDK Keys -->
+        <meta-data android:name="io.branch.sdk.BranchKey" android:value="xxxxxxxxxxxxxxx" />
+        <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="xxxxxxxxxxxxxxx" />
+        <meta-data android:name="io.branch.sdk.BranchSecret" android:value="xxxxxxxxxxxxxxx" />
+        <meta-data android:name="io.branch.sdk.BranchSecret.test" android:value="xxxxxxxxxxxxxxx" />
+        <meta-data android:name="io.branch.sdk.TestMode" android:value="true" />
+
     </application>
     {% block extra_root_definitions %}
     {% endblock %}
 </manifest>
+
