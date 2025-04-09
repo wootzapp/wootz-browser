@@ -264,6 +264,10 @@ import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
 import org.chromium.chrome.browser.icon.IconSwitcher;
 import org.chromium.base.ContextUtils;
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import org.json.JSONObject;
+import android.net.Uri;
 
 
 import java.lang.annotation.Retention;
@@ -767,6 +771,10 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                             }
                         }
                     };
+
+            // Process any stored UTM source when native is ready
+            IntentHandler.processStoredUtmSourceIfNeeded();
+
         } finally {
             TraceEvent.end("ChromeTabbedActivity.initializeCompositor");
         }
@@ -1389,6 +1397,20 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
             }
 
             super.onNewIntent(intent);
+            setIntent(intent);
+
+            // Re-initialize Branch with the new intent
+            Branch.sessionBuilder(this).withCallback(new Branch.BranchReferralInitListener() {
+                @Override
+                public void onInitFinished(JSONObject referringParams, BranchError error) {
+                    if (error == null && referringParams != null && !referringParams.equals("{}")) {
+                        Log.d(TAG, "New deep link data: " + referringParams.toString());
+                    
+                        // Extract UTM parameters from Branch data
+                        handleBranchDeepLinkParams(referringParams);
+                    }
+                }
+            }).withData(intent.getData()).reInit();
 
             boolean shouldShowRegularOverviewMode =
                     IntentUtils.safeGetBooleanExtra(
@@ -3801,6 +3823,24 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onStart() {
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
+
+            // Initialize Branch session
+            Branch.sessionBuilder(this).withCallback(new Branch.BranchReferralInitListener() {
+                @Override
+                public void onInitFinished(JSONObject referringParams, BranchError error) {
+                    if (error == null) {
+                        Log.d(TAG, "Branch session initialized");
+                        if (referringParams != null && !referringParams.equals("{}")) {
+                            Log.d(TAG, "Deep link data: " + referringParams.toString());
+                        
+                            // Extract UTM parameters from Branch data
+                            handleBranchDeepLinkParams(referringParams);
+                        }
+                    } else {
+                        Log.e(TAG, "Branch initialization error: " + error.getMessage());
+                    }
+                }
+            }).withData(this.getIntent().getData()).init();
         }
     }
 
@@ -4091,6 +4131,43 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                             mTabSwitcherSupplier.get().openInvitationModal("");
                         }
                     });
+        }
+    }
+
+    private void handleBranchDeepLinkParams(JSONObject params) {
+        try {
+            // Extract UTM parameters from Branch data
+            String utmSource = params.optString("~utm_source", "");
+            String utmMedium = params.optString("~utm_medium", "");
+            String utmCampaign = params.optString("~utm_campaign", "");
+            String utmTerm = params.optString("~utm_term", "");
+            String utmContent = params.optString("~utm_content", "");
+            
+            Log.d(TAG, "Branch UTM Source: " + utmSource);
+            
+            // Use your existing UTM handling logic
+            if (!TextUtils.isEmpty(utmSource)) {
+                IntentHandler.ext_utm_source = utmSource;
+                IntentHandler.switchIconBasedOnUtm(utmSource);
+                IntentHandler.storeUtmSource(utmSource);
+            }
+            
+            // Check for a URL to open
+            if (params.has("$canonical_url")) {
+                String url = params.getString("$canonical_url");
+                Log.d(TAG, "Loading URL from deep link: " + url);
+                
+                // Create LoadUrlParams and load the URL
+                LoadUrlParams loadUrlParams = new LoadUrlParams(url);
+                // if (getActivityTab() != null) {
+                //     getActivityTab().loadUrl(loadUrlParams);
+                // } else {
+                //     // If no tab is open, create a new one with this URL
+                //     getTabCreator(false).createNewTab(loadUrlParams, TabLaunchType.FROM_LINK, null);
+                // }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing Branch deep link data", e);
         }
     }
 }

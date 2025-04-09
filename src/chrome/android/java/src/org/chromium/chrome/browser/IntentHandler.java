@@ -68,9 +68,7 @@ import org.chromium.ui.base.PageTransition;
 import org.chromium.url.GURL;
 import org.chromium.url.Origin;
 import org.chromium.chrome.browser.icon.IconSwitcher;
-import org.chromium.base.ContextUtils;
-
-
+import org.chromium.base.library_loader.LibraryLoader;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -1544,8 +1542,10 @@ public class IntentHandler {
      */
     public static void onIntentReceived(Intent intent) {
         Log.d("IntentHandler", "onIntentReceived");
-        // Check for UTM parameters and switch icon if needed
-        if (intent.getData() != null) {
+        
+        // Skip UTM parameter extraction for Branch deep links
+        // Branch SDK will handle these in ChromeTabbedActivity
+        if (intent.getData() != null && !isBranchLink(intent.getData())) {
             Log.d("IntentHandler", "intent.getData() != null");
             Uri uri = intent.getData();
             String utmSource = uri.getQueryParameter("utm_source");
@@ -1561,10 +1561,27 @@ public class IntentHandler {
     }
 
     /**
+     * Checks if the given URI is a Branch link.
+     * @param uri The URI to check.
+     * @return True if the URI is a Branch link, false otherwise.
+     */
+    private static boolean isBranchLink(Uri uri) {
+        if (uri == null) return false;
+        
+        String host = uri.getHost();
+        return host != null && (
+            host.contains("tsnnq.app.link") ||
+            host.contains("tsnnq-alternate.app.link") ||
+            host.contains("tsnnq.test-app.link") ||
+            host.contains("tsnnq-alternate.test-app.link")
+        );
+    }
+
+    /**
      * Switches the app icon based on the UTM source parameter.
      * @param utmSource The UTM source parameter
      */
-    private static void switchIconBasedOnUtm(String utmSource) {
+    public static void switchIconBasedOnUtm(String utmSource) {
         // Map UTM source to icon type
         Log.d("IntentHandler", "switchIconBasedOnUtm");
         if ("camp".equalsIgnoreCase(utmSource)) {
@@ -1589,7 +1606,7 @@ public class IntentHandler {
      * Stores the UTM source in shared preferences for later use.
      * @param utmSource The UTM source to store
      */
-    private static void storeUtmSource(String utmSource) {
+    public static void storeUtmSource(String utmSource) {
         // Normalize the UTM source once
         if (utmSource != null) {
             String normalizedUtm = normalizeUtmSource(utmSource);
@@ -1601,10 +1618,9 @@ public class IntentHandler {
                     SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
                     SharedPreferences.Editor editor = prefs.edit();
                     editor.putString("last_utm_source", normalizedUtm);
+                    editor.putBoolean("utm_source_needs_jni_processing", true);
                     editor.apply();
                     
-                    // Also make the JNI call if needed
-                    IntentHandlerJni.get().storeUtmSource(normalizedUtm);
                     Log.d("IntentHandler", "Stored UTM source: " + normalizedUtm + " in SharedPreferences");
                 } catch (Exception e) {
                     Log.e("IntentHandler", "Error storing UTM source", e);
@@ -1632,5 +1648,27 @@ public class IntentHandler {
         if ("blockmesh".equals(lowerCase)) return "blockmesh";
         if ("eclipse".equals(lowerCase)) return "eclipse";
         return "";
+    }
+
+    // Add a new method to process the stored UTM source when native is ready
+    public static void processStoredUtmSourceIfNeeded() {
+        try {
+            SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+            boolean needsProcessing = prefs.getBoolean("utm_source_needs_jni_processing", false);
+            
+            if (needsProcessing && LibraryLoader.getInstance().isInitialized()) {
+                String utmSource = prefs.getString("last_utm_source", "");
+                if (!utmSource.isEmpty()) {
+                    // Now it's safe to call JNI
+                    IntentHandlerJni.get().storeUtmSource(utmSource);
+                    Log.d(TAG, "Processed stored UTM source via JNI: " + utmSource);
+                    
+                    // Mark as processed
+                    prefs.edit().putBoolean("utm_source_needs_jni_processing", false).apply();
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing stored UTM source", e);
+        }
     }
 }

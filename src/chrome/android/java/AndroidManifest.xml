@@ -208,6 +208,17 @@ by a child template that "extends" this file.
         android:enableOnBackInvokedCallback="true"
         {% block extra_application_attributes %}{% endblock %}>
 
+        <!-- Branch SDK Keys -->
+        <meta-data android:name="io.branch.sdk.BranchKey" android:value="key_live_cDa637h8OLHePutr8cdSqlbmyChtt2lp" />
+        <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="key_test_nsmYX9dXGRNaTtBz7cnRjlmfqBawFL95" />
+        <meta-data android:name="io.branch.sdk.BranchSecret" android:value="secret_live_fR6MAsAwMjkS845hSdZ2PQvi29HznmKL" />
+        <meta-data android:name="io.branch.sdk.BranchSecret.test" android:value="secret_test_BzUEBczZZxlxMWmENYevHXAacXDLcJay" />
+        <meta-data android:name="io.branch.sdk.TestMode" android:value="true" />
+
+        <!-- Branch Init -->
+        <meta-data android:name="io.branch.sdk.auto_init" android:value="true" />
+        <meta-data android:name="io.branch.sdk.browser_disable_tracking" android:value="false" />
+
         {% if channel in ['canary', 'dev', 'default'] %}
         <profileable android:shell="true"/>
         {% endif %}
@@ -595,6 +606,25 @@ by a child template that "extends" this file.
             <meta-data
                 android:name="android.activity.launch_mode"
                 android:value="singleInstancePerTask"/>
+
+            <!-- Branch URI Scheme -->
+            <intent-filter>
+                <data android:scheme="wootzapp" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+
+            <!-- Branch App Links (for Android 6.0+) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tsnnq.app.link" />
+                <data android:scheme="https" android:host="tsnnq-alternate.app.link" />
+                <data android:scheme="https" android:host="tsnnq.test-app.link" />
+                <data android:scheme="https" android:host="tsnnq-alternate.test-app.link" />
+            </intent-filter>
 
             <!--
               Daydream api categorizes an activity to three categories: Cardboard only, hybrid
@@ -1497,7 +1527,7 @@ by a child template that "extends" this file.
       {% block extra_application_definitions_for_test %}
       {% endblock %}
 
-       <meta-data android:name="io.sentry.dsn" android:value="https://fc38a4ab40405f6cda3e680c1659226e@o4508518313230336.ingest.us.sentry.io/4508642172862464" />
+        <meta-data android:name="io.sentry.dsn" android:value="https://fc38a4ab40405f6cda3e680c1659226e@o4508518313230336.ingest.us.sentry.io/4508642172862464" />
 
         <!-- Add data like request headers, user ip adress and device name, see https://docs.sentry.io/platforms/android/data-management/data-collected/ for more info -->
         <meta-data android:name="io.sentry.send-default-pii" android:value="true" />
@@ -1511,13 +1541,6 @@ by a child template that "extends" this file.
 
         <!-- enable the performance API by setting a sample-rate, adjust in production env -->
         <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
-
-        <!-- Branch SDK Keys -->
-        <meta-data android:name="io.branch.sdk.BranchKey" android:value="xxxxxxxxxxxxxxx" />
-        <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="xxxxxxxxxxxxxxx" />
-        <meta-data android:name="io.branch.sdk.BranchSecret" android:value="xxxxxxxxxxxxxxx" />
-        <meta-data android:name="io.branch.sdk.BranchSecret.test" android:value="xxxxxxxxxxxxxxx" />
-        <meta-data android:name="io.branch.sdk.TestMode" android:value="true" />
 
     </application>
     {% block extra_root_definitions %}
