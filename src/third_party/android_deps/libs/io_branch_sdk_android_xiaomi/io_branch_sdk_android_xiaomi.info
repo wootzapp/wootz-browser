@@ -8,9 +8,7 @@ has_native_libraries = false
 has_proguard_flags = true
 has_r_text_file = false
 is_manifest_empty = false
-manifest_package = "com.xiaomi.mipush.sdk"
-resources = [
-  "res/values/values.xml"
-]
+manifest_package = "com.miui.referrer"
+resources = []
 subjar_tuples = []
 subjars = []

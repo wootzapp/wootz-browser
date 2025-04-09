@@ -6,11 +6,15 @@ assets = []
 has_classes_jar = true
 has_native_libraries = false
 has_proguard_flags = true
-has_r_text_file = false
-is_manifest_empty = false
-manifest_package = "io.branch.sdk.android"
+has_r_text_file = true
+is_manifest_empty = true
+manifest_package = "io.branch.referral"
 resources = [
-  "res/values/values.xml"
+  "res/drawable/branch_icon.png",
+  "res/layout/dialog_integration_validator.xml",
+  "res/layout/dialog_linking_validator.xml",
+  "res/layout/integration_validator_dialog_row_item.xml",
+  "res/layout/linking_validator_dialog_row_item.xml"
 ]
 subjar_tuples = []
 subjars = []
