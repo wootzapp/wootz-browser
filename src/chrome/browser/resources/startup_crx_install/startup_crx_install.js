@@ -205,7 +205,7 @@ function DownloadExtension(utmParam) {
       case 'camp':
         downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Camp%20Network/CampNetwork.crx";
         break;
-      case 'sapien':
+      case 'sapiens':
         downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Sapien/Sapien.crx";
         break;
       default:
