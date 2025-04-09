@@ -2784,6 +2784,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
     deps = [
       "//third_party/androidx:androidx_annotation_annotation_java",
@@ -2801,6 +2802,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
   }
 
@@ -2813,6 +2815,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
   }
 
@@ -2825,6 +2828,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
     deps = [ ":io_branch_sdk_android_library_java" ]
   }
@@ -2837,6 +2841,13 @@ if (!limit_android_deps) {
       ":com_huawei_hms_ads_identifier_java",
       ":io_branch_sdk_android_xiaomi_java",
     ]
+    
+    # Add visibility for the convenience group
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",
+    ]
   }
 
   # Google Play Services Ads Identifier
@@ -2848,6 +2859,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
     # deps = [
     #   "//third_party/android_deps:com_google_android_gms_play_services_basement_java",
@@ -2864,6 +2876,7 @@ if (!limit_android_deps) {
     visibility = [
       ":*",
       "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
     ]
     # deps = [
     #   "//third_party/android_deps:com_google_android_gms_play_services_basement_java",

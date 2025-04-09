@@ -4081,6 +4081,72 @@ deps = {
       'dep_type': 'cipd',
   },
 
+    'src/third_party/android_deps/libs/io_branch_sdk_android_library': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/io_branch_sdk_android_library',
+              'version': 'version:2@5.16.2.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
+  'src/third_party/android_deps/libs/io_branch_sdk_android_xiaomi': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/io_branch_sdk_android_xiaomi',
+              'version': 'version:2@1.0.0.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
+  'src/third_party/android_deps/libs/com_android_installreferrer_installreferrer': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_android_installreferrer_installreferrer',
+              'version': 'version:2@2.2.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
+  'src/third_party/android_deps/libs/com_google_android_gms_play_services_ads_identifier': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_google_android_gms_play_services_ads_identifier',
+              'version': 'version:2@18.0.1.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
+  'src/third_party/android_deps/libs/com_huawei_hms_ads_identifier': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/com_huawei_hms_ads_identifier',
+              'version': 'version:2@3.4.39.302.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
+  'src/third_party/android_deps/libs/store_galaxy_samsung_installreferrer': {
+      'packages': [
+          {
+              'package': 'chromium/third_party/android_deps/libs/store_galaxy_samsung_installreferrer',
+              'version': 'version:2@4.0.0.cr1',
+          },
+      ],
+      'condition': 'checkout_android',
+      'dep_type': 'cipd',
+  },
+
   # === ANDROID_DEPS Generated Code End ===
 
   'src/tools/resultdb': {
