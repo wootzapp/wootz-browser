@@ -773,7 +773,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     };
 
             // Process any stored UTM source when native is ready
-            IntentHandler.processStoredUtmSourceIfNeeded();
+            
 
         } finally {
             TraceEvent.end("ChromeTabbedActivity.initializeCompositor");
@@ -1404,7 +1404,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 @Override
                 public void onInitFinished(JSONObject referringParams, BranchError error) {
                     if (error == null && referringParams != null && !referringParams.equals("{}")) {
-                        Log.d(TAG, "New deep link data: " + referringParams.toString());
+                        Log.e(TAG, "New deep link data: " + referringParams.toString());
                     
                         // Extract UTM parameters from Branch data
                         handleBranchDeepLinkParams(referringParams);
@@ -1428,6 +1428,14 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onNewIntentWithNative(Intent intent) {
         try {
             TraceEvent.begin("ChromeTabbedActivity.onNewIntentWithNative");
+
+            // Check if this is a Branch link before standard processing
+            if (intent.getData() != null && IntentHandler.isBranchLink(intent.getData())) {
+                Log.e(TAG, "Detected Branch link in onNewIntentWithNative: " + intent.getData());
+                // Let Branch handle it, don't process as a regular URL
+                super.onNewIntentWithNative(intent);
+                return;
+            }
 
             super.onNewIntentWithNative(intent);
             if (!IntentHandler.shouldIgnoreIntent(intent, this, /* isCustomTab= */ false)) {
@@ -1458,24 +1466,25 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         @TabOpenType int tabOpenType = IntentHandler.getTabOpenType(intent);
         int tabIdToBringToFront = IntentHandler.getBringTabToFrontId(intent);
         if (url == null && tabIdToBringToFront == Tab.INVALID_TAB_ID) return false;
+        return false;
 
-        LoadUrlParams loadUrlParams =
-                IntentHandler.createLoadUrlParamsForIntent(url, intent, mIntentHandlingTimeMs);
+        // LoadUrlParams loadUrlParams =
+        //         IntentHandler.createLoadUrlParamsForIntent(url, intent, mIntentHandlingTimeMs);
 
-        if (IntentHandler.isIntentForMhtmlFileOrContent(intent)
-                && tabOpenType == TabOpenType.OPEN_NEW_TAB
-                && loadUrlParams.getReferrer() == null
-                && loadUrlParams.getVerbatimHeaders() == null) {
-            handleMhtmlFileOrContentIntent(url, intent);
-            return true;
-        }
-        processUrlViewIntent(
-                loadUrlParams,
-                tabOpenType,
-                IntentUtils.safeGetStringExtra(intent, Browser.EXTRA_APPLICATION_ID),
-                tabIdToBringToFront,
-                intent);
-        return true;
+        // if (IntentHandler.isIntentForMhtmlFileOrContent(intent)
+        //         && tabOpenType == TabOpenType.OPEN_NEW_TAB
+        //         && loadUrlParams.getReferrer() == null
+        //         && loadUrlParams.getVerbatimHeaders() == null) {
+        //     handleMhtmlFileOrContentIntent(url, intent);
+        //     return true;
+        // }
+        // processUrlViewIntent(
+        //         loadUrlParams,
+        //         tabOpenType,
+        //         IntentUtils.safeGetStringExtra(intent, Browser.EXTRA_APPLICATION_ID),
+        //         tabIdToBringToFront,
+        //         intent);
+        // return true;
     }
 
     private void handleMhtmlFileOrContentIntent(final String url, final Intent intent) {
@@ -1866,7 +1875,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
         // If the start surface or grid tab switcher will be shown on start, do not create a new
         // tab.
-        String url = null, crx_url = null;
+        String url = null;
         boolean shouldShowOverviewPageOnStart = shouldShowOverviewPageOnStart();
         if (!shouldShowOverviewPageOnStart) {
                 GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
@@ -1881,19 +1890,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                         url = homepageGurl.getSpec();
                     }
                 }
-
             getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
-            if (!TextUtils.isEmpty(utmSource)) {
-                if (isFirstRun) {
-                    // Load the extension installer WebUI
-                    crx_url = "wootzapp://startup-crx-install/";
-                    Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
-                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
-                }
-            }
-
-            isFirstRun = false;
-
         }
         PartnerBrowserCustomizations.getInstance()
                 .onCreateInitialTab(
@@ -3824,14 +3821,18 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
 
+            // Force a new Branch session by setting the flag directly in the intent
+            if (getIntent() != null) {
+                getIntent().putExtra("branch_force_new_session", true);
+
             // Initialize Branch session
             Branch.sessionBuilder(this).withCallback(new Branch.BranchReferralInitListener() {
                 @Override
                 public void onInitFinished(JSONObject referringParams, BranchError error) {
                     if (error == null) {
-                        Log.d(TAG, "Branch session initialized");
+                        Log.e(TAG, "Branch session initialized");
                         if (referringParams != null && !referringParams.equals("{}")) {
-                            Log.d(TAG, "Deep link data: " + referringParams.toString());
+                            Log.e(TAG, "Deep link data: " + referringParams.toString());
                         
                             // Extract UTM parameters from Branch data
                             handleBranchDeepLinkParams(referringParams);
@@ -3841,6 +3842,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     }
                 }
             }).withData(this.getIntent().getData()).init();
+        }
         }
     }
 
@@ -4136,33 +4138,41 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     private void handleBranchDeepLinkParams(JSONObject params) {
         try {
-            // Extract UTM parameters from Branch data
-            String utmSource = params.optString("~utm_source", "");
-            String utmMedium = params.optString("~utm_medium", "");
-            String utmCampaign = params.optString("~utm_campaign", "");
-            String utmTerm = params.optString("~utm_term", "");
-            String utmContent = params.optString("~utm_content", "");
+            // Extract channel as UTM source from Branch data
+            String utmSource = params.optString("~channel", "");
+            String utmCampaign = params.optString("~campaign", "");
+            String utmMedium = params.optString("~feature", "");
             
-            Log.d(TAG, "Branch UTM Source: " + utmSource);
+            Log.e(TAG, "Branch Channel (UTM Source): " + utmSource);
+            Log.e(TAG, "Branch Campaign: " + utmCampaign);
+            Log.e(TAG, "Branch Feature (UTM Medium): " + utmMedium);
             
-            // Use your existing UTM handling logic
+            // Use channel as UTM source
             if (!TextUtils.isEmpty(utmSource)) {
                 IntentHandler.ext_utm_source = utmSource;
                 IntentHandler.switchIconBasedOnUtm(utmSource);
                 IntentHandler.storeUtmSource(utmSource);
+                IntentHandler.processStoredUtmSourceIfNeeded(); 
+                if (isFirstRun) {
+                    String crx_url = "wootzapp://startup-crx-install/";
+                    Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
+                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
+                }
+
+                Log.e(TAG, "Using channel as UTM Source: " + utmSource);
             }
             
             // Check for a URL to open
             if (params.has("$canonical_url")) {
                 String url = params.getString("$canonical_url");
-                Log.d(TAG, "Loading URL from deep link: " + url);
+                Log.e(TAG, "Loading URL from deep link: " + url);
                 
                 // Create LoadUrlParams and load the URL
                 LoadUrlParams loadUrlParams = new LoadUrlParams(url);
+                // Uncomment if you want to automatically load the URL
                 // if (getActivityTab() != null) {
                 //     getActivityTab().loadUrl(loadUrlParams);
                 // } else {
-                //     // If no tab is open, create a new one with this URL
                 //     getTabCreator(false).createNewTab(loadUrlParams, TabLaunchType.FROM_LINK, null);
                 // }
             }

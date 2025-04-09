@@ -1565,7 +1565,7 @@ public class IntentHandler {
      * @param uri The URI to check.
      * @return True if the URI is a Branch link, false otherwise.
      */
-    private static boolean isBranchLink(Uri uri) {
+    public static boolean isBranchLink(Uri uri) {
         if (uri == null) return false;
         
         String host = uri.getHost();
