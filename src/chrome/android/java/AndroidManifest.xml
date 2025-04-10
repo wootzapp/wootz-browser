@@ -213,7 +213,7 @@ by a child template that "extends" this file.
         <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="key_test_nsmYX9dXGRNaTtBz7cnRjlmfqBawFL95" />
         <meta-data android:name="io.branch.sdk.BranchSecret" android:value="secret_live_fR6MAsAwMjkS845hSdZ2PQvi29HznmKL" />
         <meta-data android:name="io.branch.sdk.BranchSecret.test" android:value="secret_test_BzUEBczZZxlxMWmENYevHXAacXDLcJay" />
-        <meta-data android:name="io.branch.sdk.TestMode" android:value="true" />
+        <meta-data android:name="io.branch.sdk.TestMode" android:value="false" />
 
         <!-- Branch Init -->
         <meta-data android:name="io.branch.sdk.auto_init" android:value="true" />
@@ -329,7 +329,7 @@ by a child template that "extends" this file.
             <intent-filter>
                 {% block common_view_intent_shared_filter_body %}
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <!-- <category android:name="android.intent.category.DEFAULT" /> -->
                 {% if channel in ['stable', 'default'] %}<data android:scheme="googlechrome" />{% endif %}
                 <data android:scheme="http" />
                 <data android:scheme="https" />
@@ -624,6 +624,7 @@ by a child template that "extends" this file.
                 <data android:scheme="https" android:host="tsnnq-alternate.app.link" />
                 <data android:scheme="https" android:host="tsnnq.test-app.link" />
                 <data android:scheme="https" android:host="tsnnq-alternate.test-app.link" />
+                <data android:scheme="https" android:host="branch.wootz.app" />
             </intent-filter>
 
             <!--
