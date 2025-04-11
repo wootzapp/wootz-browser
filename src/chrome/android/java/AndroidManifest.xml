@@ -97,6 +97,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <!-- Permission for using Android 14's credential management framework. -->
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_QUERY_CANDIDATE_CREDENTIALS"/>
@@ -241,6 +242,7 @@ by a child template that "extends" this file.
         <activity-alias
             android:name="org.chromium.chrome.browser.CampIcon"
             android:enabled="false"
+            android:launchMode="singleTask"
             android:icon="@mipmap/ic_launcher_camp"
             android:label="@string/app_name_camp"
             android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
@@ -257,6 +259,7 @@ by a child template that "extends" this file.
         <activity-alias
             android:name="org.chromium.chrome.browser.BlockMeshIcon"
             android:enabled="false"
+            android:launchMode="singleTask"
             android:icon="@mipmap/ic_launcher_blockmesh"
             android:label="@string/app_name_blockmesh"
             android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
@@ -273,6 +276,7 @@ by a child template that "extends" this file.
         <activity-alias
             android:name="org.chromium.chrome.browser.ArtifactIcon"
             android:enabled="false"
+            android:launchMode="singleTask"
             android:icon="@mipmap/ic_launcher_artifact" 
             android:label="@string/app_name_artifact"
             android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
@@ -289,6 +293,7 @@ by a child template that "extends" this file.
         <activity-alias
             android:name="org.chromium.chrome.browser.SapienIcon"
             android:enabled="false"
+            android:launchMode="singleTask"
             android:icon="@mipmap/ic_launcher_sapien"
             android:label="@string/app_name_sapien"
             android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
@@ -305,6 +310,7 @@ by a child template that "extends" this file.
         <activity-alias
             android:name="org.chromium.chrome.browser.EclipseIcon"
             android:enabled="false"
+            android:launchMode="singleTask"
             android:icon="@mipmap/ic_launcher_eclipse"
             android:label="@string/app_name_eclipse" 
             android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
@@ -1308,13 +1314,7 @@ by a child template that "extends" this file.
             android:exported="false"/>
         <receiver android:name="org.chromium.chrome.browser.offlinepages.AutoFetchNotifier$InProgressCancelReceiver"
             android:exported="false"/>
-        
-        <receiver android:name="org.chromium.chrome.browser.install.InstallReferrerReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.android.vending.INSTALL_REFERRER" />
-            </intent-filter>
-        </receiver>
+            
         <service android:name="org.chromium.chrome.browser.media.MediaCaptureNotificationService"
             android:exported="false"/>
         <service android:name="org.chromium.chrome.browser.media.ui.ChromeMediaNotificationControllerServices$PlaybackListenerService"

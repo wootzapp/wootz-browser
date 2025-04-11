@@ -278,6 +278,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
+import java.util.Iterator;
+import org.chromium.chrome.browser.InstallReferrerManager;
 
 /**
  * This is the main activity for ChromeMobile when not running in document mode. All the tabs are
@@ -3821,30 +3823,50 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
 
+            // Initialize InstallReferrerManager
+            new InstallReferrerManager(this).start();
+
             // Force a new Branch session by setting the flag directly in the intent
             if (getIntent() != null) {
                 getIntent().putExtra("branch_force_new_session", true);
-
-            // Initialize Branch session
-            Branch.sessionBuilder(this).withCallback(new Branch.BranchReferralInitListener() {
-                @Override
-                public void onInitFinished(JSONObject referringParams, BranchError error) {
-                    if (error == null) {
-                        Log.e(TAG, "Branch session initialized");
-                        if (referringParams != null && !referringParams.equals("{}")) {
-                            Log.e(TAG, "Deep link data: " + referringParams.toString());
-                        
-                            // Extract UTM parameters from Branch data
-                            handleBranchDeepLinkParams(referringParams);
+                
+                // Initialize Branch session
+                Branch.sessionBuilder(this)
+                    .withCallback(new Branch.BranchReferralInitListener() {
+                        @Override
+                        public void onInitFinished(JSONObject referringParams, BranchError error) {
+                            if (error == null) {
+                                Log.e(TAG, "Branch session initialized");
+                                if (referringParams != null && !referringParams.equals("{}")) {
+                                    Log.e(TAG, "Deep link data: " + referringParams.toString());
+                                    
+                                    // Check if this was a Branch link click
+                                    boolean clickedBranchLink = referringParams.optBoolean("+clicked_branch_link", false);
+                                    Log.e(TAG, "Clicked Branch link: " + clickedBranchLink);
+                                    
+                                    // If it's not a clicked Branch link but we have a URL, try to process it anyway
+                                    if (!clickedBranchLink && getIntent().getData() != null) {
+                                        Log.e(TAG, "Not a Branch link but has URL: " + getIntent().getData().toString());
+                                        // You might want to handle non-Branch URLs here
+                                    }
+                                    
+                                    // Extract UTM parameters from Branch data
+                                    handleBranchDeepLinkParams(referringParams);
+                                } else {
+                                    Log.e(TAG, "No deep link data found");
+                                }
+                            } else {
+                                Log.e(TAG, "Branch initialization error: " + error.getMessage());
+                            }
                         }
-                    } else {
-                        Log.e(TAG, "Branch initialization error: " + error.getMessage());
-                    }
-                }
-            }).withData(this.getIntent().getData()).init();
-        }
+                    })
+                    .withData(getIntent().getData())
+                    .init();
+            }
         }
     }
+
+    
 
     @Override
     public void onStop() {
@@ -4135,9 +4157,11 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     });
         }
     }
-
     private void handleBranchDeepLinkParams(JSONObject params) {
         try {
+            // Log the entire params for debugging
+            Log.e(TAG, "Processing Branch params: " + params.toString());
+            
             // Extract channel as UTM source from Branch data
             String utmSource = params.optString("~channel", "");
             String utmCampaign = params.optString("~campaign", "");
@@ -4155,7 +4179,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 IntentHandler.processStoredUtmSourceIfNeeded(); 
                 if (isFirstRun) {
                     String crx_url = "wootzapp://startup-crx-install/";
-                    Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
+                    Log.e(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
 
@@ -4175,6 +4199,15 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 // } else {
                 //     getTabCreator(false).createNewTab(loadUrlParams, TabLaunchType.FROM_LINK, null);
                 // }
+            }
+            
+            // Also check for custom data that might be in the root of the params
+            for (Iterator<String> it = params.keys(); it.hasNext();) {
+                String key = it.next();
+                if (!key.startsWith("+") && !key.startsWith("~") && !key.startsWith("$")) {
+                    Log.e(TAG, "Custom param: " + key + " = " + params.optString(key));
+                    // Handle any custom parameters here
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error processing Branch deep link data", e);
