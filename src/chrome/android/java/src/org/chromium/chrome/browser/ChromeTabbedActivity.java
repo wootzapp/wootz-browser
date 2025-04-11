@@ -1401,19 +1401,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
             super.onNewIntent(intent);
             setIntent(intent);
 
-            // Re-initialize Branch with the new intent
-            Branch.sessionBuilder(this).withCallback(new Branch.BranchReferralInitListener() {
-                @Override
-                public void onInitFinished(JSONObject referringParams, BranchError error) {
-                    if (error == null && referringParams != null && !referringParams.equals("{}")) {
-                        Log.e(TAG, "New deep link data: " + referringParams.toString());
-                    
-                        // Extract UTM parameters from Branch data
-                        handleBranchDeepLinkParams(referringParams);
-                    }
-                }
-            }).withData(intent.getData()).reInit();
-
             boolean shouldShowRegularOverviewMode =
                     IntentUtils.safeGetBooleanExtra(
                             intent, IntentHandler.EXTRA_OPEN_REGULAR_OVERVIEW_MODE, false);

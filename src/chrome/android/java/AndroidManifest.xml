@@ -208,7 +208,6 @@ by a child template that "extends" this file.
         android:appComponentFactory="org.chromium.chrome.browser.base.SplitCompatAppComponentFactory"
         android:enableOnBackInvokedCallback="true"
         {% block extra_application_attributes %}{% endblock %}>
-
         <!-- Branch SDK Keys -->
         <meta-data android:name="io.branch.sdk.BranchKey" android:value="key_live_cDa637h8OLHePutr8cdSqlbmyChtt2lp" />
         <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="key_test_nsmYX9dXGRNaTtBz7cnRjlmfqBawFL95" />
@@ -626,11 +625,8 @@ by a child template that "extends" this file.
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="tsnnq.app.link" />
-                <data android:scheme="https" android:host="tsnnq-alternate.app.link" />
-                <data android:scheme="https" android:host="tsnnq.test-app.link" />
-                <data android:scheme="https" android:host="tsnnq-alternate.test-app.link" />
                 <data android:scheme="https" android:host="branch.wootz.app" />
+                <data android:scheme="http" android:host="branch.wootz.app" />
             </intent-filter>
 
             <!--
@@ -1314,7 +1310,7 @@ by a child template that "extends" this file.
             android:exported="false"/>
         <receiver android:name="org.chromium.chrome.browser.offlinepages.AutoFetchNotifier$InProgressCancelReceiver"
             android:exported="false"/>
-            
+
         <service android:name="org.chromium.chrome.browser.media.MediaCaptureNotificationService"
             android:exported="false"/>
         <service android:name="org.chromium.chrome.browser.media.ui.ChromeMediaNotificationControllerServices$PlaybackListenerService"
