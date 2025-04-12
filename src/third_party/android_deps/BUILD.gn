@@ -2867,10 +2867,9 @@ if (!limit_android_deps) {
   }
 
   # Android Install Referrer
-  java_prebuilt("com_android_installreferrer_installreferrer_java") {
-    jar_path = "libs/com_android_installreferrer_installreferrer/installreferrer-2.2.jar"
-    output_name = "com_android_installreferrer_installreferrer"
-    supports_android = true
+  android_aar_prebuilt("com_android_installreferrer_installreferrer_java") {
+    aar_path = "libs/com_android_installreferrer_installreferrer/installreferrer-2.2.aar"
+    info_path = "libs/com_android_installreferrer_installreferrer/com_android_installreferrer_installreferrer.info"
     enable_bytecode_checks = false
 
     visibility = [
