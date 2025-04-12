@@ -145,6 +145,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
 
     <uses-permission android:name="com.google.android.apps.now.CURRENT_ACCOUNT_ACCESS" />
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"/>
 
     {% block extra_uses_permissions %}
     {% endblock %}
@@ -232,10 +233,30 @@ by a child template that "extends" this file.
              do not specify one here to allow it to inherit from the app. -->
         <activity android:name="org.chromium.chrome.browser.document.ChromeLauncherActivity"
             android:theme="@style/LauncherTheme"
+            android:launchMode="singleTask"
             android:relinquishTaskIdentity="true"
             android:taskAffinity=""
             android:excludeFromRecents="true"
+            android:exported="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|density">
+
+            <!-- Branch URI Scheme -->
+            <intent-filter>
+                <data android:scheme="branch.wootz.app" android:host="open" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+
+            <!-- Branch App Links (for Android 6.0+) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="branch.wootz.app" />
+                <data android:scheme="http" android:host="branch.wootz.app" />
+            </intent-filter>
+
         </activity>
         <!-- Activity alias for Camp icon -->
         <activity-alias
@@ -541,6 +562,12 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:exported="false" />
 
+        <receiver android:name="io.branch.referral.InstallListener" android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name="org.chromium.chrome.browser.sharing.click_to_call.ClickToCallMessageHandler$PhoneUnlockedReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
@@ -611,23 +638,6 @@ by a child template that "extends" this file.
             <meta-data
                 android:name="android.activity.launch_mode"
                 android:value="singleInstancePerTask"/>
-
-            <!-- Branch URI Scheme -->
-            <intent-filter>
-                <data android:scheme="wootzapp" />
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-            </intent-filter>
-
-            <!-- Branch App Links (for Android 6.0+) -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="branch.wootz.app" />
-                <data android:scheme="http" android:host="branch.wootz.app" />
-            </intent-filter>
 
             <!--
               Daydream api categorizes an activity to three categories: Cardboard only, hybrid
