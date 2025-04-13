@@ -11,7 +11,6 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 
 import io.branch.referral.Branch;
-import io.branch.referral.InstallReferrerManager;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.version_info.Channel;
 import org.chromium.base.version_info.VersionConstants;
