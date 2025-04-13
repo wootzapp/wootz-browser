@@ -11,7 +11,7 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 
 import io.branch.referral.Branch;
-
+import io.branch.referral.InstallReferrerManager;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.version_info.Channel;
 import org.chromium.base.version_info.VersionConstants;
@@ -59,14 +59,26 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
         super.onCreate();
 
         if (SplitCompatApplication.isBrowserProcess()) {
-            Log.i(TAG, "Initializing Chrome browser process");
+            Log.e(TAG, "Initializing Chrome browser process");
             
-            // Initialize Branch SDK
+            // Initialize Branch SDK first
             try {
-                Log.i(TAG, "Initializing Branch SDK");
+                Log.e(TAG, "Initializing Branch SDK");
                 io.branch.referral.Branch.enableLogging();
-                io.branch.referral.Branch.getAutoInstance(getApplication());
-                Log.i(TAG, "Branch SDK initialized successfully");
+                io.branch.referral.Branch branch = io.branch.referral.Branch.getAutoInstance(getApplication());
+
+                Log.e(TAG, "Branch SDK initialized successfully");
+                
+                // Initialize InstallReferrerManager after Branch
+                new Thread(() -> {
+                    try {
+                        Log.e(TAG, "Starting InstallReferrerManager");
+                        InstallReferrerManager referrerManager = new InstallReferrerManager(getApplication());
+                        referrerManager.start();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error starting InstallReferrerManager: " + e.getMessage(), e);
+                    }
+                }).start();
             } catch (Exception e) {
                 Log.e(TAG, "Error initializing Branch SDK: " + e.getMessage(), e);
             }
@@ -109,7 +121,6 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
             // "--disable-native-initialization" switch, and the CommandLine is not initialized at
             // this point to check.
             if (ProductConfig.IS_BUNDLE) {
-                Log.i(TAG, "Starting early native library initialization for bundle build");
                 // Kick off library loading in a separate thread so it's ready when we need it.
                 new Thread(() -> LibraryLoader.getInstance().ensureInitialized()).start();
             }
@@ -137,8 +148,6 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
             // Provide the supplier for CredManUiRecommender. This is set only for Chrome.
             CredManUiRecommenderProvider.getOrCreate()
                     .setCredManUiRecommenderSupplier(() -> new CredManUiRecommenderImpl());
-            
-            Log.i(TAG, "Chrome browser process initialization completed");
         }
     }
 
@@ -155,10 +164,8 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        Log.i(TAG, "Chrome configuration changed - handling locale changes");
         // TODO(huayinz): Add observer pattern for application configuration changes.
         if (SplitCompatApplication.isBrowserProcess()) {
-            Log.i(TAG, "Notifying system night mode monitor of config change");
             SystemNightModeMonitor.getInstance().onApplicationConfigurationChanged();
         }
     }

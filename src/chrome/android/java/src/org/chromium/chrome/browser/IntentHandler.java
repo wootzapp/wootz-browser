@@ -114,7 +114,7 @@ public class IntentHandler {
             Uri uri = intent.getData();
             String utmSource = extractUtmParameter(uri, "utm_source");
             Log.e("IntentHandler", "UTM source: of the god itself " + (utmSource != null ? utmSource : "null"));
-            onIntentReceived(intent);
+            // onIntentReceived(intent);
         }
         return false;
     }
@@ -1583,7 +1583,6 @@ public class IntentHandler {
      */
     public static void switchIconBasedOnUtm(String utmSource) {
         // Map UTM source to icon type
-        Log.d("IntentHandler", "switchIconBasedOnUtm");
         if ("camp".equalsIgnoreCase(utmSource)) {
             Log.d("IntentHandler", "utmSource == camp");
             utmSource = "camp";
