@@ -268,6 +268,10 @@ import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.json.JSONObject;
 import android.net.Uri;
 
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -1869,7 +1873,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     }
                 }
             getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
-            String utmSource = ChromeLauncherActivity.ext_utm_source;
+            String utmSource = "";
             Log.e(TAG, "UTM Source: " + utmSource);
             if (utmSource != null && !utmSource.isEmpty()) {
                 if (isFirstRun) {
@@ -3808,8 +3812,76 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onStart() {
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
+            
+            JSONObject firstReferringParams = Branch.getInstance().getFirstReferringParams();
+            Log.e(TAG, "First referring params: " + firstReferringParams.toString());
+            
+            // Force a new Branch session by setting the flag directly in the intent
+            if (getIntent() != null) {
+                getIntent().putExtra("branch_force_new_session", true);
 
-            handleBranchDeepLink();
+                // Initialize Branch session
+                Branch.sessionBuilder(this)
+                    .withCallback(new Branch.BranchReferralInitListener() {
+                        @Override
+                        public void onInitFinished(JSONObject referringParams, BranchError error) {
+                            if (error == null) {
+                                Log.e(TAG, "Branch session initialized");
+                                if (referringParams != null && !referringParams.equals("{}")) {
+                                    Log.e(TAG, "Deep link data: " + referringParams.toString());
+                                    
+                                    // Store the entire Branch data JSON in SharedPreferences
+                                    try {
+                                        android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+                                        android.content.SharedPreferences.Editor editor = prefs.edit();
+
+                                        // Store the full JSON for reference
+                                        editor.putString("branch_data_json", referringParams.toString());
+
+                                        // Store individual parameters
+                                        if (referringParams.has("~channel")) {
+                                            String utmSource = referringParams.optString("~channel", "");
+                                            editor.putString("utm_source_wootzapp", utmSource);
+                                            Log.e(TAG, "Stored utm_source_wootzapp: " + utmSource);
+                                        }
+
+                                        if (referringParams.has("~campaign")) {
+                                            String utmCampaign = referringParams.optString("~campaign", "");
+                                            editor.putString("utm_campaign_wootzapp", utmCampaign);
+                                            Log.e(TAG, "Stored utm_campaign_wootzapp: " + utmCampaign);
+                                        }
+
+                                        if (referringParams.has("~feature")) {
+                                            String utmMedium = referringParams.optString("~feature", "");
+                                            editor.putString("utm_medium_wootzapp", utmMedium);
+                                            Log.e(TAG, "Stored utm_medium_wootzapp: " + utmMedium);
+                                        }
+
+                                        if (referringParams.has("$canonical_url")) {
+                                            String url = referringParams.optString("$canonical_url", "");
+                                            editor.putString("branch_canonical_url_wootzapp", url);
+                                            Log.e(TAG, "Stored branch_canonical_url_wootzapp: " + url);
+                                        }
+
+                                        // Commit the changes
+                                        editor.apply();
+                                        Log.e(TAG, "Branch data stored in SharedPreferences");
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Error storing Branch data in SharedPreferences", e);
+                                    }
+                                    // Extract UTM parameters from Branch data
+                                    handleBranchDeepLinkParams(referringParams);
+                                } else {
+                                    Log.e(TAG, "No deep link data found");
+                                }
+                            } else {
+                                Log.e(TAG, "Branch initialization error: " + error.getMessage());
+                            }
+                        }
+                    })
+                    .withData(getIntent().getData())
+                    .init();
+            }
         }
     }
 
@@ -4103,14 +4175,14 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         }
     }
 
-    private void handleBranchDeepLink() {
+    private void handleBranchDeepLinkParams(JSONObject params) {
+        Log.e(TAG, "Processing Branch params: " + params.toString());
+        String utmSource = params.optString("~channel", "");
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
-            boolean clickedBranchLink = prefs.getBoolean("clicked_branch_link", false);
             boolean isFirstRun = prefs.getBoolean("is_first_run", true);
 
-            if (clickedBranchLink && isFirstRun) {
-                String utmSource = prefs.getString("~channel", "");
+            if (isFirstRun) {
                 Log.e(TAG, "Processing branch link with utm_source: " + utmSource);
                 if (!TextUtils.isEmpty(utmSource)) {
                     IntentHandler.ext_utm_source = utmSource;

@@ -233,30 +233,10 @@ by a child template that "extends" this file.
              do not specify one here to allow it to inherit from the app. -->
         <activity android:name="org.chromium.chrome.browser.document.ChromeLauncherActivity"
             android:theme="@style/LauncherTheme"
-            android:launchMode="singleTask"
             android:relinquishTaskIdentity="true"
             android:taskAffinity=""
             android:excludeFromRecents="true"
-            android:exported="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|density">
-
-            <!-- Branch URI Scheme -->
-            <intent-filter>
-                <data android:scheme="branch.wootz.app" android:host="open" />
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-            </intent-filter>
-
-            <!-- Branch App Links (for Android 6.0+) -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="branch.wootz.app" />
-                <data android:scheme="http" android:host="branch.wootz.app" />
-            </intent-filter>
-
         </activity>
         <!-- Activity alias for Camp icon -->
         <activity-alias
@@ -562,6 +542,14 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:exported="false" />
 
+        <receiver
+            android:name="io.branch.receivers.SharingBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="EXTRA_CHOSEN_COMPONENT" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name="io.branch.referral.InstallListener" android:exported="true">
             <intent-filter>
                 <action android:name="com.android.vending.INSTALL_REFERRER" />
@@ -644,6 +632,24 @@ by a child template that "extends" this file.
               or Daydream. It does so by testing if intents can be resolved by the activity
               that requests it.
             -->
+
+            <!-- Non AppLink URI Scheme -->
+            <intent-filter>
+                <data android:scheme="wootzapp" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+
+            <!-- Branch App Links (for Android 6.0+) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="branch.wootz.app" />
+                <data android:scheme="http" android:host="branch.wootz.app" />
+            </intent-filter>
+
             {% block supports_vr %}
             <intent-filter>
                 <action android:name="org.chromium.chrome.browser.dummy.action" />
