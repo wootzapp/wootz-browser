@@ -53,6 +53,8 @@
 #include "extensions/common/permissions/api_permission.h"
 #include "extensions/common/mojom/api_permission_id.mojom.h"
 #include "base/logging.h"
+#include "components/zk_proof/zk_proof.h"
+#include "components/zk_proof/tls_info/tls_data_store.h"
 
 namespace extensions {
 
@@ -1005,6 +1007,186 @@ ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
 //     }
 //     Respond(NoArguments());
 // }
+
+std::optional<zk_proof::TlsData> GetBaseDomainTlsData(const std::string& url) {
+  GURL gurl(url);
+  if (!gurl.is_valid() || !gurl.has_host()) {
+    LOG(ERROR) << "Kartik: Invalid URL format or missing host: " << url;
+    return std::nullopt;
+  }
+
+  // Vector to store all URLs to try, from most specific to least specific
+  std::vector<std::string> urls_to_try;
+
+  // Build base URL (scheme + host)
+  std::string base_url = gurl.scheme() + "://" + gurl.host();
+  
+  // Get the path components
+  std::string path = gurl.path();
+  std::vector<std::string> components;
+  
+  // Split path into components, ignoring empty parts
+  if (!path.empty()) {
+    size_t start = (path[0] == '/') ? 1 : 0;
+    size_t end = 0;
+    
+    while ((end = path.find('/', start)) != std::string::npos) {
+      if (end > start) {
+        components.push_back(path.substr(start, end - start));
+      }
+      start = end + 1;
+    }
+    if (start < path.length()) {
+      components.push_back(path.substr(start));
+    }
+  }
+
+  // Add URLs from most specific to least specific
+  // First try the full URL
+  urls_to_try.push_back(url);
+  if (!base::EndsWith(url, "/")) {
+    urls_to_try.push_back(url + "/");
+  }
+
+  // Then try base domain
+  urls_to_try.push_back(base_url);
+  urls_to_try.push_back(base_url + "/");
+
+  // Then try each intermediate path
+  std::string cumulative_path = base_url;
+  for (const auto& component : components) {
+    cumulative_path += "/" + component;
+    LOG(ERROR) << "Kartik: Adding intermediate path: " << cumulative_path;
+    urls_to_try.push_back(cumulative_path);
+    urls_to_try.push_back(cumulative_path + "/");
+  }
+
+  // Try each URL
+  for (const auto& try_url : urls_to_try) {
+    LOG(ERROR) << "Kartik: Trying URL for TLS data: " << try_url;
+    auto tls_data = zk_proof::TlsDataStore::GetInstance()->GetTlsData(try_url);
+    if (tls_data) {
+      LOG(ERROR) << "Kartik: Found TLS data for URL: " << try_url;
+      return tls_data;
+    }
+  }
+
+  LOG(ERROR) << "Kartik: No TLS data found for any parent URL of: " << url;
+  return std::nullopt;
+}
+
+ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
+  // Validate arguments
+  LOG(INFO) << "Kartik: Validating arguments for ZK proof generation.";
+  if (args().size() != 2 || !args()[0].is_string() || !args()[1].is_string()) {
+    LOG(ERROR) << "Kartik: Invalid arguments received. Expected URL and content strings.";
+    return RespondNow(Error("Invalid arguments. Expected URL and content strings."));
+  }
+
+  std::string url = args()[0].GetString();
+  std::string content = args()[1].GetString();
+
+  LOG(INFO) << "Kartik: Starting ZK proof generation for URL: " << url;
+  
+  // Get TLS data
+  auto tls_data = GetBaseDomainTlsData(url);
+  if (!tls_data) {
+    LOG(ERROR) << "Kartik: No TLS data found for URL: " << url;
+    base::Value::Dict result;
+    result.Set("success", false);
+    result.Set("error", "No TLS data found for the specified URL");
+    
+    base::Value::List result_list;
+    result_list.Append(std::move(result));
+    return RespondNow(WithArguments(std::move(result_list)));
+  }
+  
+  LOG(INFO) << "Kartik: Generating ZK keys...";
+  base::Value::Dict result;
+  
+  // Generate keys directly
+  std::string keys_json = zk_proof::GenerateKeys(
+    tls_data->cert_hash,
+    tls_data->headers_json,
+    content
+  );
+  
+  // Parse the keys JSON
+  absl::optional<base::Value> parsed_keys = base::JSONReader::Read(keys_json);
+  if (!parsed_keys || !parsed_keys->is_dict()) {
+    LOG(ERROR) << "Kartik: Failed to parse keys JSON";
+    result.Set("success", false);
+    result.Set("error", "Failed to generate ZK keys");
+    
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  
+  const base::Value::Dict& keys_dict = parsed_keys->GetDict();
+  
+  // Extract proving key
+  const std::string* pk_b64 = keys_dict.FindString("proving_key_base64");
+  if (!pk_b64) {
+    LOG(ERROR) << "Kartik: Proving key not found in response";
+    result.Set("success", false);
+    result.Set("error", "Proving key not found in generated keys");
+  
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  
+  // Decode the base64 proving key
+  std::string pk_bytes;
+  if (!base::Base64Decode(*pk_b64, &pk_bytes)) {
+    LOG(ERROR) << "Kartik: Failed to decode proving key from base64";
+    result.Set("success", false);
+    result.Set("error", "Failed to decode proving key");
+    
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  
+  LOG(INFO) << "Kartik: Generating proof...";
+  std::vector<uint8_t> proving_key(pk_bytes.begin(), pk_bytes.end());
+  
+  // Generate proof
+  std::string proof_json = zk_proof::GenerateProofWithKey(
+    tls_data->cert_hash,
+    tls_data->headers_json,
+    content,
+    proving_key
+  );
+  
+  // Extract public inputs
+  std::string public_inputs_json = zk_proof::ExtractPublicInputs(
+    tls_data->cert_hash,
+    content
+  );
+  
+  // Get verification key
+  const std::string* vk_json = keys_dict.FindString("verification_key_json");
+  if (!vk_json) {
+    LOG(ERROR) << "Kartik: Verification key not found in response";
+    result.Set("success", false);
+    result.Set("error", "Verification key not found in generated keys");
+ 
+    return RespondNow(WithArguments(std::move(result)));
+  }
+  
+  // Create final result
+  result.Set("success", !proof_json.empty() && !public_inputs_json.empty());
+  
+  if (!proof_json.empty() && !public_inputs_json.empty()) {
+    result.Set("proof", proof_json);
+    result.Set("verificationKey", *vk_json);
+    result.Set("publicInputs", public_inputs_json);
+    LOG(INFO) << "Kartik: ZK proof generation completed successfully.";
+  } else {
+    result.Set("error", "Failed to generate proof or public inputs");
+    LOG(ERROR) << "Kartik: Failed to generate proof or public inputs.";
+  }
+  
+  LOG(INFO) << "Kartik: Result is successfully generated, responding now";
+  
+  return RespondNow(WithArguments(std::move(result)));
+}
 
 }  // namespace extensions
 

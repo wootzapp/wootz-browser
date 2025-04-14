@@ -430,6 +430,39 @@
               }
             ]
           }
+        },
+        {
+          "name": "generateZKProof",
+          "type": "function",
+          "description": "Generates a ZK proof for the given URL and content",
+          "parameters": [
+            {
+              "name": "url",
+              "type": "string",
+              "description": "The URL for which to generate the proof"
+            },
+            {
+              "name": "content",
+              "type": "string",
+              "description": "The content to include in the proof"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "proof": {"type": "string", "optional": true},
+                  "verificationKey": {"type": "string", "optional": true},
+                  "publicInputs": {"type": "string", "optional": true},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

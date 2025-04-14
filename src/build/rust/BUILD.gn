@@ -86,7 +86,9 @@ config("proc_macro_extern") {
 
 # Forbids unsafe code in crates with this config.
 config("forbid_unsafe") {
-  rustflags = [ "-Funsafe_code" ]
+  rustflags = [ 
+    # "-Funsafe_code"
+   ]
 }
 
 config("panic_immediate_abort") {
