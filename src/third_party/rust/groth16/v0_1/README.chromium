@@ -1,0 +1,9 @@
+Name: groth16
+URL: https://crates.io/crates/groth16
+Description: Groth16 prover and verifier for Bellman
+Version: 0.1.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File:
+Revision: c4672fc2aa5e1e30f5b144df89faf2485278cb8d

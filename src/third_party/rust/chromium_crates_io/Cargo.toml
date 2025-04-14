@@ -53,6 +53,13 @@ strum = "0.25.0"
 strum_macros = "0.25.3"
 wycheproof = "0.4"
 digest = "0.9.0"
+bellman = "0.14.0"
+ark-bls12-381 = "0.5.0"
+ark-bn254 = "0.5.0"
+ark-groth16 = "0.5.0"
+groth16 = "0.1.0"
+bls12_381 = "0.8.0"
+zksync_bellman = "0.32.0"
 
 [dependencies.tinyvec]
 version = "1.6.0"

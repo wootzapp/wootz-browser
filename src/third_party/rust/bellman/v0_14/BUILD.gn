@@ -1,0 +1,81 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "bellman"
+  epoch = "0.14"
+  crate_type = "rlib"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/domain.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/blake2s.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/boolean.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/lookup.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/multieq.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/multipack.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/num.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/sha256.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/test/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/gadgets/uint32.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/generator.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/prover.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/tests/dummy_engine.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/tests/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/verifier.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/groth16/verifier/batch.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/multicore.rs",
+    "//third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/src/multiexp.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.14.0"
+  cargo_pkg_authors =
+      "Sean Bowe <ewillbefull@gmail.com>, Jack Grigg <thestr4d@gmail.com>"
+  cargo_pkg_name = "bellman"
+  cargo_pkg_description = "zk-SNARK library"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/bitvec/v1:lib",
+    "//third_party/rust/blake2s_simd/v1:lib",
+    "//third_party/rust/byteorder/v1:lib",
+    "//third_party/rust/crossbeam_channel/v0_5:lib",
+    "//third_party/rust/ff/v0_13:lib",
+    "//third_party/rust/group/v0_13:lib",
+    "//third_party/rust/lazy_static/v1:lib",
+    # "//third_party/rust/log/v0_4:lib",
+    "//third_party/rust/num_cpus/v1:lib",
+    "//third_party/rust/pairing/v0_23:lib",
+    "//third_party/rust/rand_core/v0_6:lib",
+    "//third_party/rust/rayon/v1:lib",
+    "//third_party/rust/subtle/v2:lib",
+  ]
+  features = [
+    "crossbeam-channel",
+    "groth16",
+    "lazy_static",
+    # "log",
+    "multicore",
+    "num_cpus",
+    "pairing",
+    "rayon",
+  ]
+  # testonly = true
+}

@@ -1,0 +1,89 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "ark_ff"
+  epoch = "0.5"
+  crate_type = "rlib"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/biginteger/arithmetic.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/biginteger/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/biginteger/tests.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/bits.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/const_helpers.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/arithmetic.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/cyclotomic.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/fft_friendly.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/tests.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/cubic_extension.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp/montgomery_backend.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp12_2over3over2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp3.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp4.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp6_2over3.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/fp6_3over2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/models/quadratic_extension.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/prime.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/sqrt.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/utils.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/to_field_vec.rs",
+  ]
+  inputs = [
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xmd_SHA256_256.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xmd_SHA256_38.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xmd_SHA512_38.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xof_SHAKE128_256.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xof_SHAKE128_36.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/src/fields/field_hashers/expander/testdata/expand_message_xof_SHAKE256_36.json",
+    "//third_party/rust/chromium_crates_io/vendor/ark-ff-0.5.0/README.md",
+  ]
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.5.0"
+  cargo_pkg_authors = "arkworks contributors"
+  cargo_pkg_name = "ark-ff"
+  cargo_pkg_description = "A library for finite fields"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/ark_ff_asm/v0_5:lib",
+    "//third_party/rust/ark_ff_macros/v0_5:lib",
+    "//third_party/rust/ark_serialize/v0_5:lib",
+    "//third_party/rust/ark_std/v0_5:lib",
+    "//third_party/rust/arrayvec/v0_7:lib",
+    "//third_party/rust/digest/v0_10:lib",
+    "//third_party/rust/educe/v0_6:lib",
+    "//third_party/rust/itertools/v0_13:lib",
+    "//third_party/rust/num_bigint/v0_4:lib",
+    "//third_party/rust/num_traits/v0_2:lib",
+    "//third_party/rust/paste/v1:lib",
+    "//third_party/rust/zeroize/v1:lib",
+  ]
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  # visibility = [ "//third_party/rust/*" ]
+  # testonly = true
+}

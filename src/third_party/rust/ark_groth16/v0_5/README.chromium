@@ -1,0 +1,9 @@
+Name: ark-groth16
+URL: https://crates.io/crates/ark-groth16
+Description: An implementation of the Groth 2016 zkSNARK proof system
+Version: 0.5.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/LICENSE-APACHE
+Revision: 9ba21ceab723d6b515a813e17846a0c0ec830c0d

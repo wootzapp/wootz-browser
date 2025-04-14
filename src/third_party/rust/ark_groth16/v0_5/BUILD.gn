@@ -1,0 +1,57 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "ark_groth16"
+  epoch = "0.5"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/data_structures.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/generator.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/prover.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/r1cs_to_qap.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/test.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-groth16-0.5.0/src/verifier.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.5.0"
+  cargo_pkg_authors = "arkworks contributors"
+  cargo_pkg_name = "ark-groth16"
+  cargo_pkg_description =
+      "An implementation of the Groth 2016 zkSNARK proof system"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/ark_crypto_primitives/v0_5:lib",
+    "//third_party/rust/ark_ec/v0_5:lib",
+    "//third_party/rust/ark_ff/v0_5:lib",
+    "//third_party/rust/ark_poly/v0_5:lib",
+    "//third_party/rust/ark_relations/v0_5:lib",
+    "//third_party/rust/ark_serialize/v0_5:lib",
+    "//third_party/rust/ark_std/v0_5:lib",
+    "//third_party/rust/rayon/v1:lib",
+  ]
+  features = [
+    "parallel",
+    "rayon",
+    "std",
+  ]
+  # testonly = true
+}

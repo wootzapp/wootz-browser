@@ -1,0 +1,9 @@
+Name: merlin
+URL: https://crates.io/crates/merlin
+Description: Composable proof transcripts for public-coin arguments of knowledge
+Version: 3.0.0
+Security Critical: yes
+Shipped: yes
+License: MIT
+License File:
+Revision: a94892f457202399661573480bb7250b4fe7c0af

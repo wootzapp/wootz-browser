@@ -1,0 +1,66 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "ahash"
+  epoch = "0.8"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/lib.rs"
+
+  # Unit tests skipped. Enable when needed for testing.
+  build_native_rust_unit_tests = false
+
+  # Actual source files that exist in the crate
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/aes_hash.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/convert.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/fallback_hash.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/hash_map.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/hash_set.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/operations.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/random_state.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/src/specialize.rs",
+  ]
+
+  # Input files used by this crate
+  inputs = [
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/README.md",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/LICENSE-APACHE",
+    "//third_party/rust/chromium_crates_io/vendor/ahash-0.8.11/LICENSE-MIT",
+  ]
+
+  # Dependencies from ahash's Cargo.toml
+  deps = [
+    "//third_party/rust/cfg_if/v1:lib",
+    "//third_party/rust/once_cell/v1:lib",
+    "//third_party/rust/getrandom/v0_2:lib",
+    "//third_party/rust/zerocopy/v0_7:lib",
+  ]
+
+  # Optional features that are enabled
+  features = [
+    "default",
+    "std",
+    "runtime-rng",
+  ]
+
+  edition = "2021"
+  cargo_pkg_version = "0.8.11"
+  cargo_pkg_authors = "Tom Kaitchuck"
+  cargo_pkg_name = "ahash"
+  cargo_pkg_description = "A non-cryptographic hash function using AES-NI for high performance"
+  
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+
+  # Only for usage from third-party crates
+  visibility = [ "//third_party/rust/*" ]
+}

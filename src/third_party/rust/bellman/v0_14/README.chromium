@@ -1,0 +1,9 @@
+Name: bellman
+URL: https://crates.io/crates/bellman
+Description: zk-SNARK library
+Version: 0.14.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/bellman-0.14.0/LICENSE-APACHE
+Revision: e137775023a647716793a362ace008e058679b2a

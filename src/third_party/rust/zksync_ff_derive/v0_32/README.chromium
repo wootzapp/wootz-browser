@@ -1,0 +1,9 @@
+Name: zksync_ff_derive
+URL: https://crates.io/crates/zksync_ff_derive
+Description: Procedural macro library for zksync_ff, based on ff_derive
+Version: 0.32.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File:
+Revision: a4245bc720af2b0691118a5f2ea8201ca4662def

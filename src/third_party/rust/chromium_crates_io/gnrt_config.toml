@@ -188,3 +188,9 @@ build_script_outputs = [ "tables.rs" ]
 [crate.wycheproof]
 group = 'test'
 extra_input_roots = ['data']
+
+[crate.ark-serialize]
+extra_input_roots = ['../README.md']
+
+[crate.ark-ff]
+extra_input_roots = ['../README.md']

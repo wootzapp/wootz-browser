@@ -1,0 +1,9 @@
+Name: enum-ordinalize-derive
+URL: https://crates.io/crates/enum-ordinalize-derive
+Description: This crate provides a procedural macro that enables enums to not only obtain the ordinal values of their variants but also allows for the construction of enums from an ordinal value.
+Version: 4.3.1
+Security Critical: yes
+Shipped: yes
+License: MIT
+License File: //third_party/rust/chromium_crates_io/vendor/enum-ordinalize-derive-4.3.1/LICENSE
+Revision: 42425fd71470a85a4c54ae5d33798de41d53266c
