@@ -3820,6 +3820,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
             JSONObject firstReferringParams = Branch.getInstance().getFirstReferringParams();
             Log.e(TAG, "First referring params: " + firstReferringParams.toString());
             handleBranchDeepLinkParams(firstReferringParams);
+       }
     }
 
     @Override
@@ -4111,6 +4112,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     });
         }
     }
+
     String extUtmSource = "";
     private void handleBranchDeepLinkParams(JSONObject firstReferringParams) {
         try {
