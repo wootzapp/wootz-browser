@@ -38,10 +38,6 @@ public class IconSwitcher {
         Context context = ContextUtils.getApplicationContext();
         PackageManager pm = context.getPackageManager();
         String packageName = context.getPackageName();
-        pm.setComponentEnabledSetting(
-            new ComponentName(context, BLOCKMESH_ACTIVITY),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP); 
         
         // Disable all icons first
         disableComponent(pm, packageName, DEFAULT_ACTIVITY);
