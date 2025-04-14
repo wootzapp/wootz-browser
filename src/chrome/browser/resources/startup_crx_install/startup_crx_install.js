@@ -244,7 +244,7 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
     console.log('Extension already installed, closing window');
     // Close the window after a short delay
     setTimeout(() => {
-      window.close();
+      window.location.href = "wootzapp://newtab/";
     }, 500);
   }
 }

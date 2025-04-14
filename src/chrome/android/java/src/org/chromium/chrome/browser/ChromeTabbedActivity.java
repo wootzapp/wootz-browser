@@ -282,7 +282,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 import java.util.Iterator;
-// import org.chromium.chrome.browser.InstallReferrerManager;
 
 /**
  * This is the main activity for ChromeMobile when not running in document mode. All the tabs are
@@ -468,7 +467,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     private OneshotSupplierImpl<ModuleRegistry> mModuleRegistrySupplier =
             new OneshotSupplierImpl<>();
-
+    
+    private String utmSource;
 
     private final IncognitoTabHost mIncognitoTabHost =
             new IncognitoTabHost() {
@@ -521,7 +521,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     // Manager for tab group visual data lifecycle updates.
     private TabGroupVisualDataManager mTabGroupVisualDataManager;
-
 
     /**
      * This class is used to warm up the chrome split ClassLoader. See SplitChromeApplication for
@@ -776,10 +775,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                             }
                         }
                     };
-
-            // Process any stored UTM source when native is ready
-            
-
         } finally {
             TraceEvent.end("ChromeTabbedActivity.initializeCompositor");
         }
@@ -1655,6 +1650,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         try {
             TraceEvent.begin("ChromeTabbedActivity.initializeState");
 
+            // Get the default extension from SharedPreferences
             super.initializeState();
             Log.i(TAG, "#initializeState");
             Intent intent = getIntent();
@@ -1857,7 +1853,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
         // If the start surface or grid tab switcher will be shown on start, do not create a new
         // tab.
-        String url = null, crx_url = null;
+        String url = null;
         boolean shouldShowOverviewPageOnStart = shouldShowOverviewPageOnStart();
         if (!shouldShowOverviewPageOnStart) {
                 GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
@@ -1872,19 +1868,27 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                         url = homepageGurl.getSpec();
                     }
                 }
-            getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
-            String utmSource = "";
+                getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
+            
+            // Check if this is first run using SharedPreferences instead of a local variable
+            SharedPreferences prefs = getSharedPreferences(
+                "branch_data", android.content.Context.MODE_PRIVATE);
+            String utmSource = prefs.getString("utm_source_wootzapp", "");
+            Boolean isFirstRunPref = prefs.getBoolean("is_first_run_tab", true);
+            
             Log.e(TAG, "UTM Source: " + utmSource);
             if (utmSource != null && !utmSource.isEmpty()) {
-                if (isFirstRun) {
-                    // Load the extension installer WebUI
-                    crx_url = "wootzapp://startup-crx-install/";
+                // Load the extension installer WebUI
+                if (isFirstRunPref) {
+                    
+                    String crx_url = "wootzapp://startup-crx-install/";
                     Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
-                Log.e(TAG, "Using channel as UTM Source: " + utmSource);
             }
-            isFirstRun = false;
+            SharedPreferences.Editor editor = prefs.edit();
+                    editor.putBoolean("is_first_run_tab", false);
+                    editor.apply();
         }
         PartnerBrowserCustomizations.getInstance()
                 .onCreateInitialTab(
@@ -3812,77 +3816,10 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onStart() {
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
-            
+
             JSONObject firstReferringParams = Branch.getInstance().getFirstReferringParams();
             Log.e(TAG, "First referring params: " + firstReferringParams.toString());
-            
-            // Force a new Branch session by setting the flag directly in the intent
-            if (getIntent() != null) {
-                getIntent().putExtra("branch_force_new_session", true);
-
-                // Initialize Branch session
-                Branch.sessionBuilder(this)
-                    .withCallback(new Branch.BranchReferralInitListener() {
-                        @Override
-                        public void onInitFinished(JSONObject referringParams, BranchError error) {
-                            if (error == null) {
-                                Log.e(TAG, "Branch session initialized");
-                                if (referringParams != null && !referringParams.equals("{}")) {
-                                    Log.e(TAG, "Deep link data: " + referringParams.toString());
-                                    
-                                    // Store the entire Branch data JSON in SharedPreferences
-                                    try {
-                                        android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
-                                        android.content.SharedPreferences.Editor editor = prefs.edit();
-
-                                        // Store the full JSON for reference
-                                        editor.putString("branch_data_json", referringParams.toString());
-
-                                        // Store individual parameters
-                                        if (referringParams.has("~channel")) {
-                                            String utmSource = referringParams.optString("~channel", "");
-                                            editor.putString("utm_source_wootzapp", utmSource);
-                                            Log.e(TAG, "Stored utm_source_wootzapp: " + utmSource);
-                                        }
-
-                                        if (referringParams.has("~campaign")) {
-                                            String utmCampaign = referringParams.optString("~campaign", "");
-                                            editor.putString("utm_campaign_wootzapp", utmCampaign);
-                                            Log.e(TAG, "Stored utm_campaign_wootzapp: " + utmCampaign);
-                                        }
-
-                                        if (referringParams.has("~feature")) {
-                                            String utmMedium = referringParams.optString("~feature", "");
-                                            editor.putString("utm_medium_wootzapp", utmMedium);
-                                            Log.e(TAG, "Stored utm_medium_wootzapp: " + utmMedium);
-                                        }
-
-                                        if (referringParams.has("$canonical_url")) {
-                                            String url = referringParams.optString("$canonical_url", "");
-                                            editor.putString("branch_canonical_url_wootzapp", url);
-                                            Log.e(TAG, "Stored branch_canonical_url_wootzapp: " + url);
-                                        }
-
-                                        // Commit the changes
-                                        editor.apply();
-                                        Log.e(TAG, "Branch data stored in SharedPreferences");
-                                    } catch (Exception e) {
-                                        Log.e(TAG, "Error storing Branch data in SharedPreferences", e);
-                                    }
-                                    // Extract UTM parameters from Branch data
-                                    handleBranchDeepLinkParams(referringParams);
-                                } else {
-                                    Log.e(TAG, "No deep link data found");
-                                }
-                            } else {
-                                Log.e(TAG, "Branch initialization error: " + error.getMessage());
-                            }
-                        }
-                    })
-                    .withData(getIntent().getData())
-                    .init();
-            }
-        }
+            handleBranchDeepLinkParams(firstReferringParams);
     }
 
     @Override
@@ -4174,24 +4111,19 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     });
         }
     }
-
-    private void handleBranchDeepLinkParams(JSONObject params) {
-        Log.e(TAG, "Processing Branch params: " + params.toString());
-        String utmSource = params.optString("~channel", "");
+    String extUtmSource = "";
+    private void handleBranchDeepLinkParams(JSONObject firstReferringParams) {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+            extUtmSource = firstReferringParams.optString("~channel", "");
             boolean isFirstRun = prefs.getBoolean("is_first_run", true);
-
             if (isFirstRun) {
-                Log.e(TAG, "Processing branch link with utm_source: " + utmSource);
-                if (!TextUtils.isEmpty(utmSource)) {
-                    IntentHandler.ext_utm_source = utmSource;
-                    IntentHandler.switchIconBasedOnUtm(utmSource);
-                    IntentHandler.storeUtmSource(utmSource);
+                Log.e(TAG, "Processing branch link with utm_source: " + extUtmSource);
+                if (!TextUtils.isEmpty(extUtmSource)) {
+                    IntentHandler.ext_utm_source = extUtmSource;
+                    IntentHandler.switchIconBasedOnUtm(extUtmSource);
+                    IntentHandler.storeUtmSource(extUtmSource);
                     IntentHandler.processStoredUtmSourceIfNeeded();
-                    String crx_url = "wootzapp://startup-crx-install/";
-                    Log.e(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
-                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();
