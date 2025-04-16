@@ -48,6 +48,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
+
 /**
  * Handles the First Run Experience sequences shown to the user launching Chrome for the first time.
  * It supports only a simple format of FRE:
@@ -491,9 +492,22 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     }
 
     private void launchPendingIntentAndFinish() {
+        Log.e(TAG, "launchPendingIntentAndFinish called"); 
         if (!sendFirstRunCompletePendingIntent()) {
+            Log.e(TAG, "No pending intent to launch, launching main activity");
+            
+            try {
+                Intent mainIntent = new Intent(this, ChromeTabbedActivity.class);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(mainIntent);
+                Log.e(TAG, "Started ChromeTabbedActivity");
+            } catch (Exception e) {
+                Log.e(TAG, "Error launching main activity", e);
+            }
+            
             finish();
         } else {
+            Log.e(TAG, "Pending intent launched, will finish when next activity starts");
             ApplicationStatus.registerStateListenerForAllActivities(
                     new ActivityStateListener() {
                         @Override
