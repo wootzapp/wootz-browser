@@ -84,7 +84,7 @@ import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHan
 import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHandler.MinimizeAppAndCloseTabType;
 import org.chromium.chrome.browser.base.ColdStartTracker;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
-import org.chromium.chrome.browser.browserservices.WootzAppBackgroundService;
+// import org.chromium.chrome.browser.browserservices.WootzAppBackgroundService;
 import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
@@ -581,8 +581,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     minimizeAppAndCloseTabOnBackPress(getActivityTab());
                 });
         Log.d("Wootzapp", "start service");
-            Intent serviceIntent = new Intent(this, WootzAppBackgroundService.class);
-            ForegroundServiceUtils.getInstance().startForegroundService(serviceIntent);
+            // Intent serviceIntent = new Intent(this, WootzAppBackgroundService.class);
+            // ForegroundServiceUtils.getInstance().startForegroundService(serviceIntent);
     }
 
     @Override
