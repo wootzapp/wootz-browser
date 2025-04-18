@@ -497,7 +497,14 @@ public class AppMenu extends BottomSheetDialogFragment
             addExtensionButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             addExtensionButton
                     .setImageTintList(AppCompatResources.getColorStateList(context, R.color.extension_icon_color));
-            addExtensionButton.setOnClickListener(v -> openWebsite("wootzapp://flow-store/"));
+            addExtensionButton.setOnClickListener(v -> {
+                try {
+                    openWebsite("wootzapp://flow-store/");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error opening extension store", e);
+                    Toast.makeText(context, "Cannot open extension store at this time", Toast.LENGTH_SHORT).show();
+                }
+            });
             extensionsContainer.addView(addExtensionButton);
         }
 
@@ -518,11 +525,20 @@ public class AppMenu extends BottomSheetDialogFragment
 
             final int index = i;
             extensionIcon.setOnClickListener(v -> {
-                openExtensionWebView(index);
-
+                try {
+                    openExtensionWebView(index);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error opening extension web view", e);
+                    Toast.makeText(context, "Cannot open extension at this time", Toast.LENGTH_SHORT).show();
+                }
             });
             extensionIcon.setOnLongClickListener(v -> {
-                showDeleteExtensionDialog(index);
+                try {
+                    showDeleteExtensionDialog(index);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error showing delete dialog", e);
+                    Toast.makeText(context, "Cannot delete extension at this time", Toast.LENGTH_SHORT).show();
+                }
                 return true;
             });
 
@@ -553,14 +569,20 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openWebsite(String url) {
+        if (mHandler == null) {
+            Log.e(TAG, "Cannot open website: mHandler is null");
+            Toast.makeText(getContext(), "Cannot open website at this time", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        if (mHandler != null) {
-            LoadUrlParams params = new LoadUrlParams(url);
-            Tab tab = mHandler.getActivityTab();
-            if (tab != null) {
-                tab.loadUrl(params);
-                dismiss(); // Dismiss the app menu after loading the URL
-            }
+        LoadUrlParams params = new LoadUrlParams(url);
+        Tab tab = mHandler.getActivityTab();
+        if (tab != null) {
+            tab.loadUrl(params);
+            dismiss(); // Dismiss the app menu after loading the URL
+        } else {
+            Log.e(TAG, "Cannot open website: tab is null");
+            Toast.makeText(getContext(), "Cannot open website at this time", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -595,6 +617,13 @@ public class AppMenu extends BottomSheetDialogFragment
     }
 
     private void openExtensionWebView(int index) {
+        // Check if mHandler is null before using it
+        if (mHandler == null) {
+            Log.e(TAG, "Cannot open extension web view: mHandler is null");
+            Toast.makeText(getContext(), "Cannot open extension at this time", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         View view = getView();
         if (view != null) {
             view.findViewById(R.id.app_menu_grid).setVisibility(View.GONE);
@@ -614,8 +643,14 @@ public class AppMenu extends BottomSheetDialogFragment
             webViewFrame.addView(mWebViewContainer);
 
             // Load the extension URL
-            String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
-            mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
+            try {
+                String popupUrl = Extensions.getExtensionsInfo().get(index).getPopupUrl();
+                mWebContents.getNavigationController().loadUrl(new LoadUrlParams(popupUrl));
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading extension URL", e);
+                Toast.makeText(getContext(), "Error loading extension", Toast.LENGTH_SHORT).show();
+                returnToAppMenu(); // Return to the main menu on error
+            }
         }
     }
 
@@ -646,12 +681,17 @@ public class AppMenu extends BottomSheetDialogFragment
         }
         return false;
     }
-
+    boolean isCreated = false;
     @Override
     public void show(@NonNull FragmentManager manager, @Nullable String tag) {
+    
         Log.d(TAG, Extensions.getExtensionsInfo().toString());
 
         Log.d(TAG, "show called with tag: " + tag);
+        if (manager.findFragmentByTag(tag) != null) {
+            Log.w(TAG, "AppMenu is already added, skipping show()");
+            return; // Prevent duplicate addition
+        }
         try {
             super.show(manager, tag);
             mMenuShownTimeMs = SystemClock.elapsedRealtime();
@@ -1008,6 +1048,14 @@ public class AppMenu extends BottomSheetDialogFragment
         // backButton.setOnClickListener(v -> returnToAppMenu());
 
         return view;
+    }
+
+    public String getCurrentUrl() {
+        if (mHandler == null || mHandler.getActivityTab() == null) {
+            return null;
+        }
+        String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
+        return currentUrl;
     }
 
 }

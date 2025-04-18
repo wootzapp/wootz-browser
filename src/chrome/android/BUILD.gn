@@ -2678,7 +2678,7 @@ if (current_toolchain == default_toolchain) {
       "java/src/org/chromium/chrome/browser/base/SplitCompatRemoteViewsService.java",
       "java/src/org/chromium/chrome/browser/base/SplitCompatService.java",
       "java/src/org/chromium/chrome/browser/base/SplitPreloader.java",
-      "java/src/org/chromium/chrome/browser/browserservices/WootzAppBackgroundService.java",
+      # "java/src/org/chromium/chrome/browser/browserservices/WootzAppBackgroundService.java",
       "java/src/org/chromium/chrome/browser/bookmarkswidget/BookmarkWidgetService.java",
       "java/src/org/chromium/chrome/browser/crash/ApplicationStatusTracker.java",
       "java/src/org/chromium/chrome/browser/crash/ChromeMinidumpUploadJobService.java",
