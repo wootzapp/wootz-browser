@@ -97,6 +97,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <!-- Permission for using Android 14's credential management framework. -->
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER_QUERY_CANDIDATE_CREDENTIALS"/>
@@ -144,6 +145,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
 
     <uses-permission android:name="com.google.android.apps.now.CURRENT_ACCOUNT_ACCESS" />
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"/>
 
     {% block extra_uses_permissions %}
     {% endblock %}
@@ -207,6 +209,16 @@ by a child template that "extends" this file.
         android:appComponentFactory="org.chromium.chrome.browser.base.SplitCompatAppComponentFactory"
         android:enableOnBackInvokedCallback="true"
         {% block extra_application_attributes %}{% endblock %}>
+        <!-- Branch SDK Keys -->
+        <meta-data android:name="io.branch.sdk.BranchKey" android:value="key_live_cDa637h8OLHePutr8cdSqlbmyChtt2lp" />
+        <meta-data android:name="io.branch.sdk.BranchKey.test" android:value="key_test_nsmYX9dXGRNaTtBz7cnRjlmfqBawFL95" />
+        <meta-data android:name="io.branch.sdk.BranchSecret" android:value="secret_live_fR6MAsAwMjkS845hSdZ2PQvi29HznmKL" />
+        <meta-data android:name="io.branch.sdk.BranchSecret.test" android:value="secret_test_BzUEBczZZxlxMWmENYevHXAacXDLcJay" />
+        <meta-data android:name="io.branch.sdk.TestMode" android:value="false" />
+
+        <!-- Branch Init -->
+        <meta-data android:name="io.branch.sdk.auto_init" android:value="true" />
+        <meta-data android:name="io.branch.sdk.browser_disable_tracking" android:value="false" />
 
         {% if channel in ['canary', 'dev', 'default'] %}
         <profileable android:shell="true"/>
@@ -226,6 +238,91 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize|uiMode|density">
         </activity>
+        <!-- Activity alias for Camp icon -->
+        <activity-alias
+            android:name="org.chromium.chrome.browser.CampIcon"
+            android:enabled="false"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/ic_launcher_camp"
+            android:label="@string/app_name_camp"
+            android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+        </activity-alias>
+        <!-- Activity alias for BlockMesh icon -->
+        <activity-alias
+            android:name="org.chromium.chrome.browser.BlockMeshIcon"
+            android:enabled="false"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/ic_launcher_blockmesh"
+            android:label="@string/app_name_blockmesh"
+            android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+        </activity-alias>
+        <!-- Activity alias for Artifact icon -->
+        <activity-alias
+            android:name="org.chromium.chrome.browser.ArtifactIcon"
+            android:enabled="false"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/ic_launcher_artifact" 
+            android:label="@string/app_name_artifact"
+            android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+        </activity-alias>
+        <!-- Activity alias for Sapien icon -->
+        <activity-alias
+            android:name="org.chromium.chrome.browser.SapienIcon"
+            android:enabled="false"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/ic_launcher_sapien"
+            android:label="@string/app_name_sapien"
+            android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+        </activity-alias>
+        <!-- Activity alias for Eclipse icon -->
+        <activity-alias
+            android:name="org.chromium.chrome.browser.EclipseIcon"
+            android:enabled="false"
+            android:launchMode="singleTask"
+            android:icon="@mipmap/ic_launcher_eclipse"
+            android:label="@string/app_name_eclipse" 
+            android:targetActivity="org.chromium.chrome.browser.ChromeTabbedActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+            </intent-filter>
+        </activity-alias>
         <activity-alias android:name="com.google.android.apps.chrome.IntentDispatcher"
             android:targetActivity="org.chromium.chrome.browser.document.ChromeLauncherActivity"
             android:exported="true">
@@ -238,7 +335,7 @@ by a child template that "extends" this file.
             <intent-filter>
                 {% block common_view_intent_shared_filter_body %}
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <!-- <category android:name="android.intent.category.DEFAULT" /> -->
                 {% if channel in ['stable', 'default'] %}<data android:scheme="googlechrome" />{% endif %}
                 <data android:scheme="http" />
                 <data android:scheme="https" />
@@ -445,6 +542,20 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:exported="false" />
 
+        <receiver
+            android:name="io.branch.receivers.SharingBroadcastReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="EXTRA_CHOSEN_COMPONENT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name="io.branch.referral.InstallListener" android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.vending.INSTALL_REFERRER" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name="org.chromium.chrome.browser.sharing.click_to_call.ClickToCallMessageHandler$PhoneUnlockedReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
@@ -521,6 +632,7 @@ by a child template that "extends" this file.
               or Daydream. It does so by testing if intents can be resolved by the activity
               that requests it.
             -->
+
             {% block supports_vr %}
             <intent-filter>
                 <action android:name="org.chromium.chrome.browser.dummy.action" />
@@ -588,7 +700,8 @@ by a child template that "extends" this file.
         </activity>
         <activity android:name="org.chromium.chrome.browser.firstrun.FirstRunActivity"
             android:theme="@style/Theme.Chromium.DialogWhenLarge"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
+            android:exported="true"
             {% block first_run_activity_common %}
             android:label="@string/fre_activity_label"
             android:excludeFromRecents="true"
@@ -596,6 +709,24 @@ by a child template that "extends" this file.
             android:windowSoftInputMode="stateHidden|adjustPan"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize"
             {% endblock %}>
+            
+            <!-- Non AppLink URI Scheme -->
+            <intent-filter>
+                <data android:scheme="wootzapp" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+            </intent-filter>
+
+            <!-- Branch App Links (for Android 6.0+) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="branch.wootz.app" />
+                <data android:scheme="http" android:host="branch.wootz.app" />
+            </intent-filter>
+
         </activity>
         <activity android:name="org.chromium.chrome.browser.firstrun.TabbedModeFirstRunActivity"
             android:theme="@style/Theme.Chromium.TabbedMode"
@@ -1411,7 +1542,7 @@ by a child template that "extends" this file.
       {% block extra_application_definitions_for_test %}
       {% endblock %}
 
-       <meta-data android:name="io.sentry.dsn" android:value="https://fc38a4ab40405f6cda3e680c1659226e@o4508518313230336.ingest.us.sentry.io/4508642172862464" />
+        <meta-data android:name="io.sentry.dsn" android:value="https://fc38a4ab40405f6cda3e680c1659226e@o4508518313230336.ingest.us.sentry.io/4508642172862464" />
 
         <!-- Add data like request headers, user ip adress and device name, see https://docs.sentry.io/platforms/android/data-management/data-collected/ for more info -->
         <meta-data android:name="io.sentry.send-default-pii" android:value="true" />
@@ -1430,3 +1561,4 @@ by a child template that "extends" this file.
     {% block extra_root_definitions %}
     {% endblock %}
 </manifest>
+

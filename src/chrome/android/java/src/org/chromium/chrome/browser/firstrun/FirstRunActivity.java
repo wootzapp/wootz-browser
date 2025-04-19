@@ -10,6 +10,16 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
 
+import android.util.Log;
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import org.json.JSONObject;
+import org.chromium.chrome.browser.IntentHandler;
+import android.text.TextUtils;
+import android.content.Intent;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
+import org.chromium.content_public.browser.LoadUrlParams;
+
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
@@ -47,6 +57,15 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.nio.ByteBuffer;
+import org.json.JSONArray;
+import org.json.JSONException;
+import android.os.AsyncTask;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
  * Handles the First Run Experience sequences shown to the user launching Chrome for the first time.
@@ -87,6 +106,9 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Nullable private static FirstRunActivityObserver sObserver;
 
     private boolean mPostNativeAndPolicyPagesCreated;
+    public static String ext_utm_source = "";
+
+    private static final String TAG = "FirstRunActivity";
 
     /** Use {@link Promise#isFulfilled()} to verify whether the native has been initialized. */
     private final Promise<Void> mNativeInitializationPromise = new Promise<>();
@@ -391,7 +413,40 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Override
     public void onStart() {
         super.onStart();
+        
+        // Get the latest Branch deep link data in onStart
+        Branch.sessionBuilder(this)
+            .withCallback(new Branch.BranchReferralInitListener() {
+                @Override
+                public void onInitFinished(JSONObject referringParams, BranchError error) {
+                    if (error == null && referringParams != null) {
+                        Log.e(TAG, "onFirstRunActivityStart: Branch session data: " + referringParams.toString());
+                        try {
+                            android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+                            android.content.SharedPreferences.Editor editor = prefs.edit();
 
+                            // Store the full JSON for reference
+                            editor.putString("branch_data_json", referringParams.toString());
+
+                            // Store individual parameters
+                            if (referringParams.has("~channel")) {
+                                String utmSource = referringParams.optString("~channel", "");
+                                editor.putString("utm_source_wootzapp", utmSource);
+                                Log.e(TAG, "Stored utm_source_wootzapp: " + utmSource);
+                            }
+                            editor.apply();
+                            Log.e(TAG, "Branch data stored in SharedPreferences");
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error storing branch data: " + e.getMessage(), e);
+                        }
+                    } else if (error != null) {
+                        Log.e(TAG, "onFirstRunActivityStart: Branch initialization error: " + error.getMessage());
+                    }
+                }
+            })
+            .withData(getIntent().getData())
+            .init();
+    
         // Multiple active FREs does not really make sense for the user. Once one is complete, the
         // others would become out of date. This approach turns out to be quite tricky to enforce
         // completely with just Android configuration, because of all the different ways the FRE

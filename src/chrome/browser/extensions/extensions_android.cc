@@ -133,7 +133,8 @@ void JNI_Extensions_InstallExtension(
   LOG(INFO) << "base_url: " << base_url;
   LOG(INFO) << "url: " << url;
   const std::string kofficialStore = "wootzapp://flow-store";
-  if (base_url != kofficialStore) {
+  const std::string kinitialSource = "wootzapp://startup-crx-install";
+  if (base_url != kofficialStore && base_url != kinitialSource) {
     LOG(ERROR) << "Install from official store , WRONG URL = " << url;
     return;
   }

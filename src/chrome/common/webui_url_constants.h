@@ -602,6 +602,8 @@ extern const size_t kNumberOfChromeInternalsPathURLs;
 extern const char* const kChromeDebugURLs[];
 extern const size_t kNumberOfChromeDebugURLs;
 
+extern const char kChromeUIStartupCrxInstallHost[];
+extern const char kChromeUIStartupCrxInstallURL[];
 }  // namespace chrome
 
 #endif  // CHROME_COMMON_WEBUI_URL_CONSTANTS_H_

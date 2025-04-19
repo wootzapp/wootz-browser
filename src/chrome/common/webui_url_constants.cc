@@ -656,6 +656,8 @@ const char kTriggeredResetProfileSettingsSubPage[] =
     "triggeredResetProfileSettings";
 const char kManageProfileSubPage[] = "manageProfile";
 const char kPeopleSubPage[] = "people";
+const char kChromeUIStartupCrxInstallHost[] = "startup-crx-install";
+const char kChromeUIStartupCrxInstallURL[] = "wootzapp://startup-crx-install/";
 
 #if !BUILDFLAG(IS_ANDROID)
 const char kAdPrivacySubPagePath[] = "/adPrivacy";

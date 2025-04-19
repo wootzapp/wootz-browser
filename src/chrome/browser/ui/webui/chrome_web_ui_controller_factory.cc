@@ -50,6 +50,7 @@
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
 #include "chrome/browser/ui/webui/throttle/throttle_ui.h"
 #include "chrome/browser/ui/webui/extension_store/extension_store_ui.h"
+#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install.h"
 #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
@@ -448,7 +449,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<ThrottleUI>;
   if (url.host_piece() == chrome::kChromeUIExtensionStoreHost)
     return &NewWebUI<ExtensionStoreUI>;
-
+  if (url.host_piece() == chrome::kChromeUIStartupCrxInstallHost)
+    return &NewWebUI<StartupCrxInstallUI>;
   if (url.host_piece() == chrome::kChromeUINTPTilesInternalsHost)
     return &NewWebUI<NTPTilesInternalsUI>;
   if (url.host_piece() == chrome::kChromeUIOmniboxHost)

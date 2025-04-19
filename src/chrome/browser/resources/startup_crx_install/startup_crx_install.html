@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>App Splash Screen</title>
+    <link rel="stylesheet" href="startup_crx_install.css">
+</head>
+<body>
+    <div class="splash-container">
+        <!-- Logo and Title -->
+        <div class="logo-container">
+            <div id="app-logo"></div>
+            <div id="app-title">Loading App...</div>
+        </div>
+
+        <!-- Loading Progress -->
+        <div class="loading-container">
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="progress-text" id="progress-text">Loading resources...</div>
+        </div>
+
+        <!-- Continue Button -->
+        <button class="continue-btn" id="continue-btn">Continue</button>
+
+        <!-- Powered By Logo -->
+        <div class="powered-by">
+            <img class="wootzapp-logo" id="powered-logo" alt="Powered by WOOTZAPP">
+        </div>
+    </div>
+
+    <!-- Final Animation -->
+    <div class="final-animation" id="final-animation">
+        <div class="hexagon-grid" id="hexagon-grid"></div>
+        <div class="loading-spinner" id="loading-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+        </div>
+    </div>
+
+    <script src="startup_crx_install.js"></script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            height: 90vh;
+            width: 100vw;
+        }
+
+        /* Update color scheme */
+        :root {
+            --primary-color: #FF4500;
+            --secondary-color: #FF8C00;
+            --text-dark: #333333;
+            --text-light: #666666;
+            --background: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Update splash container */
+        .splash-container {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            background: var(--background);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Update app title */
+        #app-title {
+            font-size: 2rem;
+            color: var(--text-dark);
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 1rem;
+            text-shadow: none;
+        }
+
+        /* Update progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: #f0f0f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            width: 0%;
+            background-color: var(--primary-color);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        /* Update progress text */
+        .progress-text {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        /* Update continue button */
+        .continue-btn {
+            padding: 12px 40px;
+            margin-top: 2rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 20px var(--shadow-color);
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+            display: none;
+        }
+
+        .continue-btn:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 25px var(--shadow-color);
+        }
+
+        .continue-btn.show {
+            display: block;
+            animation: fadeInUp 0.8s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Update powered by section */
+        .powered-by {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .powered-text {
+            color: var(--text-light);
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .wootzapp-logo {
+            width: 120px;
+            height: auto;
+            filter: none; /* Remove the invert filter */
+        }
+
+        /* Update loading dots */
+        .loader {
+            display: flex;
+            justify-content: space-between;
+            width: 60px;
+            margin: 2rem auto;
+        }
+
+        .dot {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            animation: bounce 0.6s infinite alternate;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0% {
+                transform: translateY(0);
+            }
+            100% {
+                transform: translateY(-20px);
+            }
+        }
+
+        /* Update hexagon grid */
+        .hexagon {
+            position: absolute;
+            width: 100px;
+            height: 115px;
+            background-color: rgba(255, 69, 0, 0.1); /* Using primary color with opacity */
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            opacity: 0;
+        }
+
+        @keyframes hexPulse {
+            0% {
+                transform: scale(0);
+                opacity: 0.7;
+            }
+            50% {
+                transform: scale(1);
+                opacity: 0.3;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        /* Update loading spinner */
+        .loading-spinner {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            z-index: 20;
+            display: none;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .loading-spinner .spinner-ring {
+            border: 6px solid transparent;
+            border-radius: 50%;
+        }
+
+        .loading-spinner .spinner-ring:nth-child(1) {
+            border-top-color: var(--primary-color);
+        }
+
+        .loading-spinner .spinner-ring:nth-child(2) {
+            border-right-color: var(--secondary-color);
+        }
+
+        .loading-spinner .spinner-ring:nth-child(3) {
+            border-bottom-color: var(--primary-color);
+        }
+
+        /* Update app logo container */
+        #app-logo {
+            width: 150px;
+            height: 150px;
+            background-color: white;
+            margin-bottom: 1rem;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 30px var(--shadow-color);
+            overflow: hidden;
+            border-radius: 20px;
+            border: 1px solid #f0f0f0;
+        }
+
+        /* Default logo styling (will be replaced) */
+        #app-logo::before {
+            content: "";
+            position: absolute;
+            width: 60%;
+            height: 60%;
+            /* border-radius: 50%; */
+        }
+
+        #app-logo::after {
+            content: "";
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            /* border-radius: 50%; */
+        }
+        #app-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Media Queries for Responsive Design */
+        @media (max-width: 768px) {
+            #app-logo {
+                width: 120px;
+                height: 120px;
+            }
+
+            #app-title {
+                font-size: 1.7rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #app-logo {
+                width: 100px;
+                height: 100px;
+            }
+
+            #app-title {
+                font-size: 1.5rem;
+            }
+
+            .loading-container {
+                width: 85%;
+            }
+        }
+
+        /* Add these new styles while keeping all existing styles */
+
+        .loading-container {
+            width: 80%;
+            max-width: 300px;
+            margin-top: 3rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Responsive Design System */
+
+        /* Base font sizes for different screen sizes */
+        :root {
+            --font-size-xs: 0.75rem;    /* 12px */
+            --font-size-sm: 0.875rem;   /* 14px */
+            --font-size-base: 1rem;     /* 16px */
+            --font-size-lg: 1.25rem;    /* 20px */
+            --font-size-xl: 1.5rem;     /* 24px */
+            --font-size-2xl: 2rem;      /* 32px */
+            
+            /* Spacing variables */
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 1rem;
+            --spacing-md: 1.5rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
+        }
+
+        /* Extra Large Screens (4K and above) */
+        @media screen and (min-width: 2560px) {
+            :root {
+                --font-size-base: 1.25rem;
+                --font-size-2xl: 2.5rem;
+            }
+
+            #app-logo {
+                width: 200px;
+                height: 200px;
+            }
+
+            .loader {
+                width: 80px;
+            }
+
+            .dot {
+                width: 20px;
+                height: 20px;
+            }
+
+            .progress-bar {
+                height: 8px;
+            }
+        }
+
+        /* Large Desktop Screens */
+        @media screen and (max-width: 1920px) {
+            #app-logo {
+                width: 150px;
+                height: 150px;
+            }
+        }
+
+        /* Standard Desktop/Laptop */
+        @media screen and (max-width: 1366px) {
+            #app-logo {
+                width: 130px;
+                height: 130px;
+            }
+
+            #app-title {
+                font-size: var(--font-size-xl);
+            }
+        }
+
+        /* Tablets and Small Laptops */
+        @media screen and (max-width: 1024px) {
+            #app-logo {
+                width: 120px;
+                height: 120px;
+            }
+
+            #app-title {
+                font-size: var(--font-size-lg);
+            }
+
+            .loading-container {
+                width: 70%;
+            }
+
+            .continue-btn {
+                padding: 10px 30px;
+                font-size: var(--font-size-base);
+            }
+        }
+
+        /* Large Tablets/iPad */
+        @media screen and (max-width: 768px) {
+            #app-logo {
+                width: 100px;
+                height: 100px;
+            }
+
+            .loading-container {
+                width: 80%;
+            }
+
+            .loader {
+                width: 50px;
+            }
+
+            .dot {
+                width: 12px;
+                height: 12px;
+            }
+        }
+
+        /* Large Mobile Phones */
+        @media screen and (max-width: 576px) {
+            #app-logo {
+                width: 90px;
+                height: 90px;
+            }
+
+            #app-title {
+                font-size: var(--font-size-base);
+            }
+
+            .progress-text {
+                font-size: var(--font-size-sm);
+            }
+
+            .continue-btn {
+                padding: 8px 24px;
+                font-size: var(--font-size-sm);
+            }
+
+            .powered-by {
+                bottom: 10px;
+            }
+
+            .wootzapp-logo {
+                height: 30px;
+            }
+        }
+
+        /* Small Mobile Phones */
+        @media screen and (max-width: 375px) {
+            #app-logo {
+                width: 80px;
+                height: 80px;
+            }
+
+            .loading-container {
+                width: 90%;
+            }
+
+            .loader {
+                width: 45px;
+            }
+
+            .dot {
+                width: 10px;
+                height: 10px;
+            }
+        }
+
+        /* Extra Small Mobile Phones */
+        @media screen and (max-width: 320px) {
+            #app-logo {
+                width: 70px;
+                height: 70px;
+            }
+
+            #app-title {
+                font-size: var(--font-size-sm);
+            }
+
+            .progress-text {
+                font-size: var(--font-size-xs);
+            }
+
+            .continue-btn {
+                padding: 6px 20px;
+            }
+        }
+
+        /* Height-based Media Queries */
+        @media screen and (max-height: 600px) {
+            .logo-container {
+                margin-bottom: var(--spacing-sm);
+            }
+
+            .loading-container {
+                margin-top: var(--spacing-sm);
+            }
+
+            .powered-by {
+                bottom: 5px;
+            }
+        }
+
+        /* Portrait Orientation Specific */
+        @media screen and (orientation: portrait) {
+            .splash-container {
+                padding: var(--spacing-md);
+            }
+        }
+
+        /* Landscape Orientation Specific */
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            .splash-container {
+                flex-direction: row;
+                justify-content: space-around;
+                padding: var(--spacing-sm);
+            }
+
+            .logo-container {
+                margin-bottom: 0;
+                margin-right: var(--spacing-lg);
+            }
+
+            .loading-container {
+                margin-top: 0;
+            }
+        }
+
+        /* High DPI Screens */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .progress-bar {
+                height: 3px;
+            }
+        }
+
+        /* Reduced Motion Preference */
+        @media (prefers-reduced-motion: reduce) {
+            .dot {
+                animation-duration: 1.2s;
+            }
+
+            @keyframes bounce {
+                0% {
+                    transform: translateY(0);
+                }
+                100% {
+                    transform: translateY(-10px);
+                }
+            }
+        }
+
+        /* Dark Mode Support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: #ffffff; /* Keep background white even in dark mode */
+                --text-dark: #333333;
+                --text-light: #666666;
+            }
+        }
+
+        /* Print Media */
+        @media print {
+            .splash-container {
+                background: none;
+            }
+
+            .loader, .progress-bar, .continue-btn {
+                display: none;
+            }
+        }

@@ -1,0 +1,11 @@
+Name: Huawei HMS Ads Identifier
+Short Name: huawei-hms-ads-identifier
+URL: https://developer.huawei.com/consumer/en/hms/huawei-adskit/
+Version: 3.4.39.302
+License: Proprietary
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+Huawei HMS Ads Identifier library for attribution on Huawei devices.
