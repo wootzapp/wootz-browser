@@ -244,7 +244,7 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
     console.log('Extension already installed, closing window');
     // Close the window after a short delay
     setTimeout(() => {
-      window.location.href = "wootzapp://newtab/";
+      window.location.href = 'wootzapp://newtab';
     }, 500);
   }
 }
@@ -425,8 +425,29 @@ function setupUI(utmSource) {
             loaderContainer.appendChild(dot);
         }
 
-        // Insert the loader after the logo container
-        logoContainer.insertAdjacentElement('afterend', loaderContainer);
+        // Add custom message text under the bouncing dots
+        const downloadMessageText = document.createElement('div');
+        downloadMessageText.className = 'custom-message-text';
+        downloadMessageText.textContent = `Setting up customized experience for you. \nPlease wait...`;
+        downloadMessageText.style.marginTop = '7px';
+        downloadMessageText.style.fontSize = '16px';
+        downloadMessageText.style.color = '#666';
+        downloadMessageText.style.textAlign = 'center';
+        downloadMessageText.style.fontWeight = 'bold';
+        downloadMessageText.style.whiteSpace = 'pre-line';
+        
+        // Create a container for the loader and message
+        const downloadContainer = document.createElement('div');
+        downloadContainer.className = 'download-container';
+        downloadContainer.style.display = 'flex';
+        downloadContainer.style.flexDirection = 'column';
+        downloadContainer.style.alignItems = 'center';
+        
+        downloadContainer.appendChild(loaderContainer);
+        downloadContainer.appendChild(downloadMessageText);
+
+        // Insert the download container after the logo container
+        logoContainer.insertAdjacentElement('afterend', downloadContainer);
         
         // Start download after animation
         setTimeout(() => {
