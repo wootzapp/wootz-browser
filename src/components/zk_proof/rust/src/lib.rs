@@ -298,6 +298,7 @@ fn generate_verification_key_json(vk: &VerifyingKey<Bn254>) -> Result<String, Bo
             [delta_g2_y0, delta_g2_y1],
             ["1", "0"]
         ],
+        "vk_ic": ic,
         "vk_alphabeta_12": vk_alphabeta_12,
         "IC": ic,
         
