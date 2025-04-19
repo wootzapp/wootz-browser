@@ -36,6 +36,7 @@ import org.chromium.components.embedder_support.browser_context.PartitionResolve
 import org.chromium.components.module_installer.util.ModuleUtil;
 import org.chromium.components.webauthn.cred_man.CredManUiRecommenderProvider;
 import org.chromium.url.GURL;
+import android.content.Context;
 
 /**
  * Basic application functionality that should be shared among all browser applications that use
@@ -68,38 +69,15 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
 
                 Log.e(TAG, "Branch SDK initialized successfully");
                 
-                // Initialize InstallReferrerManager after Branch
-                new Thread(() -> {
-                    try {
-                        Log.e(TAG, "Starting InstallReferrerManager");
-                        InstallReferrerManager referrerManager = new InstallReferrerManager(getApplication());
-                        referrerManager.start();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error starting InstallReferrerManager: " + e.getMessage(), e);
-                    }
-                }).start();
             } catch (Exception e) {
                 Log.e(TAG, "Error initializing Branch SDK: " + e.getMessage(), e);
             }
             
+            // Check Android version
+            checkAndroidVersion();
+            
             // Check for Google Play Services availability
-            try {
-                int result = com.google.android.gms.common.GooglePlayServicesUtil
-                        .isGooglePlayServicesAvailable(getApplication());
-                if (result != com.google.android.gms.common.ConnectionResult.SUCCESS) {
-                    android.widget.Toast.makeText(
-                            getApplication(),
-                            "This app requires Google Play Services which are not available on this device. Some features may not work.",
-                            android.widget.Toast.LENGTH_LONG).show();
-                    Log.w(TAG, "Google Play Services not available, result code: " + result);
-                }
-            } catch (Exception e) {
-                android.widget.Toast.makeText(
-                        getApplication(),
-                        "This app requires Google Play Services which are not available on this device. Some features may not work.",
-                        android.widget.Toast.LENGTH_LONG).show();
-                Log.w(TAG, "Error checking Google Play Services: " + e.getMessage());
-            }
+            checkGooglePlayServices();
 
             FontPreloader.getInstance().load(getApplication());
 
@@ -208,5 +186,45 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
                 .chromeAppModule(module)
                 .appHooksModule(appHooksModule)
                 .build();
+    }
+
+    private void checkGooglePlayServices() {
+        try {
+            // Store the result for later use by activities
+            int result = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+                    .isGooglePlayServicesAvailable(getApplication());
+            
+            // Save this result in SharedPreferences so activities can access it
+            android.content.SharedPreferences prefs = getApplication()
+                    .getSharedPreferences("chrome_gms_prefs", Context.MODE_PRIVATE);
+            prefs.edit().putInt("gms_availability", result).apply();
+            
+            Log.i(TAG, "Google Play Services availability check result: " + result);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking Google Play Services: " + e.getMessage());
+            // Save error state
+            android.content.SharedPreferences prefs = getApplication()
+                    .getSharedPreferences("chrome_gms_prefs", Context.MODE_PRIVATE);
+            prefs.edit().putInt("gms_availability", 
+                    com.google.android.gms.common.ConnectionResult.SERVICE_MISSING).apply();
+        }
+    }
+
+    private void checkAndroidVersion() {
+        try {
+            boolean isSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P;
+            Log.i(TAG, "Android version check: " + (isSupported ? "supported" : "unsupported") + 
+                       " (running " + android.os.Build.VERSION.RELEASE + ")");
+            if (!isSupported) {
+                Log.e(TAG, "Android version is not supported: " + android.os.Build.VERSION.RELEASE);
+                android.widget.Toast.makeText(
+                        getApplication(),
+                        "This app requires Android 9.0 or higher.",
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking Android version: " + e.getMessage());
+        }
     }
 }
