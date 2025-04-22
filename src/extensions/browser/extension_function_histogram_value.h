@@ -1972,6 +1972,7 @@ enum HistogramValue {
   WOOTZ_SIGN_TRANSACTION = 1910,
   WOOTZ_SIGN_SOLANA_TRANSACTION = 1911,
   WOOTZ_GET_BROWSER_INFO = 1912,
+  WOOTZ_GENERATE_ZK_PROOF = 1913,
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

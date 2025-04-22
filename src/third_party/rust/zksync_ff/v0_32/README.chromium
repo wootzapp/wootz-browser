@@ -1,0 +1,9 @@
+Name: zksync_ff
+URL: https://crates.io/crates/zksync_ff
+Description: Library for building and interfacing with finite fields, based on ff
+Version: 0.32.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/zksync_ff-0.32.0/LICENSE-APACHE
+Revision: a4245bc720af2b0691118a5f2ea8201ca4662def

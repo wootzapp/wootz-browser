@@ -337,5 +337,19 @@ class WootzGetBrowserInfoFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzGenerateZKProofFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.generateZKProof", WOOTZ_GENERATE_ZK_PROOF)
+
+  WootzGenerateZKProofFunction() = default;
+  WootzGenerateZKProofFunction(const WootzGenerateZKProofFunction&) = delete;
+  WootzGenerateZKProofFunction& operator=(const WootzGenerateZKProofFunction&) = delete;
+
+ protected:
+  ~WootzGenerateZKProofFunction() override {}
+  ResponseAction Run() override;
+  
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

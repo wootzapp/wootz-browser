@@ -116,6 +116,7 @@ source_set("browser") {
     "//components/viz/common",
     "//components/viz/host",
     "//components/web_package",
+    "//components/zk_proof",
     "//content:content_resources",
     "//content/browser/aggregation_service/proto:aggregatable_report_proto",
     "//content/browser/attribution_reporting:attribution_reporting_proto",

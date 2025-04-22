@@ -1,0 +1,9 @@
+Name: hashbrown
+URL: https://crates.io/crates/hashbrown
+Description: A Rust port of Google's SwissTable hash map
+Version: 0.15.2
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/hashbrown-0.15.2/LICENSE-APACHE
+Revision: 6c17446b6003a3abee8c7909aaf541e504b4a5dd

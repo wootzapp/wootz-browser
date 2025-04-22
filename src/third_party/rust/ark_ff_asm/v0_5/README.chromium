@@ -1,0 +1,9 @@
+Name: ark-ff-asm
+URL: https://crates.io/crates/ark-ff-asm
+Description: A library for generating x86-64 assembly for finite field multiplication
+Version: 0.5.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/ark-ff-asm-0.5.0/LICENSE-APACHE
+Revision: 7ad88c46e859a94ab8e0b19fd8a217c3dc472f1c

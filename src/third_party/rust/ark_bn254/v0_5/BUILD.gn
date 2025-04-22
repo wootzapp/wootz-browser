@@ -1,0 +1,58 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "ark_bn254"
+  epoch = "0.5"
+  crate_type = "rlib"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/constraints/curves.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/constraints/fields.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/constraints/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/curves/g1.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/curves/g2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/curves/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/curves/tests.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/fq.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/fq12.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/fq2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/fq6.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/fr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/fields/tests.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-bn254-0.5.0/src/lib.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.5.0"
+  cargo_pkg_authors = "arkworks contributors"
+  cargo_pkg_name = "ark-bn254"
+  cargo_pkg_description = "The BN254 pairing-friendly elliptic curve"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/ark_ec/v0_5:lib",
+    "//third_party/rust/ark_ff/v0_5:lib",
+    "//third_party/rust/ark_std/v0_5:lib",
+  ]
+  features = [
+    "curve",
+    "scalar_field",
+  ]
+  # testonly = true
+}

@@ -47,6 +47,7 @@
 #include "base/time/time.h"
 #include "base/trace_event/optional_trace_event.h"
 #include "base/trace_event/trace_event.h"
+#include "base/json/json_writer.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "components/attribution_reporting/features.h"
@@ -54,6 +55,7 @@
 #include "components/url_formatter/url_formatter.h"
 #include "components/viz/common/features.h"
 #include "components/viz/host/host_frame_sink_manager.h"
+#include "components/zk_proof/tls_info/tls_data_store.h"
 #include "content/browser/accessibility/browser_accessibility.h"
 #include "content/browser/accessibility/browser_accessibility_state_impl.h"
 #include "content/browser/attribution_reporting/attribution_host.h"
@@ -6528,6 +6530,93 @@ void WebContentsImpl::ReadyToCommitNavigation(
   // the main frame case.
   if (navigation_handle->IsInMainFrame() &&
       navigation_handle->GetNetErrorCode() == net::OK) {
+        LOG(INFO) << "Kartik: Processing TLS data for URL: " << navigation_handle->GetURL().spec();
+    
+    if (navigation_handle->GetSSLInfo().has_value()) {
+      const net::SSLInfo& ssl_info = *navigation_handle->GetSSLInfo();
+      LOG(INFO) << "Kartik: SSL certificate status: 0x" 
+                << std::hex << ssl_info.cert_status;
+      
+      // LOG(INFO) << "Kartik: SSL version: " << ssl_info.connection_status;
+      // LOG(INFO) << "Kartik: Key Exchange Group: " << ssl_info.key_exchange_group;
+      // LOG(INFO) << "Kartik: Peer Signature Algorithm: " << ssl_info.peer_signature_algorithm;
+      
+      // Certificate information
+      if (ssl_info.cert) {
+        LOG(INFO) << "Kartik: Certificate details:";
+        LOG(INFO) << "Kartik:   Subject: " << ssl_info.cert->subject().GetDisplayName();
+        LOG(INFO) << "Kartik:   Issuer: " << ssl_info.cert->issuer().GetDisplayName();
+      }
+
+      // // Security state
+      // LOG(INFO) << "Kartik: Security state:";
+      // LOG(INFO) << "Kartik:   Issued by known root: " << ssl_info.is_issued_by_known_root;
+      // LOG(INFO) << "Kartik:   PKP bypassed: " << ssl_info.pkp_bypassed;
+      // LOG(INFO) << "Kartik:   Client cert sent: " << ssl_info.client_cert_sent;
+      // LOG(INFO) << "Kartik:   Early data received: " << ssl_info.early_data_received;
+      
+      // // Handshake info
+      // LOG(INFO) << "Kartik: Handshake type: " << [&ssl_info]() {
+      //   switch(ssl_info.handshake_type) {
+      //     case net::SSLInfo::HANDSHAKE_RESUME: return "RESUME";
+      //     case net::SSLInfo::HANDSHAKE_FULL: return "FULL";
+      //     default: return "UNKNOWN";
+      //   }
+      // }();
+      
+      // Public key hashes
+      if (!ssl_info.public_key_hashes.empty()) {
+        // Get the first certificate hash (most important one)
+        LOG(INFO) << "Kartik: Public key hashes size: " << ssl_info.public_key_hashes.size();
+        const auto& hash = ssl_info.public_key_hashes[0];
+        LOG(INFO) << "Kartik: Certificate hash: " << hash.ToString();
+        std::vector<uint8_t> cert_hash(hash.data(), hash.data() + hash.size());
+        LOG(INFO) << "Kartik: Certificate hash: " << cert_hash.size() << " bytes";
+        
+        // Create a JSON object with the header info
+        base::Value::Dict ssl_dict;
+        ssl_dict.Set("ssl_status", static_cast<int>(ssl_info.cert_status));
+        ssl_dict.Set("ssl_version", static_cast<int>(ssl_info.connection_status));
+        ssl_dict.Set("key_exchange_group", ssl_info.key_exchange_group);
+        ssl_dict.Set("peer_signature_algorithm", ssl_info.peer_signature_algorithm);
+        
+        // Add certificate subject/issuer if available
+        if (ssl_info.cert) {
+          ssl_dict.Set("subject", ssl_info.cert->subject().GetDisplayName());
+          ssl_dict.Set("issuer", ssl_info.cert->issuer().GetDisplayName());
+        }
+        
+        std::string headers_json;
+        base::JSONWriter::Write(ssl_dict, &headers_json);
+        
+        // Store the data
+        zk_proof::TlsDataStore::GetInstance()->StoreTlsData(
+            navigation_handle->GetURL().spec(),
+            cert_hash,
+            headers_json);
+        
+        LOG(INFO) << "Kartik: Stored TLS data for ZK proof generation";
+
+        for (size_t i = 0; i < ssl_info.public_key_hashes.size(); ++i) {
+          LOG(INFO) << "Kartik: Public key hash " << i << " size: " 
+                    << ssl_info.public_key_hashes[i].size() << " bytes";
+          LOG(INFO) << "Kartik: Public key hash " << i << ": " 
+                    << ssl_info.public_key_hashes[i].ToString();
+        }
+      } else {
+        LOG(INFO) << "Kartik: No public key hashes available.";
+      }
+      
+      // // Certificate timestamps
+      // LOG(INFO) << "Kartik: Signed certificate timestamps count: " 
+      //           << ssl_info.signed_certificate_timestamps.size();
+      
+      // // CT Policy compliance
+      // LOG(INFO) << "Kartik: CT Policy compliance: " 
+      //           << static_cast<int>(ssl_info.ct_policy_compliance);
+    } else {
+      LOG(WARNING) << "Kartik: No SSL info available for: " << navigation_handle->GetURL().spec();
+    }
     static_cast<NavigationRequest*>(navigation_handle)
         ->frame_tree_node()
         ->frame_tree()
