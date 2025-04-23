@@ -414,7 +414,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     public void onStart() {
         super.onStart();
         
-        // Get the latest Branch deep link data in onStart
+        // // // Get the latest Branch deep link data in onStart
         Branch.sessionBuilder(this)
             .withCallback(new Branch.BranchReferralInitListener() {
                 @Override
@@ -546,7 +546,18 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     }
 
     private void launchPendingIntentAndFinish() {
+        Log.e(TAG, "launchPendingIntentAndFinish called"); 
         if (!sendFirstRunCompletePendingIntent()) {
+            Log.e(TAG, "No pending intent to launch, launching main activity");
+
+            try {
+                Intent mainIntent = new Intent(this, ChromeTabbedActivity.class);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(mainIntent);
+                Log.e(TAG, "Started ChromeTabbedActivity");
+            } catch (Exception e) {
+                Log.e(TAG, "Error launching main activity", e);
+            }
             finish();
         } else {
             ApplicationStatus.registerStateListenerForAllActivities(
