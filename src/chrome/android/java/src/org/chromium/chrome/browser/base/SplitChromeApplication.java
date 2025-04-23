@@ -7,11 +7,14 @@ package org.chromium.chrome.browser.base;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+
+import java.util.Locale;
 
 import org.chromium.base.BundleUtils;
 import org.chromium.base.JNIUtils;
@@ -160,9 +163,18 @@ public class SplitChromeApplication extends SplitCompatApplication {
         // may be accessed early in startup, and forcing a load here will reduce the benefits of
         // preloading the Chrome split in the background.
         if (mResources != null) {
+            Configuration config = new Configuration(mResources.getConfiguration());
+            config.setLocale(new Locale("en", "US"));
+            mResources.updateConfiguration(config, mResources.getDisplayMetrics());
             return mResources;
         }
-        return getBaseContext().getResources();
+
+        Resources baseResources = getBaseContext().getResources();
+        Configuration config = new Configuration(baseResources.getConfiguration());
+        config.setLocale(new Locale("en", "US"));
+        baseResources.updateConfiguration(config, baseResources.getDisplayMetrics());
+
+        return baseResources;
     }
 
     /** Waits for the specified split to finish preloading if necessary. */

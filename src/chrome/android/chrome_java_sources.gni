@@ -4,7 +4,8 @@
 
 chrome_java_sources = [
   "java/src/com/google/android/apps/chrome/appwidget/bookmarks/BookmarkThumbnailWidgetProvider.java",
-  "java/src/org/chromium/base/WootzPreferenceKeys.java",  "java/src/org/chromium/base/WootzFeatureList.java",
+  "java/src/org/chromium/base/WootzPreferenceKeys.java",
+  "java/src/org/chromium/base/WootzFeatureList.java",
   "java/src/org/chromium/chrome/browser/ActivityTabProvider.java",
   "java/src/org/chromium/chrome/browser/ActivityUtils.java",
   "java/src/org/chromium/chrome/browser/AppHooks.java",
@@ -27,7 +28,6 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/ChromeStrictMode.java",
   "java/src/org/chromium/chrome/browser/ChromeStringConstants.java",
   "java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java",
-  "java/src/org/chromium/chrome/browser/branch/BranchLinkHandlerActivity.java",
   "java/src/org/chromium/chrome/browser/ChromeTabbedActivity2.java",
   "java/src/org/chromium/chrome/browser/ChromeWindow.java",
   "java/src/org/chromium/chrome/browser/DefaultBrowserInfo.java",
