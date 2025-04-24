@@ -13,7 +13,7 @@ void TlsDataStore::StoreTlsData(
     const std::string& url,
     const std::vector<uint8_t>& cert_hash,
     const std::string& headers_json) {
-  LOG(INFO) << "Kartik: Storing TLS data for URL: " << url;
+  LOG(INFO) << "Storing TLS data for URL: " << url;
   std::lock_guard<std::mutex> lock(data_mutex_);
   
   TlsData data;
@@ -23,11 +23,11 @@ void TlsDataStore::StoreTlsData(
   
   tls_data_by_url_[url] = data;
   most_recent_url_ = url;
-  LOG(INFO) << "Kartik: TLS data stored for URL: " << url;
+  LOG(INFO) << "TLS data stored for URL: " << url;
 }
 
 std::optional<TlsData> TlsDataStore::GetTlsData(const std::string& url) {
-  LOG(INFO) << "Kartik: Getting TLS data for URL: " << url;
+  LOG(INFO) << "Getting TLS data for URL: " << url;
   std::lock_guard<std::mutex> lock(data_mutex_);
   
   std::string target_url = url.empty() ? most_recent_url_ : url;

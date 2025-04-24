@@ -1,3 +1,6 @@
+#[macro_use] 
+extern crate ark_relations;  // For lc! macro
+
 #[allow(unsafe_op_in_unsafe_fn)]
 #[cxx::bridge]
 mod ffi {
@@ -29,12 +32,11 @@ mod ffi {
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable};
 use ark_snark::SNARK;
 use ark_std::{Zero, One, io::Cursor};
 use sha2::{Sha256, Digest};
 use serde::{Serialize, Deserialize};
-use ark_ff::PrimeField;
 use ark_ec::pairing::Pairing;
 use ark_std::rand::SeedableRng;
 
@@ -60,6 +62,39 @@ struct WebContentCircuit {
     // Public inputs
     cert_hash_public: Option<Fr>,
     content_hash_public: Option<Fr>,
+    
+    // Add the missing cached fields
+    cached_domain_hash: Option<Fr>,
+    cached_content_field: Option<Fr>,
+}
+
+impl WebContentCircuit {
+    fn new(cert_hash: &[u8], headers_json: &str, content: &str) -> Result<Self, String> {
+        // Convert cert_hash to field element
+        let cert_hash_field = bytes_to_field(cert_hash);
+        
+        // Hash and convert content to field element
+        let mut content_hasher = Sha256::new();
+        content_hasher.update(content.as_bytes());
+        let content_hash = content_hasher.finalize();
+        let content_hash_field = bytes_to_field(&content_hash);
+        
+        // Calculate domain hash from headers
+        let domain_hash = bytes_to_field(headers_json.as_bytes());
+        
+        // Calculate content field
+        let content_field = bytes_to_field(content.as_bytes());
+        
+        Ok(Self {
+            cert_hash: cert_hash.to_vec(),
+            headers: headers_json.to_string(),
+            content: content.to_string(),
+            cert_hash_public: Some(cert_hash_field),
+            content_hash_public: Some(content_hash_field),
+            cached_domain_hash: Some(domain_hash),
+            cached_content_field: Some(content_field),
+        })
+    }
 }
 
 impl ConstraintSynthesizer<Fr> for WebContentCircuit {
@@ -67,16 +102,43 @@ impl ConstraintSynthesizer<Fr> for WebContentCircuit {
         self,
         cs: ConstraintSystemRef<Fr>
     ) -> Result<(), SynthesisError> {
+        // Log original values for debugging
+        println!("Processing proof for cert_hash: {:?}", self.cert_hash);
+        println!("Processing proof for content: {}", self.content);
+        println!("With headers: {}", self.headers);
+        
         // Create variables for the public inputs
-        let _cert_hash_var = cs.new_input_variable(|| {
+        let cert_hash_var = cs.new_input_variable(|| {
             self.cert_hash_public.ok_or(SynthesisError::AssignmentMissing)
         })?;
         
-        let _content_hash_var = cs.new_input_variable(|| {
+        let content_hash_var = cs.new_input_variable(|| {
             self.content_hash_public.ok_or(SynthesisError::AssignmentMissing)
         })?;
+
+        // Add domain validation from headers
+        let domain_var = cs.new_witness_variable(|| {
+            self.cached_domain_hash.ok_or(SynthesisError::AssignmentMissing)
+        })?;
         
-        // Simple circuit - we're just verifying we know the inputs
+        // Add content witness
+        let content_var = cs.new_witness_variable(|| {
+            self.cached_content_field.ok_or(SynthesisError::AssignmentMissing)
+        })?;
+        
+        // Fixed constraints using proper linear combinations
+        cs.enforce_constraint(
+            lc!() + cert_hash_var,
+            lc!() + domain_var,
+            lc!() + cert_hash_var
+        )?;
+        
+        cs.enforce_constraint(
+            lc!() + content_var,
+            lc!() + (Fr::one(), Variable::One),
+            lc!() + content_hash_var
+        )?;
+        
         Ok(())
     }
 }
@@ -115,29 +177,17 @@ pub fn generate_groth16_proof(
     content: &str,
     proving_key_bytes: &[u8]
 ) -> String {
-    // Convert inputs to field elements
-    let cert_hash_field = bytes_to_field(cert_hash);
-    
-    // Hash the content
-    let mut content_hasher = Sha256::new();
-    content_hasher.update(content.as_bytes());
-    let content_hash = content_hasher.finalize();
-    let content_hash_field = bytes_to_field(&content_hash);
+    // Create the circuit using the new constructor
+    let circuit = match WebContentCircuit::new(cert_hash, headers_json, content) {
+        Ok(c) => c,
+        Err(e) => return format!("Failed to create circuit: {}", e),
+    };
     
     // Deserialize the proving key with the correct method
     let mut cursor = Cursor::new(proving_key_bytes);
     let proving_key = match ProvingKey::<Bn254>::deserialize_with_mode(&mut cursor, ark_serialize::Compress::No, ark_serialize::Validate::No) {
         Ok(pk) => pk,
         Err(_) => return String::from("Failed to deserialize proving key"),
-    };
-    
-    // Create the circuit
-    let circuit = WebContentCircuit {
-        cert_hash: cert_hash.to_vec(),
-        headers: headers_json.to_string(),
-        content: content.to_string(),
-        cert_hash_public: Some(cert_hash_field),
-        content_hash_public: Some(content_hash_field),
     };
     
     // Generate the proof using the SNARK trait method
@@ -147,7 +197,13 @@ pub fn generate_groth16_proof(
         Err(_) => return String::from("Failed to generate proof"),
     };
     
-    // Format proof for Garaga
+    // Get the public inputs for formatting
+    let cert_hash_field = bytes_to_field(cert_hash);
+    let mut content_hasher = Sha256::new();
+    content_hasher.update(content.as_bytes());
+    let content_hash = content_hasher.finalize();
+    let content_hash_field = bytes_to_field(&content_hash);
+    
     format_proof_for_garaga(&proof, &[cert_hash_field, content_hash_field])
 }
 
@@ -345,6 +401,8 @@ pub fn generate_keys(
         content: content.to_string(),
         cert_hash_public: Some(cert_hash_field),
         content_hash_public: Some(_content_hash_field),
+        cached_domain_hash: Some(bytes_to_field(headers_json.as_bytes())),
+        cached_content_field: Some(bytes_to_field(content.as_bytes())),
     };
     
     // Generate parameters with fixed seed for reproducibility

@@ -1011,7 +1011,7 @@ ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
 std::optional<zk_proof::TlsData> GetBaseDomainTlsData(const std::string& url) {
   GURL gurl(url);
   if (!gurl.is_valid() || !gurl.has_host()) {
-    LOG(ERROR) << "Kartik: Invalid URL format or missing host: " << url;
+    LOG(ERROR) << "Invalid URL format or missing host: " << url;
     return std::nullopt;
   }
 
@@ -1056,42 +1056,42 @@ std::optional<zk_proof::TlsData> GetBaseDomainTlsData(const std::string& url) {
   std::string cumulative_path = base_url;
   for (const auto& component : components) {
     cumulative_path += "/" + component;
-    LOG(ERROR) << "Kartik: Adding intermediate path: " << cumulative_path;
+    LOG(ERROR) << "Adding intermediate path: " << cumulative_path;
     urls_to_try.push_back(cumulative_path);
     urls_to_try.push_back(cumulative_path + "/");
   }
 
   // Try each URL
   for (const auto& try_url : urls_to_try) {
-    LOG(ERROR) << "Kartik: Trying URL for TLS data: " << try_url;
+    LOG(ERROR) << "Trying URL for TLS data: " << try_url;
     auto tls_data = zk_proof::TlsDataStore::GetInstance()->GetTlsData(try_url);
     if (tls_data) {
-      LOG(ERROR) << "Kartik: Found TLS data for URL: " << try_url;
+      LOG(ERROR) << "Found TLS data for URL: " << try_url;
       return tls_data;
     }
   }
 
-  LOG(ERROR) << "Kartik: No TLS data found for any parent URL of: " << url;
+  LOG(ERROR) << "No TLS data found for any parent URL of: " << url;
   return std::nullopt;
 }
 
 ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   // Validate arguments
-  LOG(INFO) << "Kartik: Validating arguments for ZK proof generation.";
+  LOG(INFO) << "Validating arguments for ZK proof generation.";
   if (args().size() != 2 || !args()[0].is_string() || !args()[1].is_string()) {
-    LOG(ERROR) << "Kartik: Invalid arguments received. Expected URL and content strings.";
+    LOG(ERROR) << "Invalid arguments received. Expected URL and content strings.";
     return RespondNow(Error("Invalid arguments. Expected URL and content strings."));
   }
 
   std::string url = args()[0].GetString();
   std::string content = args()[1].GetString();
 
-  LOG(INFO) << "Kartik: Starting ZK proof generation for URL: " << url;
+  LOG(INFO) << "Starting ZK proof generation for URL: " << url;
   
   // Get TLS data
   auto tls_data = GetBaseDomainTlsData(url);
   if (!tls_data) {
-    LOG(ERROR) << "Kartik: No TLS data found for URL: " << url;
+    LOG(ERROR) << "No TLS data found for URL: " << url;
     base::Value::Dict result;
     result.Set("success", false);
     result.Set("error", "No TLS data found for the specified URL");
@@ -1101,7 +1101,7 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
     return RespondNow(WithArguments(std::move(result_list)));
   }
   
-  LOG(INFO) << "Kartik: Generating ZK keys...";
+  LOG(INFO) << "Generating ZK keys...";
   base::Value::Dict result;
   
   // Generate keys directly
@@ -1114,7 +1114,7 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   // Parse the keys JSON
   absl::optional<base::Value> parsed_keys = base::JSONReader::Read(keys_json);
   if (!parsed_keys || !parsed_keys->is_dict()) {
-    LOG(ERROR) << "Kartik: Failed to parse keys JSON";
+    LOG(ERROR) << "Failed to parse keys JSON";
     result.Set("success", false);
     result.Set("error", "Failed to generate ZK keys");
     
@@ -1126,7 +1126,7 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   // Extract proving key
   const std::string* pk_b64 = keys_dict.FindString("proving_key_base64");
   if (!pk_b64) {
-    LOG(ERROR) << "Kartik: Proving key not found in response";
+    LOG(ERROR) << "Proving key not found in response";
     result.Set("success", false);
     result.Set("error", "Proving key not found in generated keys");
   
@@ -1136,14 +1136,14 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   // Decode the base64 proving key
   std::string pk_bytes;
   if (!base::Base64Decode(*pk_b64, &pk_bytes)) {
-    LOG(ERROR) << "Kartik: Failed to decode proving key from base64";
+    LOG(ERROR) << "Failed to decode proving key from base64";
     result.Set("success", false);
     result.Set("error", "Failed to decode proving key");
     
     return RespondNow(WithArguments(std::move(result)));
   }
   
-  LOG(INFO) << "Kartik: Generating proof...";
+  LOG(INFO) << "Generating proof...";
   std::vector<uint8_t> proving_key(pk_bytes.begin(), pk_bytes.end());
   
   // Generate proof
@@ -1163,7 +1163,7 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   // Get verification key
   const std::string* vk_json = keys_dict.FindString("verification_key_json");
   if (!vk_json) {
-    LOG(ERROR) << "Kartik: Verification key not found in response";
+    LOG(ERROR) << "Verification key not found in response";
     result.Set("success", false);
     result.Set("error", "Verification key not found in generated keys");
  
@@ -1177,13 +1177,13 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
     result.Set("proof", proof_json);
     result.Set("verificationKey", *vk_json);
     result.Set("publicInputs", public_inputs_json);
-    LOG(INFO) << "Kartik: ZK proof generation completed successfully.";
+    LOG(INFO) << "ZK proof generation completed successfully.";
   } else {
     result.Set("error", "Failed to generate proof or public inputs");
-    LOG(ERROR) << "Kartik: Failed to generate proof or public inputs.";
+    LOG(ERROR) << "Failed to generate proof or public inputs.";
   }
   
-  LOG(INFO) << "Kartik: Result is successfully generated, responding now";
+  LOG(INFO) << "Result is successfully generated, responding now";
   
   return RespondNow(WithArguments(std::move(result)));
 }
