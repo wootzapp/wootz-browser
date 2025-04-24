@@ -2212,6 +2212,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void performPreInflationStartup() {
         super.performPreInflationStartup();
 
+
+
         // Android FrameMetrics allow tracking of java views and their deadline misses (frame
         // drops/janks).
         if (ChromeFeatureList.sCollectAndroidFrameTimelineMetrics.isEnabled()) {

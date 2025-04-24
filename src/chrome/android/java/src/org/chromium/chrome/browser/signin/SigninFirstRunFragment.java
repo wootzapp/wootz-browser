@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -60,30 +61,44 @@ public class SigninFirstRunFragment extends Fragment
     private DeviceLockCoordinator mDeviceLockCoordinator;
     private boolean mExitFirstRunCalled;
     private boolean mDelayedExitFirstRunCalledForTesting;
+    private static final String GMS_PREFS = "chrome_gms_prefs";
+    private static final String TAG = "SigninFirstRun";
+    private boolean mGooglePlayServicesChecked = false;
 
     public SigninFirstRunFragment() {}
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        mModalDialogManager = ((ModalDialogManagerHolder) getActivity()).getModalDialogManager();
-        mFullscreenSigninCoordinator =
-                new FullscreenSigninCoordinator(
-                        requireContext(),
-                        mModalDialogManager,
-                        this,
-                        PrivacyPreferencesManagerImpl.getInstance());
+        
+        // Move Google Play Services check here, before any UI initialization
+        if (!checkAndHandleGooglePlayServices()) {
+            Log.w(TAG, "Google Play Services not available, stopping initialization");
+            return;
+        }
+        
+        try {
+            mModalDialogManager = ((ModalDialogManagerHolder) getActivity()).getModalDialogManager();
+            mFullscreenSigninCoordinator =
+                    new FullscreenSigninCoordinator(
+                            requireContext(),
+                            mModalDialogManager,
+                            this,
+                            PrivacyPreferencesManagerImpl.getInstance());
 
-        if (getPageDelegate().isLaunchedFromCct()) {
-            mSkipTosDialogPolicyListener =
-                    new SkipTosDialogPolicyListener(
-                            getPageDelegate().getPolicyLoadListener(),
-                            EnterpriseInfo.getInstance(),
-                            null);
-            mSkipTosDialogPolicyListener.onAvailable(
-                    (Boolean skipTos) -> {
-                        if (skipTos) exitFirstRun();
-                    });
+            if (getPageDelegate().isLaunchedFromCct()) {
+                mSkipTosDialogPolicyListener =
+                        new SkipTosDialogPolicyListener(
+                                getPageDelegate().getPolicyLoadListener(),
+                                EnterpriseInfo.getInstance(),
+                                null);
+                mSkipTosDialogPolicyListener.onAvailable(
+                        (Boolean skipTos) -> {
+                            if (skipTos) exitFirstRun();
+                        });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onAttach: " + e.getMessage());
         }
     }
 
@@ -119,34 +134,112 @@ public class SigninFirstRunFragment extends Fragment
     public View onCreateView(
             LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         try {
-            mFragmentView = new FrameLayout(getActivity());
-            
-            // Check for Google Play Services and show a toast if not available
-            if (!isGooglePlayServicesAvailable()) {
-                android.widget.Toast.makeText(
-                        getActivity(),
-                        "This app requires Google Play Services which are not available on this device. Some features may not work.",
-                        android.widget.Toast.LENGTH_LONG).show();
+            // Don't proceed if Google Play Services check failed
+            if (!mGooglePlayServicesChecked) {
+                Log.w(TAG, "Skipping view creation due to Google Play Services check failure");
+                return new FrameLayout(getActivity());
             }
-            
+
+            mFragmentView = new FrameLayout(getActivity());
             mMainView = inflateFragmentView(inflater, getResources().getConfiguration());
             mFragmentView.addView(mMainView);
-
             return mFragmentView;
         } catch (Exception e) {
-            android.util.Log.w("SigninFirstRun", "Failed to create view: " + e.getMessage());
-            // Return an empty view to prevent crash
+            Log.e(TAG, "Failed to create view: " + e.getMessage());
             return new FrameLayout(getActivity());
         }
     }
 
-    // Added try catch to avoid crash
-    private boolean isGooglePlayServicesAvailable() {
+    private boolean checkAndHandleGooglePlayServices() {
+        if (mGooglePlayServicesChecked) return true;
+        
         try {
-            return com.google.android.gms.common.GooglePlayServicesUtil.isGooglePlayServicesAvailable(
-                    getActivity()) == com.google.android.gms.common.ConnectionResult.SUCCESS;
+            Activity activity = getActivity();
+            if (activity == null) {
+                Log.e(TAG, "Activity is null during Google Play Services check");
+                return false;
+            }
+
+            // Use the newer GoogleApiAvailability instead of deprecated GooglePlayServicesUtil
+            com.google.android.gms.common.GoogleApiAvailability availability = 
+                    com.google.android.gms.common.GoogleApiAvailability.getInstance();
+            
+            int result = availability.isGooglePlayServicesAvailable(activity);
+            
+            if (result != com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                Log.w(TAG, "Google Play Services not available, result: " + result);
+                android.widget.Toast.makeText(
+                        getActivity(),
+                        "This app requires Google Play Services which are not available on this device. Some features may not work.",
+                        android.widget.Toast.LENGTH_LONG).show();
+                // Post to main thread to avoid window token issues
+                activity.runOnUiThread(() -> {
+                    try {
+                        if (availability.isUserResolvableError(result)) {
+                            // Show the default Google Play Services resolution dialog
+                            availability.getErrorDialog(activity, result, 1000,
+                                    dialog -> {
+                                        // Dialog was cancelled
+                                        showNonResolvableError();
+                                    })
+                                    .show();
+                        } else {
+                            showNonResolvableError();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error showing Google Play Services dialog: " + e.getMessage());
+                        showNonResolvableError();
+                    }
+                });
+                return false;
+            }
+            
+            mGooglePlayServicesChecked = true;
+            return true;
         } catch (Exception e) {
+            Log.e(TAG, "Error checking Google Play Services: " + e.getMessage());
+            showNonResolvableError();
             return false;
+        }
+    }
+
+    private void showNonResolvableError() {
+        Activity activity = getActivity();
+        if (activity == null) return;
+
+        try {
+            activity.runOnUiThread(() -> {
+                try {
+                    if (activity.isFinishing()) return;
+                    
+                    androidx.appcompat.app.AlertDialog.Builder builder = 
+                            new androidx.appcompat.app.AlertDialog.Builder(activity);
+                    
+                    builder.setTitle("Google Play Services Required")
+                           .setMessage("Sorry, this app depends on Google Play Services which is not available on your device. The app cannot function without Google Play Services.")
+                           .setPositiveButton("Exit", (dialog, which) -> {
+                               dialog.dismiss();
+                               activity.finishAffinity();
+                           })
+                           .setCancelable(false);
+
+                    // Create dialog first to check for window token issues
+                    androidx.appcompat.app.AlertDialog dialog = builder.create();
+                    if (activity.getWindow() != null && !activity.isFinishing()) {
+                        dialog.show();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Fatal: Could not show error dialog: " + e.getMessage());
+                    if (!activity.isFinishing()) {
+                        activity.finishAffinity();
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Fatal: Error in showNonResolvableError: " + e.getMessage());
+            if (activity != null && !activity.isFinishing()) {
+                activity.finishAffinity();
+            }
         }
     }
 

@@ -179,7 +179,7 @@ class FullscreenSigninViewBinder {
 
         final int otherElementsVisibility =
                 showInitialLoadProgressSpinner ? View.GONE : View.VISIBLE;
-        view.getContinueButtonView().setVisibility(otherElementsVisibility);
+        // view.getContinueButtonView().setVisibility(otherElementsVisibility);
         final CharSequence footerText = model.get(FullscreenSigninProperties.FOOTER_STRING);
         view.getFooterView()
                 .setVisibility(footerText == null ? View.GONE : otherElementsVisibility);
@@ -204,9 +204,9 @@ class FullscreenSigninViewBinder {
         view.getSelectedAccountView().setVisibility(bottomGroupVisibility);
         if (!isSelectedAccountSupervised) {
             // Only adjust dismiss button visibility if it's not already removed for a child user.
-            view.getDismissButtonView().setVisibility(bottomGroupVisibility);
+            // view.getDismissButtonView().setVisibility(bottomGroupVisibility);
         }
-        view.getContinueButtonView().setVisibility(bottomGroupVisibility);
+        // view.getContinueButtonView().setVisibility(bottomGroupVisibility);
         final CharSequence footerText = model.get(FullscreenSigninProperties.FOOTER_STRING);
         view.getFooterView().setVisibility(footerText == null ? View.GONE : bottomGroupVisibility);
 

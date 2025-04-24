@@ -4,7 +4,8 @@
 
 chrome_java_sources = [
   "java/src/com/google/android/apps/chrome/appwidget/bookmarks/BookmarkThumbnailWidgetProvider.java",
-  "java/src/org/chromium/base/WootzPreferenceKeys.java",  "java/src/org/chromium/base/WootzFeatureList.java",
+  "java/src/org/chromium/base/WootzPreferenceKeys.java",
+  "java/src/org/chromium/base/WootzFeatureList.java",
   "java/src/org/chromium/chrome/browser/ActivityTabProvider.java",
   "java/src/org/chromium/chrome/browser/ActivityUtils.java",
   "java/src/org/chromium/chrome/browser/AppHooks.java",
@@ -739,7 +740,6 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/incognito/IncognitoNotificationServiceImpl.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoProfileDestroyer.java",
   "java/src/org/chromium/chrome/browser/icon/IconSwitcher.java",
-  "java/src/org/chromium/chrome/browser/InstallReferrerManager.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoSnapshotController.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoTabLauncher.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoTabbedSnapshotController.java",

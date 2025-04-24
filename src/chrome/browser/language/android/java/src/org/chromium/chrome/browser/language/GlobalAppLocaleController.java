@@ -67,15 +67,18 @@ public class GlobalAppLocaleController {
      * @return boolean Whether or not an override language is set.
      */
     public boolean init(Context base) {
-        if (AppLocaleUtils.shouldUseSystemManagedLocale()) {
-            mIsOverridden = false;
-        } else {
-            mOverrideLanguage = AppLocaleUtils.getAppLanguagePrefStartUp(base);
-            mIsOverridden =
-                    shouldOverrideAppLocale(
-                            mOverrideLanguage, LocaleUtils.toLanguageTag(mOriginalSystemLocale));
-        }
-        return mIsOverridden;
+        // if (AppLocaleUtils.shouldUseSystemManagedLocale()) {
+        //     mIsOverridden = false;
+        // } else {
+        //     mOverrideLanguage = AppLocaleUtils.getAppLanguagePrefStartUp(base);
+        //     mIsOverridden =
+        //             shouldOverrideAppLocale(
+        //                     mOverrideLanguage, LocaleUtils.toLanguageTag(mOriginalSystemLocale));
+        // }
+        // return mIsOverridden;
+
+        mIsOverridden = false;
+        return false;
     }
 
     /**

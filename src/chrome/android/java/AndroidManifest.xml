@@ -542,20 +542,6 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:exported="false" />
 
-        <receiver
-            android:name="io.branch.receivers.SharingBroadcastReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="EXTRA_CHOSEN_COMPONENT" />
-            </intent-filter>
-        </receiver>
-
-        <receiver android:name="io.branch.referral.InstallListener" android:exported="true">
-            <intent-filter>
-                <action android:name="com.android.vending.INSTALL_REFERRER" />
-            </intent-filter>
-        </receiver>
-
         <receiver android:name="org.chromium.chrome.browser.sharing.click_to_call.ClickToCallMessageHandler$PhoneUnlockedReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.USER_PRESENT" />
@@ -632,7 +618,6 @@ by a child template that "extends" this file.
               or Daydream. It does so by testing if intents can be resolved by the activity
               that requests it.
             -->
-
             {% block supports_vr %}
             <intent-filter>
                 <action android:name="org.chromium.chrome.browser.dummy.action" />
@@ -717,7 +702,7 @@ by a child template that "extends" this file.
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
             </intent-filter>
-
+            
             <!-- Branch App Links (for Android 6.0+) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
