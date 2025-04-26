@@ -666,10 +666,8 @@ bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
   if (show_params_ && show_params_->GetParentWebContents()) {
     content::WebContents* web_contents = show_params_->GetParentWebContents();
     const GURL& url = web_contents->GetLastCommittedURL();
-    LOG(ERROR) << "WOOTZ: AutoConfirmPromptIfEnabled URL: " << url.spec();
-    
-    // Auto-accept if from flow-store
-    if (url.is_valid() && url.spec() == "wootzapp://flow-store/") {
+
+    if (url.is_valid() && (url.spec() == "wootzapp://flow-store/" || url.spec() == "wootzapp://startup-crx-install/")) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(done_callback_),
@@ -686,6 +684,7 @@ bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
   }
 
   // Fall through to default auto-confirm behavior for non-CRX cases
+
   auto confirm_value =
       extensions::ScopedTestDialogAutoConfirm::GetAutoConfirmValue();
   switch (confirm_value) {

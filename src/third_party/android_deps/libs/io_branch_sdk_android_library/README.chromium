@@ -1,0 +1,11 @@
+Name: Branch Android SDK
+Short Name: branch-android-sdk
+URL: https://github.com/BranchMetrics/android-branch-deep-linking-attribution
+Version: 5.16.2
+License: MIT
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+Branch Android SDK for deep linking and attribution.

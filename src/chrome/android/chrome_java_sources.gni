@@ -739,6 +739,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/incognito/IncognitoNotificationPresenceController.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoNotificationServiceImpl.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoProfileDestroyer.java",
+  "java/src/org/chromium/chrome/browser/icon/IconSwitcher.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoSnapshotController.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoTabLauncher.java",
   "java/src/org/chromium/chrome/browser/incognito/IncognitoTabbedSnapshotController.java",
@@ -1373,4 +1374,3 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletNativeUtils.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletUtils.java",
 ]
-
