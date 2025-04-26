@@ -34,8 +34,7 @@ found in the LICENSE file.
               <item android:id="@+id/reload_menu_id"
                 android:title="@string/accessibility_btn_refresh"
                 android:titleCondensed="@string/refresh"
-                android:icon="@drawable/btn_reload_stop"
-                android:visible="false"/>
+                android:icon="@drawable/btn_reload_stop"/>
             </menu>
         </item>
         <item android:id="@+id/update_menu_id"
