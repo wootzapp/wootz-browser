@@ -1445,25 +1445,24 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         @TabOpenType int tabOpenType = IntentHandler.getTabOpenType(intent);
         int tabIdToBringToFront = IntentHandler.getBringTabToFrontId(intent);
         if (url == null && tabIdToBringToFront == Tab.INVALID_TAB_ID) return false;
-        return false;
 
-        // LoadUrlParams loadUrlParams =
-        //         IntentHandler.createLoadUrlParamsForIntent(url, intent, mIntentHandlingTimeMs);
+        LoadUrlParams loadUrlParams =
+                IntentHandler.createLoadUrlParamsForIntent(url, intent, mIntentHandlingTimeMs);
 
-        // if (IntentHandler.isIntentForMhtmlFileOrContent(intent)
-        //         && tabOpenType == TabOpenType.OPEN_NEW_TAB
-        //         && loadUrlParams.getReferrer() == null
-        //         && loadUrlParams.getVerbatimHeaders() == null) {
-        //     handleMhtmlFileOrContentIntent(url, intent);
-        //     return true;
-        // }
-        // processUrlViewIntent(
-        //         loadUrlParams,
-        //         tabOpenType,
-        //         IntentUtils.safeGetStringExtra(intent, Browser.EXTRA_APPLICATION_ID),
-        //         tabIdToBringToFront,
-        //         intent);
-        // return true;
+        if (IntentHandler.isIntentForMhtmlFileOrContent(intent)
+                && tabOpenType == TabOpenType.OPEN_NEW_TAB
+                && loadUrlParams.getReferrer() == null
+                && loadUrlParams.getVerbatimHeaders() == null) {
+            handleMhtmlFileOrContentIntent(url, intent);
+            return true;
+        }
+        processUrlViewIntent(
+                loadUrlParams,
+                tabOpenType,
+                IntentUtils.safeGetStringExtra(intent, Browser.EXTRA_APPLICATION_ID),
+                tabIdToBringToFront,
+                intent);
+        return true;
     }
 
     private void handleMhtmlFileOrContentIntent(final String url, final Intent intent) {
