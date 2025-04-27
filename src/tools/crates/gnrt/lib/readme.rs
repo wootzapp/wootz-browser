@@ -104,10 +104,12 @@ pub fn readme_file_from_package<'a>(
                 ));
             }
         } else {
-            return Err(format_err!(
-                "No license field found in Cargo.toml for {} crate",
+            // Use a default license instead of failing
+            log::warn!(
+                "No license field found in Cargo.toml for {} crate, using 'UNKNOWN' as default",
                 package.name
-            ));
+            );
+            "UNKNOWN".to_string()
         }
     };
 
@@ -193,7 +195,7 @@ pub fn readme_file_from_package<'a>(
 
 // Allowed licenses, in the format they are specified in Cargo.toml files from
 // crates.io, and the format to write to README.chromium.
-static ALLOWED_LICENSES: [(&str, &str); 25] = [
+static ALLOWED_LICENSES: [(&str, &str); 27] = [
     // ("Cargo.toml string", "License for README.chromium")
     ("Apache-2.0", "Apache 2.0"),
     ("MIT OR Apache-2.0", "Apache 2.0"),
@@ -223,6 +225,8 @@ static ALLOWED_LICENSES: [(&str, &str); 25] = [
     ("MIT OR Apache-2.0 OR BSD-1-Clause", "Apache 2.0"),
     ("BSD-2-Clause", "BSD 2-Clause"),
     ("MPL-2.0", "Mozilla Public License 2.0"),
+    ("BSD-2-Clause OR Apache-2.0 OR MIT", "Apache 2.0"),
+    ("CC0-1.0", "CC0 1.0"),
 ];
 
 static EXPECTED_LICENSE_FILE: [(&str, &str); 20] = [

@@ -1,0 +1,28 @@
+[package]
+name = "zksync_ff_derive"
+version.workspace = true
+edition = "2018"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Procedural macro library for zksync_ff, based on ff_derive"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+proc-macro2 = "1"
+quote = "1"
+syn = "1"
+serde = {version = "1", features = ["derive"]}
+
+[features]
+default = []
+asm = []
+serde = []

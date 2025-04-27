@@ -1,0 +1,28 @@
+[package]
+name = "zksync_ff"
+version.workspace = true
+edition = "2018"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Library for building and interfacing with finite fields, based on ff"
+exclude = [
+    "tester",
+    "asm_tester"
+]
+
+[dependencies]
+ff_derive = { workspace = true, optional = true }
+
+byteorder = "1"
+rand = "0.4"
+hex = {version = "0.4"}
+serde = "1"
+
+[features]
+default = []
+derive = ["ff_derive"]
+asm_derive = ["derive", "ff_derive/asm"]

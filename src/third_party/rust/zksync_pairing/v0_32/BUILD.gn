@@ -1,0 +1,84 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "zksync_pairing"
+  epoch = "0.32"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/base.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/ec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/fq.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/fq12.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/fq2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/fq6.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/fr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/tests/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/ec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/fq.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/fq12.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/fq2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/fq6.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/fr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/pairing_certificate.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/ec.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/fq.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/fq12.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/fq2.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/fq6.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/fr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/tests/curve.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/tests/engine.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/tests/field.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/tests/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/tests/repr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/wnaf.rs",
+  ]
+  inputs = [
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bls12_381/README.md",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/bn256/README.md",
+    "//third_party/rust/chromium_crates_io/vendor/zksync_pairing-0.32.0/src/compact_bn256/README.md",
+  ]
+
+  build_native_rust_unit_tests = false
+  edition = "2018"
+  cargo_pkg_version = "0.32.0"
+  cargo_pkg_authors = "The Matter Labs Team <hello@matterlabs.dev>"
+  cargo_pkg_name = "zksync_pairing"
+  cargo_pkg_description =
+      "Pairing-friendly elliptic curve library, based on pairing crate"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/byteorder/v1:lib",
+    "//third_party/rust/cfg_if/v1:lib",
+    "//third_party/rust/rand/v0_4:lib",
+    "//third_party/rust/serde/v1:lib",
+    "//third_party/rust/zksync_ff/v0_32:lib",
+  ]
+  aliased_deps = {
+    ff = ":zksync_ff"
+  }
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  visibility = [ "//third_party/rust/*" ]
+  testonly = true
+}

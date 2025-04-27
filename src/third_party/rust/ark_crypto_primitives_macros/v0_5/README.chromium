@@ -1,0 +1,9 @@
+Name: ark-crypto-primitives-macros
+URL: https://crates.io/crates/ark-crypto-primitives-macros
+Description: A library of useful cryptographic primitives
+Version: 0.5.0
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-macros-0.5.0/LICENSE-APACHE
+Revision: 455d599aae0aa81acf1c2faadf37def63a25a291

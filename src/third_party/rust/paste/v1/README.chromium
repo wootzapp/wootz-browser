@@ -1,0 +1,9 @@
+Name: paste
+URL: https://crates.io/crates/paste
+Description: Macros for all your token pasting needs
+Version: 1.0.15
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/paste-1.0.15/LICENSE-APACHE
+Revision: a2c7e27875277450ed28147623ba5218dd23e732

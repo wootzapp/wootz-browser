@@ -1,0 +1,9 @@
+Name: ark-snark
+URL: https://crates.io/crates/ark-snark
+Description: A library for SNARK traits
+Version: 0.5.1
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File:
+Revision: b34f11d670c2667de3eda6e33daed8027f35043e

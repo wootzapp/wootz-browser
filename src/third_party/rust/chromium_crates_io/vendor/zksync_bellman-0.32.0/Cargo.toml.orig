@@ -1,0 +1,48 @@
+[package]
+name = "zksync_bellman"
+description = "zk-SNARK library, based on bellman"
+edition = "2018"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib", "staticlib"]
+
+[dependencies]
+pairing.workspace = true
+
+rand = "0.4"
+bit-vec = { version = "0.6", features = ["serde"] }
+cfg-if = "1.*"
+smallvec = "1.10"
+arrayvec = "0.7"
+byteorder = "1"
+num_cpus = "1"
+serde = { version = "1", features = ["derive", "rc"] }
+futures = { version = "0.3", default-features = false, features = ["executor"] }
+crossbeam = { version = "0.8", optional = true }
+prefetch = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console", "Performance", "Window"] }
+tiny-keccak = { version = "1.5", optional = true }
+blake2-rfc = { version = "0.2.18", optional = true }
+blake2s_simd = { version = "0.5" }
+lazy_static = { version = "1", optional = true }
+hex = "0.4"
+
+[features]
+default = ["multicore", "plonk"]
+multicore = ["crossbeam", "futures/thread-pool"]
+sonic = ["tiny-keccak", "blake2-rfc"]
+gm17 = []
+nolog = []
+plonk = ["lazy_static", "tiny-keccak"]
+redshift = ["multicore", "plonk"]
+marlin = ["tiny-keccak"]
+wasm = ["web-sys"]
+asm = ["pairing/asm"]
+allocator = []

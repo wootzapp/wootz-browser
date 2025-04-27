@@ -1,0 +1,9 @@
+Name: tiny-keccak
+URL: https://crates.io/crates/tiny-keccak
+Description: An implementation of the FIPS-202-defined SHA-3 and SHAKE functions.
+Version: 1.5.0
+Security Critical: yes
+Shipped: yes
+License: CC0 1.0
+License File:
+Revision: 46f9494405766387ee72cd7288e6154dd6db498d
