@@ -142,8 +142,7 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   }
   
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  GURL fetch_url("https://raw.githubusercontent.com/itskartike910/extensions/main/extensions.json");
-  
+  GURL fetch_url("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
   if (!fetch_url.is_valid()) {
     web_ui_->CallJavascriptFunctionUnsafe(
         "handleError", base::Value("Invalid URL"));

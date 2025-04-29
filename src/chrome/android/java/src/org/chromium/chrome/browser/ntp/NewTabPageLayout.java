@@ -1109,13 +1109,14 @@ public class NewTabPageLayout extends LinearLayout {
             TraceEvent.instant("NewTabPageSearchAvailable)");
         }
 
-        if (Extensions.getExtensionsInfo().size() > 1) {
-            if (Extensions.getExtensionsInfo().get(1).getWidgetUrl() == null ||
-                Extensions.getExtensionsInfo().get(1).getWidgetUrl().isEmpty()) {
-                return;
+        int extensionsSize = Extensions.getExtensionsInfo().size();
+        for (int i = 0; i < extensionsSize; i++) {
+            ExtensionInfo extension = Extensions.getExtensionsInfo().get(i);
+            String widgetUrl = extension.getWidgetUrl();
+            if (widgetUrl != null && !widgetUrl.isEmpty()) {
+                initializeExtensionWebView(i);
+                setupExtensionWebViewClick();
             }
-            initializeExtensionWebView(1);
-            setupExtensionWebViewClick();
         }
     }
 
