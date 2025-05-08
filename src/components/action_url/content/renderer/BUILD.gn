@@ -1,0 +1,20 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("renderer") {
+  sources = [
+    "action_url_agent.cc",
+    "action_url_agent.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/action_url/content/common/mojom",
+    "//components/action_url/core",
+    "//content/public/renderer",
+    "//mojo/public/cpp/system",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public/common",
+  ]
+}

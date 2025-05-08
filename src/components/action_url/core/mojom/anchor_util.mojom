@@ -1,0 +1,14 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+module action_url.mojom;
+
+import "mojo/public/mojom/base/string16.mojom";
+import "url/mojom/url.mojom";
+
+struct AnchorData {
+  mojo_base.mojom.String16 id_attribute;
+  url.mojom.Url url;
+  uint64 renderer_id;
+};

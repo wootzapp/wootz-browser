@@ -1,0 +1,25 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("browser") {
+  sources = [
+    "content_action_url_driver.cc",
+    "content_action_url_driver.h",
+    "content_action_url_driver_factory.cc",
+    "content_action_url_driver_factory.h",
+  ]
+
+  public_deps = [ "//components/action_url/content/common/mojom" ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//components/action_url/android",
+    "//components/action_url/core",
+    "//content/public/browser",
+    "//mojo/public/cpp/system",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+  ]
+}

@@ -50,6 +50,7 @@
 namespace blink {
 
 class Document;
+class WebAnchorElement;
 class WebElement;
 class WebFormElement;
 class WebFormControlElement;
@@ -124,6 +125,7 @@ class BLINK_EXPORT WebDocument : public WebNode {
   WebString ContentAsTextForTesting() const;
   WebElementCollection All() const;
   WebVector<WebFormElement> Forms() const;
+  WebVector<WebAnchorElement> Anchors() const;
 
   // Returns all form elements that have no shadow-tree including ancestor that
   // is also a form element. This includes form elements inside shadow trees.
@@ -189,6 +191,10 @@ class BLINK_EXPORT WebDocument : public WebNode {
   //
   // It is intended to be used in WebLinkPreviewTriggerer.
   void InitiatePreview(const WebURL& url);
+
+  void SetUpActionUrlHeader();
+  void SetUpActionUrlScriptBlock();
+  void ResetScriptState();
 
 #if INSIDE_BLINK
   WebDocument(Document*);

@@ -2200,6 +2200,7 @@ static_library("browser") {  sources = [
     "//chrome/installer/util:with_no_strings",
     "//chrome/services/on_device_translation:on_device_translation_service",
     "//chrome/services/speech/buildflags",
+    "//components/action_url/content/browser",
     "//components/assist_ranker",
     "//components/autofill/content/browser",
     "//components/autofill/content/common:features",

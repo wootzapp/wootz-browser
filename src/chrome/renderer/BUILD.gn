@@ -153,6 +153,7 @@ static_library("renderer") {
     "//components/wootz_wallet/renderer",
     "//chrome/renderer/companion/visual_query",
     "//chrome/services/speech/buildflags",
+    "//components/action_url/content/renderer",
     "//components/autofill/content/renderer",
     "//components/autofill/core/common:features",
     "//components/base32",

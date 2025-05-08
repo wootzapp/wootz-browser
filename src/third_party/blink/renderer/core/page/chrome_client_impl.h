@@ -53,6 +53,7 @@ namespace blink {
 
 class PagePopup;
 class PagePopupClient;
+class WebAnchorClient;
 class WebAutofillClient;
 class WebViewImpl;
 
@@ -263,6 +264,8 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
       LocalFrame*,
       HTMLElement*,
       WebFormRelatedChangeType) override;
+
+  void DidAddAnchorElementDynamically(LocalFrame*, HTMLElement*) override;
   void HandleKeyboardEventOnTextField(HTMLInputElement&,
                                       KeyboardEvent&) override;
   void DidChangeValueInTextField(HTMLFormControlElement&) override;
@@ -325,6 +328,8 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
   // Returns WebAutofillClient associated with the WebLocalFrame. This takes and
   // returns nullable.
   WebAutofillClient* AutofillClientFromFrame(LocalFrame*);
+
+  WebAnchorClient* AnchorClientFromFrame(LocalFrame*);
 
   // Returns a copy of `pending_rect`, adjusted for the given minimum window
   // size. Defaulting to `blink::kMinimumWindowSize`.

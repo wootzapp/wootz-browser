@@ -124,6 +124,7 @@
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_associated_url_loader_options.h"
 #include "third_party/blink/public/web/web_autofill_client.h"
+#include "third_party/blink/public/web/web_anchor_client.h"
 #include "third_party/blink/public/web/web_console_message.h"
 #include "third_party/blink/public/web/web_content_capture_client.h"
 #include "third_party/blink/public/web/web_document.h"
@@ -2181,6 +2182,7 @@ WebLocalFrameImpl::WebLocalFrameImpl(
       client_(client),
       local_frame_client_(MakeGarbageCollected<LocalFrameClientImpl>(this)),
       autofill_client_(nullptr),
+      anchor_client_(nullptr),
       find_in_page_(
           MakeGarbageCollected<FindInPage>(*this, interface_registry)),
       interface_registry_(interface_registry),
@@ -2559,6 +2561,14 @@ void WebLocalFrameImpl::SetAutofillClient(WebAutofillClient* autofill_client) {
 
 WebAutofillClient* WebLocalFrameImpl::AutofillClient() {
   return autofill_client_;
+}
+
+void WebLocalFrameImpl::SetAnchorClient(WebAnchorClient* anchor_client) {
+  anchor_client_ = anchor_client;
+}
+
+WebAnchorClient* WebLocalFrameImpl::AnchorClient() {
+  return anchor_client_;
 }
 
 void WebLocalFrameImpl::SetContentCaptureClient(

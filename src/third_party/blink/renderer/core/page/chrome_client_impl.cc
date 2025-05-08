@@ -49,6 +49,7 @@
 #include "third_party/blink/public/platform/web_url_request.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_autofill_client.h"
+#include "third_party/blink/public/web/web_anchor_client.h"
 #include "third_party/blink/public/web/web_console_message.h"
 #include "third_party/blink/public/web/web_form_element.h"
 #include "third_party/blink/public/web/web_input_element.h"
@@ -1251,6 +1252,14 @@ void ChromeClientImpl::DidChangeFormRelatedElementDynamically(
   }
 }
 
+void ChromeClientImpl::DidAddAnchorElementDynamically(
+    LocalFrame* frame,
+    HTMLElement* element) {
+  if (auto* anchor_client = AnchorClientFromFrame(frame)) {
+    anchor_client->DidAddAnchorElementDynamically(element);
+  }
+}
+
 void ChromeClientImpl::ShowVirtualKeyboardOnElementFocus(LocalFrame& frame) {
   WebLocalFrameImpl::FromFrame(frame)
       ->LocalRootFrameWidget()
@@ -1407,6 +1416,17 @@ WebAutofillClient* ChromeClientImpl::AutofillClientFromFrame(
   }
 
   return WebLocalFrameImpl::FromFrame(frame)->AutofillClient();
+}
+
+WebAnchorClient* ChromeClientImpl::AnchorClientFromFrame(
+    LocalFrame* frame) {
+  if (!frame) {
+    // It is possible to pass nullptr to this method. For instance the call from
+    // OnMouseDown might be nullptr. See https://crbug.com/739199.
+    return nullptr;
+  }
+
+  return WebLocalFrameImpl::FromFrame(frame)->AnchorClient();
 }
 
 void ChromeClientImpl::DidUpdateTextAutosizerPageInfo(

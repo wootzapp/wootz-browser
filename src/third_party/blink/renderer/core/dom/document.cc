@@ -214,6 +214,7 @@
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/frame/viewport_data.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
+#include "third_party/blink/renderer/core/html/action_url/script_block_states.h"
 #include "third_party/blink/renderer/core/html/anchor_element_observer_for_service_worker.h"
 #include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
 #include "third_party/blink/renderer/core/html/collection_type.h"
@@ -8341,6 +8342,17 @@ void Document::DidChangeFormRelatedElementDynamically(
                                               form_related_change);
 }
 
+void Document::DidAddAnchorElementDynamically(HTMLElement* element) {
+  if (!GetFrame() || !GetFrame()->GetPage() || !HasFinishedParsing() ||
+      !GetFrame()->IsAttached()) {
+    return;
+  }
+  GetFrame()
+      ->GetPage()
+      ->GetChromeClient()
+      .DidAddAnchorElementDynamically(GetFrame(), element);
+}
+
 float Document::DevicePixelRatio() const {
   return GetFrame() ? GetFrame()->DevicePixelRatio() : 1.0;
 }
@@ -9266,6 +9278,33 @@ void Document::ScheduleShadowTreeCreation(HTMLInputElement& element) {
 
 void Document::UnscheduleShadowTreeCreation(HTMLInputElement& element) {
   elements_needing_shadow_tree_.erase(&element);
+}
+
+void Document::SetUpActionUrlHeader() {
+  String css_to_add = ScriptBlockStates::GetInstance().GetCssScriptsToAdd();
+  if (!css_to_add.empty()) {
+    Element* stylesheet =
+        CreateElement(html_names::kScriptTag,
+                      CreateElementFlags::ByCreateElement(), AtomicString());
+    stylesheet->setInnerHTML(css_to_add);
+    body()->AppendChild(stylesheet, ASSERT_NO_EXCEPTION);
+  }
+}
+
+void Document::SetUpActionUrlScriptBlock() {
+  LOG(INFO) << "Unfurling :: " << __func__;
+  String script_to_add = ScriptBlockStates::GetInstance().GetScriptsToAdd();
+  if (!script_to_add.empty()) {
+    Element* stylesheet =
+        CreateElement(html_names::kScriptTag,
+                      CreateElementFlags::ByCreateElement(), AtomicString());
+    stylesheet->setInnerHTML(script_to_add);
+    body()->AppendChild(stylesheet, ASSERT_NO_EXCEPTION);
+  }
+}
+
+void Document::ResetScriptState() {
+  ScriptBlockStates::GetInstance().ResetScriptState();
 }
 
 void Document::ProcessScheduledShadowTreeCreationsNow() {
