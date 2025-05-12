@@ -9292,6 +9292,8 @@ void Document::SetUpActionUrlHeader() {
 }
 
 void Document::SetUpActionUrlScriptBlock() {
+  LOG(INFO)<< "AMIT Setting up action url script block in document";
+
   LOG(INFO) << "Unfurling :: " << __func__;
   String script_to_add = ScriptBlockStates::GetInstance().GetScriptsToAdd();
   if (!script_to_add.empty()) {

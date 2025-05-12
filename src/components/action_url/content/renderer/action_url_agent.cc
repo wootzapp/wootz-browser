@@ -4,6 +4,7 @@
 
 #include "components/action_url/content/renderer/action_url_agent.h"
 
+#include <regex>
 #include "base/json/json_reader.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
@@ -98,6 +99,7 @@ void ActionUrlAgent::ReplaceUrL(const std::string& json,
 }
 
 void ActionUrlAgent::SetUpScriptBlock() {
+  LOG(INFO)<< "AMIT Setting up action url script block in action url agent";
   LOG(INFO) << "Unfurling :: " << __func__;
   render_frame()->GetWebFrame()->GetDocument().SetUpActionUrlScriptBlock();
 }
@@ -169,18 +171,43 @@ void ActionUrlAgent::FindAnchorElementsOnPage(bool is_dynamic) {
             << "; Anchors size: " << anchor_elements.size();
 
   std::vector<AnchorData> candidate_links;
-
+  std::string last_processed_url;
+  int consecutive_same_url_count = 0;
+  
   for (size_t iterator = 0; iterator < anchor_elements.size(); ++iterator) {
     auto& element = anchor_elements[iterator];
     blink::WebURL url = element.Url();
+  
+    // Log each anchor with its details
+    LOG(INFO) << "Unfurling :: Processing anchor #" << iterator 
+              << " URL: " << url.GetString().Utf8()
+              << " ID: " << element.GetDomNodeId()
+              << " Tag: " << element.TagName().Utf8()
+              << " IsConnected: " << element.IsConnected();
+  
     if (!url.ProtocolIs(url::kHttpScheme) &&
         !url.ProtocolIs(url::kHttpsScheme) && !url.IsValid()) {
       continue;
     }
+
+    std::string url_spec = url.GetString().Utf8();
+    
+    // Skip if this URL is the same as the previous one (adjacent duplicate)
+    if (url_spec == last_processed_url) {
+      consecutive_same_url_count++;
+      LOG(INFO) << "Unfurling :: Skipping adjacent duplicate URL: " << url_spec 
+                << " (consecutive count: " << consecutive_same_url_count << ")";
+      continue;
+    }
+    
+    // Reset counter and update last processed URL
+    consecutive_same_url_count = 0;
+    last_processed_url = url_spec;
+    
     if (url.GetString().Equals(
             "https://docs.dialect.to/documentation/actions/security") ||
         url.GetString().Equals("https://discord.gg/saydialect")) {
-      // Thie block maybe added by this feature itself
+      // This block maybe added by this feature itself
       LOG(INFO) << "Unfurling :: Continuing as added by feature itself";
       continue;
     }
@@ -189,11 +216,11 @@ void ActionUrlAgent::FindAnchorElementsOnPage(bool is_dynamic) {
     if (!anchor_data) {
       continue;
     }
-
+    
     renderer_anchor_cache_[anchor_data->renderer_id] = element;
     candidate_links.push_back(std::move(*anchor_data));
   }
-
+  
   if (!candidate_links.empty()) {
     GetActionUrlDriver().AllAnchorsParsed(candidate_links);
   }
@@ -220,12 +247,13 @@ base::ActionSpecJson ActionUrlAgent::ParseJson(const std::string& json_str,
   if (json && json->is_dict()) {
     const std::string* token;
     std::optional<bool> bool_token;
+    
+    // Extract common fields regardless of format
     action_spec.title =
         (token = json->GetDict().FindString("title")) ? *token : "";
-    // action_spec.title = (token =
-    // json->GetDict().FindString("title"))?base::UTF8ToUTF16(*token):std::u16string();
     action_spec.icon =
         (token = json->GetDict().FindString("icon")) ? *token : "";
+    LOG(ERROR) << "Unfurling :: icon: " << action_spec.icon;
     action_spec.description =
         (token = json->GetDict().FindString("description")) ? *token : "";
     action_spec.label =
@@ -236,89 +264,123 @@ base::ActionSpecJson ActionUrlAgent::ParseJson(const std::string& json_str,
     action_spec.disabled =
         (bool_token.has_value()) ? bool_token.value() : false;
     action_spec.site_url = action_url.host();
-    action_spec.processDescription();
-    const base::Value* links;
-    const base::Value::List* action_list;
-    if ((links = json->GetDict().Find("links")) &&
-        (action_list = links->GetDict().FindList("actions"))) {
-      for (const auto& action_token : *action_list) {
-        if (action_token.is_dict()) {
-          base::ActionSpecJson::Actions action;
-          action.name =
-              (token = action_token.GetDict().FindString("name")) ? *token : "";
-          action.label = (token = action_token.GetDict().FindString("label"))
-                             ? *token
-                             : "";
-          action.href =
-              (token = action_token.GetDict().FindString("href")) ? *token : "";
-          bool_token = action_token.GetDict().FindBool("required");
-          action.required =
-              (bool_token.has_value()) ? bool_token.value() : false;
-          action.type =
-              (token = action_token.GetDict().FindString("type")) ? *token : "";
-          const base::Value::List* parameter_list;
-          if ((parameter_list =
-                   action_token.GetDict().FindList("parameters"))) {
-            action.type = "form";
-            for (const auto& param_token : *parameter_list) {
-              if (param_token.is_dict()) {
-                base::ActionSpecJson::Actions param;
-                param.name = (token = param_token.GetDict().FindString("name"))
+    
+    // Special handling for blink.fun URLs
+    if (tag == "blink" || action_url.host() == "blnk.fun") {
+      LOG(INFO) << "Unfurling :: Parsing blink.fun format JSON";
+      
+      // Process the links.actions array which is specific to blink.fun format
+      const base::Value* links;
+      if ((links = json->GetDict().Find("links"))) {
+        const base::Value::List* actions_list;
+        if ((actions_list = links->GetDict().FindList("actions"))) {
+          for (const auto& action_token : *actions_list) {
+            if (action_token.is_dict()) {
+              base::ActionSpecJson::Actions action;
+              // Map fields from blink format to ActionSpecJson format
+              action.label = (token = action_token.GetDict().FindString("label"))
                                  ? *token
                                  : "";
-                param.label =
-                    (token = param_token.GetDict().FindString("label")) ? *token
-                                                                        : "";
-                param.href = (token = param_token.GetDict().FindString("href"))
-                                 ? *token
-                                 : "";
-                param.patternDescription =
-                    (token =
-                         param_token.GetDict().FindString("patternDescription"))
-                        ? *token
-                        : "";
-                bool_token = param_token.GetDict().FindBool("required");
-                param.required =
-                    (bool_token.has_value()) ? bool_token.value() : false;
-                param.type = (token = param_token.GetDict().FindString("type"))
-                                 ? *token
-                                 : "";
-                const base::Value::List* option_list;
-                if ((option_list = param_token.GetDict().FindList("options"))) {
-                  // param.type = "radio";
-                  for (const auto& option_token : *option_list) {
-                    if (option_token.is_dict()) {
-                      base::ActionSpecJson::Options option;
-                      option.value =
-                          (token = option_token.GetDict().FindString("value"))
-                              ? *token
-                              : "";
-                      option.label =
-                          (token = option_token.GetDict().FindString("label"))
-                              ? *token
-                              : "";
-                      bool_token = option_token.GetDict().FindBool("selected");
-                      option.selected =
-                          (bool_token.has_value()) ? bool_token.value() : false;
-                      param.options.emplace_back(option);
-                    }
-                  }
-                }
-                param.ProcessType();
-                action.parameters.emplace_back(param);
-              }
+              action.href = (token = action_token.GetDict().FindString("href"))
+                                ? *token
+                                : "";
+              LOG(INFO) << "Unfurling :: action.label: " << action.label;
+              LOG(INFO) << "Unfurling :: action.href: " << action.href;
+              // For blink links, assume button type by default
+              action.type = "button";
+              action.ProcessType();
+              action_spec.links.emplace_back(action);
             }
           }
-          action.ProcessType();
-          action_spec.links.emplace_back(action);
+        }
+      }
+    } else {
+      // Original JSON parsing for non-blink formats
+      const base::Value* links;
+      const base::Value::List* action_list;
+      if ((links = json->GetDict().Find("links")) &&
+          (action_list = links->GetDict().FindList("actions"))) {
+        for (const auto& action_token : *action_list) {
+          if (action_token.is_dict()) {
+            base::ActionSpecJson::Actions action;
+            action.name =
+                (token = action_token.GetDict().FindString("name")) ? *token : "";
+            action.label = (token = action_token.GetDict().FindString("label"))
+                               ? *token
+                               : "";
+            action.href =
+                (token = action_token.GetDict().FindString("href")) ? *token : "";
+            bool_token = action_token.GetDict().FindBool("required");
+            action.required =
+                (bool_token.has_value()) ? bool_token.value() : false;
+            action.type =
+                (token = action_token.GetDict().FindString("type")) ? *token : "";
+            const base::Value::List* parameter_list;
+            if ((parameter_list =
+                     action_token.GetDict().FindList("parameters"))) {
+              action.type = "form";
+              for (const auto& param_token : *parameter_list) {
+                if (param_token.is_dict()) {
+                  base::ActionSpecJson::Actions param;
+                  param.name = (token = param_token.GetDict().FindString("name"))
+                                   ? *token
+                                   : "";
+                  param.label =
+                      (token = param_token.GetDict().FindString("label")) ? *token
+                                                                          : "";
+                  param.href = (token = param_token.GetDict().FindString("href"))
+                                   ? *token
+                                   : "";
+                  param.patternDescription =
+                      (token =
+                           param_token.GetDict().FindString("patternDescription"))
+                          ? *token
+                          : "";
+                  bool_token = param_token.GetDict().FindBool("required");
+                  param.required =
+                      (bool_token.has_value()) ? bool_token.value() : false;
+                  param.type = (token = param_token.GetDict().FindString("type"))
+                                   ? *token
+                                   : "";
+                  const base::Value::List* option_list;
+                  if ((option_list = param_token.GetDict().FindList("options"))) {
+                    // param.type = "radio";
+                    for (const auto& option_token : *option_list) {
+                      if (option_token.is_dict()) {
+                        base::ActionSpecJson::Options option;
+                        option.value =
+                            (token = option_token.GetDict().FindString("value"))
+                                ? *token
+                                : "";
+                        option.label =
+                            (token = option_token.GetDict().FindString("label"))
+                                ? *token
+                                : "";
+                        bool_token = option_token.GetDict().FindBool("selected");
+                        option.selected =
+                            (bool_token.has_value()) ? bool_token.value() : false;
+                        param.options.emplace_back(option);
+                      }
+                    }
+                  }
+                  param.ProcessType();
+                  action.parameters.emplace_back(param);
+                }
+              }
+            }
+            action.ProcessType();
+            action_spec.links.emplace_back(action);
+          }
         }
       }
     }
+    
+    action_spec.processDescription();
   }
 
-  // action_spec.PrintObject();
+  // Set ID and tag
   action_spec.id = action_block_counter_;
-  action_spec.tag = tag;
+  action_spec.tag = tag.empty() ? "blink" : tag; // Use "blink" as default tag for blink.fun URLs
   action_block_counter_++;
   return action_spec;
 }

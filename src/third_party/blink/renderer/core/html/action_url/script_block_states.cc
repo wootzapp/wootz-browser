@@ -113,10 +113,83 @@ function processCssRules(cssText, divSelector) {
         modifyCss('https://dial.to/_next/static/css/d4d01f288ee49a49.css', '.action-block-div');
         modifyCss('https://dial.to/_next/static/css/3f18034bace3b462.css', '.action-block-div');
   )HTML");
-  return css_script;
+  
+  // Add Twitter-specific styles
+  String twitterCSS = R"CSS(
+  /* Twitter dark theme */
+  .blink.x-dark {
+    --blink-bg-primary: #202327;
+    --blink-button: #1d9bf0;
+    --blink-button-disabled: #2f3336;
+    --blink-button-hover: #3087da;
+    --blink-button-success: #00ae661a;
+    --blink-icon-error: #ff6565;
+    --blink-icon-error-hover: #ff7a7a;
+    --blink-icon-primary: #6e767d;
+    --blink-icon-primary-hover: #949ca4;
+    --blink-icon-warning: #ffb545;
+    --blink-icon-warning-hover: #ffc875;
+    --blink-input-bg: #202327;
+    --blink-input-stroke: #3d4144;
+    --blink-input-stroke-disabled: #2f3336;
+    --blink-input-stroke-error: #ff6565;
+    --blink-input-stroke-hover: #6e767d;
+    --blink-input-stroke-selected: #1d9bf0;
+    --blink-stroke-error: #ff6565;
+    --blink-stroke-primary: #1d9bf0;
+    --blink-stroke-secondary: #3d4144;
+    --blink-stroke-warning: #ffb545;
+    --blink-text-brand: #35aeff;
+    --blink-text-button: #ffffff;
+    --blink-text-button-disabled: #768088;
+    --blink-text-button-success: #12dc88;
+    --blink-text-error: #ff6565;
+    --blink-text-error-hover: #ff7a7a;
+    --blink-text-input: #ffffff;
+    --blink-text-input-disabled: #566470;
+    --blink-text-input-placeholder: #6e767d;
+    --blink-text-link: #6e767d;
+    --blink-text-link-hover: #949ca4;
+    --blink-text-primary: #ffffff;
+    --blink-text-secondary: #949ca4;
+    --blink-text-success: #12dc88;
+    --blink-text-warning: #ffb545;
+    --blink-text-warning-hover: #ffc875;
+    --blink-transparent-error: #aa00001a;
+    --blink-transparent-grey: #6e767d1a;
+    --blink-transparent-warning: #a966001a;
+  }
+  
+  /* Apply Twitter styles to elements inside x-dark container */
+  .blink.x-dark .bg-bg-primary {
+    background-color: var(--blink-bg-primary);
+  }
+  .blink.x-dark .text-text-primary {
+    color: var(--blink-text-primary);
+  }
+  .blink.x-dark .text-text-secondary {
+    color: var(--blink-text-secondary);
+  }
+  .blink.x-dark .bg-button {
+    background-color: var(--blink-button);
+  }
+  .blink.x-dark .bg-button-hover:hover {
+    background-color: var(--blink-button-hover);
+  }
+  .blink.x-dark .text-text-button {
+    color: var(--blink-text-button);
+  }
+  .blink.x-dark .border-stroke-primary {
+    border-color: var(--blink-stroke-primary);
+  }
+  )CSS";
+  
+  // Return combined CSS
+  return css_script + twitterCSS;
 }
 
 String ScriptBlockStates::GetScriptsToAdd() {
+  LOG(INFO) << "AMIT get scripts to add";
   String scripts = "";
   LOG(INFO) << "Unfurling :: " << __func__;
   if (!input_script_added || !radio_script_added || !button_script_added ||
@@ -142,6 +215,7 @@ String ScriptBlockStates::GetScriptsToAdd() {
       checkbox_script_added = true;
     }
     if (!button_script_added && should_add_button_handler_script) {
+      LOG(INFO) << "AMIT adding button event listener button_script_added: ";
       scripts = scripts + ButtonEventListner();
       button_script_added = true;
     }
@@ -201,6 +275,7 @@ String ScriptBlockStates::FormSubmitEventListener() {
 }
 
 String ScriptBlockStates::ButtonEventListner() {
+  LOG(INFO) << "AMIT running buttononclick event";
   String button_listner = (R"HTML(
       function handleButtonClick(href) {
         console.log("URL: "+href);

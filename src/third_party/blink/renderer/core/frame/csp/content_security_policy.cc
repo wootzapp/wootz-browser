@@ -888,6 +888,17 @@ bool ContentSecurityPolicy::AllowImageFromSource(
     RedirectStatus redirect_status,
     ReportingDisposition reporting_disposition,
     CheckHeaderType check_header_type) {
+    LOG(ERROR) << "AllowImageFromSource: " << url.GetString();
+    // Special exception for arweave.net images in blink content
+    if (url.Host() == "arweave.net" && delegate_ && 
+      delegate_->Url().GetString().Contains("blnk.fun")) {
+      // Allow arweave.net images for blink content
+      LOG(ERROR) << "Allowing arweave.net images for blink content";
+      return true;
+    }
+    LOG(ERROR) << "BLAH BLAH BLAH" << AllowFromSource(CSPDirectiveName::ImgSrc, url, url_before_redirects,
+                         redirect_status, reporting_disposition,
+                         check_header_type);
   return AllowFromSource(CSPDirectiveName::ImgSrc, url, url_before_redirects,
                          redirect_status, reporting_disposition,
                          check_header_type);

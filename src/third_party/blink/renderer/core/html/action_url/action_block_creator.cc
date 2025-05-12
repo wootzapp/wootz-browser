@@ -73,8 +73,18 @@ String ActionBlockCreator::getScriptData() {
 }
 
 void ActionBlockCreator::CreateBlocks() {
+  LOG(INFO) << "Creating blocks";
   script_data_ = "";
-  data_ = (R"HTML(<div class="action-block-div">
+  
+  // Check if it's a Twitter/blink tag
+  bool isTwitterBlink = (action_spec_.tag == "blink" || action_spec_.tag == "registered");
+  
+  // Start with basic container, adding Twitter-specific class if needed
+  String containerClasses = isTwitterBlink 
+      ? "action-block-div blink x-dark" 
+      : "action-block-div blink dial-light";
+  
+  data_ = (R"HTML(<div class=")HTML") + containerClasses + (R"HTML(">
           <div class="w-full max-w-md">
 						<div class="w-full max-w-md">
 							<div class="blink dial-light">
@@ -85,7 +95,6 @@ void ActionBlockCreator::CreateBlocks() {
 						</div>
 					</div>
         </div>)HTML");
-  //(R"HTML()HTML")
 }
 
 String ActionBlockCreator::CreateIconDiv() {

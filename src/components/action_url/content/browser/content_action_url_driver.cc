@@ -99,6 +99,7 @@ void ContentActionUrlDriver::OnBlockDrawCompleted() {
   if (action_block_draw_remaining_ == 0) {
     if (const auto& agent = GetActionUrlAgent()) {
       LOG(INFO) << "Unfurling ::" << __func__;
+      LOG(INFO) << "AMIT Setting up action url script block in content action url driver";
       agent->SetUpScriptBlock();
     }
   }

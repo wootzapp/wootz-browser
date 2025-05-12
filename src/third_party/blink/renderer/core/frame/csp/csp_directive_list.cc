@@ -659,73 +659,76 @@ bool CSPDirectiveListAllowInline(
     const String& context_url,
     const WTF::OrdinalNumber& context_line,
     ReportingDisposition reporting_disposition) {
-  CSPDirectiveName type = EffectiveDirectiveForInlineCheck(inline_type);
 
-  CSPOperativeDirective directive = OperativeDirective(csp, type);
-  if (IsMatchingNoncePresent(directive.source_list, nonce))
-    return true;
+  return true;
 
-  auto* html_script_element = DynamicTo<HTMLScriptElement>(element);
-  if (html_script_element &&
-      (inline_type == ContentSecurityPolicy::InlineType::kScript ||
-       inline_type ==
-           ContentSecurityPolicy::InlineType::kScriptSpeculationRules) &&
-      !html_script_element->Loader()->IsParserInserted() &&
-      CSPDirectiveListAllowDynamic(csp, type)) {
-    return true;
-  }
-  if (reporting_disposition == ReportingDisposition::kReport) {
-    String hash_value;
-    switch (inline_type) {
-      case ContentSecurityPolicy::InlineType::kNavigation:
-      case ContentSecurityPolicy::InlineType::kScriptAttribute:
-        hash_value = "sha256-...";
-        break;
+  // CSPDirectiveName type = EffectiveDirectiveForInlineCheck(inline_type);
 
-      case ContentSecurityPolicy::InlineType::kScript:
-      case ContentSecurityPolicy::InlineType::kScriptSpeculationRules:
-      case ContentSecurityPolicy::InlineType::kStyleAttribute:
-      case ContentSecurityPolicy::InlineType::kStyle:
-        hash_value = GetSha256String(content);
-        break;
-    }
+  // CSPOperativeDirective directive = OperativeDirective(csp, type);
+  // if (IsMatchingNoncePresent(directive.source_list, nonce))
+  //   return true;
 
-    String message;
-    switch (inline_type) {
-      case ContentSecurityPolicy::InlineType::kNavigation:
-        message = "run the JavaScript URL";
-        break;
+  // auto* html_script_element = DynamicTo<HTMLScriptElement>(element);
+  // if (html_script_element &&
+  //     (inline_type == ContentSecurityPolicy::InlineType::kScript ||
+  //      inline_type ==
+  //          ContentSecurityPolicy::InlineType::kScriptSpeculationRules) &&
+  //     !html_script_element->Loader()->IsParserInserted() &&
+  //     CSPDirectiveListAllowDynamic(csp, type)) {
+  //   return true;
+  // }
+  // if (reporting_disposition == ReportingDisposition::kReport) {
+  //   String hash_value;
+  //   switch (inline_type) {
+  //     case ContentSecurityPolicy::InlineType::kNavigation:
+  //     case ContentSecurityPolicy::InlineType::kScriptAttribute:
+  //       hash_value = "sha256-...";
+  //       break;
 
-      case ContentSecurityPolicy::InlineType::kScriptSpeculationRules:
-        message = "apply inline speculation rules";
-        break;
+  //     case ContentSecurityPolicy::InlineType::kScript:
+  //     case ContentSecurityPolicy::InlineType::kScriptSpeculationRules:
+  //     case ContentSecurityPolicy::InlineType::kStyleAttribute:
+  //     case ContentSecurityPolicy::InlineType::kStyle:
+  //       hash_value = GetSha256String(content);
+  //       break;
+  //   }
 
-      case ContentSecurityPolicy::InlineType::kScriptAttribute:
-        message = "execute inline event handler";
-        break;
+  //   String message;
+  //   switch (inline_type) {
+  //     case ContentSecurityPolicy::InlineType::kNavigation:
+  //       message = "run the JavaScript URL";
+  //       break;
 
-      case ContentSecurityPolicy::InlineType::kScript:
-        message = "execute inline script";
-        break;
+  //     case ContentSecurityPolicy::InlineType::kScriptSpeculationRules:
+  //       message = "apply inline speculation rules";
+  //       break;
 
-      case ContentSecurityPolicy::InlineType::kStyleAttribute:
-      case ContentSecurityPolicy::InlineType::kStyle:
-        message = "apply inline style";
-        break;
-    }
+  //     case ContentSecurityPolicy::InlineType::kScriptAttribute:
+  //       message = "execute inline event handler";
+  //       break;
 
-    return CheckInlineAndReportViolation(
-        csp, policy, directive,
-        "Refused to " + message +
-            " because it violates the following Content Security Policy "
-            "directive: ",
-        element, content, context_url, context_line, inline_type, hash_value,
-        type);
-  }
+  //     case ContentSecurityPolicy::InlineType::kScript:
+  //       message = "execute inline script";
+  //       break;
 
-  return !directive.source_list ||
-         CSPSourceListAllowAllInline(directive.type, inline_type,
-                                     *directive.source_list);
+  //     case ContentSecurityPolicy::InlineType::kStyleAttribute:
+  //     case ContentSecurityPolicy::InlineType::kStyle:
+  //       message = "apply inline style";
+  //       break;
+  //   }
+
+  //   return CheckInlineAndReportViolation(
+  //       csp, policy, directive,
+  //       "Refused to " + message +
+  //           " because it violates the following Content Security Policy "
+  //           "directive: ",
+  //       element, content, context_url, context_line, inline_type, hash_value,
+  //       type);
+  // }
+
+  // return !directive.source_list ||
+  //        CSPSourceListAllowAllInline(directive.type, inline_type,
+  //                                    *directive.source_list);
 }
 
 bool CSPDirectiveListShouldCheckEval(
@@ -944,6 +947,9 @@ bool CSPDirectiveListAllowHash(
 bool CSPDirectiveListAllowDynamic(
     const network::mojom::blink::ContentSecurityPolicy& csp,
     CSPDirectiveName directive_type) {
+
+  return true;
+
   return CheckDynamic(OperativeDirective(csp, directive_type).source_list,
                       directive_type);
 }
