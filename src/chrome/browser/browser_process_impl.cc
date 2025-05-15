@@ -1215,7 +1215,6 @@ adblock_updater::AdBlockUpdaterService* BrowserProcessImpl::adblock_updater() {
     return nullptr;
   }
 
-  LOG(INFO) << "AdBlock: Creating new AdBlockUpdaterService instance";
   std::unique_ptr<component_updater::UpdateScheduler> scheduler =
       std::make_unique<component_updater::TimerUpdateScheduler>();
 

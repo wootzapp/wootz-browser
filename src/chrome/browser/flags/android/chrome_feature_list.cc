@@ -398,7 +398,6 @@ jni_zero::ScopedJavaLocalRef<jstring> JNI_ChromeFeatureList_GetAdBlockFiltersURL
   }
   
   std::string url = g_browser_process->local_state()->GetString(prefs::kAdBlockFiltersURL);
-  LOG(INFO) << "AdBlock: GetAdBlockFiltersURL getting URL: " << url;
   return base::android::ConvertUTF8ToJavaString(env, url);
 }
 
@@ -410,7 +409,6 @@ void JNI_ChromeFeatureList_SetAdBlockFiltersURL(
   }
   
   std::string url_str = base::android::ConvertJavaStringToUTF8(env, url);
-  LOG(INFO) << "AdBlock: SetAdBlockFiltersURL setting URL: " << url_str;
   g_browser_process->local_state()->SetString(prefs::kAdBlockFiltersURL, url_str);
 }
 

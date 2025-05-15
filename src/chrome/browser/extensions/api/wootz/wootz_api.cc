@@ -1204,7 +1204,6 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
     return RespondNow(Error("Invalid arguments"));
   }
   std::string url = args()[0].GetString();
-  LOG(INFO) << "WootzReplaceAdFunction::Run URL: " << url;
 
   // Enable ad blocking globally when this function is called
   LOG(INFO) << "WootzReplaceAdFunction: Setting AdBlockControl::SetEnabled to true";

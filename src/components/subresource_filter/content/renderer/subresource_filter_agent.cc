@@ -423,8 +423,8 @@ void SubresourceFilterAgent::DidCreateFencedFrame(
 
 void SubresourceFilterAgent::SetReplacementUrl(const std::string& replacement_url, 
                                                const std::vector<std::string>& selectors) {
-  LOG(INFO) << "AdBlock Renderer: Setting replacement URL: " << replacement_url;
-  LOG(INFO) << "AdBlock Renderer: Setting selectors: " << selectors.size();
+  // LOG(INFO) << "AdBlock Renderer: Setting replacement URL: " << replacement_url;
+  // LOG(INFO) << "AdBlock Renderer: Setting selectors: " << selectors.size();
   this->replacement_url = replacement_url;
   css_selectors_ = selectors;
 }
@@ -432,12 +432,11 @@ void SubresourceFilterAgent::SetReplacementUrl(const std::string& replacement_ur
 void SubresourceFilterAgent::OnResourceBlockedByFilter(const GURL& url) {
   // Store the blocked resource URL and schedule replacement
   if(replacement_url.empty()) {
-    LOG(INFO) << "AdBlock: No replacement URL set, skipping replacement";
+    // LOG(INFO) << "AdBlock: No replacement URL set, skipping replacement";
     return;
   }
   blocked_resources_.insert(url.spec());
   MaybeScheduleAdReplacement();
-  LOG(INFO) << "AdBlock: Resource blocked: " << url.spec();
 }
 
 void SubresourceFilterAgent::MaybeScheduleAdReplacement() {
@@ -478,12 +477,12 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     return;
   }
     
-  LOG(INFO) << "AdBlock: Starting replacement for " << blocked_resources_.size() << " resources";
+  // LOG(INFO) << "AdBlock: Starting replacement for " << blocked_resources_.size() << " resources";
   
-  // Debug: Log all blocked resources
-  for (const std::string& url : blocked_resources_) {
-    LOG(INFO) << "AdBlock: Looking to replace: " << url;
-  }
+  // // Debug: Log all blocked resources
+  // for (const std::string& url : blocked_resources_) {
+  //   LOG(INFO) << "AdBlock: Looking to replace: " << url;
+  // }
   
   // Track the elements we need to replace
   elements_to_replace.clear();  // Clear any previous elements
@@ -496,7 +495,7 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     return;
   }
   
-  LOG(INFO) << "AdBlock: Found body element, starting DOM traversal";
+  // LOG(INFO) << "AdBlock: Found body element, starting DOM traversal";
   
   // Standard traversal (keep your existing code here)
   std::vector<blink::WebElement> elements_to_check;
@@ -519,13 +518,13 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
       std::string src = current.GetAttribute("src").Utf8();
       if (!src.empty()) {
         src_elements_found++;
-        LOG(INFO) << "AdBlock: Found element with src: " << src;
+        // LOG(INFO) << "AdBlock: Found element with src: " << src;
         
         // Use the more flexible URL matching
         for (const std::string& blocked_url : blocked_resources_) {
           if (UrlsEffectivelyMatch(blocked_url, src)) {
-            LOG(INFO) << "AdBlock: Found element to replace with src: " << src 
-                      << " matching blocked URL: " << blocked_url;
+            // LOG(INFO) << "AdBlock: Found element to replace with src: " << src 
+            //           << " matching blocked URL: " << blocked_url;
             elements_to_replace.push_back(std::make_pair(current, src));
             break;
           }
@@ -551,17 +550,17 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     }
   }
   
-  LOG(INFO) << "AdBlock: DOM traversal complete. Checked " << elements_checked 
-            << " elements, found " << src_elements_found << " with src attributes, "
-            << elements_to_replace.size() << " elements need replacement";
+  // LOG(INFO) << "AdBlock: DOM traversal complete. Checked " << elements_checked 
+  //           << " elements, found " << src_elements_found << " with src attributes, "
+  //           << elements_to_replace.size() << " elements need replacement";
   
   // If we didn't find enough elements to replace, use the enhanced detection
   if (elements_to_replace.size() < blocked_resources_.size()) {
-    LOG(INFO) << "AdBlock: Not all blocked resources matched elements. Using enhanced detection.";
+    // LOG(INFO) << "AdBlock: Not all blocked resources matched elements. Using enhanced detection.";
     FindAdElements(document);
   }
   
-  LOG(INFO) << "AdBlock: After enhanced detection, found " << elements_to_replace.size() << " elements to replace";
+  // LOG(INFO) << "AdBlock: After enhanced detection, found " << elements_to_replace.size() << " elements to replace";
   
   // Now replace all identified elements
   for (const auto& pair : elements_to_replace) {
@@ -606,8 +605,6 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
         }
     }
     
-    LOG(INFO) << "AdBlock: Replacing element with dimensions " << width << "x" << height;
-    
     // Get the original style
     std::string original_style = current_element.GetAttribute("style").Utf8();
 
@@ -642,7 +639,6 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     std::string element_id = "ad_replacement_" + std::to_string(rand());
     current_element.SetAttribute("id", blink::WebString::FromUTF8(element_id));
     
-    LOG(INFO) << "AdBlock: Successfully replaced blocked element: " << original_src;
   }
   
   LOG(INFO) << "AdBlock: Completed replacing " << elements_to_replace.size() << " elements";
@@ -650,8 +646,6 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
   // If we didn't replace all blocked resources and haven't reached max attempts,
   // schedule another attempt with a delay
   if (!blocked_resources_.empty() && ad_replacement_attempt_count_ < kMaxAdReplacementAttempts) {
-    LOG(INFO) << "AdBlock: Still have " << blocked_resources_.size() 
-              << " resources to replace. Scheduling another attempt.";
               
     replacement_task_scheduled_ = true;
     replacement_timer_.Start(
@@ -660,7 +654,6 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
         this,
         &SubresourceFilterAgent::ReplaceBlockedAds);
   } else {
-    LOG(INFO) << "AdBlock: Finished all replacement attempts.";
     // Clear processed resources only after all attempts
     if (ad_replacement_attempt_count_ >= kMaxAdReplacementAttempts) {
       blocked_resources_.clear();
@@ -719,7 +712,6 @@ bool SubresourceFilterAgent::IsLikelyFalsePositive(const blink::WebElement& elem
 void SubresourceFilterAgent::FindAdElements(const blink::WebDocument& document) {
   // Batch selectors for performance
   const size_t batch_size = 50;
-  LOG(INFO) << "AdBlock: Finding ad elements with selectors: " << css_selectors_.size();
   for (size_t i = 0; i < css_selectors_.size(); i += batch_size) {
     std::string batch;
     for (size_t j = i; j < i + batch_size && j < css_selectors_.size(); ++j) {

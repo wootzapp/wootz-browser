@@ -30,7 +30,6 @@ DocumentSubresourceFilter::DocumentSubresourceFilter(
   CHECK_NE(activation_state_.activation_level,
            mojom::ActivationLevel::kDisabled, base::NotFatalUntil::M129);
   if (!activation_state_.filtering_disabled_for_document) {
-    LOG(INFO) << "AdBlock: DocumentSubresourceFilter constructor";
     document_origin_ =
         std::make_unique<FirstPartyOrigin>(std::move(document_origin));
   }
@@ -81,10 +80,8 @@ LoadPolicy DocumentSubresourceFilter::GetLoadPolicy(
     if (activation_state_.activation_level ==
         mojom::ActivationLevel::kDryRun) {
       ++statistics_.num_loads_disallowed;
-      LOG(INFO) << "AdBlock: Load policy: DISALLOW for URL: " << subresource_url.spec();
       // Add callback notification for blocked resource
       if (!blocked_resource_callback_.is_null()) {
-        LOG(INFO) << "AdBlock: Resource blocked: " << subresource_url.spec();
         blocked_resource_callback_.Run(subresource_url);
       }
       

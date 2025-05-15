@@ -206,7 +206,7 @@ const url_pattern_index::flat::UrlRule* IndexedRulesetMatcher::MatchedUrlRule(
   if (!blocklist_rule)
     return nullptr;
   auto* allowlist_rule = find_match(allowlist_);
-  LOG(INFO) << "AdBlock: Match result for " << url.spec() << ": " << (blocklist_rule || allowlist_rule ? "MATCHED" : "NO MATCH");
+  // LOG(INFO) << "AdBlock: Match result for " << url.spec() << ": " << (blocklist_rule || allowlist_rule ? "MATCHED" : "NO MATCH");
   return allowlist_rule ? allowlist_rule : blocklist_rule;
 }
 

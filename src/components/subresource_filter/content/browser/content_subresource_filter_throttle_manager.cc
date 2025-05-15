@@ -825,8 +825,7 @@ std::unique_ptr<ActivationStateComputingNavigationThrottle>
 ContentSubresourceFilterThrottleManager::
     MaybeCreateActivationStateComputingThrottle(
         content::NavigationHandle* navigation_handle) {
-  // Subresource filter roots: create unconditionally.
-  LOG(INFO) << "AdBlock: MaybeCreateActivationStateComputingThrottle" << IsInSubresourceFilterRoot(navigation_handle);
+  // Subresource filter roots: create unconditionally.(navigation_handle);
   if (IsInSubresourceFilterRoot(navigation_handle)) {
     auto throttle = ActivationStateComputingNavigationThrottle::CreateForRoot(
         navigation_handle);
@@ -839,7 +838,6 @@ ContentSubresourceFilterThrottleManager::
     }
 
     //TODO: could use same logic as in SubresourceFilterSafeBrowsingActivationThrottle::NotifyResult()
-    LOG(INFO) << "AdBlock: Computing activation state for page";
     subresource_filter::ActivationDecision ignored_decision;
     mojom::ActivationState ad_filtering_state;
 
@@ -854,8 +852,6 @@ ContentSubresourceFilterThrottleManager::
 
     throttle->NotifyPageActivationWithRuleset(EnsureRulesetHandle(),
                                               ad_filtering_state);
-    LOG(INFO) << "AdBlock: Notified throttle of activation state with level: " 
-              << static_cast<int>(ad_filtering_state.activation_level);
 
     return throttle;
   }

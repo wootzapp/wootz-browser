@@ -125,8 +125,6 @@ class CommaSeparatedStrings {
 std::vector<Configuration> FillEnabledPresetConfigurations() {
   // If ad tagging is enabled, turn on the dryrun automatically.
   bool ad_tagging_enabled = base::FeatureList::IsEnabled(kAdTagging);
-  LOG(INFO) << "AdBlock: ad_tagging_enabled: " << ad_tagging_enabled;
-  LOG(INFO) << "AdBlock: AdBlockControl::IsEnabled: " << AdBlockControl::IsEnabled();
   const struct {
     const char* name;
     bool enabled_by_default;
@@ -145,7 +143,6 @@ std::vector<Configuration> FillEnabledPresetConfigurations() {
   //     TakeVariationParamOrReturnEmpty(params, kDisablePresetsParameterName));
 
   std::vector<Configuration> enabled_configurations;
-  LOG(INFO) << "AdBlock: kAvailablePresetConfigurations: ";
   for (const auto& available_preset : kAvailablePresetConfigurations) {
     // if ((enabled_presets.CaseInsensitiveContains(available_preset.name) ||
     //      available_preset.enabled_by_default) &&
@@ -154,7 +151,6 @@ std::vector<Configuration> FillEnabledPresetConfigurations() {
       enabled_configurations.push_back(available_preset.factory_method());
     }
   }
-  LOG(INFO) << "AdBlock: enabled_configurations: " << enabled_configurations.size();
   return enabled_configurations;
 }
 

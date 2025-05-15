@@ -163,7 +163,6 @@ public class ChromeFeatureList {
      */
     public static String getAdBlockFiltersURL() {
         try {
-            Log.e("ChromeFeatureList", "getAdBlockFiltersURL: ");
             return ChromeFeatureListJni.get().getAdBlockFiltersURL();
         } catch (UnsatisfiedLinkError e) {
             Log.e("ChromeFeatureList", "Error getting AdBlock filters URL", e);
@@ -177,7 +176,6 @@ public class ChromeFeatureList {
      */
     public static void setAdBlockFiltersURL(String url) {
         try {
-            Log.e("ChromeFeatureList", "setAdBlockFiltersURL: " + url);
             ChromeFeatureListJni.get().setAdBlockFiltersURL(url);
         } catch (UnsatisfiedLinkError e) {
             Log.e("ChromeFeatureList", "Error setting AdBlock filters URL", e);
