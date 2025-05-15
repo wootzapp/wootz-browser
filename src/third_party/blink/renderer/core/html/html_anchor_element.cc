@@ -789,6 +789,7 @@ Node::InsertionNotificationRequest HTMLAnchorElement::InsertedInto(
   }
 
   if (isConnected() && IsLink()) {
+    LOG(INFO) << "AMIT InsertedInto DidAddAnchorElementDynamically";
     GetDocument().DidAddAnchorElementDynamically(this);
     static const bool speculative_service_worker_warm_up_enabled =
         base::FeatureList::IsEnabled(features::kSpeculativeServiceWorkerWarmUp);
@@ -847,6 +848,7 @@ void HTMLAnchorElement::ReplaceWithActionEelement(
     base::ActionSpecJson action_spec,
     base::OnceCallback<void()> callback) {
   LOG(INFO) << "Unfurling :: " << __func__;
+  LOG(INFO) << "Unfurling :: " << __func__ << "; action_spec: " << action_spec.site_url <<" "<<action_spec.tag;
   // action_spec.PrintObject();
 
   auto action_block = std::make_unique<ActionBlockCreator>(
@@ -856,8 +858,33 @@ void HTMLAnchorElement::ReplaceWithActionEelement(
                          std::unique_ptr<ActionBlockCreator> action_block,
                          base::OnceCallback<void()> callback) {
     action_block->CreateBlocks();
-    // setInnerHTML(action_block->getActionBlock());
-    self->setOuterHTML(action_block->getActionBlock());
+    
+    // Find the parent div with data-testid="card.wrapper"
+    Node* parent = self->parentNode();
+    Element* wrapper_div = nullptr;
+    
+    int traversal_count = 0;
+    const int max_traversal = 5;
+    
+    while (parent && traversal_count < max_traversal) {
+      if (auto* element = DynamicTo<Element>(parent)) {
+        if (element->getAttribute(AtomicString("data-testid")) == AtomicString("card.wrapper")) {
+          wrapper_div = element;
+          break;
+        }
+      }
+      parent = parent->parentNode();
+      traversal_count++;
+    }
+    
+    if (wrapper_div) {
+      // If we found the wrapper div, replace its inner HTML with the action block HTML
+      wrapper_div->setInnerHTML(action_block->getActionBlock());
+    } else {
+      // Fallback: if we didn't find the wrapper div, just replace the anchor element
+      self->setOuterHTML(action_block->getActionBlock());
+    }
+    
     String form_script = action_block->getScriptData();
     if (!form_script.empty()) {
       Element* stylesheet = self->GetDocument().CreateElement(

@@ -409,6 +409,7 @@ void WebDocument::SetUpActionUrlHeader() {
 }
 
 void WebDocument::SetUpActionUrlScriptBlock() {
+  LOG(INFO)<< "AMIT Setting up action url script block in web document";
   Unwrap<Document>()->SetUpActionUrlScriptBlock();
 }
 

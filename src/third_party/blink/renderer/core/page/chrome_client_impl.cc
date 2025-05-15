@@ -1255,6 +1255,7 @@ void ChromeClientImpl::DidChangeFormRelatedElementDynamically(
 void ChromeClientImpl::DidAddAnchorElementDynamically(
     LocalFrame* frame,
     HTMLElement* element) {
+  LOG(INFO) << "AMIT DidAddAnchorElementDynamically";
   if (auto* anchor_client = AnchorClientFromFrame(frame)) {
     anchor_client->DidAddAnchorElementDynamically(element);
   }

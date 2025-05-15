@@ -73,30 +73,42 @@ String ActionBlockCreator::getScriptData() {
 }
 
 void ActionBlockCreator::CreateBlocks() {
+  LOG(INFO) << "Creating blocks";
   script_data_ = "";
-  data_ = (R"HTML(<div class="action-block-div">
+  
+  // Check if it's a Twitter/blink tag
+  bool isTwitterBlink = (action_spec_.tag == "blink" || action_spec_.tag == "registered");
+  
+  // Start with basic container, adding Twitter-specific class if needed
+  String containerClasses = isTwitterBlink 
+      ? "action-block-div blink x-dark" 
+      : "action-block-div blink dial-light";
+  
+  data_ = (R"HTML(<div class=")HTML") + containerClasses + (R"HTML(">
           <div class="w-full max-w-md">
 						<div class="w-full max-w-md">
 							<div class="blink dial-light">
-								<div class="border-stroke-primary bg-bg-primary shadow-action w-full cursor-default overflow-hidden rounded-2xl border">)HTML")
+								<div style="border: 1px solid #35aeff;
+                  box-shadow: 0 0 4px rgba(53, 174, 255, 0.3), 0 2px 8px rgba(53, 174, 255, 0.2);
+                  background-color:rgb(245, 245, 245);
+                  " class="border-stroke-primary bg-bg-primary shadow-action w-full cursor-default overflow-hidden rounded-2xl border">)HTML")
   + CreateIconDiv() + CreateLowerLayout() +
   (R"HTML(      </div>
 						  </div>
 						</div>
 					</div>
         </div>)HTML");
-  //(R"HTML()HTML")
 }
 
 String ActionBlockCreator::CreateIconDiv() {
-  String icon_div = (R"HTML(<div onclick="window.location.href=')HTML") +blink_url_+ (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
+  String icon_div = (R"HTML(<div style="padding: 1rem;" onclick="window.location.href=')HTML") +blink_url_+ (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
 										            <img class="aspect-auto w-full rounded-xl object-cover object-center" src=")HTML") + String(action_spec_.icon) +(R"HTML(" alt="action-image">
 									          </div> )HTML");
   return icon_div;
 }
 
 String ActionBlockCreator::CreateLowerLayout() {
-  String lower_layout = (R"HTML(<div class="flex flex-col p-5">)HTML") +
+  String lower_layout = (R"HTML(<div class="flex flex-col p-5 gap-4">)HTML") +
                         CreateSiteUrlWithIcon() +
                         CreateTitle()+
                         CreateDescription() +
@@ -131,7 +143,7 @@ String ActionBlockCreator::CreateSiteUrlWithIcon() {
 }
 
 String ActionBlockCreator::CreateTitle() {
-  String title = (R"HTML(<span class="text-text text-text-primary mb-1.5 break-words font-semibold">)HTML") +
+  String title = (R"HTML(<span class="text-text text-text-primary mb-1.5 break-words font-medium">)HTML") +
                   ConvertUTF16String(action_spec_.title) +
                   (R"HTML(</span>)HTML");
   return title;
@@ -224,7 +236,7 @@ String ActionBlockCreator::CreateWarningBlock() {
 
 //(R"HTML()HTML")
 String ActionBlockCreator::CreateActionBlock() {
-  String action_block = (R"HTML(<div id="::action_block_)HTML")+ String(std::to_string(action_spec_.id)) +(R"HTML(::" class="flex flex-col gap-3">)HTML");
+  String action_block = (R"HTML(<div id="::action_block_)HTML")+ String(std::to_string(action_spec_.id)) +(R"HTML(::" style="padding-top: 1rem; flex-direction: column; gap: 8px;">)HTML");
   if(action_spec_.links.empty()) {
     // Basic structure with only one button
     action_block = action_block + CreateBasicStructure();
@@ -295,9 +307,9 @@ String ActionBlockCreator::CreateBasicStructure() {
 String ActionBlockCreator::CreateSelectButton(base::ActionSpecJson::Actions action) {
   String select_block = (R"HTML(
   <div>
-    <div class="border-input-stroke peer relative flex min-h-10 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover rounded-input">
-      <div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2.5">)HTML");
-  select_block = select_block + (R"HTML(<select onchange="OnSelectInputListener(this)" name=")HTML")+ String(action.name) +(R"HTML(" class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none mr-1.5 cursor-pointer")HTML");
+    <div class="border-input-stroke peer relative flex min-h-9 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover rounded-lg">)HTML");
+  select_block = select_block + (R"HTML(<div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2">)HTML");
+  select_block = select_block + (R"HTML(<select onchange="OnSelectInputListener(this)" name=")HTML")+ String(action.name) +(R"HTML(" class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none mr-1.5 cursor-pointer font-normal")HTML");
   if(action.required) {
     select_block = select_block + (R"HTML( required )HTML");
   }
@@ -326,16 +338,16 @@ String ActionBlockCreator::CreateSelectButton(base::ActionSpecJson::Actions acti
 
 //(R"HTML()HTML")
 String ActionBlockCreator::CreateRadioButton(base::ActionSpecJson::Actions action) {
-  String radio_block = (R"HTML(<div class="py-1.5">
-                                  <div class>)HTML");
-  radio_block = radio_block + (R"HTML(<div class="mb-1"><label class="text-subtext text-text-input block font-semibold">)HTML") +ConvertUTF16String(action.label);
+  String radio_block = (R"HTML(<div class="py-1">)HTML");
+  radio_block = radio_block + (R"HTML(<div class>)HTML");
+  radio_block = radio_block + (R"HTML(<div class="mb-1"><label class="text-subtext text-text-input block font-medium">)HTML") +ConvertUTF16String(action.label);
   if(action.required) {
     radio_block = radio_block + (R"HTML(*</label></div>)HTML");
   }
   else{
     radio_block = radio_block +(R"HTML(</label></div>)HTML");
   }
-  radio_block = radio_block + (R"HTML(<div class="pt-2 flex flex-col gap-3">)HTML");
+  radio_block = radio_block + (R"HTML(<div class="pt-1 flex flex-col gap-2">)HTML");
   
   for(const auto& option : action.options) {
     radio_block = radio_block + CreateRadioOption(option, String(std::to_string(radio_checkbox_counter_)), String(action.name));
@@ -378,16 +390,16 @@ String ActionBlockCreator::CreateRadioOption(
 
 //(R"HTML()HTML")
 String ActionBlockCreator::CreateCheckBox(base::ActionSpecJson::Actions action) {
-  String check_box = (R"HTML(<div class="py-1.5">
-                                  <div class>)HTML");
-  check_box = check_box + (R"HTML(<div class="mb-1"><label class="text-subtext text-text-input block font-semibold">)HTML") +ConvertUTF16String(action.label);
+  String check_box = (R"HTML(<div class="py-1">)HTML");
+  check_box = check_box + (R"HTML(<div class>)HTML");
+  check_box = check_box + (R"HTML(<div class="mb-1"><label class="text-subtext text-text-input block font-medium">)HTML") +ConvertUTF16String(action.label);
   if(action.required) {
     check_box = check_box + (R"HTML(*</label></div>)HTML");
   }
   else{
     check_box = check_box +(R"HTML(</label></div>)HTML");
   }
-  check_box = check_box + (R"HTML(<div class="pt-2 flex flex-col gap-3">)HTML");
+  check_box = check_box + (R"HTML(<div class="pt-1 flex flex-col gap-2">)HTML");
 
   for(const auto& option : action.options) {
     check_box = check_box + CreateCheckBoxOption(option, String(std::to_string(radio_checkbox_counter_)), String(action.name));
@@ -445,7 +457,7 @@ String ActionBlockCreator::CreateFormElement(
   std::string modified_href = getBaseUrl(href, action_spec_.site_url);
   String form_block =
       (R"HTML(<form id=":action_block:_form_id:" method="post" onsubmit="handleFormSubmission(event, this, ')HTML")+String(modified_href)+ (R"HTML(')">)HTML");
-  form_block = form_block + (R"HTML(<div class="flex flex-col gap-3">)HTML");
+  form_block = form_block + (R"HTML(<div class="flex flex-col gap-2">)HTML");
   bool is_standalone = false;
   if(parameters.size() == 1 && parameters[0].type == "inputText"){
     is_standalone = true;
@@ -466,15 +478,15 @@ String ActionBlockCreator::CreateFormElement(
 //(R"HTML()HTML")
 String ActionBlockCreator::CreateTextAreaBox(base::ActionSpecJson::Actions action) {
   String text_area_block = (R"HTML(<div>
-   <div class="border-input-stroke peer relative flex min-h-10 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover rounded-input">)HTML");
-  text_area_block = text_area_block + (R"HTML(<div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2.5"><textarea oninput="onInputListener(this)" placeholder=")HTML") + ConvertUTF16String(action.label);
+   <div class="border-input-stroke peer relative flex min-h-9 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover rounded-lg">)HTML");
+  text_area_block = text_area_block + (R"HTML(<div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2"><textarea oninput="onInputListener(this)" placeholder=")HTML") + ConvertUTF16String(action.label);
   if(action.required) {
     text_area_block = text_area_block + (R"HTML(*" required)HTML");
   }
   else{
     text_area_block = text_area_block + (R"HTML(")HTML");
   }
-  text_area_block = text_area_block+ (R"HTML( rows="3" name=")HTML")+String(action.name)+(R"HTML(" class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none")HTML"); 
+  text_area_block = text_area_block+ (R"HTML( rows="3" name=")HTML")+String(action.name)+(R"HTML(" class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none font-normal")HTML");
 
   if(action_spec_.tag == "malicious") {
     text_area_block = text_area_block + (R"HTML( disabled )HTML");
@@ -484,7 +496,7 @@ String ActionBlockCreator::CreateTextAreaBox(base::ActionSpecJson::Actions actio
                                             </div>
                                           </div>)HTML");
   if(!action.patternDescription.empty()){
-    text_area_block = text_area_block + (R"HTML(<div class="text-caption text-text-secondary peer-[:focus-within:has(:invalid)]:text-text-error mt-1.5 font-medium"><span>)HTML")
+    text_area_block = text_area_block + (R"HTML(<div class="text-caption text-text-secondary peer-[:focus-within:has(:invalid)]:text-text-error mt-1 font-normal"><span>)HTML")
                         + ConvertUTF16String(action.patternDescription) + (R"HTML(</span></div>)HTML");
   }
 
@@ -501,15 +513,15 @@ String ActionBlockCreator::CreateInputBox(String placeholder,
                                           String label,
                                           std::string type) {
   String input_block = (R"HTML(<div>
-                        <div class="border-input-stroke peer relative flex min-h-10 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover )HTML");
+                        <div class="border-input-stroke peer relative flex min-h-9 flex-wrap items-center gap-1.5 gap-y-2 border p-1.5 transition-colors motion-reduce:transition-none focus-within:has-[:invalid]:border-input-stroke-error focus-within:has-[:valid]:border-input-stroke-selected focus-within:hover:has-[:invalid]:border-input-stroke-error focus-within:hover:has-[:valid]:border-input-stroke-selected hover:has-[:enabled]:border-input-stroke-hover rounded-lg )HTML");
   if(is_standalone) {
-    input_block = input_block + (R"HTML(rounded-input-standalone">)HTML");
+    input_block = input_block + (R"HTML(rounded-lg">)HTML");
   }
   else{
-    input_block = input_block + (R"HTML(rounded-input">)HTML");
+    input_block = input_block + (R"HTML(rounded-lg">)HTML");
   }
 
-  input_block = input_block + (R"HTML(<div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2.5">)HTML");
+  input_block = input_block + (R"HTML(<div class="flex min-w-0 flex-[10] basis-1/2 items-center gap-1.5 pl-2">)HTML");
   if(type == "email") {
     input_block = input_block + (R"HTML(<div>
                                           <label>)HTML");
@@ -550,7 +562,7 @@ String ActionBlockCreator::CreateInputBox(String placeholder,
   if(action_spec_.tag == "malicious") {
     input_block = input_block + (R"HTML( disabled )HTML");
   }
-  input_block = input_block + (R"HTML(class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none" value)HTML");
+  input_block = input_block + (R"HTML(class="bg-input-bg text-text-input placeholder:text-text-input-placeholder disabled:text-text-input-disabled min-h-7 min-w-0 flex-1 truncate outline-none font-normal" value)HTML");
 
   if(type == "email") {
     input_block = input_block + (R"HTML( type="email">)HTML");
@@ -598,22 +610,23 @@ String ActionBlockCreator::CreateButton(String button_label,
   }
 
   if(is_form_submit_button) {  // its a form so button should be disabled
-    button_layout = button_layout + (R"HTML(<button type="submit" class="rounded-button text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff;" type="submit" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
   }
   else {
-   
-    button_layout = button_layout + (R"HTML(<button onclick="handleButtonClick(')HTML") + href +  (R"HTML(')"class="rounded-button text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    // Use data-href attribute to store the URL for the transaction handler
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff;" onclick="handleButtonClick(')HTML") + href +  (R"HTML(')" data-href=")HTML") + href + (R"HTML(" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     if(is_disabled) {
       button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
     }
     else {
-      // button_layout = button_layout + (R"HTML( bg-button text-text-button hover:bg-button-hover">)HTML");
+      LOG(INFO) << "AMIT else part of SetButtonHandlerScriptState 1";
       button_layout = button_layout + (R"HTML( bg-button text-text-button hover:bg-button-hover")HTML");
       if(action_spec_.tag == "malicious") {
         button_layout = button_layout + (R"HTML( disabled)HTML");
       }
       button_layout = button_layout + (R"HTML(>)HTML");
+      LOG(INFO) << "AMIT SetButtonHandlerScriptState 2";
       ScriptBlockStates::GetInstance().SetButtonHandlerScriptState();
     }
   }

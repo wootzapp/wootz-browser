@@ -49,8 +49,11 @@ ContentActionUrlDriver::ContentActionUrlDriver(
   action_block_draw_remaining_ = 0;
   requested_for_header_ = false;
 
+  LOG(INFO) << "AMIT ContentActionUrlDriver constructor before get interface";
   render_frame_host_->GetRemoteAssociatedInterfaces()->GetInterface(
       &action_url_agent_);
+  LOG(INFO) << "AMIT action_url_agent_ is bound: " << action_url_agent_.is_bound();
+  LOG(INFO) << "AMIT ContentActionUrlDriver constructor after get interface";
 }
 
 ContentActionUrlDriver::~ContentActionUrlDriver() = default;
@@ -76,6 +79,7 @@ int ContentActionUrlDriver::GetId() const {
 // action_url::mojom::ActionUrlDriver:
 void ContentActionUrlDriver::AllAnchorsParsed(
     const std::vector<action_url::AnchorData>& anchors_data) {
+  LOG(INFO) << "AMIT All anchors parsed";
   LOG(INFO) << "Unfurling ::" << __func__ << "; Anchors size: " << anchors_data.size();
 
   std::vector<action_url::AnchorData> anchors = anchors_data;
@@ -88,20 +92,27 @@ void ContentActionUrlDriver::AllAnchorsParsed(
         base::BindOnce(&ContentActionUrlDriver::ActionUrlFetched,
                        weak_factory_.GetWeakPtr(), anchor));
     handlers_list_.emplace_back(std::move(handler));
+    LOG(INFO) << "AMIT Handler processing remaining before: " << handler_processing_remaining_;
     handler_processing_remaining_++;
+    LOG(INFO) << "AMIT Handler processing remaining after: " << handler_processing_remaining_;
   }
 }
 
 void ContentActionUrlDriver::OnBlockDrawCompleted() {
+  LOG(INFO) << "AMIT On block draw completed";
   LOG(INFO) << "Unfurling ::: " << __func__ << "; action_block_draw_remaining_: "
             << action_block_draw_remaining_;
   action_block_draw_remaining_--;
-  if (action_block_draw_remaining_ == 0) {
-    if (const auto& agent = GetActionUrlAgent()) {
-      LOG(INFO) << "Unfurling ::" << __func__;
-      agent->SetUpScriptBlock();
-    }
-  }
+  // if (action_block_draw_remaining_ == 0) {
+    LOG(INFO) << "AMIT action_block_draw_remaining_ is 0";
+    LOG(INFO) << "GetActionUrlAgent: " << GetActionUrlAgent().is_bound();
+    const auto& agent = GetActionUrlAgent();
+    LOG(INFO) << "AMIT agent is not null";
+    LOG(INFO) << "Unfurling ::" << __func__;
+    LOG(INFO) << "AMIT Setting up action url script block in content action url driver";
+    agent->SetUpScriptBlock();
+    // }
+  // }
 }
 
 void ContentActionUrlDriver::Reset() {
@@ -128,6 +139,7 @@ void ContentActionUrlDriver::ActionUrlFetched(action_url::AnchorData anchor,
         requested_for_header_ = true;
       }
     }
+    LOG(INFO) << "AMIT Action block draw remaining: " << action_block_draw_remaining_;
     action_block_draw_remaining_++;
     ProcessActionUrl(GURL(acion_url), anchor, tag);
   }
@@ -202,9 +214,13 @@ void ContentActionUrlDriver::OnDownloadedJson(
 
 const mojo::AssociatedRemote<action_url::mojom::ActionUrlAgent>&
 ContentActionUrlDriver::GetActionUrlAgent() {
+  LOG(INFO) << "AMIT GetActionUrlAgent";
   CHECK_NE(render_frame_host_->GetLifecycleState(),
            content::RenderFrameHost::LifecycleState::kPendingCommit);
-
+  LOG(INFO) << "AMIT GetActionUrlAgent 2";
+  LOG(INFO) << "AMIT IsRenderFrameHostSupported: " << IsRenderFrameHostSupported(render_frame_host_);
+  LOG(INFO) << "AMIT action_url_agent_unbound_: " << action_url_agent_unbound_.is_bound();
+  LOG(INFO) << "AMIT action_url_agent_: " << action_url_agent_.is_bound();
   return IsRenderFrameHostSupported(render_frame_host_)
              ? action_url_agent_
              : action_url_agent_unbound_;

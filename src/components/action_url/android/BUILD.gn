@@ -10,6 +10,7 @@ android_library("java") {
   sources = [
     "java/org/chromium/components/action_url/ActionUrlHandler.java",
     "java/org/chromium/components/action_url/ActionUrlListFetcher.java",
+    "java/org/chromium/components/action_url/UrlPatternMatcher.java",
     "java/org/chromium/components/action_url/ActionUrlFetchedCallback.java",
   ]
 

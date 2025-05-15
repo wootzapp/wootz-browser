@@ -415,6 +415,12 @@ void ContentSecurityPolicy::AddPolicies(
   ReportUseCounters(policies_to_report);
 
   delegate_->DidAddContentSecurityPolicies(std::move(policies_to_report));
+  // header_delivered_ = true;
+  // LogToConsole("CSP disabled globally by custom patch",
+  //              mojom::ConsoleMessageLevel::kInfo);
+  // if (delegate_) {
+  //   delegate_->DidAddContentSecurityPolicies(std::move(policies));
+  // }
 }
 
 void ContentSecurityPolicy::ComputeInternalStateForParsedPolicy(
@@ -971,6 +977,7 @@ bool ContentSecurityPolicy::AllowTrustedTypeAssignmentFailure(
 
 bool ContentSecurityPolicy::IsActive() const {
   return !policies_.empty();
+  // return true;
 }
 
 bool ContentSecurityPolicy::IsActiveForConnections() const {
@@ -1574,6 +1581,18 @@ CSPDirectiveName ContentSecurityPolicy::GetDirectiveType(const String& name) {
 bool ContentSecurityPolicy::ShouldBypassContentSecurityPolicy(
     const KURL& url,
     SchemeRegistry::PolicyAreas area) const {
+  // Global bypass for all URLs
+  // return true;
+  // First check if this is a Twitter page
+  if (delegate_) {
+    const KURL& page_url = delegate_->Url();
+    if (page_url.Host() == "twitter.com" || 
+        page_url.Host() == "x.com" ||
+        page_url.Host().EndsWith(".twitter.com") ||
+        page_url.Host().EndsWith(".x.com")) {
+      return true;
+    }
+  }
   bool should_bypass_csp;
   if (SecurityOrigin::ShouldUseInnerURL(url)) {
     should_bypass_csp = SchemeRegistry::SchemeShouldBypassContentSecurityPolicy(

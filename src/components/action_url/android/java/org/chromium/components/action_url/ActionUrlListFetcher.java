@@ -20,7 +20,10 @@ import java.util.HashSet;
 import java.util.Set;
 import org.chromium.base.ThreadUtils;
 import android.util.Pair;
-
+import java.util.List;
+import java.util.Collections;
+import java.util.ArrayList;
+import java.net.URLDecoder;
 // @JNINamespace("action_url")
 public class ActionUrlListFetcher{
 
@@ -43,7 +46,7 @@ public class ActionUrlListFetcher{
         """);
     private ActionUrlListFetcher() {
         mActionUrlMap = new HashMap<>();
-        fetchActionUrlList();
+        // fetchActionUrlList();
     }
 
     private String formatUrl(String url) {
@@ -67,7 +70,7 @@ public class ActionUrlListFetcher{
             // Parse the JSON string to a JSONObject
             JSONObject jsonObject = new JSONObject(jsonString);
             JSONArray resultsArray = jsonObject.getJSONArray("results");
-
+            Log.e("::ACTION_URL:: kritagya", "resultsArray:: " + resultsArray.length());
             // Populate the HashMap with blinkUrl as key and actionUrl as value
             for (int i = 0; i < resultsArray.length(); i++) {
                 JSONObject resultObject = resultsArray.getJSONObject(i);
@@ -76,6 +79,10 @@ public class ActionUrlListFetcher{
                 String websiteUrl = resultObject.getString("websiteUrl");
                 JSONArray tags = resultObject.getJSONArray("tags");
                 String tag;
+                Log.e("::ACTION_URL:: kritagya", "tags:: " + tags.toString() + "||| length:: " + tags.length());
+                Log.e("::ACTION_URL:: kritagya", "blinkUrl:: " + blinkUrl);
+                Log.e("::ACTION_URL:: kritagya", "actionUrl:: " + actionUrl);
+                Log.e("::ACTION_URL:: kritagya", "websiteUrl:: " + websiteUrl);
                 if(tags.length() == 0) {
                     tag = "unknown";
                 }
@@ -85,25 +92,32 @@ public class ActionUrlListFetcher{
 
                 if(!blinkUrl.equals("null")) {
                     mActionUrlMap.put(formatUrl(blinkUrl), new Pair<>(actionUrl, tag));
-                    Log.i("::ACTION_URL::", "blinkUrl:: " + blinkUrl + "||| actionUrl:: " + actionUrl);
+                    // Log.e("::ACTION_URL::", "blinkUrl:: " + blinkUrl + "||| actionUrl:: " + actionUrl);
                 }
                 if(!websiteUrl.equals("null")) {
                     mActionUrlMap.put(formatUrl(websiteUrl), new Pair<>(actionUrl, tag));
-                    Log.i("::ACTION_URL::", "websiteUrl:: " + websiteUrl + "||| actionUrl:: " + actionUrl);
+                    // Log.e("::ACTION_URL::", "websiteUrl:: " + websiteUrl + "||| actionUrl:: " + actionUrl);
                 }
 
                 mActionUrlMap.put(formatUrl(actionUrl), new Pair<>(actionUrl, tag));
 
             }
         } catch (Exception e) {
-            Log.i("ActionUrl::", "Error parsing JSON: " + e.getMessage());
+            Log.e("ActionUrl::", "Error parsing JSON: " + e.getMessage());
         }
     }
 
     private void expandToFinalURL(String shortUrl,  ActionUrlFetchedCallback callback) {
         HttpURLConnection httpURLConnection = null;
         String expandedURL = shortUrl;
-        Log.i("::Unfurling :::: ", "expandUrl url is: "+shortUrl);
+        Log.e("::Unfurling Sagar:::: abcdz ", "expandUrl url is: "+shortUrl);
+        if (!shortUrl.startsWith("https://t.co/")) {
+            Log.e("::Unfurling:::: ", "URL is a not t.co URL, backing off: " + shortUrl);
+            ThreadUtils.runOnUiThread(() -> {
+                callback.onCompletion("", "");
+            });
+            return;
+        }
         try {
             URL url = new URL(shortUrl);
             httpURLConnection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(url,
@@ -120,7 +134,7 @@ public class ActionUrlListFetcher{
 
             // Check for redirection
             int responseCode = httpURLConnection.getResponseCode();
-            Log.i("::Unfurling :::: ", "Response code is: " + responseCode);
+            Log.e("::Unfurling Sagar:::: ", "Response code is: " + responseCode);
             if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || 
                 responseCode == HttpURLConnection.HTTP_MOVED_TEMP || 
                 responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
@@ -130,36 +144,42 @@ public class ActionUrlListFetcher{
                 // If there's no redirection, return the original URL
                 expandedURL = shortUrl;
             }
+            Log.e("::Unfurling Sagar:::: abcdz ", "expandedURL is: " + expandedURL);
 
         } catch (Exception e) {
-            Log.i("::Unfurling :::: ", "Failed to expand blink url: " + e.getMessage());
+            Log.e("::Unfurling Sagar:::: abcdz ", "Failed to expand blink url: " + e.getMessage());
         } finally {
             if (httpURLConnection != null) {
                 httpURLConnection.disconnect();
             }
         }
 
-        Log.i("::Unfurling :::: ", "expandedURL is: " + expandedURL);    
+        Log.e("::Unfurling Sagar:::: abcdz ", "expandedURL is: " + expandedURL);
+
         Pair<String, String> action_pair = mActionUrlMap.get(formatUrl(expandedURL));
+        String twitterActionUrl = processUrlForActionJson(expandedURL);
         
         ThreadUtils.runOnUiThread(() -> {
-            if(action_pair != null) {
-                Log.i("::Unfurling :::: ", "actionURL is: " + action_pair.first);
+            if (action_pair != null) {
+                Log.e("::Unfurling Sagar:::: ", "actionURL is: " + action_pair.first);
                 callback.onCompletion(action_pair.first, action_pair.second);
-            }
-            else{
-                Log.i("::Unfurling :::: ", "actionURL is##: null"); 
+            } else if (twitterActionUrl != null && !twitterActionUrl.isEmpty()) {
+                Log.e("::Unfurling Sagar:::: ", "actionURL is onlyblink Sagar: " + twitterActionUrl);
+                callback.onCompletion(twitterActionUrl, "registered");
+            } else {
+                Log.e("::Unfurling Sagar:::: ", "actionURL is null");
                 callback.onCompletion("", "");
             }
         });
-
     }
 
     // Method to get actionUrl by blinkUrl
     public void getActionUrl(String blinkUrl, ActionUrlFetchedCallback callback) {
         // return mActionUrlMap.get(blinkUrl);
+        Log.e("::ActionUrl:: kritagya", "getActionUrl:: " + blinkUrl);
         if(!actionListFetched) {
-            fetchActionUrlList();
+            Log.e("::ActionUrl:: kritagya", "fetching action url list");
+            // fetchActionUrlList();
         }
         Thread thread = new Thread(
                 () -> {
@@ -184,7 +204,7 @@ public class ActionUrlListFetcher{
 
     // @CalledByNative
     public void fetchURLList(String urlString) {
-        Log.i("::ActionUrl::", "fetchURLContent:: " + urlString);
+        Log.e("::ActionUrl:: kritagya", "fetchURLContent:: " + urlString);
         HttpURLConnection connection = null;
         StringBuilder content = new StringBuilder();
         try {
@@ -199,7 +219,7 @@ public class ActionUrlListFetcher{
             int responseCode = connection.getResponseCode();
             if(responseCode == HttpURLConnection.HTTP_OK) {
                 InputStream inputStream = connection.getInputStream();
-                Log.i("::ActionUrl::", "connection passed");
+                Log.e("::ActionUrl::", "connection passed");
 
                 // Read the response content fully
                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -207,11 +227,11 @@ public class ActionUrlListFetcher{
                 while ((line = reader.readLine()) != null) {
                     content.append(line); // Append each line
                 }
-
+                Log.e("::ActionUrl:: kritagya", "content is: " + content.toString());
                 processFetchedContent(content.toString());
             }
         } catch (Exception e) {
-            Log.i("::ActionUrl:: ", "Failed to fetch or parse content: " + e.getMessage());
+            Log.e("::ActionUrl:: ", "Failed to fetch or parse content: " + e.getMessage());
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -220,4 +240,118 @@ public class ActionUrlListFetcher{
         }
     }
     
+    // // Interface for JSON download callback
+    // public interface JsonDownloadCallback {
+    //     void onJsonDownloaded(String jsonContent, int responseCode);
+    // }
+
+    // // Method to download JSON using C++ (JNI)
+    // private void downloadJsonWithNative(String urlString, JsonDownloadCallback callback) {
+    //     Log.e("::Unfurling:::: ", "Downloading JSON with native code: " + urlString);
+    //     ActionUrlListFetcherJni.get().downloadJsonFile(urlString, new JsonDownloadCallback() {
+    //         @Override
+    //         public void onJsonDownloaded(String jsonContent, int responseCode) {
+    //             if (responseCode == 200 && !jsonContent.isEmpty()) {
+    //                 Log.e("::Unfurling:::: ", "Downloaded JSON successfully");
+    //                 callback.onJsonDownloaded(jsonContent, responseCode);
+    //             } else {
+    //                 Log.e("::Unfurling:::: ", "Failed to download JSON: " + responseCode);
+    //                 callback.onJsonDownloaded("", responseCode);
+    //             }
+    //         }
+    //     });
+    // }
+
+    // JNI bindings
+    // @NativeMethods
+    // interface ActionUrlListFetcherJni {
+    //     boolean downloadJsonFile(String url, JsonDownloadCallback callback);
+    // }
+
+    /**
+     * Downloads the action.json file and processes it to find a matching action URL.
+     * @param expandedURL The expanded URL to process
+     * @return The matching action URL, or empty string if no match is found
+     */
+    private String processUrlForActionJson(String expandedURL) {
+        try {
+
+            // Special handling for dial.to URLs with embedded action URLs
+            String actualUrl = URLDecoder.decode(expandedURL, "UTF-8");
+            if (actualUrl.startsWith("https://dial.to/") || actualUrl.startsWith("http://dial.to/")) {
+                // Check if there's an embedded URL in the format ?action=solana-action:https://...
+                if (actualUrl.contains("?action=solana-action:")) {
+                    int startIndex = actualUrl.indexOf("solana-action:") + "solana-action:".length();
+                    int endIndex = actualUrl.indexOf("&", startIndex);
+                    actualUrl = endIndex > 0 ? actualUrl.substring(startIndex, endIndex) : actualUrl.substring(startIndex);
+                    Log.e("::Unfurling:::: ", "Extracted embedded URL from dial.to: " + actualUrl);
+                    
+                    // If the extracted URL is already an API URL, return it directly
+                    if (actualUrl.contains("/api/")) {
+                        Log.e("::Unfurling:::: ", "URL is already an API URL, using directly: " + actualUrl);
+                        return actualUrl;
+                    }
+                }
+            }
+        
+            // Parse the URL to extract its components
+            URL parsedUrl = new URL(actualUrl);
+            String origin = parsedUrl.getProtocol() + "://" + parsedUrl.getHost();
+            String path = parsedUrl.getPath();
+            String query = parsedUrl.getQuery() != null ? "?" + parsedUrl.getQuery() : "";
+            
+            // Construct the action.json URL
+            String actionJsonUrl = origin + "/actions.json";
+            
+            Log.e("::Unfurling:::: ", "Fetching action.json from: " + actionJsonUrl);
+            
+            // Download the action.json using Java (synchronously)
+            HttpURLConnection connection = null;
+            String jsonContent = "";
+            try {
+                URL url = new URL(actionJsonUrl);
+                connection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(url,
+                        TRAFFIC_ANNOTATION);
+
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                
+                int responseCode = connection.getResponseCode();
+                if(responseCode == HttpURLConnection.HTTP_OK) {
+                    // Read the JSON content
+                    InputStream inputStream = connection.getInputStream();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+                    StringBuilder content = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        content.append(line);
+                    }
+                    jsonContent = content.toString();
+                    Log.e("::Unfurling:::: ", "Successfully downloaded action.json");
+                } else {
+                    Log.e("::Unfurling:::: ", "Failed to download action.json: " + responseCode);
+                    return "";
+                }
+            } catch (Exception e) {
+                Log.e("::Unfurling:::: ", "Error downloading action.json: " + e.getMessage());
+                return "";
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+            
+            // If we have JSON content, process it
+            if (!jsonContent.isEmpty()) {
+                return UrlPatternMatcher.findMatchingActionUrl(jsonContent, expandedURL, path, query);
+            }
+            
+            // No match found
+            return "";
+        } catch (Exception e) {
+            Log.e("::Unfurling:::: ", "Error processing URL: " + e.getMessage());
+            return "";
+        }
+    }
 }

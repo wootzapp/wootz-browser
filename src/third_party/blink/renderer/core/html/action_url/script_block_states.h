@@ -30,6 +30,7 @@ class ScriptBlockStates {
 
   void ResetScriptState();
 
+
   String GetScriptsToAdd();
   String GetCssScriptsToAdd();
 
@@ -44,6 +45,7 @@ class ScriptBlockStates {
   String InputEventListener();
   String ValidationBlock();
   String SelectInputEventListener();
+  String SolanaTransactionHandler();
 
   bool should_add_input_handler_script = false;
   bool should_add_radio_button_handler_script = false;

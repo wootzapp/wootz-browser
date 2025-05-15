@@ -904,6 +904,9 @@ Document::Document(const DocumentInit& initializer,
               ? MakeGarbageCollected<RenderBlockingResourceManager>(*this)
               : nullptr),
       data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
+
+  LOG(INFO) << "AMIT Document::Document";
+
   TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
                          TRACE_EVENT_FLAG_FLOW_OUT);
   DCHECK(agent_);
@@ -8343,6 +8346,7 @@ void Document::DidChangeFormRelatedElementDynamically(
 }
 
 void Document::DidAddAnchorElementDynamically(HTMLElement* element) {
+  LOG(INFO) << "AMIT DidAddAnchorElementDynamically";
   if (!GetFrame() || !GetFrame()->GetPage() || !HasFinishedParsing() ||
       !GetFrame()->IsAttached()) {
     return;
@@ -9281,6 +9285,7 @@ void Document::UnscheduleShadowTreeCreation(HTMLInputElement& element) {
 }
 
 void Document::SetUpActionUrlHeader() {
+  LOG(INFO) << "AMIT SetUpActionUrlHeader";
   String css_to_add = ScriptBlockStates::GetInstance().GetCssScriptsToAdd();
   if (!css_to_add.empty()) {
     Element* stylesheet =
@@ -9292,6 +9297,9 @@ void Document::SetUpActionUrlHeader() {
 }
 
 void Document::SetUpActionUrlScriptBlock() {
+  LOG(INFO) << "AMIT SetUpActionUrlScriptBlock";
+  LOG(INFO)<< "AMIT Setting up action url script block in document";
+
   LOG(INFO) << "Unfurling :: " << __func__;
   String script_to_add = ScriptBlockStates::GetInstance().GetScriptsToAdd();
   if (!script_to_add.empty()) {
@@ -9304,6 +9312,7 @@ void Document::SetUpActionUrlScriptBlock() {
 }
 
 void Document::ResetScriptState() {
+  LOG(INFO) << "AMIT ResetScriptState";
   ScriptBlockStates::GetInstance().ResetScriptState();
 }
 

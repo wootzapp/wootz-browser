@@ -694,6 +694,14 @@ std::string JsonRpcService::GetChainIdSync(
     }
   }
 
+  if (origin && (origin->host() == "x.com" || origin->host() == "twitter.com" || origin->host() == "pro.x.com")) {
+    LOG(ERROR) << "jangid_sign: Twitter origin detected, returning Solana chain ID";
+    // Set the network first
+    if (SetNetwork(mojom::kSolanaMainnet, coin, origin)) {
+      LOG(ERROR) << "jangid_sign: Successfully set Solana chain ID";
+    }
+  }
+
   std::string chain_id = network_manager_->GetCurrentChainId(coin, origin);
 
   LOG(ERROR) << "GetChainIdSync - Resolved Chain ID: " << chain_id;
