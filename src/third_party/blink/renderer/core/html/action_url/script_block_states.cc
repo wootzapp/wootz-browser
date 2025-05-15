@@ -291,39 +291,44 @@ String ScriptBlockStates::ButtonEventListner() {
   String button_listner = (R"HTML(
       async function handleButtonClick(href) {
         try {
-          // Store the original button container content
-          const actionBlockDiv = document.querySelector('.action-block-div');
-          const buttonContainer = actionBlockDiv.querySelector('[id^="::action_block_"]');
+          // Find the button that was clicked
+          const clickedButton = event.currentTarget;
+          // Find the containing action block
+          const buttonContainer = clickedButton.closest('[id^="::action_block_"]');
           if (!buttonContainer) return;
           
           // Save the original content
           buttonContainer._originalContent = buttonContainer.innerHTML;
           
-          // Replace all buttons with a single "Processing" button
+          // Replace all buttons with a single "Processing" button that matches the original button height
           buttonContainer.innerHTML = `
-            <div class="flex justify-center w-full">
-              <button disabled style="background-color:rgb(220, 220, 220);" class="bg-button-disabled text-text-button-disabled rounded-full py-2 px-4 w-full">
-                <div class="flex items-center justify-center">
-                  Processing Transaction...
-                </div>
+            <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <button disabled style="background-color:rgb(220, 220, 220);" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+                <span class="min-w-0 truncate">Processing Transaction...</span>
               </button>
             </div>
           `;
           
-          if (typeof window.solana !== "undefined") {
-            await handleSolanaTransaction(href);
-          } else {
-            console.log("Solana Provider is not found");
-
-            // Restore original UI
-            buttonContainer.innerHTML = buttonContainer._originalContent;
+          try {
+            if (typeof window.solana !== "undefined") {
+              const result = await handleSolanaTransaction(href);
+              console.log("Transaction result:", result);
+            } else {
+              console.log("Solana Provider is not found");
+            }
+          } catch (txError) {
+            console.error("Transaction error:", txError);
+          } finally {
+            // Always restore original UI when transaction completes or fails
+            if (buttonContainer && buttonContainer._originalContent) {
+              buttonContainer.innerHTML = buttonContainer._originalContent;
+            }
           }
         } catch (error) {
           console.error("Error in handleButtonClick:", error);
-
           
-          // Restore original UI if there's an error
-          const buttonContainer = document.querySelector('[id^="::action_block_"]');
+          // Restore original UI if there's an error in the outer try block
+          const buttonContainer = event.currentTarget.closest('[id^="::action_block_"]');
           if (buttonContainer && buttonContainer._originalContent) {
             buttonContainer.innerHTML = buttonContainer._originalContent;
           }
