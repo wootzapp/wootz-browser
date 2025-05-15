@@ -5,6 +5,8 @@
 #include "components/subresource_filter/content/renderer/subresource_filter_agent.h"
 
 #include <utility>
+#include <fstream>
+#include <sstream>
 
 #include "base/check.h"
 #include "base/feature_list.h"
@@ -31,7 +33,10 @@
 #include "third_party/blink/public/platform/web_worker_fetch_context.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_document_loader.h"
+#include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_local_frame.h"
+#include "third_party/blink/public/web/web_node.h"
+#include "third_party/blink/public/web/web_element_collection.h"
 #include "url/url_constants.h"
 
 namespace {
@@ -150,8 +155,20 @@ bool SubresourceFilterAgent::IsFrameCreatedByAdScript() {
 
 void SubresourceFilterAgent::SetSubresourceFilterForCurrentDocument(
     std::unique_ptr<blink::WebDocumentSubresourceFilter> filter) {
+  
+  // Get the WebLocalFrame
   blink::WebLocalFrame* web_frame = render_frame()->GetWebFrame();
-  CHECK(web_frame->GetDocumentLoader(), base::NotFatalUntil::M129);
+  if (!web_frame || !web_frame->GetDocumentLoader())
+    return;
+  
+  // Connect our callback to be notified of blocked resources
+  if (filter) {
+    auto* filter_impl = static_cast<WebDocumentSubresourceFilterImpl*>(filter.get());
+    filter_impl->SetBlockedResourceCallback(
+        base::BindRepeating(&SubresourceFilterAgent::OnResourceBlockedByFilter,
+                          base::Unretained(this)));
+  }
+  
   web_frame->GetDocumentLoader()->SetSubresourceFilter(filter.release());
 }
 
@@ -402,6 +419,336 @@ void SubresourceFilterAgent::DidCreateFencedFrame(
   if (render_frame()->GetWebFrame()->IsAdScriptInStack()) {
     GetSubresourceFilterHost()->AdScriptDidCreateFencedFrame(placeholder_token);
   }
+}
+
+void SubresourceFilterAgent::SetReplacementUrl(const std::string& replacement_url, 
+                                               const std::vector<std::string>& selectors) {
+  LOG(INFO) << "AdBlock Renderer: Setting replacement URL: " << replacement_url;
+  LOG(INFO) << "AdBlock Renderer: Setting selectors: " << selectors.size();
+  this->replacement_url = replacement_url;
+  css_selectors_ = selectors;
+}
+
+void SubresourceFilterAgent::OnResourceBlockedByFilter(const GURL& url) {
+  // Store the blocked resource URL and schedule replacement
+  if(replacement_url.empty()) {
+    LOG(INFO) << "AdBlock: No replacement URL set, skipping replacement";
+    return;
+  }
+  blocked_resources_.insert(url.spec());
+  MaybeScheduleAdReplacement();
+  LOG(INFO) << "AdBlock: Resource blocked: " << url.spec();
+}
+
+void SubresourceFilterAgent::MaybeScheduleAdReplacement() {
+  if (!replacement_task_scheduled_) {
+    replacement_task_scheduled_ = true;
+    ad_replacement_attempt_count_ = 0;  // Reset attempt counter
+    
+    // First attempt runs immediately
+    replacement_timer_.Start(
+        FROM_HERE,
+        base::Milliseconds(0),
+        this,
+        &SubresourceFilterAgent::ReplaceBlockedAds);
+  }
+}
+
+void SubresourceFilterAgent::ReplaceBlockedAds() {
+  replacement_task_scheduled_ = false;
+  
+  // Increment attempt counter
+  ad_replacement_attempt_count_++;
+  
+  if (!render_frame() || blocked_resources_.empty()) {
+    LOG(INFO) << "AdBlock: No render frame or empty blocked resources list";
+    return;
+  }
+
+  // Get a reference to the document
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (!frame) {
+    LOG(INFO) << "AdBlock: WebFrame is null";
+    return;
+  }
+  
+  blink::WebDocument document = frame->GetDocument();
+  if (document.IsNull()) {
+    LOG(INFO) << "AdBlock: Document is null";
+    return;
+  }
+    
+  LOG(INFO) << "AdBlock: Starting replacement for " << blocked_resources_.size() << " resources";
+  
+  // Debug: Log all blocked resources
+  for (const std::string& url : blocked_resources_) {
+    LOG(INFO) << "AdBlock: Looking to replace: " << url;
+  }
+  
+  // Track the elements we need to replace
+  elements_to_replace.clear();  // Clear any previous elements
+  
+  // First try to find elements using direct src matching
+  // Get the body element first
+  blink::WebElement body = document.Body();
+  if (body.IsNull()) {
+    LOG(INFO) << "AdBlock: Body element not found";
+    return;
+  }
+  
+  LOG(INFO) << "AdBlock: Found body element, starting DOM traversal";
+  
+  // Standard traversal (keep your existing code here)
+  std::vector<blink::WebElement> elements_to_check;
+  elements_to_check.push_back(body);
+  
+  int elements_checked = 0;
+  int src_elements_found = 0;
+  
+  while (!elements_to_check.empty()) {
+    blink::WebElement current = elements_to_check.back();
+    elements_to_check.pop_back();
+    elements_checked++;
+    
+    // Check if this element should be replaced
+    if (current.HasHTMLTagName("img") || 
+        current.HasHTMLTagName("iframe") || 
+        current.HasHTMLTagName("object") || 
+        current.HasHTMLTagName("embed")) {
+      
+      std::string src = current.GetAttribute("src").Utf8();
+      if (!src.empty()) {
+        src_elements_found++;
+        LOG(INFO) << "AdBlock: Found element with src: " << src;
+        
+        // Use the more flexible URL matching
+        for (const std::string& blocked_url : blocked_resources_) {
+          if (UrlsEffectivelyMatch(blocked_url, src)) {
+            LOG(INFO) << "AdBlock: Found element to replace with src: " << src 
+                      << " matching blocked URL: " << blocked_url;
+            elements_to_replace.push_back(std::make_pair(current, src));
+            break;
+          }
+        }
+      }
+    }
+    
+    // Add child elements to check
+    // Handle child traversal - first add next sibling to maintain breadth
+    if (!current.NextSibling().IsNull()) {
+      blink::WebNode sibling = current.NextSibling();
+      if (sibling.IsElementNode()) {
+        elements_to_check.push_back(sibling.To<blink::WebElement>());
+      }
+    }
+    
+    // Then add first child if it exists
+    if (!current.FirstChild().IsNull()) {
+      blink::WebNode child = current.FirstChild();
+      if (child.IsElementNode()) {
+        elements_to_check.push_back(child.To<blink::WebElement>());
+      }
+    }
+  }
+  
+  LOG(INFO) << "AdBlock: DOM traversal complete. Checked " << elements_checked 
+            << " elements, found " << src_elements_found << " with src attributes, "
+            << elements_to_replace.size() << " elements need replacement";
+  
+  // If we didn't find enough elements to replace, use the enhanced detection
+  if (elements_to_replace.size() < blocked_resources_.size()) {
+    LOG(INFO) << "AdBlock: Not all blocked resources matched elements. Using enhanced detection.";
+    FindAdElements(document);
+  }
+  
+  LOG(INFO) << "AdBlock: After enhanced detection, found " << elements_to_replace.size() << " elements to replace";
+  
+  // Now replace all identified elements
+  for (const auto& pair : elements_to_replace) {
+    blink::WebElement current_element = pair.first;
+    const std::string& original_src = pair.second;
+    
+    // Get dimensions for all elements
+    int width = 300;  // Default width
+    int height = 250; // Default height
+    
+    // Use proper dimension detection - try width/height attributes first
+    std::string width_attr = current_element.GetAttribute("width").Utf8();
+    std::string height_attr = current_element.GetAttribute("height").Utf8();
+    
+    if (!width_attr.empty())
+        width = SafeParseInt(width_attr, width);
+    if (!height_attr.empty())
+        height = SafeParseInt(height_attr, height);
+
+    // If width/height attributes aren't available, check style
+    if (width == 300 && height == 250) {
+        std::string style = current_element.GetAttribute("style").Utf8();
+        size_t width_pos = style.find("width:");
+        if (width_pos != std::string::npos) {
+            std::string width_str = style.substr(width_pos + 6);
+            size_t px_pos = width_str.find("px");
+            if (px_pos != std::string::npos) {
+                width_str = width_str.substr(0, px_pos);
+                width_str.erase(0, width_str.find_first_not_of(" \t"));
+                width = SafeParseInt(width_str, width);
+            }
+        }
+        size_t height_pos = style.find("height:");
+        if (height_pos != std::string::npos) {
+            std::string height_str = style.substr(height_pos + 7);
+            size_t px_pos = height_str.find("px");
+            if (px_pos != std::string::npos) {
+                height_str = height_str.substr(0, px_pos);
+                height_str.erase(0, height_str.find_first_not_of(" \t"));
+                height = SafeParseInt(height_str, height);
+            }
+        }
+    }
+    
+    LOG(INFO) << "AdBlock: Replacing element with dimensions " << width << "x" << height;
+    
+    // Get the original style
+    std::string original_style = current_element.GetAttribute("style").Utf8();
+
+    // Compose the new style
+    std::string bg_style = "width: " + std::to_string(width) +
+        "px; height: " + std::to_string(height) +
+        "px; background: url('" + replacement_url + "') no-repeat;" +
+        "background-size: contain; background-position: center; border: none;" +
+        "margin: auto; display: block;";
+
+    // Optionally, append any original margin or display if present
+    if (original_style.find("margin") != std::string::npos) {
+        // Extract and append margin from original_style
+        size_t margin_pos = original_style.find("margin");
+        size_t semicolon = original_style.find(";", margin_pos);
+        std::string margin_str = original_style.substr(margin_pos, semicolon - margin_pos + 1);
+        bg_style += margin_str;
+    }
+    if (original_style.find("display") != std::string::npos) {
+        // Extract and append display from original_style
+        size_t display_pos = original_style.find("display");
+        size_t semicolon = original_style.find(";", display_pos);
+        std::string display_str = original_style.substr(display_pos, semicolon - display_pos + 1);
+        bg_style += display_str;
+    }
+    
+    // Clear potentially dangerous attributes
+    current_element.SetAttribute("src", blink::WebString::FromUTF8("about:blank"));
+    current_element.SetAttribute("style", blink::WebString::FromUTF8(bg_style));
+    
+    // Add tracking ID for debugging
+    std::string element_id = "ad_replacement_" + std::to_string(rand());
+    current_element.SetAttribute("id", blink::WebString::FromUTF8(element_id));
+    
+    LOG(INFO) << "AdBlock: Successfully replaced blocked element: " << original_src;
+  }
+  
+  LOG(INFO) << "AdBlock: Completed replacing " << elements_to_replace.size() << " elements";
+  
+  // If we didn't replace all blocked resources and haven't reached max attempts,
+  // schedule another attempt with a delay
+  if (!blocked_resources_.empty() && ad_replacement_attempt_count_ < kMaxAdReplacementAttempts) {
+    LOG(INFO) << "AdBlock: Still have " << blocked_resources_.size() 
+              << " resources to replace. Scheduling another attempt.";
+              
+    replacement_task_scheduled_ = true;
+    replacement_timer_.Start(
+        FROM_HERE,
+        base::Milliseconds(500),  // Wait half a second for more content to load
+        this,
+        &SubresourceFilterAgent::ReplaceBlockedAds);
+  } else {
+    LOG(INFO) << "AdBlock: Finished all replacement attempts.";
+    // Clear processed resources only after all attempts
+    if (ad_replacement_attempt_count_ >= kMaxAdReplacementAttempts) {
+      blocked_resources_.clear();
+    }
+  }
+}
+
+bool SubresourceFilterAgent::UrlsEffectivelyMatch(const std::string& blocked_url, const std::string& element_src) {
+  // Simple exact match check
+  if (blocked_url == element_src)
+    return true;
+    
+  // Check for URL without query parameters
+  size_t blocked_query_pos = blocked_url.find('?');
+  size_t src_query_pos = element_src.find('?');
+  
+  if (blocked_query_pos != std::string::npos) {
+    std::string blocked_base = blocked_url.substr(0, blocked_query_pos);
+    
+    // Check if the element src starts with the blocked base URL
+    if (src_query_pos != std::string::npos) {
+      std::string src_base = element_src.substr(0, src_query_pos);
+      if (blocked_base == src_base)
+        return true;
+    } else if (element_src == blocked_base) {
+      return true;
+    }
+    
+    // Check for domain match in certain cases (ad networks)
+    if (blocked_base.find("googleads") != std::string::npos || 
+        blocked_base.find("doubleclick") != std::string::npos) {
+      return (element_src.find("google") != std::string::npos || 
+              element_src.find("doubleclick") != std::string::npos);
+    }
+  }
+  
+  return false;
+}
+
+
+bool SubresourceFilterAgent::IsLikelyFalsePositive(const blink::WebElement& element) {
+  // Skip navigation bars, very small elements, or known non-ad roles
+  if (element.HasHTMLTagName("nav") ||
+      element.GetAttribute("role").Utf8() == "navigation")
+    return true;
+  int width = 0, height = 0;
+  std::string width_attr = element.GetAttribute("width").Utf8();
+  std::string height_attr = element.GetAttribute("height").Utf8();
+  if (!width_attr.empty()) width = std::stoi(width_attr);
+  if (!height_attr.empty()) height = std::stoi(height_attr);
+  if ((width && width < 30) || (height && height < 30))
+    return true;
+  return false;
+}
+
+void SubresourceFilterAgent::FindAdElements(const blink::WebDocument& document) {
+  // Batch selectors for performance
+  const size_t batch_size = 50;
+  LOG(INFO) << "AdBlock: Finding ad elements with selectors: " << css_selectors_.size();
+  for (size_t i = 0; i < css_selectors_.size(); i += batch_size) {
+    std::string batch;
+    for (size_t j = i; j < i + batch_size && j < css_selectors_.size(); ++j) {
+      if (!batch.empty()) batch += ", ";
+      batch += css_selectors_[j];
+    }
+    FindAdElementsWithSelectors(document, {batch});
+  }
+}
+
+void SubresourceFilterAgent::FindAdElementsWithSelectors(const blink::WebDocument& document, const std::vector<std::string>& selectors_batch) {
+  for (const std::string& selector : selectors_batch) {
+    blink::WebVector<blink::WebElement> elements = document.QuerySelectorAll(blink::WebString::FromUTF8(selector));
+    for (size_t i = 0; i < elements.size(); ++i) {
+      blink::WebElement element = elements[i];
+      if (!element.IsNull() && !IsLikelyFalsePositive(element)) {
+        elements_to_replace.push_back(std::make_pair(element, "easylist-match"));
+      }
+    }
+  }
+}
+
+// Helper function to safely parse an int from a string (returns default_value if invalid)
+int SubresourceFilterAgent::SafeParseInt(const std::string& str, int default_value) {
+    if (str.empty()) return default_value;
+    for (char c : str) {
+        if (!isdigit(c)) return default_value;
+    }
+    return std::stoi(str);
 }
 
 }  // namespace subresource_filter

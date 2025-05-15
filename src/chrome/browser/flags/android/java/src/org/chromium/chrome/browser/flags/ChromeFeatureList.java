@@ -14,6 +14,13 @@ import org.chromium.base.cached_flags.CachedFlag;
 import org.chromium.base.cached_flags.DoubleCachedFieldTrialParameter;
 import org.chromium.base.cached_flags.IntCachedFieldTrialParameter;
 import org.chromium.base.cached_flags.StringCachedFieldTrialParameter;
+import org.jni_zero.NativeMethods;
+import org.jni_zero.CalledByNative;
+import org.jni_zero.JNINamespace;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.util.Log;
+import org.chromium.base.ContextUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +36,10 @@ import java.util.Map;
  *
  * <p>Chrome-layer {@link CachedFlag}s are instantiated here as well.
  */
-public abstract class ChromeFeatureList {
+@JNINamespace("chrome::android")
+public class ChromeFeatureList {
     /** Prevent instantiation. */
-    private ChromeFeatureList() {}
+//     private ChromeFeatureList() {}
 
     /**
      * Convenience method to check Chrome-layer feature flags, see
@@ -149,6 +157,33 @@ public abstract class ChromeFeatureList {
         return ChromeFeatureMap.getInstance().mutableFlagWithSafeDefault(featureName, defaultValue);
     }
 
+    /**
+     * Gets the AdBlock filters URL.
+     * @return The URL of the AdBlock filters.
+     */
+    public static String getAdBlockFiltersURL() {
+        try {
+            Log.e("ChromeFeatureList", "getAdBlockFiltersURL: ");
+            return ChromeFeatureListJni.get().getAdBlockFiltersURL();
+        } catch (UnsatisfiedLinkError e) {
+            Log.e("ChromeFeatureList", "Error getting AdBlock filters URL", e);
+            return null;
+        }
+    }
+
+    /**
+     * Sets the AdBlock filters URL.
+     * @param url The URL to set for AdBlock filters.
+     */
+    public static void setAdBlockFiltersURL(String url) {
+        try {
+            Log.e("ChromeFeatureList", "setAdBlockFiltersURL: " + url);
+            ChromeFeatureListJni.get().setAdBlockFiltersURL(url);
+        } catch (UnsatisfiedLinkError e) {
+            Log.e("ChromeFeatureList", "Error setting AdBlock filters URL", e);
+        }
+    }
+
     // Feature names.
     /* Alphabetical: */
     public static final String ACCOUNT_REAUTHENTICATION_RECENT_TIME_WINDOW =
@@ -159,6 +194,7 @@ public abstract class ChromeFeatureList {
             "AdaptiveButtonInTopToolbarAddToBookmarks";
     public static final String ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2 =
             "AdaptiveButtonInTopToolbarCustomizationV2";
+    public static final String AD_BLOCK_FEATURE = "AdBlockFeature";
     public static final String ADD_TO_HOMESCREEN_IPH = "AddToHomescreenIPH";
     public static final String ALLOW_NEW_INCOGNITO_TAB_INTENTS = "AllowNewIncognitoTabIntents";
     public static final String ANDROID_APP_INTEGRATION = "AndroidAppIntegration";
@@ -526,6 +562,7 @@ public abstract class ChromeFeatureList {
     /* Alphabetical: */
     public static final CachedFlag sAccountReauthenticationRecentTimeWindow =
             newCachedFlag(ACCOUNT_REAUTHENTICATION_RECENT_TIME_WINDOW, true);
+    public static final CachedFlag sAdBlockFeature = newCachedFlag(AD_BLOCK_FEATURE, true);
     public static final CachedFlag sAndroidAppIntegration =
             newCachedFlag(ANDROID_APP_INTEGRATION, false);
     public static final CachedFlag sAndroidElegantTextHeight =
@@ -688,6 +725,8 @@ public abstract class ChromeFeatureList {
     public static final List<CachedFlag> sFlagsCachedFullBrowser =
             List.of(
                     sAccountReauthenticationRecentTimeWindow,
+                    sAdBlockFeature,
+                    sAccountReauthenticationRecentTimeWindow,
                     sAndroidAppIntegration,
                     sAndroidElegantTextHeight,
                     sAndroidHub,
@@ -847,4 +886,10 @@ public abstract class ChromeFeatureList {
     public static final MutableIntParamWithSafeDefault sAndroidTabDeclutterIntervalTimeDeltaHours =
             sAndroidTabDeclutter.newIntParam(
                     "android_tab_declutter_interval_time_delta_hours", 7 * 24);
+
+    @NativeMethods
+    interface Natives {
+        String getAdBlockFiltersURL();
+        void setAdBlockFiltersURL(String url);
+    }
 }

@@ -54,6 +54,9 @@ struct UnindexedRulesetInfo {
   // can be indicated not only by setting |license_path| to empty, but also by
   // setting it to any non existent path.
   base::FilePath license_path;
+  // Whether to delete or not the ruleset path once done indexing; useful for disposal
+  // of temporary files.
+  bool delete_ruleset_path;
 };
 
 // Encapsulates the combination of the binary format version of the indexed

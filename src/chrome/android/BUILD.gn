@@ -358,6 +358,7 @@ if (current_toolchain == default_toolchain) {
       "//chrome/android/webapk/libs/common:common_java",
       "//chrome/android/webapk/libs/common:splash_java",
       "//chrome/android/webapk/libs/runtime_library:webapk_service_aidl_java",
+      # "//chrome/browser/endpoint_fetcher:java",
       "//chrome/browser/accessibility/hierarchysnapshotter/android:java",
       "//chrome/browser/android/auxiliary_search/proto:proto_java",
       "//chrome/browser/android/browserservices/intents:java",

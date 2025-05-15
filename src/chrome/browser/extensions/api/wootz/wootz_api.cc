@@ -55,6 +55,15 @@
 #include "base/logging.h"
 #include "components/zk_proof/zk_proof.h"
 #include "components/zk_proof/tls_info/tls_data_store.h"
+#include "components/subresource_filter/content/mojom/subresource_filter.mojom.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
+#include "content/public/browser/render_frame_host.h"
+
+
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/storage_partition.h"
+#include "components/subresource_filter/core/browser/adblock_control.h"
 
 namespace extensions {
 
@@ -1187,6 +1196,43 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   
   return RespondNow(WithArguments(std::move(result)));
 }
+
+ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
+  LOG(INFO) << "WootzReplaceAdFunction::Run started with arguments: " << args().size();
+  if (args().size() < 1 || !args()[0].is_string()) {
+    LOG(ERROR) << "Invalid arguments provided";
+    return RespondNow(Error("Invalid arguments"));
+  }
+  std::string url = args()[0].GetString();
+  LOG(INFO) << "WootzReplaceAdFunction::Run URL: " << url;
+
+  // Enable ad blocking globally when this function is called
+  LOG(INFO) << "WootzReplaceAdFunction: Setting AdBlockControl::SetEnabled to true";
+  subresource_filter::AdBlockControl::SetEnabled(true);
+
+  auto* storage_partition = browser_context()->GetDefaultStoragePartition();
+
+  network::mojom::URLLoaderFactory* url_loader_factory = storage_partition->GetURLLoaderFactoryForBrowserProcess().get();
+
+  if (!url_loader_factory) {
+      LOG(ERROR) << "WootzReplaceAdFunction: Failed to get URLLoaderFactory!";
+      return RespondNow(Error("No url_loader_factory available"));
+  }
+  std::string replacement_url = url; 
+  subresource_filter::ContentSubresourceFilterThrottleManager::FetchAndParseEasylist(
+    url_loader_factory,
+      base::BindOnce(
+          [](const std::string& replacement_url, std::vector<std::string> selectors) {
+              LOG(INFO) << "WootzReplaceAdFunction: Callback received with " << selectors.size() << " selectors";
+              subresource_filter::ContentSubresourceFilterThrottleManager::SetGlobalAdReplacementUrl(replacement_url, selectors);
+          },
+          replacement_url
+      )
+  );
+
+    LOG(INFO) << "Ad replaced for URL: Responding Now: " << url;
+    return RespondNow(NoArguments());
+  }
 
 }  // namespace extensions
 

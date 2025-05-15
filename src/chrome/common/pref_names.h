@@ -2395,6 +2395,9 @@ inline constexpr char kDevToolsSyncedPreferencesSyncDisabled[] =
 
 inline constexpr char kDevToolsGenAiSettings[] = "devtools.gen_ai_settings";
 
+// Holds the URL to an indexed subresource filters file.
+inline constexpr char kAdBlockFiltersURL[] = "adblock.filters_url";
+
 #if !BUILDFLAG(IS_ANDROID)
 // Tracks the number of times the dice signin promo has been shown in the user
 // menu.

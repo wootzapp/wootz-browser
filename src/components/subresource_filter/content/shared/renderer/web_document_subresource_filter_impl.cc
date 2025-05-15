@@ -115,7 +115,12 @@ WebDocumentSubresourceFilterImpl::WebDocumentSubresourceFilterImpl(
     : activation_state_(activation_state),
       filter_(std::move(document_origin), activation_state, std::move(ruleset)),
       first_disallowed_load_callback_(
-          std::move(first_disallowed_load_callback)) {}
+          std::move(first_disallowed_load_callback)) {
+            // Use dot notation since filter_ is an object, not a pointer
+            filter_.SetBlockedResourceCallback(
+                base::BindRepeating(&WebDocumentSubresourceFilterImpl::OnResourceBlocked,
+                                  base::Unretained(this)));
+          }
 
 WebLoadPolicy WebDocumentSubresourceFilterImpl::GetLoadPolicy(
     const blink::WebURL& resourceUrl,
@@ -157,6 +162,12 @@ WebLoadPolicy WebDocumentSubresourceFilterImpl::getLoadPolicyImpl(
 
   // TODO(pkalinnikov): Would be good to avoid converting to GURL.
   return ToWebLoadPolicy(filter_.GetLoadPolicy(GURL(url), element_type));
+}
+
+void WebDocumentSubresourceFilterImpl::OnResourceBlocked(const GURL& url) {
+  if (!blocked_resource_callback_.is_null()) {
+    blocked_resource_callback_.Run(url);
+  }
 }
 
 WebDocumentSubresourceFilterImpl::BuilderImpl::BuilderImpl(

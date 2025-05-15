@@ -463,6 +463,31 @@
               }
             ]
           }
+        },
+        {
+          "name": "replaceAd",
+          "type": "function",
+          "description": "Replaces an ad element in the DOM matching the given URL with a custom image.",
+          "parameters": [
+            {
+              "name": "url",
+              "type": "string",
+              "description": "The URL of the ad resource to replace."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

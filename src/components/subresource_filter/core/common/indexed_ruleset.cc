@@ -5,6 +5,7 @@
 #include "components/subresource_filter/core/common/indexed_ruleset.h"
 
 #include "base/check.h"
+#include "base/logging.h"
 #include "base/hash/hash.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/not_fatal_until.h"
@@ -37,15 +38,20 @@ VerifyStatus GetVerifyStatus(base::span<const uint8_t> buffer,
   // least once.  The verifier detects a subset of the errors detected by the
   // checksum, and is unneeded once expected_checksum is consistently nonzero.
   flatbuffers::Verifier verifier(buffer.data(), buffer.size());
-  if (expected_checksum != 0 && expected_checksum != LocalGetChecksum(buffer)) {
+  int local_checksum = LocalGetChecksum(buffer);
+  LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum = 0x" << std::hex << expected_checksum << ", local checksum = 0x" << std::hex << local_checksum;
+  if (expected_checksum != 0 && expected_checksum != local_checksum) {
+    LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum != local checksum";
     return flat::VerifyIndexedRulesetBuffer(verifier)
                ? VerifyStatus::kChecksumFailVerifierPass
                : VerifyStatus::kChecksumFailVerifierFail;
   }
   if (!flat::VerifyIndexedRulesetBuffer(verifier)) {
+    LOG(INFO) << "AdBlock: GetVerifyStatus: verifier failed";
     return expected_checksum == 0 ? VerifyStatus::kVerifierFailChecksumZero
                                   : VerifyStatus::kVerifierFailChecksumPass;
   }
+  LOG(INFO) << "AdBlock: GetVerifyStatus: verifier passed";
   return expected_checksum == 0 ? VerifyStatus::kPassChecksumZero
                                 : VerifyStatus::kPassValidChecksum;
 }
@@ -146,11 +152,15 @@ LoadPolicy IndexedRulesetMatcher::GetLoadPolicyForResourceLoad(
     const FirstPartyOrigin& first_party,
     proto::ElementType element_type,
     bool disable_generic_rules) const {
+  // LOG(INFO) << "AdBlock: Getting load policy for URL " << url.spec();
   const url_pattern_index::flat::UrlRule* rule =
       MatchedUrlRule(url, first_party, element_type, disable_generic_rules);
 
+  // LOG(INFO) << "AdBlock: URL " << url.spec() << " policy: " << (rule ? "BLOCK" : "ALLOW");
   if (!rule)
     return LoadPolicy::ALLOW;
+
+  LOG(INFO) << "AdBlock: URL " << url.spec() << " policy: EXPLICITLY_ALLOW / DISALLOW";
 
   return rule->options() & url_pattern_index::flat::OptionFlag_IS_ALLOWLIST
              ? LoadPolicy::EXPLICITLY_ALLOW
@@ -162,6 +172,7 @@ const url_pattern_index::flat::UrlRule* IndexedRulesetMatcher::MatchedUrlRule(
     const FirstPartyOrigin& first_party,
     url_pattern_index::proto::ElementType element_type,
     bool disable_generic_rules) const {
+  // LOG(INFO) << "AdBlock: Finding match for URL " << url.spec();
   const bool is_third_party = first_party.IsThirdParty(url);
   const EmbedderConditionsMatcher embedder_conditions_matcher;
 
@@ -195,6 +206,7 @@ const url_pattern_index::flat::UrlRule* IndexedRulesetMatcher::MatchedUrlRule(
   if (!blocklist_rule)
     return nullptr;
   auto* allowlist_rule = find_match(allowlist_);
+  LOG(INFO) << "AdBlock: Match result for " << url.spec() << ": " << (blocklist_rule || allowlist_rule ? "MATCHED" : "NO MATCH");
   return allowlist_rule ? allowlist_rule : blocklist_rule;
 }
 

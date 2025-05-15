@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2015 The Chromium Authors. All rights reserved.
+     Use of this source code is governed by a BSD-style license that can be
+     found in the LICENSE file. -->
+
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <org.chromium.components.browser_ui.settings.ChromeSwitchPreference
+        android:key="adblock_switch"
+        android:summaryOn="@string/text_on"
+        android:summaryOff="@string/text_off" />
+
+    <org.chromium.chrome.browser.about_settings.HyperlinkPreference
+        android:key="adblock_help"
+        android:title="@string/adblock_help"
+        app:url="@string/adblock_help_url" />
+
+    <Preference
+        android:key="adblock_edit"
+        android:title="@string/options_adblock_edit_label"
+        android:fragment="org.chromium.chrome.browser.settings.AdBlockEditor" />
+
+</PreferenceScreen>
