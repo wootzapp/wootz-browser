@@ -303,7 +303,7 @@ String ScriptBlockStates::ButtonEventListner() {
           // Replace all buttons with a single "Processing" button that matches the original button height
           buttonContainer.innerHTML = `
             <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
-              <button disabled style="background-color:rgb(220, 220, 220);" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+              <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
                 <span class="min-w-0 truncate">Processing Transaction...</span>
               </button>
             </div>

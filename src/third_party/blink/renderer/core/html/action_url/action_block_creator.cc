@@ -610,12 +610,12 @@ String ActionBlockCreator::CreateButton(String button_label,
   }
 
   if(is_form_submit_button) {  // its a form so button should be disabled
-    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff;" type="submit" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white;" type="submit" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
   }
   else {
     // Use data-href attribute to store the URL for the transaction handler
-    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff;" onclick="handleButtonClick(')HTML") + href +  (R"HTML(')" data-href=")HTML") + href + (R"HTML(" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white;" onclick="handleButtonClick(')HTML") + href +  (R"HTML(')" data-href=")HTML") + href + (R"HTML(" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     if(is_disabled) {
       button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
     }
