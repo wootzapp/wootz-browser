@@ -10,6 +10,9 @@
 #include "components/action_url/content/browser/content_action_url_driver_factory.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
+#include "components/action_url/content/common/action_url_prefs.h"
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -79,6 +82,16 @@ int ContentActionUrlDriver::GetId() const {
 // action_url::mojom::ActionUrlDriver:
 void ContentActionUrlDriver::AllAnchorsParsed(
     const std::vector<action_url::AnchorData>& anchors_data) {
+
+  Profile* profile = Profile::FromBrowserContext(render_frame_host_->GetBrowserContext());
+  if (!profile->GetPrefs()->GetBoolean(action_url::prefs::kBlinksEnabled)) {
+    LOG(INFO) << "AMIT Blinks are disabled";
+    return;
+  }
+  else {
+    LOG(INFO) << "AMIT Blinks are enabled";
+  }
+
   LOG(INFO) << "AMIT All anchors parsed";
   LOG(INFO) << "Unfurling ::" << __func__ << "; Anchors size: " << anchors_data.size();
 

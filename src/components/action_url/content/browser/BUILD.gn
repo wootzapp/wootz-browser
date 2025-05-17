@@ -16,6 +16,7 @@ static_library("browser") {
     "//base",
     "//net",
     "//components/action_url/android",
+    "//components/action_url/content/common",
     "//components/action_url/core",
     "//content/public/browser",
     "//mojo/public/cpp/system",

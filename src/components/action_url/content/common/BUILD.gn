@@ -1,0 +1,11 @@
+source_set("common") {
+  sources = [
+    "action_url_prefs.cc",
+    "action_url_prefs.h",
+  ]
+
+  deps = [
+    "//components/prefs",
+    "//components/pref_registry",
+  ]
+}

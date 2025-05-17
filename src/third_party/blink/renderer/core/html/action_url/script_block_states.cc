@@ -380,11 +380,11 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to connecting state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <button disabled style="background-color:rgb(220, 220, 220);;" class="bg-button-disabled text-text-button-disabled rounded-full py-2 px-4 w-full">
-                <div class="flex items-center justify-center">
-                  Connecting to wallet...
-                </div>
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+                <span class="min-w-0 truncate">Processing Transaction...</span>
               </button>
+            </div>
             </div>
           `;
           
@@ -400,10 +400,9 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to fetching transaction state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <button disabled style="background-color:rgb(220, 220, 220);" class="bg-button-disabled text-text-button-disabled rounded-full py-2 px-4 w-full">
-                <div class="flex items-center justify-center">
-                  Preparing transaction...
-                </div>
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+                <span class="min-w-0 truncate">Preparing Transaction...</span>
               </button>
             </div>
           `;
@@ -443,10 +442,9 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to signing state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <button disabled style="background-color:rgb(220, 220, 220);;" class="bg-button-disabled text-text-button-disabled rounded-full py-2 px-4 w-full">
-                <div class="flex items-center justify-center">
-                  Waiting for approval...
-                </div>
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+                <span class="min-w-0 truncate">Waiting for approval...</span>
               </button>
             </div>
           `;
@@ -458,10 +456,9 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to confirming state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <button disabled style="background-color:rgb(220, 220, 220);;" class="bg-button-disabled text-text-button-disabled rounded-full py-2 px-4 w-full">
-                <div class="flex items-center justify-center">
-                  Confirming transaction...
-                </div>
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
+                <span class="min-w-0 truncate">Confirming transaction...</span>
               </button>
             </div>
           `;
@@ -473,8 +470,8 @@ String ScriptBlockStates::SolanaTransactionHandler() {
             // Update UI to success state
             buttonContainer.innerHTML = `
               <div class="flex justify-center w-full">
-                <button disabled style="background-color: #rgb(220, 220, 220);;" class="bg-button-success text-text-success rounded-full py-2 px-4 w-full">
-                  <div class="flex items-center justify-center">
+                <button disabled style="background-color:rgb(53, 255, 90); color: white;" class="rounded-full text-text relative flex w-full">
+                  <div class="flex items-c  enter justify-center">
                     Transaction Confirmed!
                   </div>
                 </button>
