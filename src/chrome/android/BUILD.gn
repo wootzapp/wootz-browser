@@ -706,6 +706,13 @@ if (current_toolchain == default_toolchain) {
       "//third_party/android_deps:material_design_java",
       "//third_party/android_deps:playcore_java",
       "//third_party/android_deps:protobuf_lite_runtime_java",
+      "//third_party/android_deps:io_branch_sdk_android_library_java",
+      "//third_party/android_deps:com_android_installreferrer_installreferrer_java",
+      "//third_party/android_deps:com_google_android_gms_play_services_ads_identifier_java",
+      "//third_party/android_deps:com_huawei_hms_ads_identifier_java",
+      "//third_party/android_deps:io_branch_sdk_android_xiaomi_java",
+      "//third_party/android_deps:store_galaxy_samsung_installreferrer_java",
+      "//third_party/android_deps:branch_sdk_java",
       "//third_party/android_media:android_media_java",
       "//third_party/android_swipe_refresh:android_swipe_refresh_java",
       "//third_party/androidx:androidx_activity_activity_java",
@@ -746,6 +753,7 @@ if (current_toolchain == default_toolchain) {
       "//url:gurl_java",
       "//url/mojom:url_mojom_gurl_java",
       "//url/mojom:url_mojom_origin_java",
+      
     ]
 
     deps += feed_deps
@@ -2679,7 +2687,7 @@ if (current_toolchain == default_toolchain) {
       "java/src/org/chromium/chrome/browser/base/SplitCompatRemoteViewsService.java",
       "java/src/org/chromium/chrome/browser/base/SplitCompatService.java",
       "java/src/org/chromium/chrome/browser/base/SplitPreloader.java",
-      "java/src/org/chromium/chrome/browser/browserservices/WootzAppBackgroundService.java",
+      # "java/src/org/chromium/chrome/browser/browserservices/WootzAppBackgroundService.java",
       "java/src/org/chromium/chrome/browser/bookmarkswidget/BookmarkWidgetService.java",
       "java/src/org/chromium/chrome/browser/crash/ApplicationStatusTracker.java",
       "java/src/org/chromium/chrome/browser/crash/ChromeMinidumpUploadJobService.java",

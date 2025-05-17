@@ -1,0 +1,9 @@
+Name: bit-vec
+URL: https://crates.io/crates/bit-vec
+Description: A vector of bits
+Version: 0.6.3
+Security Critical: yes
+Shipped: yes
+License: Apache 2.0
+License File: //third_party/rust/chromium_crates_io/vendor/bit-vec-0.6.3/LICENSE-APACHE
+Revision: 975189772f60f87ee84b77b8cd648beac6b86703

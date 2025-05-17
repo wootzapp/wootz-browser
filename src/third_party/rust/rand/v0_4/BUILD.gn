@@ -1,0 +1,72 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "rand"
+  epoch = "0.4"
+  crate_type = "rlib"
+  crate_root =
+      "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/exponential.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/gamma.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/normal.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/range.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/distributions/ziggurat_tables.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/jitter.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/os.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/prng/chacha.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/prng/isaac.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/prng/isaac64.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/prng/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/prng/xorshift.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/rand_impls.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/read.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/reseeding.rs",
+    "//third_party/rust/chromium_crates_io/vendor/rand-0.4.6/src/seq.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2015"
+  cargo_pkg_version = "0.4.6"
+  cargo_pkg_authors = "The Rust Project Developers"
+  cargo_pkg_name = "rand"
+  cargo_pkg_description =
+      "Random number generators and other randomness functionality."
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = []
+  if (!is_win) {
+    deps += [ "//third_party/rust/libc/v0_2:lib" ]
+  }
+  if (is_fuchsia) {
+    deps += [ "//third_party/rust/fuchsia_cprng/v0_1:lib" ]
+  }
+  if (is_win) {
+    deps += [ "//third_party/rust/winapi/v0_3:lib" ]
+  }
+  features = [
+    "libc",
+    "std",
+  ]
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  visibility = [ "//third_party/rust/*" ]
+  testonly = true
+}

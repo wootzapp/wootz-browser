@@ -132,6 +132,8 @@ public class LaunchIntentDispatcher {
      * you add _absolutely has_ to be here.
      */
     private @Action int dispatch() {
+        Log.d("LaunchIntentDispatcher", "dispatch");
+        IntentHandler.checkAndShowCustomSplash(mActivity, mIntent);
         // Read partner browser customizations information asynchronously.
         // We want to initialize early because when there are no tabs to restore, we should possibly
         // show homepage, which might require reading PartnerBrowserCustomizations provider.

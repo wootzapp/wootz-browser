@@ -127,11 +127,11 @@ found in the LICENSE file.
         android:key="content_settings"
         android:order="23"
         android:title="@string/prefs_site_settings"/>
-    <Preference
+    <!-- <Preference
         android:fragment="org.chromium.chrome.browser.language.settings.LanguageSettings"
         android:key="languages"
         android:order="24"
-        android:title="@string/language_settings"/>
+        android:title="@string/language_settings"/> -->
     <org.chromium.components.browser_ui.settings.ChromeBasePreference
         android:fragment="org.chromium.chrome.browser.download.settings.DownloadSettings"
         android:key="downloads"

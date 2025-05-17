@@ -27,6 +27,8 @@ import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.Window;
 import android.view.WindowManager;
+import android.content.Context;
+import android.content.SharedPreferences;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
@@ -84,7 +86,7 @@ import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHan
 import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHandler.MinimizeAppAndCloseTabType;
 import org.chromium.chrome.browser.base.ColdStartTracker;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
-import org.chromium.chrome.browser.browserservices.WootzAppBackgroundService;
+// import org.chromium.chrome.browser.browserservices.WootzAppBackgroundService;
 import org.chromium.chrome.browser.browserservices.intents.WebappConstants;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
@@ -260,6 +262,17 @@ import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl;
 import org.chromium.ui.widget.Toast;
 import org.chromium.url.GURL;
+import org.chromium.chrome.browser.icon.IconSwitcher;
+import org.chromium.base.ContextUtils;
+import org.chromium.chrome.browser.document.ChromeLauncherActivity;
+import org.json.JSONObject;
+import android.net.Uri;
+
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
@@ -268,6 +281,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
+import java.util.Iterator;
 
 /**
  * This is the main activity for ChromeMobile when not running in document mode. All the tabs are
@@ -276,7 +290,7 @@ import java.util.function.DoubleConsumer;
 public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent>
         implements MismatchedIndicesHandler {
     private static final String TAG = "ChromeTabbedActivity";
-
+    private boolean isFirstRun = true;
     protected static final String WINDOW_INDEX = "window_index";
 
     private static final int INVALID_WINDOW_ID = TabWindowManager.INVALID_WINDOW_INDEX;
@@ -453,6 +467,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
 
     private OneshotSupplierImpl<ModuleRegistry> mModuleRegistrySupplier =
             new OneshotSupplierImpl<>();
+    
+    private String utmSource;
 
     private final IncognitoTabHost mIncognitoTabHost =
             new IncognitoTabHost() {
@@ -581,8 +597,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     minimizeAppAndCloseTabOnBackPress(getActivityTab());
                 });
         Log.d("Wootzapp", "start service");
-            Intent serviceIntent = new Intent(this, WootzAppBackgroundService.class);
-            ForegroundServiceUtils.getInstance().startForegroundService(serviceIntent);
+            // Intent serviceIntent = new Intent(this, WootzAppBackgroundService.class);
+            // ForegroundServiceUtils.getInstance().startForegroundService(serviceIntent);
     }
 
     @Override
@@ -1381,6 +1397,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
             }
 
             super.onNewIntent(intent);
+            setIntent(intent);
 
             boolean shouldShowRegularOverviewMode =
                     IntentUtils.safeGetBooleanExtra(
@@ -1632,6 +1649,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         try {
             TraceEvent.begin("ChromeTabbedActivity.initializeState");
 
+            // Get the default extension from SharedPreferences
             super.initializeState();
             Log.i(TAG, "#initializeState");
             Intent intent = getIntent();
@@ -1829,6 +1847,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     /** Create an initial tab for cold start without restored tabs. */
     private void createInitialTab() {
         Log.i(TAG, "#createInitialTab executed.");
+        
         mPendingInitialTabCreation = false;
 
         // If the start surface or grid tab switcher will be shown on start, do not create a new
@@ -1836,19 +1855,39 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         String url = null;
         boolean shouldShowOverviewPageOnStart = shouldShowOverviewPageOnStart();
         if (!shouldShowOverviewPageOnStart) {
-            GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
-            if (homepageGurl.isEmpty()) {
-                url = UrlConstants.NTP_URL;
-            } else {
-                // Migrate legacy NTP URLs (chrome://newtab) to the newer format
-                // (chrome-native://newtab)
-                if (UrlUtilities.isNtpUrl(homepageGurl)) {
+                GURL homepageGurl = HomepageManager.getInstance().getHomepageGurl();
+                if (homepageGurl.isEmpty()) {
                     url = UrlConstants.NTP_URL;
                 } else {
-                    url = homepageGurl.getSpec();
+                    // Migrate legacy NTP URLs (chrome://newtab) to the newer format
+                    // (chrome-native://newtab)
+                    if (UrlUtilities.isNtpUrl(homepageGurl)) {
+                        url = UrlConstants.NTP_URL;
+                    } else {
+                        url = homepageGurl.getSpec();
+                    }
+                }
+                getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
+            
+            // Check if this is first run using SharedPreferences instead of a local variable
+            SharedPreferences prefs = getSharedPreferences(
+                "branch_data", android.content.Context.MODE_PRIVATE);
+            String utmSource = prefs.getString("utm_source_wootzapp", "");
+            Boolean isFirstRunPref = prefs.getBoolean("is_first_run_tab", true);
+            
+            Log.e(TAG, "UTM Source: " + utmSource);
+            if (utmSource != null && !utmSource.isEmpty()) {
+                // Load the extension installer WebUI
+                if (isFirstRunPref) {
+                    
+                    String crx_url = "wootzapp://startup-crx-install/";
+                    Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
+                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
             }
-            getTabCreator(false).launchUrl(url, TabLaunchType.FROM_STARTUP);
+            SharedPreferences.Editor editor = prefs.edit();
+                    editor.putBoolean("is_first_run_tab", false);
+                    editor.apply();
         }
         PartnerBrowserCustomizations.getInstance()
                 .onCreateInitialTab(
@@ -1870,6 +1909,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         // Launch history as a fresh instance of Chrome.
         maybeLaunchHistory();
     }
+
 
     private void recordExternalIntentSourceUMA(Intent intent) {
         @IntentHandler.ExternalAppId
@@ -2170,6 +2210,8 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     @Override
     public void performPreInflationStartup() {
         super.performPreInflationStartup();
+
+
 
         // Android FrameMetrics allow tracking of java views and their deadline misses (frame
         // drops/janks).
@@ -3775,7 +3817,11 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onStart() {
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
-        }
+
+            JSONObject firstReferringParams = Branch.getInstance().getFirstReferringParams();
+            Log.e(TAG, "First referring params: " + firstReferringParams.toString());
+            handleBranchDeepLinkParams(firstReferringParams);
+       }
     }
 
     @Override
@@ -4065,6 +4111,30 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                             mTabSwitcherSupplier.get().openInvitationModal("");
                         }
                     });
+        }
+    }
+
+    String extUtmSource = "";
+    private void handleBranchDeepLinkParams(JSONObject firstReferringParams) {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+            extUtmSource = firstReferringParams.optString("~channel", "");
+            boolean isFirstRun = prefs.getBoolean("is_first_run", true);
+            if (isFirstRun) {
+                Log.e(TAG, "Processing branch link with utm_source: " + extUtmSource);
+                if (!TextUtils.isEmpty(extUtmSource)) {
+                    IntentHandler.ext_utm_source = extUtmSource;
+                    IntentHandler.switchIconBasedOnUtm(extUtmSource);
+                    IntentHandler.storeUtmSource(extUtmSource);
+                    IntentHandler.processStoredUtmSourceIfNeeded();
+                }
+                // Mark first run as completed
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putBoolean("is_first_run", false);
+                editor.apply();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing branch deep link", e);
         }
     }
 }

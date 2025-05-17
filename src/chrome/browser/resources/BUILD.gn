@@ -23,6 +23,7 @@ group("resources") {
     ":app_icon_resources",
     ":component_extension_resources",
     "extension_store:resources",
+    "startup_crx_install:resources",
   ]
 
   if (!is_android) {

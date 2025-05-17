@@ -83,6 +83,38 @@ found in the LICENSE file.
                     android:layout_gravity="center_horizontal" />
             </FrameLayout>
 
+            <androidx.cardview.widget.CardView
+                android:id="@+id/rebranding_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardElevation="4dp"
+                app:cardCornerRadius="12dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/ic_info_outline_blue"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/rebranding_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:text="After clicking Get Started, WootzApp will rebrand and close. Find it in your app drawer!"
+                        android:textAppearance="@style/TextAppearance.TextMedium.Secondary" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <!-- Refer to the comment above @id/fre_space_above_logo -->
             <View
                 android:id="@+id/fre_space_between_header_and_bottom_group"

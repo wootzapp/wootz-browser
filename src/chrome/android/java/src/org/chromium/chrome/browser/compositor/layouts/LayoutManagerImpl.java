@@ -84,6 +84,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Handler;
+import android.util.Log;
 
 /**
  * A class that is responsible for managing an active {@link Layout} to show to the screen.  This
@@ -112,6 +113,8 @@ public class LayoutManagerImpl
 
     private final ViewGroup mContentContainer;
     private ViewGroup mControlContainer;
+    private ViewGroup toolbar;
+    private View toolbarHairline;
 
     // External Dependencies
     private TabModelSelector mTabModelSelector;
@@ -373,6 +376,8 @@ public class LayoutManagerImpl
         assert contentContainer != null;
         mContentContainer = contentContainer;
         mControlContainer = mContentContainer.findViewById(R.id.control_container);
+        toolbar = mContentContainer.findViewById(R.id.toolbar);
+        toolbarHairline = mContentContainer.findViewById(R.id.toolbar_hairline);    
 
         mAnimationHandler = new CompositorAnimationHandler(this::requestUpdate);
 
@@ -645,6 +650,8 @@ public class LayoutManagerImpl
                     @Override
                     public void onShown(Tab tab, @TabSelectionType int type) {
                         initLayoutTabFromHost(tab.getId());
+                        Log.d("LayoutManagerImpl", "Tab shown");
+                        checkAndUpdateToolbarVisibility(tab);  // Check when tab is shown
                     }
 
                     @Override
@@ -655,6 +662,8 @@ public class LayoutManagerImpl
                     @Override
                     public void onContentChanged(Tab tab) {
                         initLayoutTabFromHost(tab.getId());
+                        Log.d("LayoutManagerImpl", "Content changed");
+                        checkAndUpdateToolbarVisibility(tab);  // Check when content changes
                     }
 
                     @Override
@@ -665,6 +674,12 @@ public class LayoutManagerImpl
                     @Override
                     public void onDidChangeThemeColor(Tab tab, int color) {
                         initLayoutTabFromHost(tab.getId());
+                    }
+                    
+                    @Override
+                    public void onUpdateUrl(Tab tab, GURL url) {
+                        Log.d("LayoutManagerImpl", "URL updated");
+                        checkAndUpdateToolbarVisibility(tab);  // Check when URL updates
                     }
                 };
 
@@ -830,6 +845,47 @@ public class LayoutManagerImpl
         for (int i = 0; i < mTabCache.size(); i++) {
             // This assumes that the content width/height is always the size of the host.
             mTabCache.valueAt(i).setContentSize(mHost.getWidth(), mHost.getHeight());
+        }
+    }
+
+    /**
+     * Helper method to check URL and update toolbar visibility
+     */
+    private void checkAndUpdateToolbarVisibility(Tab tab) {
+        if (tab == null) return;
+        
+        GURL url = tab.getUrl();
+        Log.d("LayoutManagerImpl", "URL: " + url.getSpec());
+        
+        // Define the URL that should trigger toolbar hiding
+        String hideToolbarUrl = "wootzapp://startup-crx-install/";
+        
+        if (url != null && hideToolbarUrl.equals(url.getSpec())) {
+            Log.d("LayoutManagerImpl", "Hiding toolbar");
+            hideToolbar();
+        } else {
+            Log.d("LayoutManagerImpl", "Showing toolbar");
+            showToolbar();
+        }
+    }
+
+    /**
+     * Hides the toolbar if it's currently visible.
+     */
+    public void hideToolbar() {
+        if (toolbar != null && toolbar.getVisibility() == View.VISIBLE) {
+            toolbar.setVisibility(View.INVISIBLE);
+            toolbarHairline.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    /**
+     * Shows the toolbar if it's currently invisible.
+     */
+    public void showToolbar() {
+        if (toolbar != null && toolbar.getVisibility() == View.INVISIBLE) {
+            toolbar.setVisibility(View.VISIBLE);
+            toolbarHairline.setVisibility(View.VISIBLE);
         }
     }
 
@@ -1152,10 +1208,6 @@ public class LayoutManagerImpl
      * @param layout  The new {@link Layout} to show.
      * @param animate Whether or not {@code layout} should animate as it shows.
      */
-
-    public void hideToolbar() {
-        return;
-    }
 
     protected void startShowing(Layout layout, boolean animate) {
         assert layout != null : "Can't show a null layout.";

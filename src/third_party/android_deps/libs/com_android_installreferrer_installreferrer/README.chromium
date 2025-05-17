@@ -1,0 +1,12 @@
+Name: Android Install Referrer Library
+Short Name: installreferrer
+URL: https://developer.android.com/google/play/installreferrer
+Version: 2.2
+License: Android Software Development Kit License
+License File: LICENSE
+Security Critical: yes
+CPEPrefix: unknown
+
+Description:
+The Install Referrer Library provides a reliable way to retrieve referrer information from Google Play Store.
+This is used by the Branch SDK for install attribution and campaign tracking.

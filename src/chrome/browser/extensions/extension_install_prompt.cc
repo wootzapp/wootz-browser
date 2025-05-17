@@ -663,6 +663,28 @@ ExtensionInstallPrompt::ShowDialogCallback ExtensionInstallPrompt::GetDefaultSho
 }
 
 bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
+  if (show_params_ && show_params_->GetParentWebContents()) {
+    content::WebContents* web_contents = show_params_->GetParentWebContents();
+    const GURL& url = web_contents->GetLastCommittedURL();
+
+    if (url.is_valid() && (url.spec() == "wootzapp://flow-store/" || url.spec() == "wootzapp://startup-crx-install/")) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(std::move(done_callback_),
+                         DoneCallbackPayload(Result::ACCEPTED)));
+      return true;
+    }
+
+    // Auto-reject if from anywhere else
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(done_callback_),
+                       DoneCallbackPayload(Result::USER_CANCELED)));
+    return true;
+  }
+
+  // Fall through to default auto-confirm behavior for non-CRX cases
+
   auto confirm_value =
       extensions::ScopedTestDialogAutoConfirm::GetAutoConfirmValue();
   switch (confirm_value) {

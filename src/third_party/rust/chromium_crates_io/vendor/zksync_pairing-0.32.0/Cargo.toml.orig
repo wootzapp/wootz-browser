@@ -1,0 +1,23 @@
+[package]
+name = "zksync_pairing"
+version.workspace = true
+edition = "2018"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Pairing-friendly elliptic curve library, based on pairing crate"
+
+[dependencies]
+ff = { workspace = true, features = ["derive"] }
+
+rand = "0.4"
+byteorder = "1"
+cfg-if = "1.0"
+serde = {version = "1", features = ["derive"]}
+
+[features]
+default = []
+asm = ["ff/asm_derive"]

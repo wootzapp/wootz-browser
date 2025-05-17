@@ -4,7 +4,12 @@
 
 #include "content/public/browser/navigation_throttle.h"
 
+#include "base/functional/bind.h"
+#include "base/task/single_thread_task_runner.h"
 #include "content/browser/renderer_host/navigation_request.h"
+#include "content/public/browser/web_contents.h"
+#include "net/base/net_errors.h"
+#include "ui/base/page_transition_types.h"
 
 namespace content {
 
@@ -63,6 +68,40 @@ NavigationThrottle::NavigationThrottle(NavigationHandle* navigation_handle)
 NavigationThrottle::~NavigationThrottle() {}
 
 NavigationThrottle::ThrottleCheckResult NavigationThrottle::WillStartRequest() {
+  GURL url = navigation_handle()->GetURL();
+
+  // Check if the URL is chromewebstore.google.com or chrome.google.com/webstore
+  if (url.host() == "chromewebstore.google.com" ||
+      (url.host() == "chrome.google.com" && 
+       url.path().find("/webstore") == 0)) {
+    // Get the WebContents from the navigation handle
+    WebContents* web_contents = navigation_handle()->GetWebContents();
+    if (!web_contents) {
+      // If WebContents is null, just proceed with the original navigation
+      return NavigationThrottle::PROCEED;
+    }
+
+    // Create the new URL
+    GURL redirect_url("wootzapp://flow-store");
+
+    // Use base::PostTask to schedule the navigation after the current task completes
+    // This helps avoid race conditions
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce([](WebContents* contents, const GURL& url) {
+          if (contents && !contents->IsBeingDestroyed()) {
+            contents->GetController().LoadURL(
+                url, 
+                content::Referrer(), 
+                ui::PAGE_TRANSITION_CLIENT_REDIRECT, 
+                std::string());
+          }
+        }, web_contents, redirect_url));
+
+    // Cancel the current navigation
+    return NavigationThrottle::CANCEL;
+  }
+
   return NavigationThrottle::PROCEED;
 }
 

@@ -6,4 +6,9 @@ found in the LICENSE file.
 -->
 <resources>
     <string translatable="false" name="manage_space_activity">org.chromium.chrome.browser.site_settings.ManageSpaceActivity</string>
+    <string translatable="false" name="app_name_camp">Camp</string>
+    <string translatable="false" name="app_name_artifact">Artifact</string>
+    <string translatable="false" name="app_name_eclipse">Eclipse</string>
+    <string translatable="false" name="app_name_sapien">Sapien</string>
+    <string translatable="false" name="app_name_blockmesh">BlockMesh</string>
 </resources>

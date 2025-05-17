@@ -29,6 +29,7 @@ import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPr
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.view.ViewOutlineProvider;
+import android.os.Build;
 
 /** Root coordinator of the Hub. */
 public class HubCoordinator implements PaneHubController, BackPressHandler {
@@ -125,8 +126,10 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
                 .addObserver(castCallback(mBackPressStateChangeCallback));
 
         updateHandleBackPressSupplier();
-        setupViewForHubPaneHostView();
-        setupViewForHubToolbarView();
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            setupViewForHubPaneHostView();
+            setupViewForHubToolbarView();
+        }
 
         setHubBackgroundColor();
     }

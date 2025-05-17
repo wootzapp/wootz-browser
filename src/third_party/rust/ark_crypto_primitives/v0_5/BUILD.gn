@@ -1,0 +1,114 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# @generated from third_party/rust/chromium_crates_io/BUILD.gn.hbs by
+# tools/crates/gnrt.
+# Do not edit!
+
+import("//build/rust/cargo_crate.gni")
+
+cargo_crate("lib") {
+  crate_name = "ark_crypto_primitives"
+  epoch = "0.5"
+  crate_type = "rlib"
+  crate_root = "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/lib.rs"
+  sources = [
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/blake2s/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/blake2s/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/injective_map/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/injective_map/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/pedersen/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/commitment/pedersen/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/bowe_hopwood/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/bowe_hopwood/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/injective_map/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/injective_map/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/pedersen/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/pedersen/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/poseidon/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/poseidon/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/sha256/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/crh/sha256/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/encryption/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/encryption/elgamal/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/encryption/elgamal/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/encryption/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/lib.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/macros.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/merkle_tree/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/merkle_tree/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/merkle_tree/tests/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/merkle_tree/tests/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/merkle_tree/tests/test_utils.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/prf/blake2s/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/prf/blake2s/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/prf/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/prf/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/signature/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/signature/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/signature/schnorr/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/signature/schnorr/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/snark/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/snark/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/absorb.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/constraints/absorb.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/constraints/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/merlin/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/poseidon/constraints.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/poseidon/grain_lfsr.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/poseidon/mod.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/poseidon/tests.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/poseidon/traits.rs",
+    "//third_party/rust/chromium_crates_io/vendor/ark-crypto-primitives-0.5.0/src/sponge/test.rs",
+  ]
+  inputs = []
+
+  build_native_rust_unit_tests = false
+  edition = "2021"
+  cargo_pkg_version = "0.5.0"
+  cargo_pkg_authors = "arkworks contributors"
+  cargo_pkg_name = "ark-crypto-primitives"
+  cargo_pkg_description = "A library of useful cryptographic primitives"
+  library_configs -= [ "//build/config/compiler:chromium_code" ]
+  library_configs += [ "//build/config/compiler:no_chromium_code" ]
+  executable_configs -= [ "//build/config/compiler:chromium_code" ]
+  executable_configs += [ "//build/config/compiler:no_chromium_code" ]
+  proc_macro_configs -= [ "//build/config/compiler:chromium_code" ]
+  proc_macro_configs += [ "//build/config/compiler:no_chromium_code" ]
+  deps = [
+    "//third_party/rust/ark_crypto_primitives_macros/v0_5:lib",
+    "//third_party/rust/ark_ec/v0_5:lib",
+    "//third_party/rust/ark_ff/v0_5:lib",
+    "//third_party/rust/ark_relations/v0_5:lib",
+    "//third_party/rust/ark_serialize/v0_5:lib",
+    "//third_party/rust/ark_snark/v0_5:lib",
+    "//third_party/rust/ark_std/v0_5:lib",
+    "//third_party/rust/blake2/v0_10:lib",
+    "//third_party/rust/derivative/v2:lib",
+    "//third_party/rust/digest/v0_10:lib",
+    "//third_party/rust/fnv/v1:lib",
+    "//third_party/rust/merlin/v3:lib",
+    "//third_party/rust/rayon/v1:lib",
+    "//third_party/rust/sha2/v0_10:lib",
+  ]
+  features = [
+    "merlin",
+    "parallel",
+    "rayon",
+    "snark",
+    "sponge",
+    "std",
+  ]
+
+  # Only for usage from third-party crates. Add the crate to
+  # //third_party/rust/chromium_crates_io/Cargo.toml to use
+  # it from first-party code.
+  visibility = [ "//third_party/rust/*" ]
+  # testonly = true
+}
