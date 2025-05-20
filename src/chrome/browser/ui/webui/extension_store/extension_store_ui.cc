@@ -43,7 +43,6 @@ void CreateAndAddExtensionStoreHTMLSource(Profile* profile) {
       base::make_span(kExtensionStoreResources, kExtensionStoreResourcesSize),
       IDR_EXTENSION_STORE_EXTENSION_STORE_HTML);
       
-  
   // Override CSP to allow external resources if needed
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ConnectSrc,
@@ -142,7 +141,9 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   }
   
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  GURL fetch_url("https://raw.githubusercontent.com/itskartike910/extensions/main/extensions.json");
+  std::string url = "https://raw.githubusercontent.com/itskartike910/extensions/main/extensions.json?nocache=" +
+                    base::NumberToString(base::Time::Now().ToInternalValue());
+  GURL fetch_url(url);
   
   if (!fetch_url.is_valid()) {
     web_ui_->CallJavascriptFunctionUnsafe(
@@ -165,7 +166,10 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   // Add additional headers to help with debugging
   resource_request->headers.SetHeader("Accept", "application/json");
   resource_request->headers.SetHeader("User-Agent", "Chrome Extension Store");
-  
+
+  // To force fresh fetch from network
+  resource_request->load_flags = net::LOAD_BYPASS_CACHE;
+
   net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation(
       "extension_store_fetch_extensions", R"(
         semantics {
