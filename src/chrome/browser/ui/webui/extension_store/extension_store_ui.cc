@@ -141,7 +141,7 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   }
   
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  std::string url = "https://raw.githubusercontent.com/itskartike910/extensions/main/extensions.json?nocache=" +
+  std::string url = "https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json?nocache=" +
                     base::NumberToString(base::Time::Now().ToInternalValue());
   GURL fetch_url(url);
   
