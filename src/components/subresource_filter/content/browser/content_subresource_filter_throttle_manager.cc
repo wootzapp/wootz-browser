@@ -48,15 +48,13 @@
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 
-#include "services/network/public/cpp/resource_request.h"
-#include "services/network/public/cpp/simple_url_loader.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/functional/callback.h"
 #include "url/gurl.h"
-#include <regex>
-#include <set>
-#include "components/subresource_filter/core/browser/adblock_control.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 
 
 namespace subresource_filter {
@@ -105,15 +103,7 @@ bool ShouldInheritParentActivation(
          !navigation_handle->HasCommitted();
 }
 
-// Static variable for global replacement_url
-static std::string global_ad_replacement_url_;
-static std::vector<std::string> global_ad_replacement_selectors_;
-
 }  // namespace
-
-// Definition of static member variable
-std::string ContentSubresourceFilterThrottleManager::global_ad_replacement_url_;
-std::vector<std::string> ContentSubresourceFilterThrottleManager::global_ad_replacement_selectors_;
 
 // static
 const int ContentSubresourceFilterThrottleManager::kUserDataKey;
@@ -160,131 +150,6 @@ ContentSubresourceFilterThrottleManager::FromNavigationHandle(
       navigation_handle);
 }
 
-// static
-void ContentSubresourceFilterThrottleManager::SetGlobalAdReplacementUrl(
-                const std::string& url, 
-                const std::vector<std::string>& selectors) {
-  LOG(INFO) << "SetGlobalAdReplacementUrl called with URL: " << url <<" and selectors: " << selectors.size();
-  global_ad_replacement_url_ = url;
-  global_ad_replacement_selectors_ = selectors;
-}
-
-const std::vector<std::string>& ContentSubresourceFilterThrottleManager::GetGlobalAdReplacementSelectors() {
-  return global_ad_replacement_selectors_;
-}
-
-// static
-const std::string& ContentSubresourceFilterThrottleManager::GetGlobalAdReplacementUrl() {
-  return global_ad_replacement_url_;
-}
-
-constexpr char kEasylistUrl[] = "https://easylist.to/easylist/easylist.txt";
-constexpr int kMaxDownloadBytes = 10 * 1024 * 1024; // 10 MB
-
-// Define a proper network traffic annotation
-static constexpr net::NetworkTrafficAnnotationTag kEasylistTrafficAnnotation =
-    net::DefineNetworkTrafficAnnotation("easylist_fetch", R"(
-      semantics {
-        sender: "Easylist Fetcher"
-        description: "Fetches the EasyList filter list for ad blocking."
-        trigger: "User navigates to a page."
-        data: "No user data is sent."
-        destination: WEBSITE
-      }
-      policy {
-        cookies_allowed: NO
-        setting: "This feature cannot be disabled by settings."
-        policy_exception_justification: "Not implemented."
-      }
-    )");
-
-void OnEasylistFetched(ContentSubresourceFilterThrottleManager::EasylistCallback callback,
-                       std::unique_ptr<std::string> response_body) {
-    
-    if (!response_body) {
-        std::move(callback).Run(std::vector<std::string>());
-        return;
-    }
-
-    std::set<std::string> css_selectors_;
-    std::regex double_quotes_regex("\"[^\"]*\"");
-
-    std::vector<std::string> lines = base::SplitString(
-        *response_body, "\n", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
-
-    for (const auto& line : lines) {
-        std::string trimmed(base::TrimWhitespaceASCII(line, base::TRIM_ALL));
-        if (trimmed.empty() || trimmed[0] == '!') continue;
-
-        if (base::StartsWith(trimmed, "##") || base::StartsWith(trimmed, "###")) {
-            std::string selector = trimmed.substr(2);
-            if (!selector.empty() && selector[0] == '#')
-                selector = selector.substr(1);
-
-            if (selector.find("href") != std::string::npos ||
-                std::regex_search(selector, double_quotes_regex)) {
-                continue;
-            }
-            css_selectors_.insert(selector);
-        }
-    }
-    
-    // Convert set to vector and run the callback
-    std::vector<std::string> result(css_selectors_.begin(), css_selectors_.end());
-    std::move(callback).Run(std::move(result));
-}
-
-// static
-void ContentSubresourceFilterThrottleManager::FetchAndParseEasylist(
-    network::mojom::URLLoaderFactory* url_loader_factory,
-    EasylistCallback callback) {
-    GURL url(kEasylistUrl);
-    LOG(INFO) << "FetchAndParseEasylist starting with URL: " << url.spec();
-
-    if (!url_loader_factory) {
-        LOG(ERROR) << "Url_loader_factory is null!";
-        std::move(callback).Run(std::vector<std::string>());
-        return;
-    }
-
-    auto resource_request = std::make_unique<network::ResourceRequest>();
-    resource_request->url = url;
-    resource_request->method = "GET";
-    resource_request->mode = network::mojom::RequestMode::kNoCors;
-    resource_request->headers.SetHeader("User-Agent", "Mozilla/5.0");
-    resource_request->headers.SetHeader("Accept", "text/plain");
-
-    LOG(INFO) << "Creating SimpleURLLoader with URL: " << url.spec();
-
-    // Create the loader as a unique_ptr and pass ownership into the callback.
-    auto simple_url_loader = network::SimpleURLLoader::Create(
-        std::move(resource_request), kEasylistTrafficAnnotation);
-
-    simple_url_loader->SetTimeoutDuration(base::Seconds(30));
-    simple_url_loader->SetOnDownloadProgressCallback(base::BindRepeating(
-        [](uint64_t current) {
-            LOG(INFO) << "Download progress: " << current << " bytes";
-        }));
-
-    // Move the loader into the callback to keep it alive.
-    network::SimpleURLLoader* loader_ptr = simple_url_loader.get();
-    loader_ptr->DownloadToString(
-        url_loader_factory,
-        base::BindOnce(
-            [](std::unique_ptr<network::SimpleURLLoader> loader,
-               EasylistCallback callback,
-               std::unique_ptr<std::string> response_body) {
-                if (!response_body) {
-                    LOG(ERROR) << "Download failed: response_body is null";
-                    std::move(callback).Run(std::vector<std::string>());
-                    return;
-                }
-                LOG(INFO) << "Response size: " << response_body->size();
-                OnEasylistFetched(std::move(callback), std::move(response_body));
-            },
-            std::move(simple_url_loader), std::move(callback)),
-        kMaxDownloadBytes);
-}
 
 ContentSubresourceFilterThrottleManager::
     ContentSubresourceFilterThrottleManager(
@@ -368,8 +233,23 @@ void ContentSubresourceFilterThrottleManager::ReadyToCommitInFrameNavigation(
   // it on cross-process navigations.
   agent->ActivateForNextCommittedLoad(activation_state.Clone(),
                                       ad_evidence_for_navigation);
-  // Send the replacement_url to the renderer for this frame
-  agent->SetReplacementUrl(GetGlobalAdReplacementUrl(), GetGlobalAdReplacementSelectors());
+
+  content::WebContents* web_contents = navigation_handle->GetWebContents();
+  Profile* profile = nullptr;
+  if (web_contents){
+    profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  }
+
+  bool replacement_enabled = false;
+  std::string replacement_url;
+  std::vector<std::string> selectors;
+  if (profile) {
+    replacement_enabled = profile->GetPrefs()->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
+    replacement_url = subresource_filter::prefs::GetAdReplacementUrl(profile->GetPrefs());
+    selectors = subresource_filter::prefs::GetAdReplacementSelectors(profile->GetPrefs());
+  }
+  // Send the replacement_url and selectors to the renderer for this frame
+  agent->SetReplacementEnabled(replacement_enabled, replacement_url, selectors);
 }
 
 mojom::ActivationState
@@ -834,20 +714,23 @@ ContentSubresourceFilterThrottleManager::
       ad_tagging_state.activation_level = mojom::ActivationLevel::kDryRun;
       throttle->NotifyPageActivationWithRuleset(EnsureRulesetHandle(),
                                                 ad_tagging_state);
-      LOG(INFO) << "AdBlock: Notified throttle of activation state" << static_cast<int>(ad_tagging_state.activation_level);
     }
 
     //TODO: could use same logic as in SubresourceFilterSafeBrowsingActivationThrottle::NotifyResult()
     subresource_filter::ActivationDecision ignored_decision;
     mojom::ActivationState ad_filtering_state;
 
-    // Check AdBlockControl state at runtime when determining activation level
-    if (AdBlockControl::IsEnabled()) {
+    content::WebContents* web_contents = navigation_handle->GetWebContents();
+    bool adblock_enabled = false;
+    if (web_contents) {
+      Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+      adblock_enabled = profile->GetPrefs()->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
+    }
+
+    if (adblock_enabled) {
       ad_filtering_state.activation_level = mojom::ActivationLevel::kEnabled;
-      LOG(INFO) << "AdBlock: Enabling ad blocking because AdBlockControl is enabled";
     } else {
       ad_filtering_state.activation_level = mojom::ActivationLevel::kDisabled;
-      LOG(INFO) << "AdBlock: Disabling ad blocking because AdBlockControl is disabled";
     }
 
     throttle->NotifyPageActivationWithRuleset(EnsureRulesetHandle(),

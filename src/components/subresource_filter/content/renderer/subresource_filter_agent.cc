@@ -421,25 +421,19 @@ void SubresourceFilterAgent::DidCreateFencedFrame(
   }
 }
 
-void SubresourceFilterAgent::SetReplacementUrl(const std::string& replacement_url, 
-                                               const std::vector<std::string>& selectors) {
-  // LOG(INFO) << "AdBlock Renderer: Setting replacement URL: " << replacement_url;
-  // LOG(INFO) << "AdBlock Renderer: Setting selectors: " << selectors.size();
+void SubresourceFilterAgent::SetReplacementEnabled(bool enabled, 
+                                                  const std::string& replacement_url, 
+                                                  const std::vector<std::string>& selectors) {
+  replacement_enabled_ = enabled;
   this->replacement_url = replacement_url;
   css_selectors_ = selectors;
 }
 
 void SubresourceFilterAgent::OnResourceBlockedByFilter(const GURL& url) {
   // Store the blocked resource URL and schedule replacement
-  if(replacement_url.empty()) {
-    // LOG(INFO) << "AdBlock: No replacement URL set, skipping replacement";
+  if(replacement_url.empty() || css_selectors_.empty() || !replacement_enabled_) {
     return;
   }
-  blocked_resources_.insert(url.spec());
-  MaybeScheduleAdReplacement();
-}
-
-void SubresourceFilterAgent::MaybeScheduleAdReplacement() {
   if (!replacement_task_scheduled_) {
     replacement_task_scheduled_ = true;
     ad_replacement_attempt_count_ = 0;  // Reset attempt counter
@@ -455,16 +449,13 @@ void SubresourceFilterAgent::MaybeScheduleAdReplacement() {
 
 void SubresourceFilterAgent::ReplaceBlockedAds() {
   replacement_task_scheduled_ = false;
-  
-  // Increment attempt counter
   ad_replacement_attempt_count_++;
   
-  if (!render_frame() || blocked_resources_.empty()) {
-    LOG(INFO) << "AdBlock: No render frame or empty blocked resources list";
+  if (!render_frame()) {
+    LOG(INFO) << "AdBlock: No render frame";
     return;
   }
 
-  // Get a reference to the document
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   if (!frame) {
     LOG(INFO) << "AdBlock: WebFrame is null";
@@ -476,92 +467,10 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     LOG(INFO) << "AdBlock: Document is null";
     return;
   }
-    
-  // LOG(INFO) << "AdBlock: Starting replacement for " << blocked_resources_.size() << " resources";
-  
-  // // Debug: Log all blocked resources
-  // for (const std::string& url : blocked_resources_) {
-  //   LOG(INFO) << "AdBlock: Looking to replace: " << url;
-  // }
-  
-  // Track the elements we need to replace
-  elements_to_replace.clear();  // Clear any previous elements
-  
-  // First try to find elements using direct src matching
-  // Get the body element first
-  blink::WebElement body = document.Body();
-  if (body.IsNull()) {
-    LOG(INFO) << "AdBlock: Body element not found";
-    return;
-  }
-  
-  // LOG(INFO) << "AdBlock: Found body element, starting DOM traversal";
-  
-  // Standard traversal (keep your existing code here)
-  std::vector<blink::WebElement> elements_to_check;
-  elements_to_check.push_back(body);
-  
-  int elements_checked = 0;
-  int src_elements_found = 0;
-  
-  while (!elements_to_check.empty()) {
-    blink::WebElement current = elements_to_check.back();
-    elements_to_check.pop_back();
-    elements_checked++;
-    
-    // Check if this element should be replaced
-    if (current.HasHTMLTagName("img") || 
-        current.HasHTMLTagName("iframe") || 
-        current.HasHTMLTagName("object") || 
-        current.HasHTMLTagName("embed")) {
-      
-      std::string src = current.GetAttribute("src").Utf8();
-      if (!src.empty()) {
-        src_elements_found++;
-        // LOG(INFO) << "AdBlock: Found element with src: " << src;
-        
-        // Use the more flexible URL matching
-        for (const std::string& blocked_url : blocked_resources_) {
-          if (UrlsEffectivelyMatch(blocked_url, src)) {
-            // LOG(INFO) << "AdBlock: Found element to replace with src: " << src 
-            //           << " matching blocked URL: " << blocked_url;
-            elements_to_replace.push_back(std::make_pair(current, src));
-            break;
-          }
-        }
-      }
-    }
-    
-    // Add child elements to check
-    // Handle child traversal - first add next sibling to maintain breadth
-    if (!current.NextSibling().IsNull()) {
-      blink::WebNode sibling = current.NextSibling();
-      if (sibling.IsElementNode()) {
-        elements_to_check.push_back(sibling.To<blink::WebElement>());
-      }
-    }
-    
-    // Then add first child if it exists
-    if (!current.FirstChild().IsNull()) {
-      blink::WebNode child = current.FirstChild();
-      if (child.IsElementNode()) {
-        elements_to_check.push_back(child.To<blink::WebElement>());
-      }
-    }
-  }
-  
-  // LOG(INFO) << "AdBlock: DOM traversal complete. Checked " << elements_checked 
-  //           << " elements, found " << src_elements_found << " with src attributes, "
-  //           << elements_to_replace.size() << " elements need replacement";
-  
-  // If we didn't find enough elements to replace, use the enhanced detection
-  if (elements_to_replace.size() < blocked_resources_.size()) {
-    // LOG(INFO) << "AdBlock: Not all blocked resources matched elements. Using enhanced detection.";
-    FindAdElements(document);
-  }
-  
-  // LOG(INFO) << "AdBlock: After enhanced detection, found " << elements_to_replace.size() << " elements to replace";
-  
+
+  elements_to_replace.clear();
+  FindAdElements(document);
+
   // Now replace all identified elements
   for (const auto& pair : elements_to_replace) {
     blink::WebElement current_element = pair.first;
@@ -569,8 +478,8 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     
     // Get dimensions for all elements
     int width = 300;  // Default width
-    int height = 250; // Default height
-    
+    int height = 250; // Default height 
+   
     // Use proper dimension detection - try width/height attributes first
     std::string width_attr = current_element.GetAttribute("width").Utf8();
     std::string height_attr = current_element.GetAttribute("height").Utf8();
@@ -604,7 +513,7 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
             }
         }
     }
-    
+
     // Get the original style
     std::string original_style = current_element.GetAttribute("style").Utf8();
 
@@ -645,54 +554,15 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
   
   // If we didn't replace all blocked resources and haven't reached max attempts,
   // schedule another attempt with a delay
-  if (!blocked_resources_.empty() && ad_replacement_attempt_count_ < kMaxAdReplacementAttempts) {
-              
+  if (ad_replacement_attempt_count_ < kMaxAdReplacementAttempts) {
     replacement_task_scheduled_ = true;
     replacement_timer_.Start(
         FROM_HERE,
         base::Milliseconds(500),  // Wait half a second for more content to load
         this,
         &SubresourceFilterAgent::ReplaceBlockedAds);
-  } else {
-    // Clear processed resources only after all attempts
-    if (ad_replacement_attempt_count_ >= kMaxAdReplacementAttempts) {
-      blocked_resources_.clear();
-    }
   }
 }
-
-bool SubresourceFilterAgent::UrlsEffectivelyMatch(const std::string& blocked_url, const std::string& element_src) {
-  // Simple exact match check
-  if (blocked_url == element_src)
-    return true;
-    
-  // Check for URL without query parameters
-  size_t blocked_query_pos = blocked_url.find('?');
-  size_t src_query_pos = element_src.find('?');
-  
-  if (blocked_query_pos != std::string::npos) {
-    std::string blocked_base = blocked_url.substr(0, blocked_query_pos);
-    
-    // Check if the element src starts with the blocked base URL
-    if (src_query_pos != std::string::npos) {
-      std::string src_base = element_src.substr(0, src_query_pos);
-      if (blocked_base == src_base)
-        return true;
-    } else if (element_src == blocked_base) {
-      return true;
-    }
-    
-    // Check for domain match in certain cases (ad networks)
-    if (blocked_base.find("googleads") != std::string::npos || 
-        blocked_base.find("doubleclick") != std::string::npos) {
-      return (element_src.find("google") != std::string::npos || 
-              element_src.find("doubleclick") != std::string::npos);
-    }
-  }
-  
-  return false;
-}
-
 
 bool SubresourceFilterAgent::IsLikelyFalsePositive(const blink::WebElement& element) {
   // Skip navigation bars, very small elements, or known non-ad roles

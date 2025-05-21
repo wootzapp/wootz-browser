@@ -467,12 +467,23 @@
         {
           "name": "replaceAd",
           "type": "function",
-          "description": "Replaces an ad element in the DOM matching the given URL with a custom image.",
+          "description": "Replaces an ad element in the DOM with a custom image.",
           "parameters": [
+            {
+              "name": "isEnabled",
+              "type": "boolean",
+              "description": "Whether ad replacement is enabled."
+            },
             {
               "name": "url",
               "type": "string",
               "description": "The URL of the ad resource to replace."
+            },
+            {
+              "name": "selectors",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CSS selectors for ad elements."
             }
           ],
           "returns_async": {

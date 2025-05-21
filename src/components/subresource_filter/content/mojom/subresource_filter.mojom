@@ -24,7 +24,7 @@ interface SubresourceFilterAgent {
                                blink.mojom.FrameAdEvidence? ad_evidence);
 
   // Sets the global ad replacement URL for this frame.
-  SetReplacementUrl(string replacement_url, array<string> selectors);
+  SetReplacementEnabled(bool enabled, string replacement_url, array<string> selectors);
 };
 
 // The browser host object that manages subresource filtering for a conceptual

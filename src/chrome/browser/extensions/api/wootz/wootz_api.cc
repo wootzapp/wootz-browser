@@ -55,15 +55,8 @@
 #include "base/logging.h"
 #include "components/zk_proof/zk_proof.h"
 #include "components/zk_proof/tls_info/tls_data_store.h"
-#include "components/subresource_filter/content/mojom/subresource_filter.mojom.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
-#include "mojo/public/cpp/bindings/associated_remote.h"
-#include "content/public/browser/render_frame_host.h"
-
-
-#include "content/public/browser/browser_context.h"
-#include "content/public/browser/storage_partition.h"
-#include "components/subresource_filter/core/browser/adblock_control.h"
 
 namespace extensions {
 
@@ -1199,39 +1192,41 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
 
 ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   LOG(INFO) << "WootzReplaceAdFunction::Run started with arguments: " << args().size();
-  if (args().size() < 1 || !args()[0].is_string()) {
-    LOG(ERROR) << "Invalid arguments provided";
+  if (args().size() < 3 || !args()[0].is_bool() || !args()[1].is_string() || !args()[2].is_list()) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Invalid arguments provided";
     return RespondNow(Error("Invalid arguments"));
   }
-  std::string url = args()[0].GetString();
 
-  // Enable ad blocking globally when this function is called
-  LOG(INFO) << "WootzReplaceAdFunction: Setting AdBlockControl::SetEnabled to true";
-  subresource_filter::AdBlockControl::SetEnabled(true);
+  bool is_enabled = args()[0].GetBool();
 
-  auto* storage_partition = browser_context()->GetDefaultStoragePartition();
-
-  network::mojom::URLLoaderFactory* url_loader_factory = storage_partition->GetURLLoaderFactoryForBrowserProcess().get();
-
-  if (!url_loader_factory) {
-      LOG(ERROR) << "WootzReplaceAdFunction: Failed to get URLLoaderFactory!";
-      return RespondNow(Error("No url_loader_factory available"));
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
+    return RespondNow(Error("No profile found"));
   }
-  std::string replacement_url = url; 
-  subresource_filter::ContentSubresourceFilterThrottleManager::FetchAndParseEasylist(
-    url_loader_factory,
-      base::BindOnce(
-          [](const std::string& replacement_url, std::vector<std::string> selectors) {
-              LOG(INFO) << "WootzReplaceAdFunction: Callback received with " << selectors.size() << " selectors";
-              subresource_filter::ContentSubresourceFilterThrottleManager::SetGlobalAdReplacementUrl(replacement_url, selectors);
-          },
-          replacement_url
-      )
-  );
+  profile->GetPrefs()->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, is_enabled);
 
-    LOG(INFO) << "Ad replaced for URL: Responding Now: " << url;
+  if(!is_enabled) {
+    LOG(INFO) << "WootzReplaceAdFunction: AdBlocking is disabled";
     return RespondNow(NoArguments());
   }
+
+  std::string url = args()[1].GetString();
+  std::vector<std::string> selectors;
+
+  for (const auto& val : args()[2].GetList()) {
+    if (val.is_string())
+      selectors.push_back(val.GetString());
+  }
+
+  // Store in preferences
+  subresource_filter::prefs::SetAdReplacementUrlAndSelectors(profile->GetPrefs(), url, selectors);
+  // log url and selectors from preferences
+  std::string prefs_url = subresource_filter::prefs::GetAdReplacementUrl(profile->GetPrefs());
+  std::vector<std::string> prefs_selectors = subresource_filter::prefs::GetAdReplacementSelectors(profile->GetPrefs());
+
+  return RespondNow(NoArguments());
+}
 
 }  // namespace extensions
 

@@ -33,30 +33,25 @@ AdBlockUpdaterService::AdBlockUpdaterService(scoped_refptr<network::SharedURLLoa
    subresource_filter::RulesetService* ruleset_service, std::string filters_url)
  : ruleset_service_(ruleset_service), shared_url_network_factory_(shared_url_network_factory), scheduler_(std::move(scheduler)) {
   DCHECK(ruleset_service);
-  LOG(INFO) << "AdBlock: Creating AdBlockUpdaterService with filters URL: " << filters_url;
   filters_url_ = filters_url;
 }
 
 AdBlockUpdaterService::~AdBlockUpdaterService() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Destroying AdBlockUpdaterService";
 }
 
 void AdBlockUpdaterService::AddObserver(Observer* observer) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Adding observer";
   observer_list_.AddObserver(observer);
 }
 
 void AdBlockUpdaterService::RemoveObserver(Observer* observer) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Removing observer";
   observer_list_.RemoveObserver(observer);
 }
 
 void AdBlockUpdaterService::NotifyObservers(Event event) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Notifying observers of event: " << static_cast<int>(event);
   for (auto& observer : observer_list_)
     observer.OnEvent(event);
 }
@@ -66,7 +61,6 @@ void AdBlockUpdaterService::Start() {
 
   // avoid multiple scheduling
   if (scheduled_) {
-    LOG(INFO) << "AdBlock: Service already scheduled, ignoring Start() call";
     return;
   }
   scheduled_ = true;
@@ -85,32 +79,27 @@ void AdBlockUpdaterService::Start() {
 }
 
 void AdBlockUpdaterService::OnDemandScheduledUpdate(component_updater::UpdateScheduler::OnFinishedCallback on_finished) {
-  LOG(INFO) << "AdBlock: Scheduled update triggered";
   //TODO: call on_finished
   OnDemandUpdateAsNeeded(false, Callback());
 }
 
 bool AdBlockUpdaterService::OnDemandUpdate(Callback on_finished) {
-  LOG(INFO) << "AdBlock: On-demand update requested";
   return OnDemandUpdateAsNeeded(true, std::move(on_finished));
 }
 
 bool AdBlockUpdaterService::OnDemandUpdateAsNeeded(bool is_foreground, Callback on_finished) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Checking if update is needed (foreground=" << is_foreground << ")";
 
   // Check if the request is too early
   if (!last_update_.is_null()) {
     base::TimeDelta delta =
         base::TimeTicks::Now() - last_update_;
     if (delta < base::Seconds(on_demand_check_delay)) {
-      LOG(INFO) << "AdBlock: Update not necessary - last update was " << delta.InSeconds() << " seconds ago";
       return false;
     }
   }
 
   if (is_updating_) {
-    LOG(INFO) << "AdBlock: Update already in progress, skipping";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(on_finished),
                                     Error::UPDATE_IN_PROGRESS));
@@ -124,7 +113,6 @@ bool AdBlockUpdaterService::OnDemandUpdateAsNeeded(bool is_foreground, Callback 
   base::Time::Exploded e = {0};
   base::Time min_last_modified = base::Time();
   auto version = ruleset_service_->GetMostRecentlyIndexedVersion();
-  LOG(INFO) << "AdBlock: Most recent indexed version = " << version.content_version;
   std::vector<std::string> tokens =
       base::SplitString(version.content_version, ".", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
   int i = 0;
@@ -134,7 +122,6 @@ bool AdBlockUpdaterService::OnDemandUpdateAsNeeded(bool is_foreground, Callback 
     int n = 0;
     if (!base::StringToInt(token, &n)) {
       failed = true;
-      LOG(WARNING) << "AdBlock: Failed to parse version token: " << token;
       break;
     }
 
@@ -157,7 +144,6 @@ bool AdBlockUpdaterService::OnDemandUpdateAsNeeded(bool is_foreground, Callback 
         break;
       default:
         failed = true;
-        LOG(WARNING) << "AdBlock: Too many version tokens";
         break;
     }
   }
@@ -242,7 +228,6 @@ void AdBlockUpdaterService::OnUpdateComplete(Callback on_finished,
 
         ruleset_info.content_version = version_buffer;
 
-        LOG(INFO) << "AdBlock: Indexing filters with version " << ruleset_info.content_version;
       }
     } else
       LOG(WARNING) << "AdBlock: Invalid Last-Modified header, ignoring version check.";
@@ -251,7 +236,6 @@ void AdBlockUpdaterService::OnUpdateComplete(Callback on_finished,
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&AdBlockUpdaterService::NotifyObservers, base::Unretained(this), Event::ADBLOCK_UPDATED));
   } else if (error == Error::UPDATE_NOT_NEEDED) {
-    LOG(INFO) << "AdBlock: Update not needed - filters are up to date";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&AdBlockUpdaterService::NotifyObservers, base::Unretained(this), Event::ADBLOCK_NOT_UPDATED));
   } else {
@@ -263,13 +247,11 @@ void AdBlockUpdaterService::OnUpdateComplete(Callback on_finished,
   //TODO: run these only when index-and-store is actually finished?
   // would require exposing the callback in IndexAndStoreAndPublishRulesetIfNeeded
   if (!on_finished.is_null()) {
-    LOG(INFO) << "AdBlock: Calling completion callback";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(on_finished), error));
   }
 
   // mark as not updating
-  LOG(INFO) << "AdBlock: Update process complete";
   is_updating_ = false;
   tasks_.erase(task);
 }

@@ -166,23 +166,20 @@ class SubresourceFilterAgent
       filter_for_last_created_document_;
       
       // For ad replacement
-      std::set<std::string> blocked_resources_;
       bool replacement_task_scheduled_ = false;
       base::OneShotTimer replacement_timer_;
       std::vector<std::pair<blink::WebElement, std::string>> elements_to_replace;
-      
+      bool replacement_enabled_ = false;
       // For retry handling
       int ad_replacement_attempt_count_ = 0;
       static constexpr int kMaxAdReplacementAttempts = 10;
 
-      void SetReplacementUrl(const std::string& replacement_url, const std::vector<std::string>& selectors) override;
+      void SetReplacementEnabled(bool enabled, const std::string& replacement_url, const std::vector<std::string>& selectors) override;
       std::string replacement_url = "";
       
       // Ad replacement methods
       void OnResourceBlockedByFilter(const GURL& url);
-      void MaybeScheduleAdReplacement();
       void ReplaceBlockedAds();
-      bool UrlsEffectivelyMatch(const std::string& blocked_url, const std::string& element_src);
       void FindAdElements(const blink::WebDocument& document);
       void FindAdElementsWithSelectors(const blink::WebDocument& document, const std::vector<std::string>& selectors_batch);
       int SafeParseInt(const std::string& str, int default_value);

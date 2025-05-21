@@ -51,7 +51,6 @@ DownloadFiltersTask::DownloadFiltersTask(scoped_refptr<network::SharedURLLoaderF
 }
 
 void DownloadFiltersTask::createSimpleURLLoader(bool headers_only) {
-  LOG(INFO) << "AdBlock: Creating SimpleURLLoader with headers_only=" << headers_only;
   // always reset response-related fields
   response_code_ = -1;
   final_url_ = GURL();
@@ -79,27 +78,22 @@ void DownloadFiltersTask::createSimpleURLLoader(bool headers_only) {
 }
 
 DownloadFiltersTask::~DownloadFiltersTask() {
-  LOG(INFO) << "AdBlock: Destroying DownloadFiltersTask";
   DCHECK(thread_checker_.CalledOnValidThread());
 }
 
 void DownloadFiltersTask::Run() {
-  LOG(INFO) << "AdBlock: Starting DownloadFiltersTask";
   DCHECK(thread_checker_.CalledOnValidThread());
 
   // will not be initialized if the URL was empty
   if (!simple_url_loader_) {
-    LOG(ERROR) << "AdBlock: SimpleURLLoader not initialized, invalid argument";
     TaskComplete(Error::INVALID_ARGUMENT);
     return;
   }
 
   download_start_time_ = base::TimeTicks::Now();
   if (min_last_modified_.is_null()) {
-    LOG(INFO) << "AdBlock: No minimum last modified time, proceeding with download";
     internalDownload();
   } else {
-    LOG(INFO) << "AdBlock: Checking headers first with minimum last modified time";
     simple_url_loader_->DownloadHeadersOnly(
       shared_url_network_factory_.get(),
       base::BindOnce(&DownloadFiltersTask::OnHeadersDownloadComplete, base::Unretained(this))
@@ -108,7 +102,6 @@ void DownloadFiltersTask::Run() {
 }
 
 void DownloadFiltersTask::internalDownload() {
-  LOG(INFO) << "AdBlock: Starting internal download";
   simple_url_loader_->DownloadToTempFile(
       shared_url_network_factory_.get(),
       base::BindOnce(&DownloadFiltersTask::OnDownloadComplete, base::Unretained(this)),
@@ -116,10 +109,8 @@ void DownloadFiltersTask::internalDownload() {
 }
 
 void DownloadFiltersTask::OnHeadersDownloadComplete(scoped_refptr<net::HttpResponseHeaders> headers) {
-  LOG(INFO) << "AdBlock: Headers download completed";
   // something went wrong
   if (headers == nullptr) {
-    LOG(ERROR) << "AdBlock: Headers download failed - null headers";
     OnDownloadComplete(base::FilePath());
     return;
   }
@@ -129,7 +120,6 @@ void DownloadFiltersTask::OnHeadersDownloadComplete(scoped_refptr<net::HttpRespo
           last_modified_ - min_last_modified_;
 
   if (dt.InSeconds() > 0) {
-    LOG(INFO) << "AdBlock: Remote filters are newer, proceeding with download";
     // prepare for next simple URL loader and trigger download
     createSimpleURLLoader(false);
     internalDownload();
@@ -137,7 +127,6 @@ void DownloadFiltersTask::OnHeadersDownloadComplete(scoped_refptr<net::HttpRespo
   }
 
   // the remote filters are not more recent than known ones
-  LOG(INFO) << "AdBlock: Remote filters are not newer than local version";
   TaskComplete(Error::UPDATE_NOT_NEEDED);
 }
 
@@ -189,14 +178,12 @@ void DownloadFiltersTask::OnDownloadComplete(base::FilePath file_path) {
   }
 
   file_path_ = file_path;
-  LOG(INFO) << "AdBlock: Download completed successfully";
   TaskComplete(Error::NONE);
 }
 
 void DownloadFiltersTask::Cancel() {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-  LOG(INFO) << "AdBlock: Update cancelled";
 
   // deletion of the simple_url_loader_ will cause cancellation of its active request, if any
 
@@ -205,7 +192,6 @@ void DownloadFiltersTask::Cancel() {
 
 void DownloadFiltersTask::TaskComplete(Error error) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  LOG(INFO) << "AdBlock: Task completed with error code: " << static_cast<int>(error);
 
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(complete_callback_),

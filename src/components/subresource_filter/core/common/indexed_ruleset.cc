@@ -39,19 +39,17 @@ VerifyStatus GetVerifyStatus(base::span<const uint8_t> buffer,
   // checksum, and is unneeded once expected_checksum is consistently nonzero.
   flatbuffers::Verifier verifier(buffer.data(), buffer.size());
   int local_checksum = LocalGetChecksum(buffer);
-  LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum = 0x" << std::hex << expected_checksum << ", local checksum = 0x" << std::hex << local_checksum;
+  // LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum = 0x" << std::hex << expected_checksum << ", local checksum = 0x" << std::hex << local_checksum;
   if (expected_checksum != 0 && expected_checksum != local_checksum) {
-    LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum != local checksum";
+    // LOG(INFO) << "AdBlock: GetVerifyStatus: expected checksum != local checksum";
     return flat::VerifyIndexedRulesetBuffer(verifier)
                ? VerifyStatus::kChecksumFailVerifierPass
                : VerifyStatus::kChecksumFailVerifierFail;
   }
   if (!flat::VerifyIndexedRulesetBuffer(verifier)) {
-    LOG(INFO) << "AdBlock: GetVerifyStatus: verifier failed";
     return expected_checksum == 0 ? VerifyStatus::kVerifierFailChecksumZero
                                   : VerifyStatus::kVerifierFailChecksumPass;
   }
-  LOG(INFO) << "AdBlock: GetVerifyStatus: verifier passed";
   return expected_checksum == 0 ? VerifyStatus::kPassChecksumZero
                                 : VerifyStatus::kPassValidChecksum;
 }
@@ -160,7 +158,6 @@ LoadPolicy IndexedRulesetMatcher::GetLoadPolicyForResourceLoad(
   if (!rule)
     return LoadPolicy::ALLOW;
 
-  LOG(INFO) << "AdBlock: URL " << url.spec() << " policy: EXPLICITLY_ALLOW / DISALLOW";
 
   return rule->options() & url_pattern_index::flat::OptionFlag_IS_ALLOWLIST
              ? LoadPolicy::EXPLICITLY_ALLOW

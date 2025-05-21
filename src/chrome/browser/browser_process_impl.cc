@@ -151,7 +151,6 @@
 #include "ui/base/idle/idle.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_features.h"
-#include "components/subresource_filter/core/browser/adblock_control.h"
 
 #if BUILDFLAG(IS_WIN)
 #include "base/win/windows_version.h"
@@ -414,10 +413,6 @@ void BrowserProcessImpl::Init() {
 
   features_ = GlobalFeatures::CreateGlobalFeatures();
   features_->Init();
-
-  // Ensure ad blocking is disabled by default
-  LOG(INFO) << "AdBlock: BrowserProcessImpl::Init: SetEnabled: " << false;
-  subresource_filter::AdBlockControl::SetEnabled(false);
 }
 
 #if !BUILDFLAG(IS_ANDROID)

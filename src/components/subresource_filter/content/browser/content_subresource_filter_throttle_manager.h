@@ -230,14 +230,6 @@ class ContentSubresourceFilterThrottleManager
   std::optional<blink::FrameAdEvidence> GetAdEvidenceForFrame(
       content::RenderFrameHost* render_frame_host);
 
-  // --- Ad replacement URL global storage ---
-  static void SetGlobalAdReplacementUrl(const std::string& url, const std::vector<std::string>& selectors);
-  static const std::string& GetGlobalAdReplacementUrl();
-    static const std::vector<std::string>& GetGlobalAdReplacementSelectors();
-  using EasylistCallback = base::OnceCallback<void(std::vector<std::string>)>;
-  static void FetchAndParseEasylist(network::mojom::URLLoaderFactory* url_loader_factory,
-                                    EasylistCallback callback);
-
  protected:
   // These look like WebContentsObserver overrides but they are not, they're
   // called explicitly from the WebContentsHelper, which is a
@@ -436,9 +428,6 @@ class ContentSubresourceFilterThrottleManager
   // the WebContents.
   const raw_ref<ContentSubresourceFilterWebContentsHelper> web_contents_helper_;
 
-  // --- Ad replacement URL global storage ---
-  static std::string global_ad_replacement_url_;
-  static std::vector<std::string> global_ad_replacement_selectors_;
 
   base::WeakPtrFactory<ContentSubresourceFilterThrottleManager>
       weak_ptr_factory_{this};

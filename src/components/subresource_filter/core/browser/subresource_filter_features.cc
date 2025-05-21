@@ -25,7 +25,6 @@
 #include "base/trace_event/traced_value.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
-#include "components/subresource_filter/core/browser/adblock_control.h"
 namespace subresource_filter {
 
 namespace {
@@ -134,7 +133,7 @@ std::vector<Configuration> FillEnabledPresetConfigurations() {
        &Configuration::MakePresetForLiveRunOnPhishingSites},
       {kPresetPerformanceTestingDryRunOnAllSites, ad_tagging_enabled,
        &Configuration::MakePresetForPerformanceTestingDryRunOnAllSites},
-      {kPresetLiveRunForBetterAds, AdBlockControl::IsEnabled() ? true : false,
+      {kPresetLiveRunForBetterAds, true,
        &Configuration::MakePresetForLiveRunForBetterAds}};
 
   // CommaSeparatedStrings enabled_presets(
