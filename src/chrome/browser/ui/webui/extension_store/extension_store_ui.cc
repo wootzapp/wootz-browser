@@ -142,7 +142,9 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   }
   
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  GURL fetch_url("https://raw.githubusercontent.com/itskartike910/extensions/main/extensions.json");
+  std::string url = "https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json?nocache=" +
+                    base::NumberToString(base::Time::Now().ToInternalValue());
+  GURL fetch_url(url);
   
   if (!fetch_url.is_valid()) {
     web_ui_->CallJavascriptFunctionUnsafe(
@@ -165,6 +167,10 @@ void ExtensionStoreMessageHandler::HandleFetchExtensions(const base::Value::List
   // Add additional headers to help with debugging
   resource_request->headers.SetHeader("Accept", "application/json");
   resource_request->headers.SetHeader("User-Agent", "Chrome Extension Store");
+
+  // To bypass the cache loading
+  // Note: LOAD_BYPASS_CACHE is used to ensure we always get the latest data
+  resource_request->load_flags = net::LOAD_BYPASS_CACHE;
   
   net::NetworkTrafficAnnotationTag traffic_annotation = net::DefineNetworkTrafficAnnotation(
       "extension_store_fetch_extensions", R"(
