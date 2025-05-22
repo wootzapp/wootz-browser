@@ -53,6 +53,8 @@ static_library("ui") {
     "webui/hello_world/hello_world_ui.h",
     "webui/extension_store/extension_store_ui.cc",
     "webui/extension_store/extension_store_ui.h",
+    "webui/extension_store/extension_store_constants.h",
+    "webui/extension_store/extension_store_constants.cc",
     "webui/startup_crx_install/startup_crx_install.cc",
     "webui/startup_crx_install/startup_crx_install.h",
     "webui/startup_crx_install/startup_crx_install_prefs.cc",
