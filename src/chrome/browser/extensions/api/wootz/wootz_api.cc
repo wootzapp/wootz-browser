@@ -969,6 +969,7 @@ ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
   browser_info.Set("buildId", build_id);
   
   return RespondNow(WithArguments(std::move(browser_info)));
+}
 
 ExtensionFunction::ResponseAction WootzSetBlinksEnabledFunction::Run() {
   // Validate arguments

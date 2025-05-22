@@ -278,7 +278,7 @@ public class ActionUrlListFetcher{
 
             // Special handling for dial.to URLs with embedded action URLs
             String actualUrl = URLDecoder.decode(expandedURL, "UTF-8");
-            if (actualUrl.startsWith("https://dial.to/") || actualUrl.startsWith("http://dial.to/")) {
+            if (actualUrl.startsWith("https://dial.to/") || actualUrl.contains("dial.to")) {
                 // Check if there's an embedded URL in the format ?action=solana-action:https://...
                 if (actualUrl.contains("?action=solana-action:")) {
                     int startIndex = actualUrl.indexOf("solana-action:") + "solana-action:".length();
@@ -286,11 +286,7 @@ public class ActionUrlListFetcher{
                     actualUrl = endIndex > 0 ? actualUrl.substring(startIndex, endIndex) : actualUrl.substring(startIndex);
                     Log.e("::Unfurling:::: ", "Extracted embedded URL from dial.to: " + actualUrl);
                     
-                    // If the extracted URL is already an API URL, return it directly
-                    if (actualUrl.contains("/api/")) {
-                        Log.e("::Unfurling:::: ", "URL is already an API URL, using directly: " + actualUrl);
-                        return actualUrl;
-                    }
+                    return actualUrl;
                 }
             }
         
