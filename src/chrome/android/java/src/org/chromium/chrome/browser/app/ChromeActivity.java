@@ -211,6 +211,7 @@ import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManagerProvider;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController;
+import org.chromium.components.action_url.ActionUrlListFetcher;
 import org.chromium.components.browser_ui.accessibility.FontSizePrefs;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -526,6 +527,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         CachedFlagsSafeMode.getInstance().onStartOrResumeCheckpoint();
         super.onPreCreate();
         initializeBackPressHandling();
+        ActionUrlListFetcher.getInstance();
     }
 
     @Override

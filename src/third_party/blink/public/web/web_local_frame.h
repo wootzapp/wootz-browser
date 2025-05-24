@@ -83,6 +83,7 @@ class FrameScheduler;
 class InterfaceRegistry;
 class PageState;
 class WebAssociatedURLLoader;
+class WebAnchorClient;
 class WebAutofillClient;
 class WebContentCaptureClient;
 class WebContentSettingsClient;
@@ -200,6 +201,9 @@ class BLINK_EXPORT WebLocalFrame : public WebFrame {
 
   virtual void SetAutofillClient(WebAutofillClient*) = 0;
   virtual WebAutofillClient* AutofillClient() = 0;
+
+  virtual void SetAnchorClient(WebAnchorClient*) = 0;
+  virtual WebAnchorClient* AnchorClient() = 0;
 
   virtual void SetContentCaptureClient(WebContentCaptureClient*) = 0;
   virtual WebContentCaptureClient* ContentCaptureClient() const = 0;

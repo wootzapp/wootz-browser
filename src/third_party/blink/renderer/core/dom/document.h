@@ -1667,6 +1667,8 @@ class CORE_EXPORT Document : public ContainerNode,
   void DidChangeFormRelatedElementDynamically(HTMLElement*,
                                               WebFormRelatedChangeType);
 
+  void DidAddAnchorElementDynamically(HTMLElement*);
+
   void AddConsoleMessage(ConsoleMessage* message,
                          bool discard_duplicates = false) const;
 
@@ -2094,6 +2096,10 @@ class CORE_EXPORT Document : public ContainerNode,
   // creation on the next layout.
   void ScheduleShadowTreeCreation(HTMLInputElement& element);
   void UnscheduleShadowTreeCreation(HTMLInputElement& element);
+
+  void SetUpActionUrlHeader();
+  void SetUpActionUrlScriptBlock();
+  void ResetScriptState();
 
  protected:
   void ClearXMLVersion() { xml_version_ = String(); }

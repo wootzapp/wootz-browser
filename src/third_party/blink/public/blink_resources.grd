@@ -35,6 +35,14 @@
       <include name="IDR_DOCUMENTXMLTREEVIEWER_JS" file="../renderer/core/xml/DocumentXMLTreeViewer.js" type="BINDATA" compress="brotli"/>
       <include name="IDR_VALIDATION_BUBBLE_ICON" file="../renderer/core/html/forms/resources/input_alert.svg" type="BINDATA" compress="brotli"/>
       <include name="IDR_VALIDATION_BUBBLE_CSS" file="../renderer/core/html/forms/resources/validation_bubble.css" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_EXCLAMATION" file="../renderer/core/html/action_url/resources/exclamation.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_SPINNER" file="../renderer/core/html/action_url/resources/spinner.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_CHECK_MARK" file="../renderer/core/html/action_url/resources/checkMark.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_INFO_SHIELD" file="../renderer/core/html/action_url/resources/infoShield.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_EMAIL" file="../renderer/core/html/action_url/resources/emailIcon.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_HASH" file="../renderer/core/html/action_url/resources/hashIcon.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_CALENDAR" file="../renderer/core/html/action_url/resources/calendarIcon.svg" type="BINDATA" compress="brotli"/>
+      <include name="IDR_ACTION_BLOCK_URL" file="../renderer/core/html/action_url/resources/urlIcon.svg" type="BINDATA" compress="brotli"/>
       <if expr="not is_android">
         <include name="IDR_PICKER_COMMON_JS" file="../renderer/core/html/forms/resources/picker_common.js" type="BINDATA" compress="brotli"/>
         <include name="IDR_PICKER_COMMON_CSS" file="../renderer/core/html/forms/resources/picker_common.css" type="BINDATA" compress="brotli"/>

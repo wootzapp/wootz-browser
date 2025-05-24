@@ -3,6 +3,10 @@
 # found in the LICENSE file.
 
 blink_core_sources_html = [
+  "action_url/action_block_creator.h",
+  "action_url/action_block_creator.cc",
+  "action_url/script_block_states.h",
+  "action_url/script_block_states.cc",
   "anchor_element_metrics.cc",
   "anchor_element_metrics.h",
   "anchor_element_metrics_sender.cc",

@@ -128,6 +128,8 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebLocalFrameClient* Client() const override { return client_; }
   void SetAutofillClient(WebAutofillClient*) override;
   WebAutofillClient* AutofillClient() override;
+  void SetAnchorClient(WebAnchorClient*) override;
+  WebAnchorClient* AnchorClient() override;
   void SetContentCaptureClient(WebContentCaptureClient*) override;
   WebContentCaptureClient* ContentCaptureClient() const override;
   WebDocument GetDocument() const override;
@@ -654,6 +656,8 @@ class CORE_EXPORT WebLocalFrameImpl final
   Member<WebDevToolsAgentImpl> dev_tools_agent_;
 
   WebAutofillClient* autofill_client_;
+
+  WebAnchorClient* anchor_client_;
 
   WebContentCaptureClient* content_capture_client_ = nullptr;
 

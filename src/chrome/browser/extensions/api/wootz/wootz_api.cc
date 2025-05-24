@@ -27,6 +27,7 @@
 // #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "components/action_url/content/common/action_url_prefs.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/wootz_wallet/browser/eth_tx_manager.h"
 #include "components/wootz_wallet/browser/tx_meta.h"
@@ -947,6 +948,7 @@ ExtensionFunction::ResponseAction WootzCleanJobsFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+
 // Implementation of the new WootzGetBrowserInfoFunction
 ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
   // Create a dictionary to store the browser information
@@ -967,6 +969,25 @@ ExtensionFunction::ResponseAction WootzGetBrowserInfoFunction::Run() {
   browser_info.Set("buildId", build_id);
   
   return RespondNow(WithArguments(std::move(browser_info)));
+}
+
+ExtensionFunction::ResponseAction WootzSetBlinksEnabledFunction::Run() {
+  // Validate arguments
+  if (args().empty() || !args()[0].is_bool()) {
+    return RespondNow(Error("Missing or invalid 'enabled' argument"));
+  }
+  bool enabled = args()[0].GetBool();
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    return RespondNow(Error("No profile found"));
+  }
+
+  profile->GetPrefs()->SetBoolean(action_url::prefs::kBlinksEnabled, enabled);
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
 }
 
 // ExtensionFunction::ResponseAction

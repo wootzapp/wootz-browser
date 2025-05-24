@@ -102,6 +102,10 @@ std::optional<GURL> GetURLForKnownChainId(const std::string& chain_id) {
   if (chain_id == mojom::kEclipseMainnetChainId) {
     return GURL("https://mainnetbeta-rpc.eclipse.xyz");
   }
+  if(chain_id == mojom::kSolanaMainnet) {
+    return GURL("https://solana-rpc.publicnode.com");
+  }
+
   // return GURL(
   //     base::StringPrintf("https://%s.wallet.wootz.com", subdomain.c_str()));
   return GURL("https://ethereum-rpc.publicnode.com");

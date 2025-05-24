@@ -843,6 +843,7 @@ static_library("extensions") {
     "//chrome/browser/safe_browsing:metrics_collector",
     "//chrome/browser/ui/tabs:tab_enums",
     # "//chrome/browser/web_applications",
+    "//components/action_url/content/common:common",
     "//components/cbor:cbor",
     "//components/commerce/core:pref_names",
     "//components/device_reauth",

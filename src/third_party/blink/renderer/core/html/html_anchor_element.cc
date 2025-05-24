@@ -51,6 +51,7 @@
 #include "third_party/blink/renderer/core/html/anchor_element_metrics_sender.h"
 #include "third_party/blink/renderer/core/html/anchor_element_observer_for_service_worker.h"
 #include "third_party/blink/renderer/core/html/html_image_element.h"
+#include "third_party/blink/renderer/core/html/html_head_element.h"
 #include "third_party/blink/renderer/core/html/parser/html_parser_idioms.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
@@ -75,6 +76,8 @@
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
 #include "ui/events/event_constants.h"
 #include "ui/gfx/geometry/point_conversions.h"
+
+#include "third_party/blink/renderer/core/html/action_url/action_block_creator.h"
 
 namespace blink {
 
@@ -786,6 +789,8 @@ Node::InsertionNotificationRequest HTMLAnchorElement::InsertedInto(
   }
 
   if (isConnected() && IsLink()) {
+    LOG(INFO) << "AMIT InsertedInto DidAddAnchorElementDynamically";
+    GetDocument().DidAddAnchorElementDynamically(this);
     static const bool speculative_service_worker_warm_up_enabled =
         base::FeatureList::IsEnabled(features::kSpeculativeServiceWorkerWarmUp);
     if (speculative_service_worker_warm_up_enabled) {
@@ -837,6 +842,65 @@ void HTMLAnchorElement::RemovedFrom(ContainerNode& insertion_point) {
 void HTMLAnchorElement::Trace(Visitor* visitor) const {
   visitor->Trace(rel_list_);
   HTMLElement::Trace(visitor);
+}
+
+void HTMLAnchorElement::ReplaceWithActionEelement(
+    base::ActionSpecJson action_spec,
+    base::OnceCallback<void()> callback) {
+  LOG(INFO) << "Unfurling :: " << __func__;
+  LOG(INFO) << "Unfurling :: " << __func__ << "; action_spec: " << action_spec.site_url <<" "<<action_spec.tag;
+  // action_spec.PrintObject();
+
+  auto action_block = std::make_unique<ActionBlockCreator>(
+      action_spec, Url().GetString().GetString());
+
+  auto notify_drawn = [](HTMLAnchorElement* self,
+                         std::unique_ptr<ActionBlockCreator> action_block,
+                         base::OnceCallback<void()> callback) {
+    action_block->CreateBlocks();
+    
+    // Find the parent div with data-testid="card.wrapper"
+    Node* parent = self->parentNode();
+    Element* wrapper_div = nullptr;
+    
+    int traversal_count = 0;
+    const int max_traversal = 5;
+    
+    while (parent && traversal_count < max_traversal) {
+      if (auto* element = DynamicTo<Element>(parent)) {
+        if (element->getAttribute(AtomicString("data-testid")) == AtomicString("card.wrapper")) {
+          wrapper_div = element;
+          break;
+        }
+      }
+      parent = parent->parentNode();
+      traversal_count++;
+    }
+    
+    if (wrapper_div) {
+      // If we found the wrapper div, replace its inner HTML with the action block HTML
+      wrapper_div->setInnerHTML(action_block->getActionBlock());
+    } else {
+      // Fallback: if we didn't find the wrapper div, just replace the anchor element
+      self->setOuterHTML(action_block->getActionBlock());
+    }
+    
+    String form_script = action_block->getScriptData();
+    if (!form_script.empty()) {
+      Element* stylesheet = self->GetDocument().CreateElement(
+          html_names::kScriptTag, CreateElementFlags::ByCreateElement(),
+          AtomicString());
+      stylesheet->setInnerHTML(form_script);
+      self->GetDocument().body()->AppendChild(stylesheet, ASSERT_NO_EXCEPTION);
+    }
+    std::move(callback).Run();
+  };
+
+  GetDocument()
+      .GetTaskRunner(TaskType::kDOMManipulation)
+      ->PostTask(FROM_HERE,
+                 WTF::BindOnce(notify_drawn, WrapWeakPersistent(this),
+                               std::move(action_block), std::move(callback)));
 }
 
 }  // namespace blink

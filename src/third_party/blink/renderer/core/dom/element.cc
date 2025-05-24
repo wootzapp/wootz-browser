@@ -6971,6 +6971,7 @@ void Element::setOuterHTML(const String& html,
   }
 
   auto* parent = DynamicTo<Element>(p);
+  
   if (!parent) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNoModificationAllowedError,
@@ -6978,7 +6979,7 @@ void Element::setOuterHTML(const String& html,
             "', which is not an element node.");
     return;
   }
-
+  LOG(WARNING) << "parent: " << parent <<" "<< parent->getAttribute(AtomicString("data-testid"));
   Node* prev = previousSibling();
   Node* next = nextSibling();
 

@@ -524,6 +524,7 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/xsurface_provider:dependency_provider_impl_java",
       "//chrome/browser/xsurface_provider:java",
       "//components/wootz_wallet/common:mojom_java",
+      "//components/action_url/android:java",
       "//components/android_autofill/browser:java",
       "//components/autofill/android:autofill_features_java",
       "//components/autofill/android:autofill_java",

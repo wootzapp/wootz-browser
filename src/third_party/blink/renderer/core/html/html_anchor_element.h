@@ -34,6 +34,7 @@
 #include "third_party/blink/renderer/core/url/dom_url_utils.h"
 #include "third_party/blink/renderer/platform/link_hash.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
+#include "base/android/action_spec_json.h"
 
 namespace blink {
 
@@ -112,6 +113,9 @@ class CORE_EXPORT HTMLAnchorElement : public HTMLElement, public DOMURLUtils {
   AtomicString interestAction() const override;
 
   void Trace(Visitor*) const override;
+
+  void ReplaceWithActionEelement(base::ActionSpecJson action_spec,
+                                 base::OnceCallback<void()> callback);
 
  protected:
   void ParseAttribute(const AttributeModificationParams&) override;

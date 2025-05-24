@@ -1,4 +1,4 @@
-/*
+/*https://solana-rpc.publicnode.com/
  * Copyright (C) 2009 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,7 @@
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/platform/web_distillability.h"
 #include "third_party/blink/public/platform/web_url.h"
+#include "third_party/blink/public/web/web_anchor_element.h"
 #include "third_party/blink/public/web/web_dom_event.h"
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_element_collection.h"
@@ -58,6 +59,7 @@
 #include "third_party/blink/renderer/core/html/forms/html_form_control_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_form_element.h"
 #include "third_party/blink/renderer/core/html/html_all_collection.h"
+#include "third_party/blink/renderer/core/html/html_anchor_element.h"
 #include "third_party/blink/renderer/core/html/html_body_element.h"
 #include "third_party/blink/renderer/core/html/html_collection.h"
 #include "third_party/blink/renderer/core/html/html_document.h"
@@ -208,6 +210,18 @@ WebVector<WebFormControlElement> WebDocument::UnassociatedFormControls() const {
     }
   }
   return unassociated_form_controls;
+}
+
+WebVector<WebAnchorElement> WebDocument::Anchors() const {
+  HTMLCollection* anchors =
+      const_cast<Document*>(ConstUnwrap<Document>())->links();
+
+  Vector<WebAnchorElement> anchor_elements;
+  anchor_elements.reserve(anchors->length());
+  for (Element* element : *anchors) {
+    anchor_elements.emplace_back(blink::To<HTMLAnchorElement>(element));
+  }
+  return anchor_elements;
 }
 
 WebVector<WebFormElement> WebDocument::Forms() const {
@@ -388,6 +402,19 @@ bool WebDocument::IsDOMFeaturePolicyEnabled(v8::Isolate* isolate,
   blink::ScriptState* script_state = blink::ScriptState::From(isolate, context);
   Document* document = Unwrap<Document>();
   return document->featurePolicy()->allowsFeature(script_state, feature);
+}
+
+void WebDocument::SetUpActionUrlHeader() {
+  Unwrap<Document>()->SetUpActionUrlHeader();
+}
+
+void WebDocument::SetUpActionUrlScriptBlock() {
+  LOG(INFO)<< "AMIT Setting up action url script block in web document";
+  Unwrap<Document>()->SetUpActionUrlScriptBlock();
+}
+
+void WebDocument::ResetScriptState() {
+  Unwrap<Document>()->ResetScriptState();
 }
 
 }  // namespace blink

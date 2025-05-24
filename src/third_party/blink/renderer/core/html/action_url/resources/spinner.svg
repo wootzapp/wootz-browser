@@ -1,0 +1,28 @@
+<style>
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .spinner {
+      animation: spin 1s steps(8, end) infinite;
+      fill: currentColor;
+    }
+  </style>
+<svg 
+    viewBox="0 0 48 48" 
+    width="16" 
+    class="spinner"
+    data-testid="rotating-dots-svg"
+    aria-label="rotating-dots-loading"
+  >
+    <circle cy="12" cx="12" r="4" transform="rotate(0, 24, 24)" fill-opacity="0" />
+    <circle cy="12" cx="12" r="4" transform="rotate(45, 24, 24)" fill-opacity="0" />
+    <circle cy="12" cx="12" r="4" transform="rotate(90, 24, 24)" fill-opacity="1" />
+    <circle cy="12" cx="12" r="4" transform="rotate(135, 24, 24)" fill-opacity="1" />
+    <circle cy="12" cx="12" r="4" transform="rotate(180, 24, 24)" fill-opacity="1" />
+    <circle cy="12" cx="12" r="4" transform="rotate(225, 24, 24)" fill-opacity="1" />
+    <circle cy="12" cx="12" r="4" transform="rotate(270, 24, 24)" fill-opacity="1" />
+    <circle cy="12" cx="12" r="4" transform="rotate(315, 24, 24)" fill-opacity="1" />
+  </svg>

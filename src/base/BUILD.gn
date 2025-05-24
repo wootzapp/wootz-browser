@@ -1172,6 +1172,8 @@ component("base") {
   # Android.
   if (is_android) {
     sources += [
+      "android/action_spec_json.cc",
+      "android/action_spec_json.h",
       "android/android_hardware_buffer_compat.cc",
       "android/android_hardware_buffer_compat.h",
       "android/android_image_reader_compat.cc",
