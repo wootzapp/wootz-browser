@@ -5082,6 +5082,27 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       </message>
       <message name="IDS_MENU_DOWNLOADS" desc="Menu item for opening the downloads page. [CHAR_LIMIT=27]">
         Downloads
+      </message>      
+      <message name="IDS_MENU_DEVELOPER_MODE" desc="Menu item for opening the developer mode page. [CHAR_LIMIT=27]">
+        Extension Developer Mode
+      </message>
+      <message name="IDS_MENU_ENABLE_DEVELOPER_MODE" desc="Menu item for enabling developer mode. [CHAR_LIMIT=27]">
+        Enable Extension Developer Mode
+      </message>
+      <message name="IDS_DEVELOPER_MODE_TOGGLE_LABEL" desc="Label for the toggle to enable developer mode.">
+        Enable developer mode
+      </message>
+      <message name="IDS_DEVELOPER_MODE_DISABLED_DESCRIPTION" desc="Description text shown when developer mode is disabled.">
+        Developer mode is disabled. Enable it to load unpacked extensions and access advanced extension features.
+      </message>
+      <message name="IDS_DEVELOPER_MODE_ENABLED_DESCRIPTION" desc="Description text shown when developer mode is enabled.">
+        Developer mode is enabled. You can now load unpacked extensions and access advanced extension features.
+      </message>
+      <message name="IDS_DEVELOPER_MODE_WARNING" desc="Warning text about the security implications of enabling developer mode.">
+        Warning: Only enable developer mode if you understand the security implications. Malicious extensions can compromise your data and device.
+      </message>
+      <message name="IDS_ENABLE_DEVELOPER_MODE_TOAST" desc="Toast message shown when user needs to enable developer mode to download CRX files.">
+        Enable developer mode to download CRX files
       </message>
       <message name="IDS_MENU_EDIT_BOOKMARK" desc="Menu item for editing the content of the bookmark for the current page. [CHAR_LIMIT=27]">
         Edit Bookmark

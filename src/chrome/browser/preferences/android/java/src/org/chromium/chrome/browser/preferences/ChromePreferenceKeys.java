@@ -906,6 +906,7 @@ public final class ChromePreferenceKeys {
 
     public static final String WOOTZ_JOB_KEY = "Chrome.Wootzapp.Jobs";
     public static final String WOOTZ_JOB_RESULTS_KEY = "Chrome.Wootzapp.JobsResult";
+    public static final String EXTENSION_DEVELOPER_MODE_ENABLED = "Chrome.Extension.DeveloperModeEnabled";
 
     /**
      * These values are currently used as SharedPreferences keys, along with the keys in
@@ -1056,7 +1057,8 @@ public final class ChromePreferenceKeys {
                 WEB_FEED_INTRO_WEB_FEED_ID_SHOWN_COUNT_PREFIX.pattern(),
                 WEB_SIGNIN_ACCOUNT_PICKER_ACTIVE_DISMISSAL_COUNT,
                 WOOTZ_JOB_KEY,
-                WOOTZ_JOB_RESULTS_KEY);
+                WOOTZ_JOB_RESULTS_KEY,
+                EXTENSION_DEVELOPER_MODE_ENABLED);
     }
 
     private ChromePreferenceKeys() {}

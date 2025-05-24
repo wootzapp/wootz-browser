@@ -49,6 +49,9 @@
 #include "ui/gfx/image/image_skia_rep.h"
 #include "chrome/android/chrome_jni_headers/ExtensionsConfirmationDialog_jni.h"
 #include "content/browser/web_contents/web_contents_android.h"
+#include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "components/prefs/pref_service.h"
 
 using extensions::Extension;
 using extensions::Manifest;
@@ -666,7 +669,17 @@ bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
   if (show_params_ && show_params_->GetParentWebContents()) {
     content::WebContents* web_contents = show_params_->GetParentWebContents();
     const GURL& url = web_contents->GetLastCommittedURL();
+    PrefService* prefs = ProfileManager::GetLastUsedProfile()->GetPrefs();
+    bool is_developer_mode_enabled = prefs->GetBoolean(extension_developer_mode_settings::kExtensionDeveloperModeEnabledPref);
 
+    if(is_developer_mode_enabled){
+      LOG(INFO) << "Developer mode is enabled, accepting CRX";
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(std::move(done_callback_),
+                         DoneCallbackPayload(Result::ACCEPTED)));
+      return true;
+    }
     if (url.is_valid() && (url.spec() == "wootzapp://flow-store/" || url.spec() == "wootzapp://startup-crx-install/")) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,

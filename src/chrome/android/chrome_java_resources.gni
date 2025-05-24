@@ -832,6 +832,7 @@ chrome_java_resources = [
   "java/res/values/strings.xml",
   "java/res/values/styles.xml",
   "java/res/values/values.xml",
+  "java/res/xml/extension_developer_mode_preferences.xml",
   "java/res/xml/about_wootzapp_preferences.xml",
   "java/res/xml/account_management_preferences.xml",
   "java/res/xml/ad_services_config.xml",

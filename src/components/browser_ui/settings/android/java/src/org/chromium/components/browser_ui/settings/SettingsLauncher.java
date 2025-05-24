@@ -48,6 +48,8 @@ public interface SettingsLauncher {
         int PASSWORDS = 7;
         /// Google services.
         int GOOGLE_SERVICES = 8;
+        /// Extension developer settings.
+        int EXTENSION_DEVELOPER_MODE = 9;
     }
 
     /**

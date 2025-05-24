@@ -5,9 +5,13 @@
 #include "chrome/browser/download/android/download_controller.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
+#include <regex>
 
+#include "base/strings/escape.h"
+#include "content/public/browser/render_frame_host.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/check_op.h"
@@ -56,6 +60,12 @@
 #include "ui/base/device_form_factor.h"
 #include "ui/base/page_transition_types.h"
 #include "url/android/gurl_android.h"
+#include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "components/prefs/pref_service.h"
+#include "content/public/browser/web_contents.h"
+#include "components/download/public/common/download_item.h"
+#include "content/public/browser/download_item_utils.h"
 
 using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaParamRef;
@@ -203,6 +213,7 @@ static void JNI_DownloadController_CancelDownload(JNIEnv* env,
 static void JNI_DownloadController_DownloadUrl(JNIEnv* env,
                                                std::string& url,
                                                Profile* profile) {
+  LOG(INFO) << "JNI_DownloadController_DownloadUrl: " << url;
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   DownloadManager* download_manager = profile->GetDownloadManager();
@@ -318,6 +329,7 @@ void DownloadController::AcquireFileAccessPermission(
 void DownloadController::CreateAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
+  LOG(INFO) << "CreateAndroidDownload: " << info.url.spec();
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&DownloadController::StartAndroidDownload,
                                 base::Unretained(this), wc_getter, info));
@@ -326,6 +338,7 @@ void DownloadController::CreateAndroidDownload(
 void DownloadController::StartAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
+  LOG(INFO) << "StartAndroidDownload: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   AcquireFileAccessPermission(
@@ -338,6 +351,7 @@ void DownloadController::StartAndroidDownloadInternal(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info,
     bool allowed) {
+  LOG(INFO) << "StartAndroidDownloadInternal: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (!allowed)
     return;
@@ -368,13 +382,54 @@ void DownloadController::StartAndroidDownloadInternal(
 }
 
 void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
-  // For dangerous downloads, we need to show the dangerous infobar before the
   // download can start.
+  WebContents* web_contents =
+      content::DownloadItemUtils::GetWebContents(download_item);
+  
+  // Log the current tab URL if WebContents is available
+  if (web_contents) {
+    GURL page_url = web_contents->GetLastCommittedURL();
+    
+    // Get profile and check developer mode
+    Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+    if (profile) {
+      PrefService* prefs = profile->GetPrefs();
+      bool is_developer_mode_enabled = prefs->GetBoolean(
+          extension_developer_mode_settings::kExtensionDeveloperModeEnabledPref);
+      LOG(INFO) << "  Developer mode enabled: " << is_developer_mode_enabled;
+      std::string extension_file_name = download_item->GetFileNameToReportUser().value();
+      prefs->SetString("extension_file_name", extension_file_name);
+      // Check if file is a CRX
+      std::regex crx_regex(".*\\.crx$", std::regex::icase);
+      if (std::regex_match(extension_file_name, crx_regex) && 
+          !is_developer_mode_enabled && 
+          page_url.spec() != "wootzapp://flow-store/" && 
+          page_url.spec() != "wootzapp://startup-crx-install/") {
+        LOG(INFO) << "OnDownloadStarted: " << extension_file_name << " is a CRX file";
+        
+        // Cancel the download
+        download_item->Cancel(/*user_cancel=*/false);
+        
+        // Show the ExtensionModeSadTab
+        if (web_contents) {
+          TabAndroid* tab_android = TabAndroid::FromWebContents(web_contents);
+          if (tab_android) {
+            JNIEnv* env = base::android::AttachCurrentThread();
+            
+            // Get the Java Tab object
+            ScopedJavaLocalRef<jobject> j_tab = tab_android->GetJavaObject();
+            
+            // Call a Java method to show the ExtensionModeSadTab
+            Java_DownloadController_showExtensionModeSadTab(env, j_tab);
+          }
+        }
+      }
+    }
+  }
+
   if (!download_item->IsDangerous() &&
       download_item->GetMimeType() == pdf::kPDFMimeType &&
       ShouldOpenPdfInline(download_item)) {
-    content::WebContents* web_contents =
-        content::DownloadItemUtils::GetWebContents(download_item);
     bool has_tab = false;
     if (web_contents) {
       TabAndroid* tab = TabAndroid::FromWebContents(web_contents);

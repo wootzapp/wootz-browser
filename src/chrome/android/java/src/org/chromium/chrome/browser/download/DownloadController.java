@@ -24,6 +24,9 @@ import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.permissions.AndroidPermissionDelegate;
 import org.chromium.url.GURL;
+import org.chromium.chrome.browser.tab.ExtensionModeSadTab;
+import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 
 /** Java counterpart of android DownloadController. Owned by native. */
 public class DownloadController {
@@ -159,6 +162,20 @@ public class DownloadController {
                                 .cancelDownload(tab.getProfile(), downloadInfo.getDownloadGuid());
                     }
                 });
+    }
+
+    @CalledByNative
+    private static void showExtensionModeSadTab(Tab tab) {
+        if (tab == null) return;
+        
+        ExtensionModeSadTab sadTab = new ExtensionModeSadTab(tab); 
+        Runnable suggestionAction = () -> {};
+        Runnable buttonAction = () -> {
+            SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
+            settingsLauncher.launchSettingsActivity(
+                    tab.getContext(), SettingsLauncher.SettingsFragment.EXTENSION_DEVELOPER_MODE);
+        };
+        sadTab.show(tab.getContext(), suggestionAction, buttonAction);
     }
 
     @NativeMethods
