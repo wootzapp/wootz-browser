@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.Map;
 import android.util.Log;
+import org.chromium.base.TimeUtils;
 import org.chromium.net.ChromiumNetworkAdapter;
 import org.chromium.net.NetworkTrafficAnnotationTag;
 import java.nio.charset.StandardCharsets;
@@ -24,11 +25,24 @@ import java.util.List;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.net.URLDecoder;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 // @JNINamespace("action_url")
 public class ActionUrlListFetcher{
 
     private static ActionUrlListFetcher mInstance;
-    private static Map<String, Pair<String, String>> mActionUrlMap;
+    private static ConcurrentHashMap<String, Pair<String, String>> mActionUrlMap;
+    private final ExecutorService threadPool = Executors.newFixedThreadPool(5);
+    private volatile boolean isShuttingDown = false;
+
+    // Static cache fields for singleton
+    private static final ConcurrentHashMap<String, String> urlExpansionCache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, String> actionJsonCache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> actionJsonCacheTimestamps = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = TimeUtils.MILLISECONDS_PER_HOUR;
+
     private boolean actionListFetched;
 
     final Object mLock = new Object();
@@ -45,13 +59,30 @@ public class ActionUrlListFetcher{
                 }
         """);
     private ActionUrlListFetcher() {
-        mActionUrlMap = new HashMap<>();
-        // fetchActionUrlList();
+        mActionUrlMap = new ConcurrentHashMap<>();
+        
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            isShuttingDown = true;
+            shutdownThreadPool();
+        }));
     }
 
     private String formatUrl(String url) {
         if(url.endsWith("/")) {
             return url.substring(0,url.lastIndexOf("/"));
+        }
+        return url;
+    }
+
+    private String parseURL(String url) {
+        // Check if there's an embedded URL in the format ?action=solana-action:https://...
+        if (url.contains("?action=solana-action:")) {
+            int startIndex = url.indexOf("solana-action:") + "solana-action:".length();
+            int endIndex = url.indexOf("&", startIndex);
+            url = endIndex > 0 ? url.substring(startIndex, endIndex) : url.substring(startIndex);
+            Log.e("::Unfurling:::: ", "Extracted embedded URL from dial.to: " + url);
+            return url;
         }
         return url;
     }
@@ -79,10 +110,7 @@ public class ActionUrlListFetcher{
                 String websiteUrl = resultObject.getString("websiteUrl");
                 JSONArray tags = resultObject.getJSONArray("tags");
                 String tag;
-                Log.e("::ACTION_URL:: kritagya", "tags:: " + tags.toString() + "||| length:: " + tags.length());
-                Log.e("::ACTION_URL:: kritagya", "blinkUrl:: " + blinkUrl);
-                Log.e("::ACTION_URL:: kritagya", "actionUrl:: " + actionUrl);
-                Log.e("::ACTION_URL:: kritagya", "websiteUrl:: " + websiteUrl);
+
                 if(tags.length() == 0) {
                     tag = "unknown";
                 }
@@ -90,16 +118,18 @@ public class ActionUrlListFetcher{
                     tag = tags.getString(0);
                 }
 
-                if(!blinkUrl.equals("null")) {
+                if(blinkUrl != null && !blinkUrl.equals("null")) {
                     mActionUrlMap.put(formatUrl(blinkUrl), new Pair<>(actionUrl, tag));
                     // Log.e("::ACTION_URL::", "blinkUrl:: " + blinkUrl + "||| actionUrl:: " + actionUrl);
                 }
-                if(!websiteUrl.equals("null")) {
+                if(websiteUrl != null && !websiteUrl.equals("null")) {
                     mActionUrlMap.put(formatUrl(websiteUrl), new Pair<>(actionUrl, tag));
                     // Log.e("::ACTION_URL::", "websiteUrl:: " + websiteUrl + "||| actionUrl:: " + actionUrl);
                 }
 
-                mActionUrlMap.put(formatUrl(actionUrl), new Pair<>(actionUrl, tag));
+                if(actionUrl != null && !actionUrl.equals("null")) {
+                    mActionUrlMap.put(formatUrl(actionUrl), new Pair<>(actionUrl, tag));
+                }
 
             }
         } catch (Exception e) {
@@ -107,17 +137,9 @@ public class ActionUrlListFetcher{
         }
     }
 
-    private void expandToFinalURL(String shortUrl,  ActionUrlFetchedCallback callback) {
+    private String getExpandedURL(String shortUrl) {
         HttpURLConnection httpURLConnection = null;
         String expandedURL = shortUrl;
-        Log.e("::Unfurling Sagar:::: abcdz ", "expandUrl url is: "+shortUrl);
-        if (!shortUrl.startsWith("https://t.co/")) {
-            Log.e("::Unfurling:::: ", "URL is a not t.co URL, backing off: " + shortUrl);
-            ThreadUtils.runOnUiThread(() -> {
-                callback.onCompletion("", "");
-            });
-            return;
-        }
         try {
             URL url = new URL(shortUrl);
             httpURLConnection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(url,
@@ -140,9 +162,6 @@ public class ActionUrlListFetcher{
                 responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
                 // Get the "Location" header to find the redirect target
                 expandedURL = httpURLConnection.getHeaderField("Location");  
-            } else {
-                // If there's no redirection, return the original URL
-                expandedURL = shortUrl;
             }
             Log.e("::Unfurling Sagar:::: abcdz ", "expandedURL is: " + expandedURL);
 
@@ -153,41 +172,60 @@ public class ActionUrlListFetcher{
                 httpURLConnection.disconnect();
             }
         }
+        return expandedURL;
+    }
 
-        Log.e("::Unfurling Sagar:::: abcdz ", "expandedURL is: " + expandedURL);
+    // URL expansion cache
+    private void expandToFinalURL(String shortUrl, ActionUrlFetchedCallback callback) {
 
+        // check cache
+        String cachedExpandedURL = urlExpansionCache.get(shortUrl);
+        if (cachedExpandedURL != null) {
+            String actionUrl = processUrlForActionJson(cachedExpandedURL);
+            ThreadUtils.runOnUiThread(() -> {
+                if(actionUrl != null && !actionUrl.isEmpty()) {
+                    callback.onCompletion(actionUrl, "registered");
+                } else {
+                    callback.onCompletion("", "");
+                }
+            });
+            return;
+        }
+
+        String expandedURL = getExpandedURL(shortUrl);
         Pair<String, String> action_pair = mActionUrlMap.get(formatUrl(expandedURL));
-        String twitterActionUrl = processUrlForActionJson(expandedURL);
+        String actionUrl = processUrlForActionJson(expandedURL);
         
         ThreadUtils.runOnUiThread(() -> {
             if (action_pair != null) {
-                Log.e("::Unfurling Sagar:::: ", "actionURL is: " + action_pair.first);
                 callback.onCompletion(action_pair.first, action_pair.second);
-            } else if (twitterActionUrl != null && !twitterActionUrl.isEmpty()) {
-                Log.e("::Unfurling Sagar:::: ", "actionURL is onlyblink Sagar: " + twitterActionUrl);
-                callback.onCompletion(twitterActionUrl, "registered");
+            } else if (actionUrl != null && !actionUrl.isEmpty()) {
+                callback.onCompletion(actionUrl, "registered");
             } else {
-                Log.e("::Unfurling Sagar:::: ", "actionURL is null");
                 callback.onCompletion("", "");
             }
         });
+
+        // Add to cache after expansion
+        urlExpansionCache.put(shortUrl, expandedURL);
     }
 
     // Method to get actionUrl by blinkUrl
     public void getActionUrl(String blinkUrl, ActionUrlFetchedCallback callback) {
-        // return mActionUrlMap.get(blinkUrl);
-        Log.e("::ActionUrl:: kritagya", "getActionUrl:: " + blinkUrl);
+        if (isShuttingDown) {
+            Log.w("ActionUrlListFetcher", "Rejecting request during shutdown");
+            ThreadUtils.runOnUiThread(() -> {
+                callback.onCompletion("", "");
+            });
+            return;
+        }
+        
         if(!actionListFetched) {
-            Log.e("::ActionUrl:: kritagya", "fetching action url list");
             // fetchActionUrlList();
         }
-        Thread thread = new Thread(
-                () -> {
-                    synchronized (mLock) {
-                        expandToFinalURL(blinkUrl, callback);
-                    }
-                });
-        thread.start();
+        threadPool.submit(() -> {
+            expandToFinalURL(blinkUrl, callback);
+        });
     }
 
     public void fetchActionUrlList() {
@@ -240,34 +278,6 @@ public class ActionUrlListFetcher{
         }
     }
     
-    // // Interface for JSON download callback
-    // public interface JsonDownloadCallback {
-    //     void onJsonDownloaded(String jsonContent, int responseCode);
-    // }
-
-    // // Method to download JSON using C++ (JNI)
-    // private void downloadJsonWithNative(String urlString, JsonDownloadCallback callback) {
-    //     Log.e("::Unfurling:::: ", "Downloading JSON with native code: " + urlString);
-    //     ActionUrlListFetcherJni.get().downloadJsonFile(urlString, new JsonDownloadCallback() {
-    //         @Override
-    //         public void onJsonDownloaded(String jsonContent, int responseCode) {
-    //             if (responseCode == 200 && !jsonContent.isEmpty()) {
-    //                 Log.e("::Unfurling:::: ", "Downloaded JSON successfully");
-    //                 callback.onJsonDownloaded(jsonContent, responseCode);
-    //             } else {
-    //                 Log.e("::Unfurling:::: ", "Failed to download JSON: " + responseCode);
-    //                 callback.onJsonDownloaded("", responseCode);
-    //             }
-    //         }
-    //     });
-    // }
-
-    // JNI bindings
-    // @NativeMethods
-    // interface ActionUrlListFetcherJni {
-    //     boolean downloadJsonFile(String url, JsonDownloadCallback callback);
-    // }
-
     /**
      * Downloads the action.json file and processes it to find a matching action URL.
      * @param expandedURL The expanded URL to process
@@ -275,79 +285,152 @@ public class ActionUrlListFetcher{
      */
     private String processUrlForActionJson(String expandedURL) {
         try {
+            String actionUrl = "";
 
-            // Special handling for dial.to URLs with embedded action URLs
-            String actualUrl = URLDecoder.decode(expandedURL, "UTF-8");
-            if (actualUrl.startsWith("https://dial.to/") || actualUrl.contains("dial.to")) {
-                // Check if there's an embedded URL in the format ?action=solana-action:https://...
-                if (actualUrl.contains("?action=solana-action:")) {
-                    int startIndex = actualUrl.indexOf("solana-action:") + "solana-action:".length();
-                    int endIndex = actualUrl.indexOf("&", startIndex);
-                    actualUrl = endIndex > 0 ? actualUrl.substring(startIndex, endIndex) : actualUrl.substring(startIndex);
-                    Log.e("::Unfurling:::: ", "Extracted embedded URL from dial.to: " + actualUrl);
-                    
-                    return actualUrl;
-                }
+            // decode the url to get the actual url utf-8
+            String decodedUrl = URLDecoder.decode(expandedURL, "UTF-8");
+
+            if (decodedUrl.contains("dial.to")) {
+                actionUrl = parseURL(decodedUrl);
+                return actionUrl;
             }
         
-            // Parse the URL to extract its components
-            URL parsedUrl = new URL(actualUrl);
+            // parsing the url to get the origin, path and query
+            URL parsedUrl = new URL(decodedUrl);
             String origin = parsedUrl.getProtocol() + "://" + parsedUrl.getHost();
             String path = parsedUrl.getPath();
             String query = parsedUrl.getQuery() != null ? "?" + parsedUrl.getQuery() : "";
             
-            // Construct the action.json URL
+            // fetching the action.json file
             String actionJsonUrl = origin + "/actions.json";
-            
-            Log.e("::Unfurling:::: ", "Fetching action.json from: " + actionJsonUrl);
-            
-            // Download the action.json using Java (synchronously)
-            HttpURLConnection connection = null;
-            String jsonContent = "";
-            try {
-                URL url = new URL(actionJsonUrl);
-                connection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(url,
-                        TRAFFIC_ANNOTATION);
-
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(5000);
-                
-                int responseCode = connection.getResponseCode();
-                if(responseCode == HttpURLConnection.HTTP_OK) {
-                    // Read the JSON content
-                    InputStream inputStream = connection.getInputStream();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-                    StringBuilder content = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        content.append(line);
-                    }
-                    jsonContent = content.toString();
-                    Log.e("::Unfurling:::: ", "Successfully downloaded action.json");
-                } else {
-                    Log.e("::Unfurling:::: ", "Failed to download action.json: " + responseCode);
-                    return "";
-                }
-            } catch (Exception e) {
-                Log.e("::Unfurling:::: ", "Error downloading action.json: " + e.getMessage());
-                return "";
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
+            String actionJson = getCachedOrFetchJson(origin, actionJsonUrl);
             
             // If we have JSON content, process it
-            if (!jsonContent.isEmpty()) {
-                return UrlPatternMatcher.findMatchingActionUrl(jsonContent, expandedURL, path, query);
+            if (actionJson != null && !actionJson.isEmpty()) {
+                actionUrl = UrlPatternMatcher.findMatchingActionUrl(actionJson, expandedURL, path, query);
             }
-            
-            // No match found
-            return "";
+            return actionUrl;
         } catch (Exception e) {
             Log.e("::Unfurling:::: ", "Error processing URL: " + e.getMessage());
             return "";
+        }
+    }
+
+    private String getCachedOrFetchJson(String domain, String url) {
+        
+        Long timestamp = actionJsonCacheTimestamps.get(domain);
+        if (timestamp != null) {
+            if(System.currentTimeMillis() - timestamp < CACHE_TTL_MS) {
+                String cachedJson = actionJsonCache.get(domain);
+                if (cachedJson != null) {
+                    return cachedJson;
+                }
+            } else {
+                actionJsonCache.remove(domain);
+                actionJsonCacheTimestamps.remove(domain);
+            }
+        }
+        
+        // Atomic operation: only one thread will execute this for a given domain
+        return actionJsonCache.computeIfAbsent(domain, k -> {
+            String json = fetchJsonFromUrl(url);
+            if (json != null && !json.isEmpty()) {
+                actionJsonCacheTimestamps.put(domain, System.currentTimeMillis());
+            }
+            return json;
+        });
+    }
+
+    /**
+     * Fetches JSON content from a URL synchronously.
+     *
+     * @param url The URL to fetch JSON from
+     * @return The JSON content as a string, or empty string on failure
+     */
+    private String fetchJsonFromUrl(String url) {
+        HttpURLConnection connection = null;
+        try {
+            URL urlObj = new URL(url);
+            connection = (HttpURLConnection) ChromiumNetworkAdapter.openConnection(
+                    urlObj, TRAFFIC_ANNOTATION);
+
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            
+            int responseCode = connection.getResponseCode();
+            if(responseCode == HttpURLConnection.HTTP_OK) {
+                // Read the JSON content
+                InputStream inputStream = connection.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line);
+                }
+                return content.toString();
+            } else {
+                Log.e("::Unfurling:::: ", "Failed to download JSON: " + responseCode);
+                return "";
+            }
+        } catch (Exception e) {
+            Log.e("::Unfurling:::: ", "Error downloading JSON: " + e.getMessage());
+            return "";
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    /**
+     * Safely shuts down the thread pool, allowing running tasks to complete
+     * within a reasonable timeout period.
+     */
+    private void shutdownThreadPool() {
+        Log.i("ActionUrlListFetcher", "Shutting down thread pool");
+        
+        if (threadPool != null && !threadPool.isShutdown()) {
+            try {
+                // First attempt a graceful shutdown - no new tasks accepted,
+                // but existing tasks will complete
+                threadPool.shutdown();
+                
+                // Wait for existing tasks to complete - using a reasonable timeout
+                boolean terminated = threadPool.awaitTermination(3, TimeUnit.SECONDS);
+                
+                if (!terminated) {
+                    // Force immediate shutdown if tasks don't complete in time
+                    Log.w("ActionUrlListFetcher", "Thread pool did not terminate in time, forcing shutdown");
+                    List<Runnable> pendingTasks = threadPool.shutdownNow();
+                    Log.i("ActionUrlListFetcher", "Cancelled " + pendingTasks.size() + " pending tasks");
+                }
+            } catch (InterruptedException e) {
+                // Re-assert the interrupt and force shutdown
+                Thread.currentThread().interrupt();
+                threadPool.shutdownNow();
+                Log.w("ActionUrlListFetcher", "Thread pool shutdown interrupted, forcing immediate shutdown");
+            } catch (Exception e) {
+                // Catch any other exceptions to ensure shutdown completes
+                Log.e("ActionUrlListFetcher", "Error during thread pool shutdown: " + e.getMessage());
+                threadPool.shutdownNow();
+            }
+        }
+    }
+    
+    /**
+     * Explicitly shutdown the instance, releasing resources.
+     * Call this when you know the ActionUrlListFetcher is no longer needed.
+     */
+    public void shutdown() {
+        shutdownThreadPool();
+    }
+    
+    // Add a cleanup method for singleton pattern
+    public static void destroyInstance() {
+        if (mInstance != null) {
+            mInstance.shutdown();
+            mInstance = null;
         }
     }
 }

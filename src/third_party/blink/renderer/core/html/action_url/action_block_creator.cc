@@ -101,9 +101,13 @@ void ActionBlockCreator::CreateBlocks() {
 }
 
 String ActionBlockCreator::CreateIconDiv() {
-  String icon_div = (R"HTML(<div style="padding: 1rem;" onclick="window.location.href=')HTML") +blink_url_+ (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
-										            <img class="aspect-auto w-full rounded-xl object-cover object-center" src=")HTML") + String(action_spec_.icon) +(R"HTML(" alt="action-image">
-									          </div> )HTML");
+  // error handling for image loading
+  String icon_div = (R"HTML(<div style="padding: 1rem;" onclick="window.location.href=')HTML") + blink_url_ + (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
+    <img class="aspect-auto w-full rounded-xl object-cover object-center" 
+         src=")HTML") + String(action_spec_.icon) + (R"HTML(" 
+         alt="action-image"
+         onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTUuMTI0IDJDMy4zNTYgMiAyIDMuNDU2IDIgNS4xMjRWMTAuODc2QzIgMTIuNjQ0IDMuNDU2IDE0IDUuMTI0IDE0SDEwLjg3NkMxMi42NDQgMTQgMTQgMTIuNTQ0IDE0IDEwLjg3NlY1LjEyNEMxNCAwIDAgMCAwIDBaIiBmaWxsPSIjOUE5QTlBIi8+PC9zdmc+Cg=='; this.classList.add('fallback-icon');">
+  </div>)HTML");
   return icon_div;
 }
 
