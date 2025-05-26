@@ -1191,6 +1191,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/tracing/TracingNotificationManager.java",
   "java/src/org/chromium/chrome/browser/tracing/TracingNotificationServiceImpl.java",
   "java/src/org/chromium/chrome/browser/tracing/settings/DeveloperSettings.java",
+  "java/src/org/chromium/chrome/browser/tracing/settings/ExtensionDeveloperModeSettings.java",
   "java/src/org/chromium/chrome/browser/tracing/settings/TracingCategoriesSettings.java",
   "java/src/org/chromium/chrome/browser/tracing/settings/TracingSettings.java",
   "java/src/org/chromium/chrome/browser/translate/TranslateUtils.java",

@@ -25,6 +25,7 @@ import org.chromium.chrome.browser.safety_check.SafetyCheckSettingsFragment;
 import org.chromium.chrome.browser.sync.settings.GoogleServicesSettings;
 import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.components.browser_ui.site_settings.SiteSettings;
+import org.chromium.chrome.browser.tracing.settings.ExtensionDeveloperModeSettings;
 
 /** Implementation class for launching a {@link SettingsActivity}. */
 public class SettingsLauncherImpl implements SettingsLauncher {
@@ -139,6 +140,8 @@ public class SettingsLauncherImpl implements SettingsLauncher {
                 return PasswordSettings.class;
             case SettingsFragment.GOOGLE_SERVICES:
                 return GoogleServicesSettings.class;
+            case SettingsFragment.EXTENSION_DEVELOPER_MODE:
+                return ExtensionDeveloperModeSettings.class;
         }
         assert false;
         return null;

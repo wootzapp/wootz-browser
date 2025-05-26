@@ -12,6 +12,7 @@ android_library("java") {
     "java/src/org/chromium/chrome/browser/tab/CurrentTabObserver.java",
     "java/src/org/chromium/chrome/browser/tab/EmptyTabObserver.java",
     "java/src/org/chromium/chrome/browser/tab/SadTab.java",
+    "java/src/org/chromium/chrome/browser/tab/ExtensionModeSadTab.java",
     "java/src/org/chromium/chrome/browser/tab/SadTabView.java",
     "java/src/org/chromium/chrome/browser/tab/Tab.java",
     "java/src/org/chromium/chrome/browser/tab/TabAssociatedApp.java",
