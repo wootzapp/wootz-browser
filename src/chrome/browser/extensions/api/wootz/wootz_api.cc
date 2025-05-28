@@ -185,6 +185,117 @@ void WootzAPI::OnNewUnapprovedTx(
   tx_details.Set("coinType", static_cast<int>(tx_info->from_account_id->coin));
   tx_details.Set("origin", tx_info->origin_info ? tx_info->origin_info->origin_spec : "");
 
+  // Solana transaction data
+  if (tx_info->from_account_id->coin == wootz_wallet::mojom::CoinType::SOL) {
+    LOG(ERROR) << "jangid_sign: Processing Solana transaction data of coin type: " << static_cast<int>(tx_info->from_account_id->coin);
+    const auto& solana_tx_data = tx_info->tx_data_union->get_solana_tx_data();
+
+    const auto& instructions = solana_tx_data->instructions;
+    
+    // Loop through all instructions
+    for(size_t i = 0; i < instructions.size(); i++) {
+        LOG(ERROR) << "Instruction " << i + 1 << " of " << instructions.size();
+        
+        // Check if instruction has decoded data
+        if (instructions[i]->decoded_data) {
+            auto& decoded_data = instructions[i]->decoded_data;
+            
+            // Log instruction type
+            LOG(ERROR) << "Instruction Type: " << decoded_data->instruction_type;
+            
+            // Loop through all parameters in the instruction
+            for(size_t j = 0; j < decoded_data->params.size(); j++) {
+                auto& param = decoded_data->params[j];
+                LOG(ERROR) << "Parameter " << j + 1 << ":";
+                LOG(ERROR) << "  Name: " << param->name;
+                LOG(ERROR) << "  Value: " << param->value;
+
+                if(param->name == "lamports") {
+                  LOG(ERROR) << "jangid_sign: Solana lamports: " << param->value;
+                  tx_details.Set("transaction_amount", base::NumberToString(std::stod(param->value)));
+                }
+
+                LOG(ERROR) << "  Type: " << param->type;
+                LOG(ERROR) << "  Localized Name: " << param->localized_name;
+            }
+        } else {
+            LOG(ERROR) << "No decoded data for instruction " << i + 1;
+        }
+    }
+    
+    base::Value::List fee_list;
+    base::Value::Dict fee_dict;
+
+    if (solana_tx_data->fee_estimation) {
+      fee_dict.Set("baseFee", static_cast<double>(solana_tx_data->fee_estimation->base_fee));
+      fee_dict.Set("computeUnits", static_cast<double>(solana_tx_data->fee_estimation->compute_units));
+      fee_dict.Set("feePerComputeUnit", static_cast<double>(solana_tx_data->fee_estimation->fee_per_compute_unit));
+
+      fee_list.Append(std::move(fee_dict));
+      
+      LOG(ERROR) << "jangid_sign: Solana fee estimation: base_fee=" 
+                << solana_tx_data->fee_estimation->base_fee
+                << ", compute_units=" << solana_tx_data->fee_estimation->compute_units
+                << ", fee_per_compute_unit=" << solana_tx_data->fee_estimation->fee_per_compute_unit;
+    }
+    
+    tx_details.Set("feeEstimation", std::move(fee_list));
+    LOG(ERROR) << "jangid_sign: Solana fee estimation: " << tx_details.Find("feeEstimation");
+  }
+  // Ethereum transaction data
+  else if (tx_info->from_account_id->coin == wootz_wallet::mojom::CoinType::ETH) {
+    LOG(ERROR) << "jangid_sign: Processing Ethereum transaction data of coin type: " << static_cast<int>(tx_info->from_account_id->coin);
+
+    // Ethereum transaction data
+    if(tx_info->tx_data_union->is_eth_tx_data()) {
+      const auto& eth_tx_data = tx_info->tx_data_union->get_eth_tx_data();
+    
+      LOG(ERROR) << "jangid_sign: Ethereum transaction amount: " << eth_tx_data->value;
+      tx_details.Set("transaction_amount", eth_tx_data->value);
+
+      base::Value::List fee_list;
+      base::Value::Dict fee_dict;
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data->gas_price;
+      fee_dict.Set("baseFee", std::stod(eth_tx_data->gas_price));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas limit: " << eth_tx_data->gas_limit;
+      fee_dict.Set("computeUnits", std::stod(eth_tx_data->gas_limit));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data->gas_price;
+      fee_dict.Set("feePerComputeUnit", std::stod(eth_tx_data->gas_price));
+
+      fee_list.Append(std::move(fee_dict));
+      tx_details.Set("feeEstimation", std::move(fee_list));
+
+      LOG(ERROR) << "jangid_sign: Ethereum fee estimation: " << tx_details.Find("feeEstimation");
+    }
+    // Ethereum transaction data 1559
+    else if(tx_info->tx_data_union->is_eth_tx_data_1559()) {
+      const auto& eth_tx_data_1559 = tx_info->tx_data_union->get_eth_tx_data_1559();
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction amount: " << eth_tx_data_1559->base_data->value;
+      tx_details.Set("transaction_amount", eth_tx_data_1559->base_data->value);
+
+      base::Value::List fee_list;
+      base::Value::Dict fee_dict; 
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data_1559->base_data->gas_price;
+      fee_dict.Set("baseFee", std::stod(eth_tx_data_1559->base_data->gas_price));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas limit: " << eth_tx_data_1559->base_data->gas_limit;
+      fee_dict.Set("computeUnits", std::stod(eth_tx_data_1559->base_data->gas_limit));  
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data_1559->base_data->gas_price;
+      fee_dict.Set("feePerComputeUnit", std::stod(eth_tx_data_1559->base_data->gas_price));
+
+      fee_list.Append(std::move(fee_dict));
+      tx_details.Set("feeEstimation", std::move(fee_list));
+
+      LOG(ERROR) << "jangid_sign: Ethereum fee estimation: " << tx_details.Find("feeEstimation");
+    }
+  }
+
   LOG(ERROR) << "jangid_sign: Transaction details: " << tx_details;
   event_args.Append(std::move(tx_details));
   LOG(ERROR) << "jangid_sign: Event arguments: " << event_args;
