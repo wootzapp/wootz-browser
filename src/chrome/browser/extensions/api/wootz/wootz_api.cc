@@ -1192,38 +1192,84 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
 
 ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   LOG(INFO) << "WootzReplaceAdFunction::Run started with arguments: " << args().size();
-  if (args().size() < 3 || !args()[0].is_bool() || !args()[1].is_string() || !args()[2].is_list()) {
+  
+  // Validate arguments structure
+  if (args().size() < 3 || !args()[0].is_bool() || !args()[1].is_dict() || !args()[2].is_list()) {
     LOG(ERROR) << "WootzReplaceAdFunction: Invalid arguments provided";
-    return RespondNow(Error("Invalid arguments"));
+    return RespondNow(Error("Invalid arguments format"));
   }
 
   bool is_enabled = args()[0].GetBool();
-
+  
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile) {
     LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
     return RespondNow(Error("No profile found"));
   }
   profile->GetPrefs()->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, is_enabled);
-
+  
   if(!is_enabled) {
     LOG(INFO) << "WootzReplaceAdFunction: AdBlocking is disabled";
     return RespondNow(NoArguments());
   }
 
-  std::string url = args()[1].GetString();
-  std::vector<std::string> selectors;
+  const base::Value::Dict& ad_config = args()[1].GetDict();
+  const base::Value::List& selectors_list = args()[2].GetList();
+  
+  // Extract values from adConfig
+  const std::string* ad_unit_path = ad_config.FindString("adUnitPath");
+  const std::string* id_prefix = ad_config.FindString("idPrefix");
+  const std::string* script_url = ad_config.FindString("scriptUrl");
+  const base::Value::List* sizes_list = ad_config.FindList("sizes");
+  
+  // Validate required fields
+  if (!ad_unit_path || !id_prefix || !sizes_list) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Missing required adConfig fields";
+    return RespondNow(Error("adConfig missing required fields"));
+  }
 
-  for (const auto& val : args()[2].GetList()) {
+  std::vector<std::string> selectors;
+  for (const auto& val : selectors_list) {
     if (val.is_string())
       selectors.push_back(val.GetString());
   }
 
-  // Store in preferences
-  subresource_filter::prefs::SetAdReplacementUrlAndSelectors(profile->GetPrefs(), url, selectors);
-  // log url and selectors from preferences
-  std::string prefs_url = subresource_filter::prefs::GetAdReplacementUrl(profile->GetPrefs());
-  std::vector<std::string> prefs_selectors = subresource_filter::prefs::GetAdReplacementSelectors(profile->GetPrefs());
+  base::Value::List converted_sizes;
+  for (const auto& size_value : *sizes_list) {
+    if (!size_value.is_dict()) continue;
+    
+    const base::Value::Dict& size_dict = size_value.GetDict();
+    
+    int width = size_dict.FindInt("width").value_or(-1);
+    int height = size_dict.FindInt("height").value_or(-1);
+    
+    // Skip if either width or height is invalid
+    if (width <= 0 || height <= 0) continue;
+    
+    // Create a pair array [width, height]
+    base::Value::List size_pair;
+    size_pair.Append(width);
+    size_pair.Append(height);
+    converted_sizes.Append(std::move(size_pair));
+  }
+
+  std::string sizes_json;
+  base::JSONWriter::Write(converted_sizes, &sizes_json);
+
+  PrefService* prefs = profile->GetPrefs();
+  
+  prefs->SetString(subresource_filter::prefs::kAdReplacementAdUnitPath, *ad_unit_path);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementIdPrefix, *id_prefix);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementScriptUrl, *script_url);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementSizes, sizes_json);
+  
+  // Set selectors
+  subresource_filter::prefs::SetAdReplacementSelectors(prefs, selectors);
+
+  LOG(INFO) << "WootzReplaceAdFunction: Successfully stored ad replacement configuration";
+  LOG(INFO) << "  - Ad Unit Path: " << *ad_unit_path;
+  LOG(INFO) << "  - ID Prefix: " << *id_prefix;
+  LOG(INFO) << "  - Selectors count: " << selectors.size();
 
   return RespondNow(NoArguments());
 }

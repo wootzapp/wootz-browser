@@ -183,7 +183,6 @@ void JNI_Extensions_UninstallExtension(
     LOG(INFO) << "Disabling AdBlock and Ad Replacement on uninstalling the Artifact Extension";
     PrefService* prefs = profile->GetPrefs();
     prefs->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, false);
-    prefs->SetString(subresource_filter::prefs::kAdReplacementUrl, "");
     prefs->SetList(subresource_filter::prefs::kAdReplacementSelectors, base::Value::List());
     prefs->CommitPendingWrite();
   }

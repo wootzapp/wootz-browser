@@ -241,15 +241,32 @@ void ContentSubresourceFilterThrottleManager::ReadyToCommitInFrameNavigation(
   }
 
   bool replacement_enabled = false;
-  std::string replacement_url;
+  std::string ad_unit_path;
+  std::string id_prefix;
+  std::string script_url;
+  std::string sizes_json;
   std::vector<std::string> selectors;
   if (profile) {
-    replacement_enabled = profile->GetPrefs()->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
-    replacement_url = subresource_filter::prefs::GetAdReplacementUrl(profile->GetPrefs());
-    selectors = subresource_filter::prefs::GetAdReplacementSelectors(profile->GetPrefs());
+    PrefService* prefs = profile->GetPrefs();
+    
+    // Get enabled state
+    replacement_enabled = prefs->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
+    
+    // Get configuration parameters
+    ad_unit_path = subresource_filter::prefs::GetAdReplacementAdUnitPath(prefs);
+    id_prefix = subresource_filter::prefs::GetAdReplacementIdPrefix(prefs);
+    script_url = subresource_filter::prefs::GetAdReplacementScriptUrl(prefs);
+    sizes_json = subresource_filter::prefs::GetAdReplacementSizes(prefs);
+    selectors = subresource_filter::prefs::GetAdReplacementSelectors(prefs);
   }
-  // Send the replacement_url and selectors to the renderer for this frame
-  agent->SetReplacementEnabled(replacement_enabled, replacement_url, selectors);
+  // Send the complete configuration to the renderer for this frame
+  agent->SetReplacementEnabled(
+      replacement_enabled, 
+      ad_unit_path,
+      id_prefix,
+      script_url,
+      sizes_json,
+      selectors);
 }
 
 mojom::ActivationState
@@ -717,7 +734,7 @@ ContentSubresourceFilterThrottleManager::
     }
 
     //TODO: could use same logic as in SubresourceFilterSafeBrowsingActivationThrottle::NotifyResult()
-    subresource_filter::ActivationDecision ignored_decision;
+    // subresource_filter::ActivationDecision ignored_decision;
     mojom::ActivationState ad_filtering_state;
 
     content::WebContents* web_contents = navigation_handle->GetWebContents();

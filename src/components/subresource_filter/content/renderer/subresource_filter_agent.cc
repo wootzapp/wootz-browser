@@ -38,6 +38,7 @@
 #include "third_party/blink/public/web/web_node.h"
 #include "third_party/blink/public/web/web_element_collection.h"
 #include "url/url_constants.h"
+#include "third_party/blink/public/web/web_script_source.h"
 
 namespace {
 
@@ -421,17 +422,23 @@ void SubresourceFilterAgent::DidCreateFencedFrame(
   }
 }
 
-void SubresourceFilterAgent::SetReplacementEnabled(bool enabled, 
-                                                  const std::string& replacement_url, 
-                                                  const std::vector<std::string>& selectors) {
+void SubresourceFilterAgent::SetReplacementEnabled(
+    bool enabled, 
+    const std::string& ad_unit_path,
+    const std::string& id_prefix,
+    const std::string& script_url,
+    const std::string& sizes_json,
+    const std::vector<std::string>& selectors) {
   replacement_enabled_ = enabled;
-  this->replacement_url = replacement_url;
+  ad_unit_path_ = ad_unit_path;
+  id_prefix_ = id_prefix;
+  script_url_ = script_url;
+  sizes_json_ = sizes_json;
   css_selectors_ = selectors;
 }
 
 void SubresourceFilterAgent::OnResourceBlockedByFilter(const GURL& url) {
-  // Store the blocked resource URL and schedule replacement
-  if(replacement_url.empty() || css_selectors_.empty() || !replacement_enabled_) {
+  if(!replacement_enabled_ || css_selectors_.empty()) {
     return;
   }
   if (!replacement_task_scheduled_) {
@@ -468,100 +475,143 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     return;
   }
 
+  // On first attempt, inject GPT and configure
+  if (ad_replacement_attempt_count_ == 1) {
+    InjectGPTScript();
+    std::string gpt_setup = R"(
+      window.googletag = window.googletag || {cmd: []};
+      window.wootzappSlots = window.wootzappSlots || new Map();
+      googletag.cmd.push(function() {
+        if (!window.wootzappConfigured) {
+          googletag.pubads().enableSingleRequest();
+          googletag.enableServices();
+          window.wootzappConfigured = true;
+        }
+      });
+    )";
+    frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(gpt_setup)));
+  }
+
   elements_to_replace.clear();
   FindAdElements(document);
 
-  // Now replace all identified elements
-  for (const auto& pair : elements_to_replace) {
-    blink::WebElement current_element = pair.first;
-    const std::string& original_src = pair.second;
-    
-    // Get dimensions for all elements
-    int width = 300;  // Default width
-    int height = 250; // Default height 
-   
-    // Use proper dimension detection - try width/height attributes first
-    std::string width_attr = current_element.GetAttribute("width").Utf8();
-    std::string height_attr = current_element.GetAttribute("height").Utf8();
-    
-    if (!width_attr.empty())
-        width = SafeParseInt(width_attr, width);
-    if (!height_attr.empty())
-        height = SafeParseInt(height_attr, height);
+  LOG(INFO) << "AdBlock: Found " << elements_to_replace.size() << " elements to replace";
 
-    // If width/height attributes aren't available, check style
-    if (width == 300 && height == 250) {
-        std::string style = current_element.GetAttribute("style").Utf8();
-        size_t width_pos = style.find("width:");
-        if (width_pos != std::string::npos) {
-            std::string width_str = style.substr(width_pos + 6);
-            size_t px_pos = width_str.find("px");
-            if (px_pos != std::string::npos) {
-                width_str = width_str.substr(0, px_pos);
-                width_str.erase(0, width_str.find_first_not_of(" \t"));
-                width = SafeParseInt(width_str, width);
+  if (!elements_to_replace.empty()) {
+    // Step 1: Modify all elements first
+    for (size_t i = 0; i < elements_to_replace.size(); i++) {
+      std::string ad_id = id_prefix_ + std::to_string(i);
+      
+      if (elements_to_replace[i].HasHTMLTagName("iframe")) {
+        elements_to_replace[i].SetAttribute("src", blink::WebString::FromUTF8("about:blank"));
+      }
+      
+      elements_to_replace[i].SetAttribute("id", blink::WebString::FromUTF8(ad_id));
+      std::string style = "min-width: 300px; min-height: 60px; max-width: 100%; overflow: hidden; "
+                  "display: flex; justify-content: center; align-items: center; margin: 0 auto; text-align: center;";
+      elements_to_replace[i].SetAttribute("style", blink::WebString::FromUTF8(style));
+    }
+    
+    // Step 2: Single script to process all elements by count
+    std::string batch_script = base::StringPrintf(R"(
+      (function() {
+        var adUnitPath = '%s';
+        var idPrefix = '%s';
+        var adSizes = %s;
+        var elementCount = %zu;
+        
+        googletag.cmd.push(function() {
+          // Process all elements by iterating through the known count
+          for (var i = 0; i < elementCount; i++) {
+            var elementId = idPrefix + i;
+            var container = document.getElementById(elementId);
+            
+            if (!container) continue;
+            
+            // Check if slot already exists in our tracking
+            if (window.wootzappSlots.has(elementId)) {
+              googletag.pubads().refresh([window.wootzappSlots.get(elementId)]);
+              continue;
             }
-        }
-        size_t height_pos = style.find("height:");
-        if (height_pos != std::string::npos) {
-            std::string height_str = style.substr(height_pos + 7);
-            size_t px_pos = height_str.find("px");
-            if (px_pos != std::string::npos) {
-                height_str = height_str.substr(0, px_pos);
-                height_str.erase(0, height_str.find_first_not_of(" \t"));
-                height = SafeParseInt(height_str, height);
+            
+            // Check GPT's existing slots
+            var existingSlots = googletag.pubads().getSlots();
+            var found = false;
+            for (var j = 0; j < existingSlots.length; j++) {
+              if (existingSlots[j].getSlotElementId() === elementId) {
+                window.wootzappSlots.set(elementId, existingSlots[j]);
+                googletag.pubads().refresh([existingSlots[j]]);
+                found = true;
+                break;
+              }
             }
-        }
-    }
-
-    // Get the original style
-    std::string original_style = current_element.GetAttribute("style").Utf8();
-
-    // Compose the new style
-    std::string bg_style = "width: " + std::to_string(width) +
-        "px; height: " + std::to_string(height) +
-        "px; background: url('" + replacement_url + "') no-repeat;" +
-        "background-size: contain; background-position: center; border: none;" +
-        "margin: auto; display: block;";
-
-    // Optionally, append any original margin or display if present
-    if (original_style.find("margin") != std::string::npos) {
-        // Extract and append margin from original_style
-        size_t margin_pos = original_style.find("margin");
-        size_t semicolon = original_style.find(";", margin_pos);
-        std::string margin_str = original_style.substr(margin_pos, semicolon - margin_pos + 1);
-        bg_style += margin_str;
-    }
-    if (original_style.find("display") != std::string::npos) {
-        // Extract and append display from original_style
-        size_t display_pos = original_style.find("display");
-        size_t semicolon = original_style.find(";", display_pos);
-        std::string display_str = original_style.substr(display_pos, semicolon - display_pos + 1);
-        bg_style += display_str;
-    }
+            
+            if (!found) {
+              // Create new slot
+              var slot = googletag.defineSlot(adUnitPath, adSizes, elementId);
+              if (slot) {
+                slot.addService(googletag.pubads());
+                window.wootzappSlots.set(elementId, slot);
+                googletag.display(elementId);
+              }
+            }
+          }
+        });
+      })();
+    )", ad_unit_path_.c_str(), id_prefix_.c_str(), sizes_json_.c_str(), elements_to_replace.size());
     
-    // Clear potentially dangerous attributes
-    current_element.SetAttribute("src", blink::WebString::FromUTF8("about:blank"));
-    current_element.SetAttribute("style", blink::WebString::FromUTF8(bg_style));
+    frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(batch_script)));
     
-    // Add tracking ID for debugging
-    std::string element_id = "ad_replacement_" + std::to_string(rand());
-    current_element.SetAttribute("id", blink::WebString::FromUTF8(element_id));
-    
+    LOG(INFO) << "AdBlock: Configured " << elements_to_replace.size() << " GPT ad slots";
   }
   
-  LOG(INFO) << "AdBlock: Completed replacing " << elements_to_replace.size() << " elements";
-  
-  // If we didn't replace all blocked resources and haven't reached max attempts,
-  // schedule another attempt with a delay
+  // If we haven't reached max attempts, schedule another attempt with a delay
   if (ad_replacement_attempt_count_ < kMaxAdReplacementAttempts) {
     replacement_task_scheduled_ = true;
     replacement_timer_.Start(
         FROM_HERE,
-        base::Milliseconds(500),  // Wait half a second for more content to load
+        base::Milliseconds(500),  // Shorter delay too
         this,
         &SubresourceFilterAgent::ReplaceBlockedAds);
   }
+}
+
+void SubresourceFilterAgent::InjectGPTScript() {
+  static bool script_already_injected = false;
+  if (!render_frame() || script_already_injected || gpt_injected_) return;
+  
+  script_already_injected = true;
+  gpt_injected_ = true;
+  
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+  if (!frame) return;
+  
+  // Use script_url_ from configuration instead of hardcoded URL
+  std::string script_code = base::StringPrintf(R"(
+    (function() {
+      if (window.wootzappGptInjected) return;
+      window.wootzappGptInjected = true;
+      
+      // Add preconnect for faster network connection
+      var preconnect = document.createElement('link');
+      preconnect.rel = 'preconnect';
+      preconnect.href = 'https://securepubads.g.doubleclick.net';
+      document.head.appendChild(preconnect);
+      
+      // Initialize GPT early
+      window.googletag = window.googletag || {cmd: []};
+      
+      // Load script with high priority
+      var gptScript = document.createElement('script');
+      gptScript.async = true;
+      gptScript.src = '%s';
+      gptScript.crossOrigin = 'anonymous';
+      gptScript.setAttribute('fetchpriority', 'high');
+      document.head.appendChild(gptScript);
+    })();
+  )", script_url_.c_str());
+
+  frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(script_code)));
 }
 
 bool SubresourceFilterAgent::IsLikelyFalsePositive(const blink::WebElement& element) {
@@ -598,7 +648,7 @@ void SubresourceFilterAgent::FindAdElementsWithSelectors(const blink::WebDocumen
     for (size_t i = 0; i < elements.size(); ++i) {
       blink::WebElement element = elements[i];
       if (!element.IsNull() && !IsLikelyFalsePositive(element)) {
-        elements_to_replace.push_back(std::make_pair(element, "easylist-match"));
+        elements_to_replace.push_back(element);
       }
     }
   }

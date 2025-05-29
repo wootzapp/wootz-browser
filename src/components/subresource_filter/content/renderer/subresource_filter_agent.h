@@ -168,26 +168,36 @@ class SubresourceFilterAgent
       // For ad replacement
       bool replacement_task_scheduled_ = false;
       base::OneShotTimer replacement_timer_;
-      std::vector<std::pair<blink::WebElement, std::string>> elements_to_replace;
+      std::vector<blink::WebElement> elements_to_replace;
       bool replacement_enabled_ = false;
       // For retry handling
       int ad_replacement_attempt_count_ = 0;
-      static constexpr int kMaxAdReplacementAttempts = 10;
+      static constexpr int kMaxAdReplacementAttempts = 4;
 
-      void SetReplacementEnabled(bool enabled, const std::string& replacement_url, const std::vector<std::string>& selectors) override;
-      std::string replacement_url = "";
+    void SetReplacementEnabled(
+        bool enabled, 
+        const std::string& ad_unit_path,
+        const std::string& id_prefix,
+        const std::string& script_url,
+        const std::string& sizes_json,
+        const std::vector<std::string>& selectors) override;
       
       // Ad replacement methods
       void OnResourceBlockedByFilter(const GURL& url);
       void ReplaceBlockedAds();
       void FindAdElements(const blink::WebDocument& document);
       void FindAdElementsWithSelectors(const blink::WebDocument& document, const std::vector<std::string>& selectors_batch);
+      void InjectGPTScript();
+      bool gpt_injected_ = false;
       int SafeParseInt(const std::string& str, int default_value);
       
-      // For EasyList selectors
+      // Ad configuration parameters
+      std::string ad_unit_path_;
+      std::string id_prefix_;
+      std::string script_url_;
+      std::string sizes_json_;
       std::vector<std::string> css_selectors_;
       bool IsLikelyFalsePositive(const blink::WebElement& element);
-      
       base::WeakPtrFactory<SubresourceFilterAgent> weak_ptr_factory_{this};
     };
     

@@ -23,8 +23,13 @@ interface SubresourceFilterAgent {
   ActivateForNextCommittedLoad(ActivationState activation_state,
                                blink.mojom.FrameAdEvidence? ad_evidence);
 
-  // Sets the global ad replacement URL for this frame.
-  SetReplacementEnabled(bool enabled, string replacement_url, array<string> selectors);
+  // Sets the global ad configuration for this frame.
+  SetReplacementEnabled(bool enabled, 
+                        string ad_unit_path,
+                        string id_prefix,
+                        string script_url,
+                        string sizes_json,
+                        array<string> selectors);
 };
 
 // The browser host object that manages subresource filtering for a conceptual
