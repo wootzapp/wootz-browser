@@ -24,6 +24,7 @@ import android.util.Pair;
 import java.util.List;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.net.URLDecoder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,6 +43,12 @@ public class ActionUrlListFetcher{
     private static final ConcurrentHashMap<String, String> actionJsonCache = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> actionJsonCacheTimestamps = new ConcurrentHashMap<>();
     private static final long CACHE_TTL_MS = TimeUtils.MILLISECONDS_PER_HOUR;
+
+    private static final Set<String> SUPPORTED_SHORT_DOMAINS = new HashSet<>(Arrays.asList(
+        "t.co", 
+        "blnk.fun",
+        "dial.to"
+    ));
 
     private boolean actionListFetched;
 
@@ -73,6 +80,16 @@ public class ActionUrlListFetcher{
             return url.substring(0,url.lastIndexOf("/"));
         }
         return url;
+    }
+
+    private boolean isShortUrlDomain(String url) {
+        try {
+            URL parsedUrl = new URL(url);
+            String host = parsedUrl.getHost();
+            return SUPPORTED_SHORT_DOMAINS.contains(host);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String parseURL(String url) {
@@ -177,6 +194,13 @@ public class ActionUrlListFetcher{
 
     // URL expansion cache
     private void expandToFinalURL(String shortUrl, ActionUrlFetchedCallback callback) {
+
+        if(!isShortUrlDomain(shortUrl)) {
+            ThreadUtils.runOnUiThread(() -> {
+                callback.onCompletion("", "");
+            });
+            return;
+        }
 
         // check cache
         String cachedExpandedURL = urlExpansionCache.get(shortUrl);
