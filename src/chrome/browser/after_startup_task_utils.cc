@@ -15,11 +15,13 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/browser_process.h"
 #include "components/performance_manager/performance_manager_impl.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "base/logging.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chrome/browser/ash/login/ui/login_display_host.h"
@@ -132,6 +134,9 @@ void SetBrowserStartupIsComplete() {
   }
   GetAfterStartupTasks().clear();
   GetAfterStartupTasks().shrink_to_fit();
+  // initialize AdBlock engine scheduled updates
+  g_browser_process->adblock_updater()->Start();
+  LOG(INFO) << "AdBlock: Startup complete, after_startup_task_utils.cc";
 }
 
 // Observes the first visible page load and sets the startup complete

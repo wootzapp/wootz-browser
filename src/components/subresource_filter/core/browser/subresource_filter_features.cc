@@ -21,10 +21,10 @@
 #include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
 #include "base/time/time.h"
+#include "base/logging.h"
 #include "base/trace_event/traced_value.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
-
 namespace subresource_filter {
 
 namespace {
@@ -55,72 +55,73 @@ class CommaSeparatedStrings {
   const std::vector<std::string_view> pieces_;
 };
 
-std::string TakeVariationParamOrReturnEmpty(
-    std::map<std::string, std::string>* params,
-    const std::string& key) {
-  auto it = params->find(key);
-  if (it == params->end())
-    return std::string();
-  std::string value = std::move(it->second);
-  params->erase(it);
-  return value;
-}
+// std::string TakeVariationParamOrReturnEmpty(
+//     std::map<std::string, std::string>* params,
+//     const std::string& key) {
+//   auto it = params->find(key);
+//   if (it == params->end())
+//     return std::string();
+//   std::string value = std::move(it->second);
+//   params->erase(it);
+//   return value;
+// }
 
-mojom::ActivationLevel ParseActivationLevel(
-    const std::string_view activation_level) {
-  if (base::EqualsCaseInsensitiveASCII(activation_level,
-                                       kActivationLevelEnabled))
-    return mojom::ActivationLevel::kEnabled;
-  else if (base::EqualsCaseInsensitiveASCII(activation_level,
-                                            kActivationLevelDryRun))
-    return mojom::ActivationLevel::kDryRun;
-  return mojom::ActivationLevel::kDisabled;
-}
+// mojom::ActivationLevel ParseActivationLevel(
+//     const std::string_view activation_level) {
+//   if (base::EqualsCaseInsensitiveASCII(activation_level,
+//                                        kActivationLevelEnabled))
+//     return mojom::ActivationLevel::kEnabled;
+//   else if (base::EqualsCaseInsensitiveASCII(activation_level,
+//                                             kActivationLevelDryRun))
+//     return mojom::ActivationLevel::kDryRun;
+//   return mojom::ActivationLevel::kDisabled;
+// }
 
-ActivationScope ParseActivationScope(const std::string_view activation_scope) {
-  if (base::EqualsCaseInsensitiveASCII(activation_scope,
-                                       kActivationScopeAllSites))
-    return ActivationScope::ALL_SITES;
-  else if (base::EqualsCaseInsensitiveASCII(activation_scope,
-                                            kActivationScopeActivationList))
-    return ActivationScope::ACTIVATION_LIST;
-  return ActivationScope::NO_SITES;
-}
+// ActivationScope ParseActivationScope(const std::string_view activation_scope) {
+//   if (base::EqualsCaseInsensitiveASCII(activation_scope,
+//                                        kActivationScopeAllSites))
+//     return ActivationScope::ALL_SITES;
+//   else if (base::EqualsCaseInsensitiveASCII(activation_scope,
+//                                             kActivationScopeActivationList))
+//     return ActivationScope::ACTIVATION_LIST;
+//   return ActivationScope::NO_SITES;
+// }
 
-ActivationList ParseActivationList(std::string activation_lists_string) {
-  CommaSeparatedStrings activation_lists(std::move(activation_lists_string));
-  if (activation_lists.CaseInsensitiveContains(
-          kActivationListPhishingInterstitial)) {
-    return ActivationList::PHISHING_INTERSTITIAL;
-  } else if (activation_lists.CaseInsensitiveContains(
-                 kActivationListSocialEngineeringAdsInterstitial)) {
-    return ActivationList::SOCIAL_ENG_ADS_INTERSTITIAL;
-  } else if (activation_lists.CaseInsensitiveContains(
-                 kActivationListSubresourceFilter)) {
-    return ActivationList::SUBRESOURCE_FILTER;
-  } else if (activation_lists.CaseInsensitiveContains(
-                 kActivationListBetterAds)) {
-    return ActivationList::BETTER_ADS;
-  }
-  return ActivationList::NONE;
-}
+// ActivationList ParseActivationList(std::string activation_lists_string) {
+//   CommaSeparatedStrings activation_lists(std::move(activation_lists_string));
+//   if (activation_lists.CaseInsensitiveContains(
+//           kActivationListPhishingInterstitial)) {
+//     return ActivationList::PHISHING_INTERSTITIAL;
+//   } else if (activation_lists.CaseInsensitiveContains(
+//                  kActivationListSocialEngineeringAdsInterstitial)) {
+//     return ActivationList::SOCIAL_ENG_ADS_INTERSTITIAL;
+//   } else if (activation_lists.CaseInsensitiveContains(
+//                  kActivationListSubresourceFilter)) {
+//     return ActivationList::SUBRESOURCE_FILTER;
+//   } else if (activation_lists.CaseInsensitiveContains(
+//                  kActivationListBetterAds)) {
+//     return ActivationList::BETTER_ADS;
+//   }
+//   return ActivationList::NONE;
+// }
 
-// Will return a value between 0 and 1 inclusive.
-double ParsePerformanceMeasurementRate(const std::string& rate) {
-  double value = 0.0;
-  if (!base::StringToDouble(rate, &value) || value < 0)
-    return 0.0;
-  return value < 1 ? value : 1;
-}
+// // Will return a value between 0 and 1 inclusive.
+// double ParsePerformanceMeasurementRate(const std::string& rate) {
+//   double value = 0.0;
+//   if (!base::StringToDouble(rate, &value) || value < 0)
+//     return 0.0;
+//   return value < 1 ? value : 1;
+// }
 
-int ParseInt(const std::string_view value) {
-  int result = 0;
-  base::StringToInt(value, &result);
-  return result;
-}
+// int ParseInt(const std::string_view value) {
+//   int result = 0;
+//   base::StringToInt(value, &result);
+//   return result;
+// }
 
-std::vector<Configuration> FillEnabledPresetConfigurations(
-    std::map<std::string, std::string>* params) {
+// std::vector<Configuration> FillEnabledPresetConfigurations(
+//     std::map<std::string, std::string>* params) {
+std::vector<Configuration> FillEnabledPresetConfigurations() {
   // If ad tagging is enabled, turn on the dryrun automatically.
   bool ad_tagging_enabled = base::FeatureList::IsEnabled(kAdTagging);
   const struct {
@@ -128,71 +129,72 @@ std::vector<Configuration> FillEnabledPresetConfigurations(
     bool enabled_by_default;
     Configuration (*factory_method)();
   } kAvailablePresetConfigurations[] = {
-      {kPresetLiveRunOnPhishingSites, true,
+      {kPresetLiveRunOnPhishingSites, false,
        &Configuration::MakePresetForLiveRunOnPhishingSites},
       {kPresetPerformanceTestingDryRunOnAllSites, ad_tagging_enabled,
        &Configuration::MakePresetForPerformanceTestingDryRunOnAllSites},
       {kPresetLiveRunForBetterAds, true,
        &Configuration::MakePresetForLiveRunForBetterAds}};
 
-  CommaSeparatedStrings enabled_presets(
-      TakeVariationParamOrReturnEmpty(params, kEnablePresetsParameterName));
-  CommaSeparatedStrings disabled_presets(
-      TakeVariationParamOrReturnEmpty(params, kDisablePresetsParameterName));
+  // CommaSeparatedStrings enabled_presets(
+  //     TakeVariationParamOrReturnEmpty(params, kEnablePresetsParameterName));
+  // CommaSeparatedStrings disabled_presets(
+  //     TakeVariationParamOrReturnEmpty(params, kDisablePresetsParameterName));
 
   std::vector<Configuration> enabled_configurations;
   for (const auto& available_preset : kAvailablePresetConfigurations) {
-    if ((enabled_presets.CaseInsensitiveContains(available_preset.name) ||
-         available_preset.enabled_by_default) &&
-        !disabled_presets.CaseInsensitiveContains(available_preset.name)) {
+    // if ((enabled_presets.CaseInsensitiveContains(available_preset.name) ||
+    //      available_preset.enabled_by_default) &&
+    //     !disabled_presets.CaseInsensitiveContains(available_preset.name)) {
+    if (available_preset.enabled_by_default) {
       enabled_configurations.push_back(available_preset.factory_method());
     }
   }
-
   return enabled_configurations;
 }
 
-Configuration ParseExperimentalConfiguration(
-    std::map<std::string, std::string>* params) {
-  Configuration configuration;
+// Configuration ParseExperimentalConfiguration(
+//     std::map<std::string, std::string>* params) {
+//   Configuration configuration;
 
-  // ActivationConditions:
-  configuration.activation_conditions.activation_scope = ParseActivationScope(
-      TakeVariationParamOrReturnEmpty(params, kActivationScopeParameterName));
+//   // ActivationConditions:
+//   configuration.activation_conditions.activation_scope = ParseActivationScope(
+//       TakeVariationParamOrReturnEmpty(params, kActivationScopeParameterName));
 
-  configuration.activation_conditions.activation_list = ParseActivationList(
-      TakeVariationParamOrReturnEmpty(params, kActivationListsParameterName));
+//   configuration.activation_conditions.activation_list = ParseActivationList(
+//       TakeVariationParamOrReturnEmpty(params, kActivationListsParameterName));
 
-  configuration.activation_conditions.priority =
-      ParseInt(TakeVariationParamOrReturnEmpty(
-          params, kActivationPriorityParameterName));
+//   configuration.activation_conditions.priority =
+//       ParseInt(TakeVariationParamOrReturnEmpty(
+//           params, kActivationPriorityParameterName));
 
-  // ActivationOptions:
-  configuration.activation_options.activation_level = ParseActivationLevel(
-      TakeVariationParamOrReturnEmpty(params, kActivationLevelParameterName));
+//   // ActivationOptions:
+//   configuration.activation_options.activation_level = ParseActivationLevel(
+//       TakeVariationParamOrReturnEmpty(params, kActivationLevelParameterName));
 
-  configuration.activation_options.performance_measurement_rate =
-      ParsePerformanceMeasurementRate(TakeVariationParamOrReturnEmpty(
-          params, kPerformanceMeasurementRateParameterName));
+//   configuration.activation_options.performance_measurement_rate =
+//       ParsePerformanceMeasurementRate(TakeVariationParamOrReturnEmpty(
+//           params, kPerformanceMeasurementRateParameterName));
 
-  // GeneralSettings:
-  configuration.general_settings.ruleset_flavor =
-      TakeVariationParamOrReturnEmpty(params, kRulesetFlavorParameterName);
+//   // GeneralSettings:
+//   configuration.general_settings.ruleset_flavor =
+//       TakeVariationParamOrReturnEmpty(params, kRulesetFlavorParameterName);
 
-  return configuration;
-}
+//   return configuration;
+// }
 
 std::vector<Configuration> ParseEnabledConfigurations() {
-  std::map<std::string, std::string> params;
-  base::GetFieldTrialParamsByFeature(kSafeBrowsingSubresourceFilter, &params);
-
+  // std::map<std::string, std::string> params;
+  // base::GetFieldTrialParamsByFeature(kSafeBrowsingSubresourceFilter, &params);
+  LOG(INFO) << "AdBlock: ParseEnabledConfigurations";
   std::vector<Configuration> configs;
-  if (base::FeatureList::IsEnabled(kSafeBrowsingSubresourceFilter))
-    configs = FillEnabledPresetConfigurations(&params);
+  // if (base::FeatureList::IsEnabled(kSafeBrowsingSubresourceFilter))
+  //   configs = FillEnabledPresetConfigurations(&params);
 
-  Configuration experimental_config = ParseExperimentalConfiguration(&params);
-  configs.push_back(std::move(experimental_config));
-
+  // Configuration experimental_config = ParseExperimentalConfiguration(&params);
+  // configs.push_back(std::move(experimental_config));
+  configs = FillEnabledPresetConfigurations();
+  LOG(INFO) << "AdBlock: configs: " << configs.size();
   return configs;
 }
 

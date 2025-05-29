@@ -8,6 +8,7 @@
 
 #include "base/check.h"
 #include "base/check_op.h"
+#include "base/logging.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -47,8 +48,16 @@
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 
-namespace subresource_filter {
+#include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
+#include "base/functional/callback.h"
+#include "url/gurl.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 
+
+namespace subresource_filter {
 namespace {
 
 bool ShouldInheritOpenerActivation(content::NavigationHandle* navigation_handle,
@@ -141,6 +150,7 @@ ContentSubresourceFilterThrottleManager::FromNavigationHandle(
       navigation_handle);
 }
 
+
 ContentSubresourceFilterThrottleManager::
     ContentSubresourceFilterThrottleManager(
         SubresourceFilterProfileContext* profile_context,
@@ -223,6 +233,40 @@ void ContentSubresourceFilterThrottleManager::ReadyToCommitInFrameNavigation(
   // it on cross-process navigations.
   agent->ActivateForNextCommittedLoad(activation_state.Clone(),
                                       ad_evidence_for_navigation);
+
+  content::WebContents* web_contents = navigation_handle->GetWebContents();
+  Profile* profile = nullptr;
+  if (web_contents){
+    profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  }
+
+  bool replacement_enabled = false;
+  std::string ad_unit_path;
+  std::string id_prefix;
+  std::string script_url;
+  std::string sizes_json;
+  std::vector<std::string> selectors;
+  if (profile) {
+    PrefService* prefs = profile->GetPrefs();
+    
+    // Get enabled state
+    replacement_enabled = prefs->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
+    
+    // Get configuration parameters
+    ad_unit_path = subresource_filter::prefs::GetAdReplacementAdUnitPath(prefs);
+    id_prefix = subresource_filter::prefs::GetAdReplacementIdPrefix(prefs);
+    script_url = subresource_filter::prefs::GetAdReplacementScriptUrl(prefs);
+    sizes_json = subresource_filter::prefs::GetAdReplacementSizes(prefs);
+    selectors = subresource_filter::prefs::GetAdReplacementSelectors(prefs);
+  }
+  // Send the complete configuration to the renderer for this frame
+  agent->SetReplacementEnabled(
+      replacement_enabled, 
+      ad_unit_path,
+      id_prefix,
+      script_url,
+      sizes_json,
+      selectors);
 }
 
 mojom::ActivationState
@@ -678,7 +722,7 @@ std::unique_ptr<ActivationStateComputingNavigationThrottle>
 ContentSubresourceFilterThrottleManager::
     MaybeCreateActivationStateComputingThrottle(
         content::NavigationHandle* navigation_handle) {
-  // Subresource filter roots: create unconditionally.
+  // Subresource filter roots: create unconditionally.(navigation_handle);
   if (IsInSubresourceFilterRoot(navigation_handle)) {
     auto throttle = ActivationStateComputingNavigationThrottle::CreateForRoot(
         navigation_handle);
@@ -688,6 +732,27 @@ ContentSubresourceFilterThrottleManager::
       throttle->NotifyPageActivationWithRuleset(EnsureRulesetHandle(),
                                                 ad_tagging_state);
     }
+
+    //TODO: could use same logic as in SubresourceFilterSafeBrowsingActivationThrottle::NotifyResult()
+    // subresource_filter::ActivationDecision ignored_decision;
+    mojom::ActivationState ad_filtering_state;
+
+    content::WebContents* web_contents = navigation_handle->GetWebContents();
+    bool adblock_enabled = false;
+    if (web_contents) {
+      Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+      adblock_enabled = profile->GetPrefs()->GetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled);
+    }
+
+    if (adblock_enabled) {
+      ad_filtering_state.activation_level = mojom::ActivationLevel::kEnabled;
+    } else {
+      ad_filtering_state.activation_level = mojom::ActivationLevel::kDisabled;
+    }
+
+    throttle->NotifyPageActivationWithRuleset(EnsureRulesetHandle(),
+                                              ad_filtering_state);
+
     return throttle;
   }
 

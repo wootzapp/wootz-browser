@@ -72,6 +72,14 @@ class DocumentSubresourceFilter {
     activation_state_ = state;
   }
 
+  // Callback triggered when a resource is blocked
+  using BlockedResourceCallback = 
+      base::RepeatingCallback<void(const GURL&)>;
+  
+  void SetBlockedResourceCallback(BlockedResourceCallback callback) {
+    blocked_resource_callback_ = std::move(callback);
+  }
+
  private:
   mojom::ActivationState activation_state_;
   const scoped_refptr<const MemoryMappedRuleset> ruleset_;
@@ -81,6 +89,8 @@ class DocumentSubresourceFilter {
   std::unique_ptr<FirstPartyOrigin> document_origin_;
 
   mojom::DocumentLoadStatistics statistics_;
+
+  BlockedResourceCallback blocked_resource_callback_;
 };
 
 }  // namespace subresource_filter

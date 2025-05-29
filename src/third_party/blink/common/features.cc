@@ -194,7 +194,7 @@ BASE_FEATURE(kAutofillSendUnidentifiedKeyAfterFill,
 // Vitals.
 BASE_FEATURE(kAutomaticLazyFrameLoadingToAds,
              "AutomaticLazyFrameLoadingToAds",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // https://crbug.com/1472970
 BASE_FEATURE(kAutoSpeculationRules,
@@ -224,7 +224,7 @@ const base::FeatureParam<int> kSkipFrameCountForLazyAds(
 // Vitals.
 BASE_FEATURE(kAutomaticLazyFrameLoadingToEmbeds,
              "AutomaticLazyFrameLoadingToEmbeds",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // The timeout value that forces loading iframes that are lazy loaded by
 // LazyEmbeds. After this timeout, the frame loading is triggered even when the
@@ -247,7 +247,7 @@ const base::FeatureParam<int> kSkipFrameCountForLazyEmbeds(
 // kAutomaticLazyFrameLoadingToEmbeds is disabled.
 BASE_FEATURE(kAutomaticLazyFrameLoadingToEmbedUrls,
              "AutomaticLazyFrameLoadingToEmbedUrls",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Define the strategy for LazyEmbeds to decide which frames we apply
 // lazy-loading or not. If the loading strategy is kAllowList, the detection

@@ -246,9 +246,9 @@ void NavigationThrottleRunner::RegisterNavigationThrottles() {
   // DO NOT ADD any throttles after this line.
 
   // Insert all testing NavigationThrottles last.
-  throttles_.insert(throttles_.end(),
-                    std::make_move_iterator(testing_throttles.begin()),
-                    std::make_move_iterator(testing_throttles.end()));
+  // throttles_.insert(throttles_.end(),
+  //                   std::make_move_iterator(testing_throttles.begin()),
+  //                   std::make_move_iterator(testing_throttles.end()));
 }
 
 void NavigationThrottleRunner::
@@ -290,9 +290,9 @@ void NavigationThrottleRunner::
   }
 
   // Insert all testing NavigationThrottles last.
-  throttles_.insert(throttles_.end(),
-                    std::make_move_iterator(testing_throttles.begin()),
-                    std::make_move_iterator(testing_throttles.end()));
+  // throttles_.insert(throttles_.end(),
+  //                   std::make_move_iterator(testing_throttles.begin()),
+  //                   std::make_move_iterator(testing_throttles.end()));
 }
 
 NavigationThrottle* NavigationThrottleRunner::GetDeferringThrottle() const {
