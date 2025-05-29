@@ -172,7 +172,7 @@ class SubresourceFilterAgent
       bool replacement_enabled_ = false;
       // For retry handling
       int ad_replacement_attempt_count_ = 0;
-      static constexpr int kMaxAdReplacementAttempts = 4;
+      static constexpr int kMaxAdReplacementAttempts = 10;
 
     void SetReplacementEnabled(
         bool enabled, 
