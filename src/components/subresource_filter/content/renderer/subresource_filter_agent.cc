@@ -496,422 +496,360 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
       
       elements_to_replace[i].SetAttribute("id", blink::WebString::FromUTF8(ad_id));
       std::string style = "min-width: 300px; min-height: 60px; max-width: 100%; overflow: hidden; "
-                  "display: flex; justify-content: center; background-color:rgb(0, 89, 255); align-items: center; margin: 0 auto; text-align: center;";
+                  "display: flex; justify-content: center; align-items: center; margin: 0 auto; text-align: center;";
       elements_to_replace[i].SetAttribute("style", blink::WebString::FromUTF8(style));
-
-    std::string simple_ad_script = base::StringPrintf(R"(
-      (function() {
-        window.googletag = window.googletag || {cmd: []};
-        
-        var adUnitPath = '%s';
-        var containerId = '%s';
-        var adSizes = %s;
-        var slotId = 'wootzapp_slot_%zu';
-        
-        googletag.cmd.push(function() {
-          // Get container
-          var container = document.getElementById(containerId);
-          if (!container) return;
-          
-          // Check if slot already exists for this container
-          var existingSlot = null;
-          if (googletag.pubads && googletag.pubads().getSlots) {
-            var slots = googletag.pubads().getSlots();
-            for (var i = 0; i < slots.length; i++) {
-              if (slots[i].getSlotElementId() === containerId) {
-                existingSlot = slots[i];
-                break;
-              }
-            }
-          }
-          
-          // If slot already exists, just refresh it
-          if (existingSlot) {
-            console.log('Wootzapp: Refreshing existing slot for ' + containerId);
-            googletag.pubads().refresh([existingSlot]);
-            return;
-          }
-          
-          // Enable services only once globally
-          if (!window.wootzappServicesEnabled) {
-            googletag.pubads().enableSingleRequest();
-            googletag.pubads().setTargeting('wootzapp', 'replacement');
-            googletag.enableServices();
-            window.wootzappServicesEnabled = true;
-          }
-          
-          // Clear container
-          container.innerHTML = '';
-          
-          // Define new slot only if it doesn't exist
-          var slot = googletag.defineSlot(adUnitPath, adSizes, containerId);
-          if (slot) {
-            slot.setTargeting('slot_id', slotId);
-            slot.addService(googletag.pubads());
-            googletag.display(containerId);
-            
-            console.log('Wootzapp: Created slot ' + slotId + ' for ' + containerId);
-          }
-        });
-      })();
-    )", ad_unit_path_.c_str(), ad_id.c_str(), sizes_json_.c_str(), i);
-      
-      // Execute the simple script
-      frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(simple_ad_script)));
-      
-      LOG(INFO) << "AdBlock: Created simple ad slot for container " << ad_id;
     }
     
     // Step 2: Single script to process all elements by count
-    // std::string direct_script = base::StringPrintf(R"(
-    //   (function() {
-    //     // Initialize GPT command queue immediately
-    //     window.googletag = window.googletag || {cmd: []};
+    std::string direct_script = base::StringPrintf(R"(
+      (function() {
+        // Initialize GPT command queue immediately
+        window.googletag = window.googletag || {cmd: []};
         
-    //     // Configuration from browser
-    //     var adUnitPath = '%s';
-    //     var idPrefix = '%s';
-    //     var adSizes = %s;
-    //     var elementCount = %zu;
+        // Configuration from browser
+        var adUnitPath = '%s';
+        var idPrefix = '%s';
+        var adSizes = %s;
+        var elementCount = %zu;
         
-    //     // Track which ads have been processed and protected
-    //     if (!window.wootzappProcessedAds) window.wootzappProcessedAds = {};
-    //     if (!window.wootzappProtectedElements) window.wootzappProtectedElements = {};
-    //     if (!window.wootzappSlots) window.wootzappSlots = new Map();
+        // Track which ads have been processed and protected
+        if (!window.wootzappProcessedAds) window.wootzappProcessedAds = {};
+        if (!window.wootzappProtectedElements) window.wootzappProtectedElements = {};
+        if (!window.wootzappSlots) window.wootzappSlots = new Map();
         
-    //     // Viewport detection function - needed globally
-    //     function isInViewport(el) {
-    //       if (!el || !el.getBoundingClientRect) return false;
-    //       try {
-    //         var rect = el.getBoundingClientRect();
-    //         // Increased threshold to 1000px below viewport to preload more ads
-    //         return (
-    //           rect.top < (window.innerHeight || document.documentElement.clientHeight) + 1000 &&
-    //           rect.bottom > -250
-    //         );
-    //       } catch(e) {
-    //         return false;
-    //       }
-    //     }
+        // Viewport detection function - needed globally
+        function isInViewport(el) {
+          if (!el || !el.getBoundingClientRect) return false;
+          try {
+            var rect = el.getBoundingClientRect();
+            // Increased threshold to 1000px below viewport to preload more ads
+            return (
+              rect.top < (window.innerHeight || document.documentElement.clientHeight) + 1000 &&
+              rect.bottom > -250
+            );
+          } catch(e) {
+            return false;
+          }
+        }
         
-    //     // Container processing function - defined before it's called
-    //     function processContainers(containers) {
-    //       for(var i = 0; i < containers.length; i++) {
-    //         var container = containers[i];
-    //         if (!container || !container.id) continue;
+        // Container processing function - defined before it's called
+        function processContainers(containers) {
+          for(var i = 0; i < containers.length; i++) {
+            var container = containers[i];
+            if (!container || !container.id) continue;
             
-    //         var id = container.id;
+            var id = container.id;
             
-    //         try {
-    //           // Skip if already processed in this page view
-    //           if (window.wootzappProcessedAds[id]) continue;
+            try {
+              // Skip if already processed in this page view
+              if (window.wootzappProcessedAds[id]) continue;
               
-    //           // Make sure element still exists in DOM
-    //           if (!document.getElementById(id)) {
-    //             console.warn('Wootzapp: Container no longer in DOM: ' + id);
-    //             continue;
-    //           }
+              // Make sure element still exists in DOM
+              if (!document.getElementById(id)) {
+                console.warn('Wootzapp: Container no longer in DOM: ' + id);
+                continue;
+              }
               
-    //           window.wootzappProcessedAds[id] = true;
+              window.wootzappProcessedAds[id] = true;
               
-    //           // Clear the container
-    //           container.innerHTML = '';
+              // Clear the container
+              container.innerHTML = '';
               
-    //           // Check if slot is already defined
-    //           var alreadyDefined = false;
-    //           var existingSlot = null;
+              // Check if slot is already defined
+              var alreadyDefined = false;
+              var existingSlot = null;
               
-    //           if (googletag.pubads && googletag.pubads().getSlots) {
-    //             var slots = googletag.pubads().getSlots();
-    //             for (var j = 0; j < slots.length; j++) {
-    //               if (slots[j].getSlotElementId() === id) {
-    //                 alreadyDefined = true;
-    //                 existingSlot = slots[j];
-    //                 break;
-    //               }
-    //             }
-    //           }
+              if (googletag.pubads && googletag.pubads().getSlots) {
+                var slots = googletag.pubads().getSlots();
+                for (var j = 0; j < slots.length; j++) {
+                  if (slots[j].getSlotElementId() === id) {
+                    alreadyDefined = true;
+                    existingSlot = slots[j];
+                    break;
+                  }
+                }
+              }
               
-    //           if (!alreadyDefined) {
-    //             // Define a new ad slot using configuration
-    //             var slot = googletag.defineSlot(adUnitPath, adSizes, id);
-    //             if (slot) {
-    //               slot.addService(googletag.pubads());
+              if (!alreadyDefined) {
+                // Define a new ad slot using configuration
+                var slot = googletag.defineSlot(adUnitPath, adSizes, id);
+                if (slot) {
+                  slot.addService(googletag.pubads());
                   
-    //               // Verify element still exists before display
-    //               if (document.getElementById(id)) {
-    //                 googletag.display(id);
-    //                 console.log('Wootzapp: Defined and displayed new slot for ' + id);
-    //               } else {
-    //                 console.warn('Wootzapp: Element disappeared before display: ' + id);
-    //               }
-    //             }
-    //           } else if (existingSlot) {
-    //             // Refresh existing slot
-    //             googletag.pubads().refresh([existingSlot]);
-    //             console.log('Wootzapp: Refreshed existing slot for ' + id);
-    //           }
-    //         } catch(e) {
-    //           console.error('Wootzapp: Error processing ad for ' + id, e);
-    //         }
-    //       }
-    //     }
+                  // Verify element still exists before display
+                  if (document.getElementById(id)) {
+                    googletag.display(id);
+                    console.log('Wootzapp: Defined and displayed new slot for ' + id);
+                  } else {
+                    console.warn('Wootzapp: Element disappeared before display: ' + id);
+                  }
+                }
+              } else if (existingSlot) {
+                // Refresh existing slot
+                googletag.pubads().refresh([existingSlot]);
+                console.log('Wootzapp: Refreshed existing slot for ' + id);
+              }
+            } catch(e) {
+              console.error('Wootzapp: Error processing ad for ' + id, e);
+            }
+          }
+        }
         
-    //     // Batch processing function - defined before it's called
-    //     function processContainerBatches(visibleContainers, nonVisibleContainers, batchSize) {
-    //       // First batch: Process visible containers immediately
-    //       for (var i = 0; i < visibleContainers.length; i += batchSize) {
-    //         var batch = visibleContainers.slice(i, i + batchSize);
-    //         processContainers(batch);
-    //       }
+        // Batch processing function - defined before it's called
+        function processContainerBatches(visibleContainers, nonVisibleContainers, batchSize) {
+          // First batch: Process visible containers immediately
+          for (var i = 0; i < visibleContainers.length; i += batchSize) {
+            var batch = visibleContainers.slice(i, i + batchSize);
+            processContainers(batch);
+          }
           
-    //       // Process ALL non-visible containers with minimal delay
-    //       if (nonVisibleContainers.length > 0) {
-    //         setTimeout(function() {
-    //           // Process all non-visible containers in smaller batches
-    //           for (var i = 0; i < nonVisibleContainers.length; i += batchSize) {
-    //             var batch = nonVisibleContainers.slice(i, i + batchSize);
-    //             // Use a small incremental delay to prevent browser freezing
-    //             setTimeout(function(batchToProcess) {
-    //               return function() { 
-    //                 processContainers(batchToProcess); 
-    //               };
-    //             }(batch), i * 20); // Only 20ms delay between batches
-    //           }
-    //         }, 50); // Reduced initial delay
-    //       }
-    //     }
+          // Process ALL non-visible containers with minimal delay
+          if (nonVisibleContainers.length > 0) {
+            setTimeout(function() {
+              // Process all non-visible containers in smaller batches
+              for (var i = 0; i < nonVisibleContainers.length; i += batchSize) {
+                var batch = nonVisibleContainers.slice(i, i + batchSize);
+                // Use a small incremental delay to prevent browser freezing
+                setTimeout(function(batchToProcess) {
+                  return function() { 
+                    processContainers(batchToProcess); 
+                  };
+                }(batch), i * 20); // Only 20ms delay between batches
+              }
+            }, 50); // Reduced initial delay
+          }
+        }
         
-    //     // PROTECTION: Prevent third-party scripts from modifying our ad containers
-    //     function protectAdContainers() {
-    //       var containers = document.querySelectorAll('[id^="' + idPrefix + '"]');
-    //       if (!containers || containers.length === 0) return;
+        // PROTECTION: Prevent third-party scripts from modifying our ad containers
+        function protectAdContainers() {
+          var containers = document.querySelectorAll('[id^="' + idPrefix + '"]');
+          if (!containers || containers.length === 0) return;
           
-    //       console.log('Wootzapp: Protecting ' + containers.length + ' ad containers');
+          console.log('Wootzapp: Protecting ' + containers.length + ' ad containers');
           
-    //       // Set up MutationObserver to prevent unwanted modifications
-    //       if (window.MutationObserver && !window.wootzappObserver) {
-    //         window.wootzappObserver = new MutationObserver(function(mutations) {
-    //           mutations.forEach(function(mutation) {
-    //             // Allow GPT to make changes (these have specific patterns)
-    //             if (mutation.addedNodes.length) {
-    //               for (var i = 0; i < mutation.addedNodes.length; i++) {
-    //                 var node = mutation.addedNodes[i];
-    //                 // Only allow iframes from doubleclick or specific GPT elements
-    //                 if (node.nodeName === 'IFRAME' && 
-    //                     (node.src && (node.src.indexOf('doubleclick') > -1 || 
-    //                                 node.src.indexOf('googlesyndication') > -1))) {
-    //                   console.log('Wootzapp: Allowing GPT iframe insertion');
-    //                   return; // This is a legitimate GPT change
-    //                 }
-    //                 // Allow GPT's own divs
-    //                 if (node.id && node.id.indexOf('google_ads_iframe_') === 0) {
-    //                   return; // This is a legitimate GPT element
-    //                 }
-    //               }
-    //             }
+          // Set up MutationObserver to prevent unwanted modifications
+          if (window.MutationObserver && !window.wootzappObserver) {
+            window.wootzappObserver = new MutationObserver(function(mutations) {
+              mutations.forEach(function(mutation) {
+                // Allow GPT to make changes (these have specific patterns)
+                if (mutation.addedNodes.length) {
+                  for (var i = 0; i < mutation.addedNodes.length; i++) {
+                    var node = mutation.addedNodes[i];
+                    // Only allow iframes from doubleclick or specific GPT elements
+                    if (node.nodeName === 'IFRAME' && 
+                        (node.src && (node.src.indexOf('doubleclick') > -1 || 
+                                    node.src.indexOf('googlesyndication') > -1))) {
+                      console.log('Wootzapp: Allowing GPT iframe insertion');
+                      return; // This is a legitimate GPT change
+                    }
+                    // Allow GPT's own divs
+                    if (node.id && node.id.indexOf('google_ads_iframe_') === 0) {
+                      return; // This is a legitimate GPT element
+                    }
+                  }
+                }
                 
-    //             // For any other changes to our containers, log and restore
-    //             if (mutation.target && mutation.target.id && 
-    //                 mutation.target.id.indexOf(idPrefix) === 0) {
-    //               // Only block complete replacements or removals
-    //               if (mutation.type === 'childList' && 
-    //                   (mutation.removedNodes.length > 1 || mutation.target.innerHTML === '')) {
-    //                 console.warn('Wootzapp: Blocked unauthorized modification of ad container', mutation.target.id);
-    //                 // Force refresh the ad instead of blocking (more reliable)
-    //                 googletag.cmd.push(function() {
-    //                   var slots = googletag.pubads().getSlots();
-    //                   for (var i = 0; i < slots.length; i++) {
-    //                     if (slots[i].getSlotElementId() === mutation.target.id) {
-    //                       googletag.pubads().refresh([slots[i]]);
-    //                       break;
-    //                     }
-    //                   }
-    //                 });
-    //               }
-    //             }
-    //           });
-    //         });
+                // For any other changes to our containers, log and restore
+                if (mutation.target && mutation.target.id && 
+                    mutation.target.id.indexOf(idPrefix) === 0) {
+                  // Only block complete replacements or removals
+                  if (mutation.type === 'childList' && 
+                      (mutation.removedNodes.length > 1 || mutation.target.innerHTML === '')) {
+                    console.warn('Wootzapp: Blocked unauthorized modification of ad container', mutation.target.id);
+                    // Force refresh the ad instead of blocking (more reliable)
+                    googletag.cmd.push(function() {
+                      var slots = googletag.pubads().getSlots();
+                      for (var i = 0; i < slots.length; i++) {
+                        if (slots[i].getSlotElementId() === mutation.target.id) {
+                          googletag.pubads().refresh([slots[i]]);
+                          break;
+                        }
+                      }
+                    });
+                  }
+                }
+              });
+            });
             
-    //         // Observe all containers with specific configuration
-    //         containers.forEach(function(container) {
-    //           window.wootzappObserver.observe(container, { 
-    //             childList: true,
-    //             attributes: true,
-    //             subtree: true
-    //           });
-    //         });
+            // Observe all containers with specific configuration
+            containers.forEach(function(container) {
+              window.wootzappObserver.observe(container, { 
+                childList: true,
+                attributes: true,
+                subtree: true
+              });
+            });
             
-    //         console.log('Wootzapp: Set up observer for ' + containers.length + ' ad containers');
-    //       }
+            console.log('Wootzapp: Set up observer for ' + containers.length + ' ad containers');
+          }
           
-    //       // PROTECTION: Override key element methods to prevent container removal
-    //       containers.forEach(function(container) {
-    //         var id = container.id;
+          // PROTECTION: Override key element methods to prevent container removal
+          containers.forEach(function(container) {
+            var id = container.id;
             
-    //         // Skip if already protected
-    //         if (window.wootzappProtectedElements[id]) {
-    //           return;
-    //         }
+            // Skip if already protected
+            if (window.wootzappProtectedElements[id]) {
+              return;
+            }
             
-    //         // Mark as protected
-    //         window.wootzappProtectedElements[id] = true;
-    //         container.setAttribute('data-wootzapp-protected', 'true');
+            // Mark as protected
+            window.wootzappProtectedElements[id] = true;
+            container.setAttribute('data-wootzapp-protected', 'true');
             
-    //         try {
-    //           // Add protection against direct removal
-    //           var originalRemove = container.remove;
-    //           container.remove = function() {
-    //             console.warn('Wootzapp: Blocked attempt to remove ad container:', this.id);
-    //             return false;
-    //           };
+            try {
+              // Add protection against direct removal
+              var originalRemove = container.remove;
+              container.remove = function() {
+                console.warn('Wootzapp: Blocked attempt to remove ad container:', this.id);
+                return false;
+              };
               
-    //           // Only define innerHTML property if not already defined
-    //           if (!Object.getOwnPropertyDescriptor(container, 'innerHTML')) {
-    //             // Add protection against innerHTML changes
-    //             Object.defineProperty(container, 'innerHTML', {
-    //               configurable: true, // Allow reconfiguration if needed
-    //               set: function(value) {
-    //                 // Allow empty or GPT content
-    //                 if (value === '' || value.indexOf('google') > -1) {
-    //                   return Element.prototype.__lookupSetter__('innerHTML').call(this, value);
-    //                 }
-    //                 console.warn('Wootzapp: Blocked attempt to change ad container content:', this.id);
-    //                 return false;
-    //               },
-    //               get: function() {
-    //                 return Element.prototype.__lookupGetter__('innerHTML').call(this);
-    //               }
-    //             });
-    //           }
-    //         } catch(e) {
-    //           console.error('Wootzapp: Error while protecting container ' + id, e);
-    //         }
-    //       });
-    //     }
+              // Only define innerHTML property if not already defined
+              if (!Object.getOwnPropertyDescriptor(container, 'innerHTML')) {
+                // Add protection against innerHTML changes
+                Object.defineProperty(container, 'innerHTML', {
+                  configurable: true, // Allow reconfiguration if needed
+                  set: function(value) {
+                    // Allow empty or GPT content
+                    if (value === '' || value.indexOf('google') > -1) {
+                      return Element.prototype.__lookupSetter__('innerHTML').call(this, value);
+                    }
+                    console.warn('Wootzapp: Blocked attempt to change ad container content:', this.id);
+                    return false;
+                  },
+                  get: function() {
+                    return Element.prototype.__lookupGetter__('innerHTML').call(this);
+                  }
+                });
+              }
+            } catch(e) {
+              console.error('Wootzapp: Error while protecting container ' + id, e);
+            }
+          });
+        }
         
-    //     // PROTECTION: Override ad-related functions that might replace our ads
-    //     if (!window.wootzappProtectionApplied) {
-    //       // Intercept common ad insertion methods
-    //       var originalDocumentWrite = document.write;
-    //       document.write = function(html) {
-    //         // Check if this would affect our containers
-    //         if (html && html.indexOf(idPrefix) > -1) {
-    //           console.warn('Wootzapp: Blocked document.write attempt that would affect our ads');
-    //           return;
-    //         }
-    //         return originalDocumentWrite.apply(this, arguments);
-    //       };
+        // PROTECTION: Override ad-related functions that might replace our ads
+        if (!window.wootzappProtectionApplied) {
+          // Intercept common ad insertion methods
+          var originalDocumentWrite = document.write;
+          document.write = function(html) {
+            // Check if this would affect our containers
+            if (html && html.indexOf(idPrefix) > -1) {
+              console.warn('Wootzapp: Blocked document.write attempt that would affect our ads');
+              return;
+            }
+            return originalDocumentWrite.apply(this, arguments);
+          };
           
-    //       // Track protection state
-    //       window.wootzappProtectionApplied = true;
+          // Track protection state
+          window.wootzappProtectionApplied = true;
           
-    //       // Set up periodic protection check (less frequent)
-    //       setInterval(function() {
-    //         try {
-    //           protectAdContainers();
-    //         } catch(e) {
-    //           console.error('Wootzapp: Error in protection interval', e);
-    //         }
-    //       }, 3000);
-    //     }
+          // Set up periodic protection check (less frequent)
+          setInterval(function() {
+            try {
+              protectAdContainers();
+            } catch(e) {
+              console.error('Wootzapp: Error in protection interval', e);
+            }
+          }, 3000);
+        }
         
-    //     // Set up scroll event handler to load ads as they come into view
-    //     if (!window.wootzappScrollHandlerAdded) {
-    //       window.wootzappScrollHandlerAdded = true;
-    //       window.addEventListener('scroll', function() {
-    //         // Debounce scroll events
-    //         if (window.wootzappScrollTimeout) clearTimeout(window.wootzappScrollTimeout);
-    //         window.wootzappScrollTimeout = setTimeout(function() {
-    //           var containers = document.querySelectorAll('[id^="' + idPrefix + '"]');
-    //           var containersToProcess = [];
+        // Set up scroll event handler to load ads as they come into view
+        if (!window.wootzappScrollHandlerAdded) {
+          window.wootzappScrollHandlerAdded = true;
+          window.addEventListener('scroll', function() {
+            // Debounce scroll events
+            if (window.wootzappScrollTimeout) clearTimeout(window.wootzappScrollTimeout);
+            window.wootzappScrollTimeout = setTimeout(function() {
+              var containers = document.querySelectorAll('[id^="' + idPrefix + '"]');
+              var containersToProcess = [];
               
-    //           // Find containers now in viewport that haven't been processed
-    //           for (var i = 0; i < containers.length; i++) {
-    //             if (isInViewport(containers[i]) && 
-    //                 !window.wootzappProcessedAds[containers[i].id]) {
-    //               containersToProcess.push(containers[i]);
-    //             }
-    //           }
+              // Find containers now in viewport that haven't been processed
+              for (var i = 0; i < containers.length; i++) {
+                if (isInViewport(containers[i]) && 
+                    !window.wootzappProcessedAds[containers[i].id]) {
+                  containersToProcess.push(containers[i]);
+                }
+              }
               
-    //           // Process these newly visible containers
-    //           if (containersToProcess.length > 0) {
-    //             processContainers(containersToProcess);
-    //           }
-    //         }, 100);
-    //       }, { passive: true });
-    //     }
+              // Process these newly visible containers
+              if (containersToProcess.length > 0) {
+                processContainers(containersToProcess);
+              }
+            }, 100);
+          }, { passive: true });
+        }
         
-    //     // Apply protection BEFORE defining ads to prevent race conditions
-    //     try {
-    //       protectAdContainers();
-    //     } catch(e) {
-    //       console.error('Wootzapp: Error in initial protection', e);
-    //     }
+        // Apply protection BEFORE defining ads to prevent race conditions
+        try {
+          protectAdContainers();
+        } catch(e) {
+          console.error('Wootzapp: Error in initial protection', e);
+        }
         
-    //     // Define and display ads
-    //     googletag.cmd.push(function() {
-    //       try {
-    //         // COMBINED CONTAINER DISCOVERY - Both querySelectorAll and iterative method
-    //         var allContainers = [];
-    //         var processedIds = new Set();
+        // Define and display ads
+        googletag.cmd.push(function() {
+          try {
+            // COMBINED CONTAINER DISCOVERY - Both querySelectorAll and iterative method
+            var allContainers = [];
+            var processedIds = new Set();
             
-    //         // METHOD 1: Find containers using querySelectorAll
-    //         var selectorContainers = document.querySelectorAll('[id^="' + idPrefix + '"]');
-    //         for (var i = 0; i < selectorContainers.length; i++) {
-    //           var container = selectorContainers[i];
-    //           if (container && container.id) {
-    //             allContainers.push(container);
-    //             processedIds.add(container.id);
-    //           }
-    //         }
+            // METHOD 1: Find containers using querySelectorAll
+            var selectorContainers = document.querySelectorAll('[id^="' + idPrefix + '"]');
+            for (var i = 0; i < selectorContainers.length; i++) {
+              var container = selectorContainers[i];
+              if (container && container.id) {
+                allContainers.push(container);
+                processedIds.add(container.id);
+              }
+            }
             
-    //         // METHOD 2: Find containers using iterative method
-    //         for (var i = 0; i < elementCount; i++) {
-    //           var elementId = idPrefix + i;
-    //           var container = document.getElementById(elementId);
+            // METHOD 2: Find containers using iterative method
+            for (var i = 0; i < elementCount; i++) {
+              var elementId = idPrefix + i;
+              var container = document.getElementById(elementId);
               
-    //           if (container && !processedIds.has(elementId)) {
-    //             allContainers.push(container);
-    //             processedIds.add(elementId);
-    //           }
-    //         }
+              if (container && !processedIds.has(elementId)) {
+                allContainers.push(container);
+                processedIds.add(elementId);
+              }
+            }
             
-    //         console.log('Wootzapp Combined: Found ' + allContainers.length + ' total containers (querySelectorAll: ' + selectorContainers.length + ', iterative: ' + (allContainers.length - selectorContainers.length) + ')');
+            console.log('Wootzapp Combined: Found ' + allContainers.length + ' total containers (querySelectorAll: ' + selectorContainers.length + ', iterative: ' + (allContainers.length - selectorContainers.length) + ')');
             
-    //         // Configure GPT only once (do this first for better parallelization)
-    //         if (!window.wootzappServicesEnabled) {
-    //           googletag.pubads().enableSingleRequest();
-    //           googletag.enableServices();
-    //           window.wootzappServicesEnabled = true;
-    //         }
+            // Configure GPT only once (do this first for better parallelization)
+            if (!window.wootzappServicesEnabled) {
+              googletag.pubads().enableSingleRequest();
+              googletag.enableServices();
+              window.wootzappServicesEnabled = true;
+            }
             
-    //         // OPTIMIZATION: Process visible containers first
-    //         var visibleContainers = [];
-    //         var nonVisibleContainers = [];
+            // OPTIMIZATION: Process visible containers first
+            var visibleContainers = [];
+            var nonVisibleContainers = [];
             
-    //         // Sort containers by visibility
-    //         for(var i = 0; i < allContainers.length; i++) {
-    //           if (isInViewport(allContainers[i])) {
-    //             visibleContainers.push(allContainers[i]);
-    //           } else {
-    //             nonVisibleContainers.push(allContainers[i]);
-    //           }
-    //         }
+            // Sort containers by visibility
+            for(var i = 0; i < allContainers.length; i++) {
+              if (isInViewport(allContainers[i])) {
+                visibleContainers.push(allContainers[i]);
+              } else {
+                nonVisibleContainers.push(allContainers[i]);
+              }
+            }
             
-    //         // Process containers in batches
-    //         var batchSize = 5;
-    //         processContainerBatches(visibleContainers, nonVisibleContainers, batchSize);
+            // Process containers in batches
+            var batchSize = 5;
+            processContainerBatches(visibleContainers, nonVisibleContainers, batchSize);
             
-    //       } catch(e) {
-    //         console.error('Wootzapp: Error in main ad script:', e);
-    //       }
-    //     });
+          } catch(e) {
+            console.error('Wootzapp: Error in main ad script:', e);
+          }
+        });
         
-    //   })();
-    // )", ad_unit_path_.c_str(), id_prefix_.c_str(), sizes_json_.c_str(), elements_to_replace.size());
+      })();
+    )", ad_unit_path_.c_str(), id_prefix_.c_str(), sizes_json_.c_str(), elements_to_replace.size());
     
-    // frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(direct_script)));
+    frame->ExecuteScript(blink::WebScriptSource(blink::WebString::FromUTF8(direct_script)));
     
     LOG(INFO) << "AdBlock: Configured " << elements_to_replace.size() << " GPT ad slots";
   }
@@ -921,7 +859,7 @@ void SubresourceFilterAgent::ReplaceBlockedAds() {
     replacement_task_scheduled_ = true;
     replacement_timer_.Start(
         FROM_HERE,
-        base::Milliseconds(500),  // Shorter delay too
+        base::Milliseconds(6000),
         this,
         &SubresourceFilterAgent::ReplaceBlockedAds);
   }
@@ -1015,3 +953,4 @@ int SubresourceFilterAgent::SafeParseInt(const std::string& str, int default_val
 }
 
 }  // namespace subresource_filter
+

@@ -195,12 +195,12 @@ public class ActionUrlListFetcher{
     // URL expansion cache
     private void expandToFinalURL(String shortUrl, ActionUrlFetchedCallback callback) {
 
-        if(!isShortUrlDomain(shortUrl)) {
-            ThreadUtils.runOnUiThread(() -> {
-                callback.onCompletion("", "");
-            });
-            return;
-        }
+        // if(!isShortUrlDomain(shortUrl)) {
+        //     ThreadUtils.runOnUiThread(() -> {
+        //         callback.onCompletion("", "");
+        //     });
+        //     return;
+        // }
 
         // check cache
         String cachedExpandedURL = urlExpansionCache.get(shortUrl);
