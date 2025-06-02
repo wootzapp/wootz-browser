@@ -15,6 +15,7 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/not_fatal_until.h"
@@ -52,9 +53,10 @@ namespace {
 void RecordIndexAndWriteRulesetResult(
     std::string_view uma_tag,
     RulesetService::IndexAndWriteRulesetResult result) {
-  base::UmaHistogramEnumeration(
-      base::StrCat({uma_tag, ".WriteRuleset.Result"}), result,
-      RulesetService::IndexAndWriteRulesetResult::MAX);
+  // base::UmaHistogramEnumeration(
+  //     base::StrCat({uma_tag, ".WriteRuleset.Result"}), result,
+  //     RulesetService::IndexAndWriteRulesetResult::MAX);
+  VLOG(1) << "SubresourceFilter.WriteRuleset.Result: " << static_cast<int>(result);
 }
 
 // Implements operations on a `sentinel file`, which is used as a safeguard to
@@ -235,10 +237,14 @@ RulesetService::RulesetService(
 RulesetService::~RulesetService() {}
 
 void RulesetService::IndexAndStoreAndPublishRulesetIfNeeded(
-    const UnindexedRulesetInfo& unindexed_ruleset_info) {
-  if (unindexed_ruleset_info.content_version.empty())
+    // const UnindexedRulesetInfo& unindexed_ruleset_info) {
+    const UnindexedRulesetInfo& unindexed_ruleset_info, bool ignore_recent_version) {
+  if (unindexed_ruleset_info.content_version.empty()){
+    LOG(INFO) << "RulesetService: ignoring update with empty version.";
     return;
+  }
 
+  if (!ignore_recent_version) {
   // Trying to store a ruleset with the same version for a second time would
   // not only be futile, but would fail on Windows due to "File System
   // Tunneling" as long as the previously stored copy of the rules is still
@@ -248,13 +254,16 @@ void RulesetService::IndexAndStoreAndPublishRulesetIfNeeded(
   if (most_recently_indexed_version.IsCurrentFormatVersion() &&
       most_recently_indexed_version.content_version ==
           unindexed_ruleset_info.content_version) {
+    LOG(INFO) << "RulesetService: ignoring update with equal or older version.";
     return;
+  }
   }
 
   // Before initialization, retain information about the most recently supplied
   // unindexed ruleset, to be processed during initialization.
   if (!is_initialized_) {
     queued_unindexed_ruleset_info_ = unindexed_ruleset_info;
+    LOG(INFO) << "RulesetService: ignoring update while not initialized.";
     return;
   }
 
@@ -274,6 +283,23 @@ IndexedRulesetVersion RulesetService::IndexAndWriteRuleset(
     const RulesetConfig& config,
     const base::FilePath& indexed_ruleset_base_dir,
     const UnindexedRulesetInfo& unindexed_ruleset_info) {
+  LOG(INFO) << "RulesetService: indexing and writing ruleset";
+  IndexedRulesetVersion version = IndexAndWriteRulesetInternal(config, indexed_ruleset_base_dir, unindexed_ruleset_info);
+  // cleanup temporary file when done
+  if (unindexed_ruleset_info.delete_ruleset_path) {
+    LOG(INFO) << "RulesetService: deleting temporary ruleset file: " << unindexed_ruleset_info.ruleset_path;
+    base::DeleteFile(unindexed_ruleset_info.ruleset_path);
+  }
+  LOG(INFO) << "RulesetService: successfully indexed and wrote ruleset";
+  return version;
+}
+
+// static
+IndexedRulesetVersion RulesetService::IndexAndWriteRulesetInternal(
+    const RulesetConfig& config,
+    const base::FilePath& indexed_ruleset_base_dir,
+    const UnindexedRulesetInfo& unindexed_ruleset_info) {
+  LOG(INFO) << "RulesetService: indexing and writing ruleset";
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
 
@@ -281,6 +307,7 @@ IndexedRulesetVersion RulesetService::IndexAndWriteRuleset(
       unindexed_ruleset_info);
 
   if (!unindexed_ruleset_stream_generator.ruleset_stream()) {
+    LOG(WARNING) << "RulesetService: failed to open: " << unindexed_ruleset_info.ruleset_path;
     RecordIndexAndWriteRulesetResult(
         config.uma_tag,
         IndexAndWriteRulesetResult::FAILED_OPENING_UNINDEXED_RULESET);
@@ -295,6 +322,7 @@ IndexedRulesetVersion RulesetService::IndexAndWriteRuleset(
           indexed_ruleset_base_dir, indexed_version);
 
   if (!base::CreateDirectory(indexed_ruleset_version_dir)) {
+    LOG(WARNING) << "RulesetService: failed to create version dir: " << indexed_ruleset_version_dir;
     RecordIndexAndWriteRulesetResult(
         config.uma_tag,
         IndexAndWriteRulesetResult::FAILED_CREATING_VERSION_DIR);
@@ -324,6 +352,7 @@ IndexedRulesetVersion RulesetService::IndexAndWriteRuleset(
   RulesetIndexer indexer;
   if (!(*g_index_ruleset_func)(config, &unindexed_ruleset_stream_generator,
                                &indexer)) {
+    LOG(WARNING) << "RulesetService: failed parsing.";
     RecordIndexAndWriteRulesetResult(
         config.uma_tag,
         IndexAndWriteRulesetResult::FAILED_PARSING_UNINDEXED_RULESET);
@@ -346,6 +375,7 @@ IndexedRulesetVersion RulesetService::IndexAndWriteRuleset(
   if (result != IndexAndWriteRulesetResult::SUCCESS)
     return IndexedRulesetVersion(config.filter_tag);
 
+  LOG(INFO) << "RulesetService: successful parsing.";
   CHECK(indexed_version.IsValid(), base::NotFatalUntil::M129);
   return indexed_version;
 }

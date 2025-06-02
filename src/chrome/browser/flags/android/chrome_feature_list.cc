@@ -11,10 +11,16 @@
 #include "base/android/feature_map.h"
 #include "base/feature_list.h"
 #include "base/features.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "base/no_destructor.h"
+#include "base/android/jni_android.h"
+#include "base/android/jni_string.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/flags/android/chrome_session_state.h"
 #include "chrome/browser/flags/jni_headers/ChromeFeatureMap_jni.h"
+#include "chrome/browser/flags/jni_headers/ChromeFeatureList_jni.h"
 #include "chrome/browser/notifications/chime/android/features.h"
 #include "chrome/browser/push_messaging/push_messaging_features.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -69,6 +75,7 @@
 #include "services/device/public/cpp/device_features.h"
 #include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/jni_zero/jni_zero.h"
 #include "ui/base/ui_base_features.h"
 
 namespace chrome {
@@ -153,6 +160,7 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kAdaptiveButtonInTopToolbarTranslate,
     &kAdaptiveButtonInTopToolbarAddToBookmarks,
     &kAdaptiveButtonInTopToolbarCustomizationV2,
+    &kAdBlockFeature,
     &kAddToHomescreenIPH,
     &kRedirectExplicitCTAIntentsToExistingActivity,
     &kAllowNewIncognitoTabIntents,
@@ -383,6 +391,27 @@ static jlong JNI_ChromeFeatureMap_GetNativeMap(JNIEnv* env) {
   return reinterpret_cast<jlong>(GetFeatureMap());
 }
 
+jni_zero::ScopedJavaLocalRef<jstring> JNI_ChromeFeatureList_GetAdBlockFiltersURL(JNIEnv* env) {
+  if (!g_browser_process || !g_browser_process->local_state()) {
+    LOG(ERROR) << "AdBlock: GetAdBlockFiltersURL failed - browser process or local state not available";
+    return base::android::ConvertUTF8ToJavaString(env, "");
+  }
+  
+  std::string url = g_browser_process->local_state()->GetString(prefs::kAdBlockFiltersURL);
+  return base::android::ConvertUTF8ToJavaString(env, url);
+}
+
+void JNI_ChromeFeatureList_SetAdBlockFiltersURL(
+    JNIEnv* env, const jni_zero::JavaParamRef<jstring>& url) {
+  if (!g_browser_process || !g_browser_process->local_state()) {
+    LOG(ERROR) << "AdBlock: SetAdBlockFiltersURL failed - browser process or local state not available";
+    return;
+  }
+  
+  std::string url_str = base::android::ConvertJavaStringToUTF8(env, url);
+  g_browser_process->local_state()->SetString(prefs::kAdBlockFiltersURL, url_str);
+}
+
 // Alphabetical:
 
 BASE_FEATURE(kAdaptiveButtonInTopToolbarTranslate,
@@ -395,6 +424,10 @@ BASE_FEATURE(kAdaptiveButtonInTopToolbarAddToBookmarks,
 
 BASE_FEATURE(kAdaptiveButtonInTopToolbarCustomizationV2,
              "AdaptiveButtonInTopToolbarCustomizationV2",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kAdBlockFeature,
+             "AdBlockFeature",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kAddToHomescreenIPH,

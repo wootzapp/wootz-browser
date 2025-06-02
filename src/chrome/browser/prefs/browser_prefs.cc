@@ -174,6 +174,7 @@
 #include "components/site_engagement/content/site_engagement_service.h"
 #include "components/subresource_filter/content/shared/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 #include "components/supervised_user/core/browser/supervised_user_preferences.h"
 #include "components/sync/base/pref_names.h"
 #include "components/sync/service/glue/sync_transport_data_prefs.h"
@@ -1992,6 +1993,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   SigninPrefs::RegisterProfilePrefs(registry);
   site_engagement::SiteEngagementService::RegisterProfilePrefs(registry);
   supervised_user::RegisterProfilePrefs(registry);
+  subresource_filter::prefs::RegisterProfilePrefs(registry);
   sync_sessions::SessionSyncPrefs::RegisterProfilePrefs(registry);
   syncer::DeviceInfoPrefs::RegisterProfilePrefs(registry);
   syncer::SyncPrefs::RegisterProfilePrefs(registry);

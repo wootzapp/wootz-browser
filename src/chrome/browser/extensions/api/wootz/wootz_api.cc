@@ -56,6 +56,8 @@
 #include "base/logging.h"
 #include "components/zk_proof/zk_proof.h"
 #include "components/zk_proof/tls_info/tls_data_store.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 
 namespace extensions {
 
@@ -184,6 +186,117 @@ void WootzAPI::OnNewUnapprovedTx(
   tx_details.Set("chainId", tx_info->chain_id);
   tx_details.Set("coinType", static_cast<int>(tx_info->from_account_id->coin));
   tx_details.Set("origin", tx_info->origin_info ? tx_info->origin_info->origin_spec : "");
+
+  // Solana transaction data
+  if (tx_info->from_account_id->coin == wootz_wallet::mojom::CoinType::SOL) {
+    LOG(ERROR) << "jangid_sign: Processing Solana transaction data of coin type: " << static_cast<int>(tx_info->from_account_id->coin);
+    const auto& solana_tx_data = tx_info->tx_data_union->get_solana_tx_data();
+
+    const auto& instructions = solana_tx_data->instructions;
+    
+    // Loop through all instructions
+    for(size_t i = 0; i < instructions.size(); i++) {
+        LOG(ERROR) << "Instruction " << i + 1 << " of " << instructions.size();
+        
+        // Check if instruction has decoded data
+        if (instructions[i]->decoded_data) {
+            auto& decoded_data = instructions[i]->decoded_data;
+            
+            // Log instruction type
+            LOG(ERROR) << "Instruction Type: " << decoded_data->instruction_type;
+            
+            // Loop through all parameters in the instruction
+            for(size_t j = 0; j < decoded_data->params.size(); j++) {
+                auto& param = decoded_data->params[j];
+                LOG(ERROR) << "Parameter " << j + 1 << ":";
+                LOG(ERROR) << "  Name: " << param->name;
+                LOG(ERROR) << "  Value: " << param->value;
+
+                if(param->name == "lamports") {
+                  LOG(ERROR) << "jangid_sign: Solana lamports: " << param->value;
+                  tx_details.Set("transaction_amount", base::NumberToString(std::stod(param->value)));
+                }
+
+                LOG(ERROR) << "  Type: " << param->type;
+                LOG(ERROR) << "  Localized Name: " << param->localized_name;
+            }
+        } else {
+            LOG(ERROR) << "No decoded data for instruction " << i + 1;
+        }
+    }
+    
+    base::Value::List fee_list;
+    base::Value::Dict fee_dict;
+
+    if (solana_tx_data->fee_estimation) {
+      fee_dict.Set("baseFee", static_cast<double>(solana_tx_data->fee_estimation->base_fee));
+      fee_dict.Set("computeUnits", static_cast<double>(solana_tx_data->fee_estimation->compute_units));
+      fee_dict.Set("feePerComputeUnit", static_cast<double>(solana_tx_data->fee_estimation->fee_per_compute_unit));
+
+      fee_list.Append(std::move(fee_dict));
+      
+      LOG(ERROR) << "jangid_sign: Solana fee estimation: base_fee=" 
+                << solana_tx_data->fee_estimation->base_fee
+                << ", compute_units=" << solana_tx_data->fee_estimation->compute_units
+                << ", fee_per_compute_unit=" << solana_tx_data->fee_estimation->fee_per_compute_unit;
+    }
+    
+    tx_details.Set("feeEstimation", std::move(fee_list));
+    LOG(ERROR) << "jangid_sign: Solana fee estimation: " << tx_details.Find("feeEstimation");
+  }
+  // Ethereum transaction data
+  else if (tx_info->from_account_id->coin == wootz_wallet::mojom::CoinType::ETH) {
+    LOG(ERROR) << "jangid_sign: Processing Ethereum transaction data of coin type: " << static_cast<int>(tx_info->from_account_id->coin);
+
+    // Ethereum transaction data
+    if(tx_info->tx_data_union->is_eth_tx_data()) {
+      const auto& eth_tx_data = tx_info->tx_data_union->get_eth_tx_data();
+    
+      LOG(ERROR) << "jangid_sign: Ethereum transaction amount: " << eth_tx_data->value;
+      tx_details.Set("transaction_amount", eth_tx_data->value);
+
+      base::Value::List fee_list;
+      base::Value::Dict fee_dict;
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data->gas_price;
+      fee_dict.Set("baseFee", std::stod(eth_tx_data->gas_price));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas limit: " << eth_tx_data->gas_limit;
+      fee_dict.Set("computeUnits", std::stod(eth_tx_data->gas_limit));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data->gas_price;
+      fee_dict.Set("feePerComputeUnit", std::stod(eth_tx_data->gas_price));
+
+      fee_list.Append(std::move(fee_dict));
+      tx_details.Set("feeEstimation", std::move(fee_list));
+
+      LOG(ERROR) << "jangid_sign: Ethereum fee estimation: " << tx_details.Find("feeEstimation");
+    }
+    // Ethereum transaction data 1559
+    else if(tx_info->tx_data_union->is_eth_tx_data_1559()) {
+      const auto& eth_tx_data_1559 = tx_info->tx_data_union->get_eth_tx_data_1559();
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction amount: " << eth_tx_data_1559->base_data->value;
+      tx_details.Set("transaction_amount", eth_tx_data_1559->base_data->value);
+
+      base::Value::List fee_list;
+      base::Value::Dict fee_dict; 
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data_1559->base_data->gas_price;
+      fee_dict.Set("baseFee", std::stod(eth_tx_data_1559->base_data->gas_price));
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas limit: " << eth_tx_data_1559->base_data->gas_limit;
+      fee_dict.Set("computeUnits", std::stod(eth_tx_data_1559->base_data->gas_limit));  
+
+      LOG(ERROR) << "jangid_sign: Ethereum transaction gas price: " << eth_tx_data_1559->base_data->gas_price;
+      fee_dict.Set("feePerComputeUnit", std::stod(eth_tx_data_1559->base_data->gas_price));
+
+      fee_list.Append(std::move(fee_dict));
+      tx_details.Set("feeEstimation", std::move(fee_list));
+
+      LOG(ERROR) << "jangid_sign: Ethereum fee estimation: " << tx_details.Find("feeEstimation");
+    }
+  }
 
   LOG(ERROR) << "jangid_sign: Transaction details: " << tx_details;
   event_args.Append(std::move(tx_details));
@@ -1207,6 +1320,90 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   LOG(INFO) << "Result is successfully generated, responding now";
   
   return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
+  LOG(INFO) << "WootzReplaceAdFunction::Run started with arguments: " << args().size();
+  
+  // Validate arguments structure
+  if (args().size() < 3 || !args()[0].is_bool() || !args()[1].is_dict() || !args()[2].is_list()) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Invalid arguments provided";
+    return RespondNow(Error("Invalid arguments format"));
+  }
+
+  bool is_enabled = args()[0].GetBool();
+  
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+  profile->GetPrefs()->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, is_enabled);
+  
+  if(!is_enabled) {
+    LOG(INFO) << "WootzReplaceAdFunction: AdBlocking is disabled";
+    return RespondNow(NoArguments());
+  }
+
+  const base::Value::Dict& ad_config = args()[1].GetDict();
+  const base::Value::List& selectors_list = args()[2].GetList();
+  
+  // Extract values from adConfig
+  const std::string* ad_unit_path = ad_config.FindString("adUnitPath");
+  const std::string* id_prefix = ad_config.FindString("idPrefix");
+  const std::string* script_url = ad_config.FindString("scriptUrl");
+  const base::Value::List* sizes_list = ad_config.FindList("sizes");
+  
+  // Validate required fields
+  if (!ad_unit_path || !id_prefix || !sizes_list) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Missing required adConfig fields";
+    return RespondNow(Error("adConfig missing required fields"));
+  }
+
+  std::vector<std::string> selectors;
+  for (const auto& val : selectors_list) {
+    if (val.is_string())
+      selectors.push_back(val.GetString());
+  }
+
+  base::Value::List converted_sizes;
+  for (const auto& size_value : *sizes_list) {
+    if (!size_value.is_dict()) continue;
+    
+    const base::Value::Dict& size_dict = size_value.GetDict();
+    
+    int width = size_dict.FindInt("width").value_or(-1);
+    int height = size_dict.FindInt("height").value_or(-1);
+    
+    // Skip if either width or height is invalid
+    if (width <= 0 || height <= 0) continue;
+    
+    // Create a pair array [width, height]
+    base::Value::List size_pair;
+    size_pair.Append(width);
+    size_pair.Append(height);
+    converted_sizes.Append(std::move(size_pair));
+  }
+
+  std::string sizes_json;
+  base::JSONWriter::Write(converted_sizes, &sizes_json);
+
+  PrefService* prefs = profile->GetPrefs();
+  
+  prefs->SetString(subresource_filter::prefs::kAdReplacementAdUnitPath, *ad_unit_path);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementIdPrefix, *id_prefix);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementScriptUrl, *script_url);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementSizes, sizes_json);
+  
+  // Set selectors
+  subresource_filter::prefs::SetAdReplacementSelectors(prefs, selectors);
+
+  LOG(INFO) << "WootzReplaceAdFunction: Successfully stored ad replacement configuration";
+  LOG(INFO) << "  - Ad Unit Path: " << *ad_unit_path;
+  LOG(INFO) << "  - ID Prefix: " << *id_prefix;
+  LOG(INFO) << "  - Selectors count: " << selectors.size();
+
+  return RespondNow(NoArguments());
 }
 
 }  // namespace extensions

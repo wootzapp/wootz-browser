@@ -96,7 +96,8 @@ if (is_android || is_chromeos) {
   # ASAN requires O MR1.
   # https://github.com/google/sanitizers/wiki/AddressSanitizerOnAndroid/01f8df1ac1a447a8475cdfcb03e8b13140042dbd#running-with-wrapsh-recommended
   if (is_asan) {
-    min_supported_sdk_version = 27
+    min_supported_sdk_version = 27 
+
   }
 
   assert(
@@ -224,10 +225,10 @@ if (is_android || is_chromeos) {
 
     # Forced Android versionCode
 
-    android_override_version_code = "95"
+    android_override_version_code = "100"
 
     # Forced Android versionName
-    android_override_version_name = "0.80"
+    android_override_version_name = "0.82"
 
     # The path to the keystore to use for signing builds.
     android_keystore_path = default_android_keystore_path
