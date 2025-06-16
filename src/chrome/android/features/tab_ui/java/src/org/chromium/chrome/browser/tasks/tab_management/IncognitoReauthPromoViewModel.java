@@ -8,9 +8,11 @@ import static org.chromium.chrome.browser.tasks.tab_management.TabListModel.Card
 import static org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardProperties.CARD_TYPE;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import androidx.appcompat.content.res.AppCompatResources;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -29,7 +31,17 @@ public class IncognitoReauthPromoViewModel {
             Context context,
             MessageCardView.DismissActionProvider uiDismissActionProvider,
             IncognitoReauthPromoMessageService.IncognitoReauthMessageData data) {
+        
+        // Get dynamic app name for branding
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        
+        // Get title text and make it dynamic
         String titleText = context.getString(R.string.incognito_reauth_promo_title);
+        if (hasCustomBranding && titleText.contains("WootzApp")) {
+            titleText = titleText.replace("WootzApp", appName);
+        }
+        
         String descriptionText = context.getString(R.string.incognito_reauth_promo_description);
         String actionText = context.getString(R.string.incognito_reauth_lock_action_text);
         String dismissActionText = context.getString(R.string.no_thanks);
