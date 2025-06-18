@@ -194,9 +194,10 @@ class WootzIsLockedFunction : public ExtensionFunction {
 
 class WootzGetAllAccountsFunction : public ExtensionFunction {
  public:
+  WootzGetAllAccountsFunction();
   DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
  protected:
-  ~WootzGetAllAccountsFunction() override {}
+  ~WootzGetAllAccountsFunction() override;
   ResponseAction Run() override;
 
  private:
@@ -361,6 +362,34 @@ class WootzSetBlinksEnabledFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+
+class WootzReplaceAdFunction : public ExtensionFunction {
+ public:
+  // DECLARE_EXTENSION_FUNCTION("wootz.replaceAd", WOOTZ_REPLACE_AD)
+  WootzReplaceAdFunction() = default;
+  WootzReplaceAdFunction(const WootzReplaceAdFunction&) = delete;
+  WootzReplaceAdFunction& operator=(const WootzReplaceAdFunction&) = delete;
+
+ protected:
+  ~WootzReplaceAdFunction() override {}
+  ResponseAction Run() override;
+};
+
+class WootzSetBlockedDomainsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.setBlockedDomains", WOOTZ_SET_BLOCKED_DOMAINS)
+ protected:
+  ~WootzSetBlockedDomainsFunction() override {}
+  ResponseAction Run() override;
+};
+
+class WootzGetBlockedDomainsFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.getBlockedDomains", WOOTZ_GET_BLOCKED_DOMAINS)
+ protected:
+  ~WootzGetBlockedDomainsFunction() override {}
+  ResponseAction Run() override;
+};
 
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

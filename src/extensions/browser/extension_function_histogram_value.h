@@ -1976,6 +1976,8 @@ enum HistogramValue {
   WOOTZ_GENERATE_ZK_PROOF = 1913,
 
   WOOTZ_SETBLINKSENABLED = 1914,
+  WOOTZ_SET_BLOCKED_DOMAINS = 1915,
+  WOOTZ_GET_BLOCKED_DOMAINS = 1916,
 
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
