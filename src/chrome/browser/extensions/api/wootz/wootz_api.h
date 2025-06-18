@@ -194,10 +194,9 @@ class WootzIsLockedFunction : public ExtensionFunction {
 
 class WootzGetAllAccountsFunction : public ExtensionFunction {
  public:
-  WootzGetAllAccountsFunction();
   DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
  protected:
-  ~WootzGetAllAccountsFunction() override;
+  ~WootzGetAllAccountsFunction() override {}
   ResponseAction Run() override;
 
  private:
@@ -359,19 +358,6 @@ class WootzSetBlinksEnabledFunction : public ExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("wootz.setBlinksEnabled", WOOTZ_SETBLINKSENABLED)
  protected:
   ~WootzSetBlinksEnabledFunction() override = default;
-  ResponseAction Run() override;
-};
-
-
-class WootzReplaceAdFunction : public ExtensionFunction {
- public:
-  // DECLARE_EXTENSION_FUNCTION("wootz.replaceAd", WOOTZ_REPLACE_AD)
-  WootzReplaceAdFunction() = default;
-  WootzReplaceAdFunction(const WootzReplaceAdFunction&) = delete;
-  WootzReplaceAdFunction& operator=(const WootzReplaceAdFunction&) = delete;
-
- protected:
-  ~WootzReplaceAdFunction() override {}
   ResponseAction Run() override;
 };
 
