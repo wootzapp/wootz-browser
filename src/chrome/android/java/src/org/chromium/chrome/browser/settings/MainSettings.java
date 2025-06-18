@@ -23,6 +23,10 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment;
 import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment.AutofillOptionsReferrer;
 import org.chromium.chrome.browser.autofill.settings.SettingsLauncherHelper;
+import android.content.SharedPreferences;
+import android.text.TextUtils;
+import android.util.Log;
+import org.chromium.base.ContextUtils;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.homepage.HomepageManager;
@@ -99,6 +103,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
     public static final String PREF_AUTOFILL_PAYMENTS = "autofill_payment_methods";
     public static final String PREF_PLUS_ADDRESSES = "plus_addresses";
     public static final String PREF_SAFETY_HUB = "safety_hub";
+    public static final String PREF_ABOUT_CHROME = "about_chrome";
 
     private final Map<String, Preference> mAllPreferences = new HashMap<>();
 
@@ -296,6 +301,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
         updateSearchEnginePreference();
         updateAutofillPreferences();
         updatePlusAddressesPreference();
+        updateAboutPreference();
 
         if (ChromeFeatureList.isEnabled(ChromeFeatureList.TAB_GROUP_SYNC_ANDROID)) {
             addPreferenceIfAbsent(PREF_TABS);
@@ -471,6 +477,25 @@ public class MainSettings extends ChromeBaseSettingsFragment
                     });
         } else {
             removePreferenceIfPresent(PREF_PLUS_ADDRESSES);
+        }
+    }
+
+    private void updateAboutPreference() {
+        Preference aboutPreference = findPreference(PREF_ABOUT_CHROME);
+        if (aboutPreference != null) {
+            // Get the custom app name or default to "WootzApp"
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !"Browser".equals(appName);
+            
+            if (hasCustomBranding) {
+                // Create dynamic title: "About [AppName]"
+                String dynamicTitle = getString(R.string.prefs_about_wootzapp)
+                        .replace("WootzApp", appName);
+                aboutPreference.setTitle(dynamicTitle);
+            } else {
+                // Use original title
+                aboutPreference.setTitle(R.string.prefs_about_wootzapp);
+            }
         }
     }
 

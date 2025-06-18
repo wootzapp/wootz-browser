@@ -10,6 +10,7 @@ found in the LICENSE file.
 
     <!-- Text describing Safety check. -->
     <org.chromium.components.browser_ui.settings.TextMessagePreference
+        android:key="safety_check_description"
         android:title="@string/safety_check_description"
         app:allowDividerBelow="false" />
 

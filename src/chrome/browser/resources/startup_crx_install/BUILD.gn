@@ -9,6 +9,7 @@ build_webui("build") {
     "startup_crx_install.html", 
     "startup_crx_install.css", 
     "startup_crx_install.js", 
+    "Wootzapp.png",
     "ic_launcher_artifact.png",
     "ic_launcher_eclipse.png",
     "ic_launcher_blockmesh.png",

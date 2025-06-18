@@ -3,17 +3,22 @@
  */
 
 let utmSource = '';
+let campaign = '';
 class BrowserBridge {
   /** @private */
   
   constructor() {
     /** @private {string} */
     this.utmSource_ = '';
+    /** @private {string} */
+    this.campaign_ = '';
 
     /** @private {Object<string, Object>} */
     this.installedExtensions_ = {};
 
     // Set up message handlers first before making any calls
+    // get the campaign value from the browserBridge
+    this.getCampaign();
     this.getUtmSource();
     this.setupMessageHandlers_();
 
@@ -43,6 +48,7 @@ class BrowserBridge {
 
     // Handler for UTM source data from C++
     let isUtmSourceSet = false;
+    let isCampaignSet = false;
     window.handleUtmSource = (utmSource) => {
       console.log('handleUtmSource',typeof utmSource);
       console.log('Received UTM source from C++:', utmSource);
@@ -50,12 +56,11 @@ class BrowserBridge {
       console.log('this.utmSource_',this.utmSource_);
       if(this.utmSource_ !== '' && !isUtmSourceSet) {
         console.log('Setting up UI');
-        utmSource = this.utmSource_;
-        setupUI(utmSource);
+        utmSource = this.utmSource_;    
+        setupUI(utmSource,campaign);
         isUtmSourceSet = true;
       }
-    };
-
+    };      
     // Handler for installed extensions data from C++
     window.handleInstalledExtensionsData = (installedExtensionsData) => {
       console.log('Received installed extensions data from C++:', 
@@ -84,6 +89,15 @@ class BrowserBridge {
       if (this.utmSource_ !== '') {
         checkAndHandleInstalledExtension(this.utmSource_, this.installedExtensions_);
       }
+    };
+
+    // Handler for campaign data from C++
+    window.handleCampaign = (campaignValue) => {
+      console.log('handleCampaign', typeof campaignValue);
+      console.log('Received campaign from C++:', campaignValue);
+      this.campaign_ = campaignValue || '';
+      campaign = this.campaign_;
+      // You can add any UI update logic here if needed
     };
 
     // Add error handler
@@ -123,6 +137,23 @@ class BrowserBridge {
    */
   getInstalledExtensions() {
     return this.installedExtensions_ || {};
+  }
+
+  /**
+   * Gets the current campaign value.
+   * @return {string}
+   */
+  getCampaignValue() {
+    console.log('Getting campaign value:', this.campaign_);
+    return this.campaign_;
+  }
+
+  /**
+   * Fetches the campaign from the browser.
+   */
+  getCampaign() {
+    console.log('Requesting campaign from browser');
+    return this.sendWithLogging_('getCampaign', []);
   }
 
   /**
@@ -189,7 +220,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function DownloadExtension(utmParam) {
+  // fetch the extension.crx file from the url
   let downloadUrl;
+  // print the value in campaign in lowercase
   console.log('DownloadExtension', utmParam);
   if(utmParam !== '') {
     switch(utmParam.toLowerCase()) {
@@ -234,7 +267,7 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
     'eclipse': 'gpfellaldmjpgonllcjpjfpodfmgobnk',    
     'blockmesh': 'kpobgdhknoakgagflffeigaojlglkbhn', 
     'camp': 'amjlbcejmaebkjfmeenkcijgpjpieepc',
-    'sapien': 'nofldplihhlkcpbejlmccfafcpeejaef'    
+    'sapien': 'nofldplihhlkcpbejlmccfafcpeejaef',
   };
   
   const extensionId = utmToExtensionId[utmParam.toLowerCase()];
@@ -249,7 +282,7 @@ function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
   }
 }
 
-function setupUI(utmSource) {
+async function setupUI(utmSource,campaign) {
     // Create splash container
     const splashContainer = document.createElement('div');
     splashContainer.className = 'splash-container';
@@ -262,10 +295,19 @@ function setupUI(utmSource) {
     appLogo.id = 'app-logo';
 
     const appTitle = document.createElement('div');
-    appTitle.id = 'app-title';
+    appTitle.id = 'app-title';    
 
+    if(!campaign.empty && (campaign.toLowerCase()=='wootzapp_ext' || campaign.toLowerCase() === 'wootzapp_ext')) {
+      const wootzappImg = document.createElement('img');
+        wootzappImg.src = 'Wootzapp.png';
+        wootzappImg.style.width = '100%';
+        wootzappImg.style.height = '100%';
+        wootzappImg.style.objectFit = 'contain';
+        appLogo.appendChild(wootzappImg);
+        appTitle.textContent = "Wootzapp";
+    }
     // Set logo and title based on UTM source
-    if (utmSource !== '') {
+   else if (utmSource !== '') {
         switch (utmSource.toLowerCase()) {
             case "artifact":
                 const artifactImg = document.createElement('img');
@@ -312,12 +354,20 @@ function setupUI(utmSource) {
                 appLogo.appendChild(sapienImg);
                 appTitle.textContent = "Sapien";
                 break;
+            case "wootzapp":
+                const wootzappImg = document.createElement('img');
+                wootzappImg.src = 'Wootzapp.png';
+                wootzappImg.style.width = '100%';
+                wootzappImg.style.height = '100%';
+                wootzappImg.style.objectFit = 'contain';
+                appLogo.appendChild(wootzappImg);
+                appTitle.textContent = "Wootzapp";
+                break;
             default:
                 appTitle.textContent = "Browser Extension";
                 break;
         }
-    }
-
+    }  
     logoContainer.appendChild(appLogo);
     logoContainer.appendChild(appTitle);
 
@@ -339,7 +389,6 @@ function setupUI(utmSource) {
 
     loadingContainer.appendChild(progressBar);
     loadingContainer.appendChild(progressText);
-
     // Create continue button
     const continueBtn = document.createElement('button');
     continueBtn.className = 'continue-btn';
@@ -383,7 +432,7 @@ function setupUI(utmSource) {
     splashContainer.appendChild(logoContainer);
     splashContainer.appendChild(loadingContainer);
     splashContainer.appendChild(continueBtn);
-    splashContainer.appendChild(poweredBy);
+    // splashContainer.appendChild(poweredBy);
 
     // Clear existing body content and add new elements
     while (document.body.firstChild) {

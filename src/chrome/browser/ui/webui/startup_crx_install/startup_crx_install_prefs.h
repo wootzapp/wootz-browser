@@ -10,6 +10,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
 // Preference name constants
 extern const char kUtmSourcePref[];
+extern const char kCampaignPref[];
 
 }  // namespace startup_crx_install
 

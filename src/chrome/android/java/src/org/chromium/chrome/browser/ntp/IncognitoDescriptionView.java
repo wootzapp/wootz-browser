@@ -37,6 +37,9 @@ import org.chromium.ui.text.NoUnderlineClickableSpan;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.text.SpanApplier.SpanInfo;
 import org.chromium.ui.widget.ChromeBulletSpan;
+import org.chromium.base.ContextUtils;
+// import log
+import android.util.Log;
 
 /** The view to describle incognito mode. */
 public class IncognitoDescriptionView extends LinearLayout {
@@ -95,8 +98,13 @@ public class IncognitoDescriptionView extends LinearLayout {
         mWidthDp = getContext().getResources().getConfiguration().screenWidthDp;
         mHeightDp = getContext().getResources().getConfiguration().screenHeightDp;
 
-        populateBulletpoints(R.id.new_tab_incognito_features, R.string.new_tab_otr_not_saved);
+        populateBulletpointsDynamic(R.id.new_tab_incognito_features, R.string.new_tab_otr_not_saved);
         populateBulletpoints(R.id.new_tab_incognito_warning, R.string.new_tab_otr_visible);
+        setTextWithAppNameReplacement(
+            R.id.tracking_protection_card,
+            R.id.tracking_protection_description_one,
+            R.string.new_tab_otr_third_party_blocked_cookie_part_one
+        );
 
         mContainer = findViewById(R.id.new_tab_incognito_container);
         mHeader = findViewById(R.id.new_tab_incognito_title);
@@ -173,6 +181,45 @@ public class IncognitoDescriptionView extends LinearLayout {
         SpannableString spannedText = getSpannedBulletText(getContext(), content);
         view.setText(spannedText);
     }
+    
+    public void setTextWithAppNameReplacement(@IdRes int parentId, @IdRes int elementId, @StringRes int content) {
+        View parent = findViewById(parentId);
+        // log the parent
+        Log.d("IncognitoDescriptionView", "Parent: ");
+        if (parent == null) return; // Parent not found
+        Log.d("IncognitoDescriptionView", "Parent found");
+        TextView view = parent.findViewById(elementId);
+        if (view == null) {
+            Log.d("IncognitoDescriptionView", "Child not found");
+            return; // Child not found
+        }
+    
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        String text = getContext().getString(content);
+        if (text.contains("WootzApp")) {
+            text = text.replace("WootzApp", appName);
+        }
+        view.setText(text);
+    }
+
+    private void populateBulletpointsDynamic(@IdRes int element, @StringRes int content) {
+        TextView view = (TextView) findViewById(element);
+        
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        
+        SpannableString spannedText;
+        if (hasCustomBranding) {
+            String originalText = getContext().getResources().getString(content);
+            String dynamicText = originalText.replace("WootzApp", appName);
+            
+            spannedText = getSpannedBulletTextDynamic(getContext(), dynamicText);
+        } else {
+            spannedText = getSpannedBulletText(getContext(), content);
+        }
+        
+        view.setText(spannedText);
+    }
 
     @NonNull
     static SpannableString getSpannedBulletText(Context context, @StringRes int content) {
@@ -203,6 +250,44 @@ public class IncognitoDescriptionView extends LinearLayout {
         assert text.contains("<li1>") : error;
         assert text.contains("<li2>") : error;
         assert text.contains("<li3>") : error;
+
+        // Remove the <ul></ul> tags which serve no purpose here, including the whitespace around
+        // them.
+        text = text.replaceAll(" *</?ul>\\n?", "");
+
+        SpannableString spannedText =
+                SpanApplier.applySpans(
+                        text,
+                        new SpanInfo(
+                                "<em>",
+                                "</em>",
+                                new ForegroundColorSpan(
+                                        context.getColor(R.color.incognito_emphasis))),
+                        new SpanInfo("<li1>", "</li1>", new ChromeBulletSpan(context)),
+                        new SpanInfo("<li2>", "</li2>", new ChromeBulletSpan(context)),
+                        new SpanInfo("<li3>", "</li3>", new ChromeBulletSpan(context)));
+        return spannedText;
+    }
+
+    @NonNull
+    static SpannableString getSpannedBulletTextDynamic(Context context, String text) {
+        // Some translations don't have a line break between list entries.
+        text = text.replaceAll("([^\n ]) *(<li>|</?ul>)", "$1\n$2");
+
+        // TODO(msramek): Unfortunately, our strings are missing the closing "</li>" tag, which
+        // is not a problem when they're used in the Desktop WebUI (omitting the tag is valid in
+        // HTML5), but it is a problem for SpanApplier. Update the strings and remove this regex.
+        // Note that modifying the strings is a non-trivial operation as they went through a special
+        // translation process.
+        text = text.replaceAll("<li>([^<]+)\n", "<li>$1</li>\n");
+
+        // Format the bulletpoints:
+        //   - Disambiguate the <li></li> spans for SpanApplier.
+        //   - Remove leading whitespace (caused by formatting in the .grdp file)
+        //   - Remove the trailing newline after the last bulletpoint.
+        text = text.replaceFirst(" *<li>([^<]*)</li>", "<li1>$1</li1>");
+        text = text.replaceFirst(" *<li>([^<]*)</li>", "<li2>$1</li2>");
+        text = text.replaceFirst(" *<li>([^<]*)</li>\n", "<li3>$1</li3>");
 
         // Remove the <ul></ul> tags which serve no purpose here, including the whitespace around
         // them.
