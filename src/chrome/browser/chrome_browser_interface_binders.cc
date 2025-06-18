@@ -91,6 +91,9 @@
 #include "components/site_engagement/core/mojom/site_engagement_details.mojom.h"
 #include "components/translate/content/common/translate.mojom.h"
 #include "components/user_notes/user_notes_features.h"
+#include "components/wootz_wallet/browser/wootz_wallet_service.h"
+#include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -868,6 +871,16 @@ void BindVisualSuggestionsModelProvider(
 }
 #endif
 
+void BindWootzWalletService(
+    content::RenderFrameHost* frame_host,
+    mojo::PendingReceiver<wootz_wallet::mojom::WootzWalletService> receiver) {
+  auto* context = frame_host->GetProcess()->GetBrowserContext();
+  auto* service = wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(context);
+  if (service) {
+    service->Bind(std::move(receiver));
+  }
+}
+
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 // A helper class to register ChromeOS Apps API binders. This includes the logic
 // that checks that the feature is allowed on Profile before registering a
@@ -948,6 +961,9 @@ void PopulateChromeFrameBinders(
 
   map->Add<blink::mojom::NoStatePrefetchProcessor>(
       base::BindRepeating(&BindNoStatePrefetchProcessor));
+
+  map->Add<wootz_wallet::mojom::WootzWalletService>(
+      base::BindRepeating(&BindWootzWalletService));
 
   if (performance_manager::PerformanceManager::IsAvailable()) {
     map->Add<performance_manager::mojom::DocumentCoordinationUnit>(

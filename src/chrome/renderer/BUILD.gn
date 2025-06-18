@@ -151,6 +151,8 @@ static_library("renderer") {
     "//chrome/common/search:mojo_bindings",
     "//components/wootz_wallet/common",
     "//components/wootz_wallet/renderer",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/renderer",
     "//chrome/renderer/companion/visual_query",
     "//chrome/services/speech/buildflags",
     "//components/action_url/content/renderer",

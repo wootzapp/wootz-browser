@@ -1919,53 +1919,58 @@ ExtensionFunction::ResponseAction TabsReloadFunction::Run() {
       tabs::Reload::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  // bool bypass_cache = false;
-  // if (params->reload_properties && params->reload_properties->bypass_cache) {
-  //   bypass_cache = *params->reload_properties->bypass_cache;
-  // }
+  bool bypass_cache = false;
+  if (params->reload_properties && params->reload_properties->bypass_cache) {
+    bypass_cache = *params->reload_properties->bypass_cache;
+  }
 
-  // // If |tab_id| is specified, look for it. Otherwise default to selected tab
-  // // in the current window.
+  // If |tab_id| is specified, look for it. Otherwise default to selected tab
+  // in the current window.
+  Browser* browser = nullptr;
+  content::WebContents* web_contents = nullptr;
+  
+  if (!params->tab_id) {
+    // Get the current browser for the default tab
+    Browser* current_browser =
+        ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
 
-  // Browser* browser = nullptr;
-  // content::WebContents* web_contents = nullptr;
-  // if (!params->tab_id) {
-  //   Browser* current_browser =
-  //       ChromeExtensionFunctionDetails(this).GetCurrentBrowser();
+    if (!current_browser)
+      return RespondNow(Error(tabs_constants::kNoCurrentWindowError));
 
-  //   if (!current_browser)
-  //     return RespondNow(Error(tabs_constants::kNoCurrentWindowError));
+    if (!ExtensionTabUtil::GetDefaultTab(current_browser, &web_contents,
+                                         nullptr))
+      return RespondNow(Error("Could not get default tab"));
 
-  //   if (!ExtensionTabUtil::GetDefaultTab(current_browser, &web_contents,
-  //                                        nullptr))
-  //     return RespondNow(Error(kUnknownErrorDoNotUse));
+    browser = current_browser;
+  } else {
+    int tab_id = *params->tab_id;
 
-  //   browser = current_browser;
-  // } else {
-  //   int tab_id = *params->tab_id;
+    std::string error;
+    if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
+                    &browser, nullptr, &web_contents, nullptr, &error)) {
+      return RespondNow(Error(std::move(error)));
+    }
+  }
 
-  //   std::string error;
-  //   if (!GetTabById(tab_id, browser_context(), include_incognito_information(),
-  //                   &browser, nullptr, &web_contents, nullptr, &error)) {
-  //     return RespondNow(Error(std::move(error)));
-  //   }
-  // }
+  if (!web_contents) {
+    return RespondNow(Error("No web contents found"));
+  }
 
-  // // Prevent Reloading if the tab is in a savedTabGroup.
-  // if (web_contents &&
-  //     ExtensionTabUtil::TabIsInSavedTabGroup(web_contents,
-  //                                            browser->tab_strip_model()) &&
-  //     !ExtensionHasLockedFullscreenPermission(extension())) {
-  //   return RespondNow(Error(tabs_constants::kSavedTabGroupNotEditableError));
-  // }
+  // Check if the tab is in a saved tab group and prevent reloading if so
+  if (browser && browser->tab_strip_model() && 
+      ExtensionTabUtil::TabIsInSavedTabGroup(web_contents,
+                                             browser->tab_strip_model()) &&
+      !ExtensionHasLockedFullscreenPermission(extension())) {
+    return RespondNow(Error(tabs_constants::kSavedTabGroupNotEditableError));
+  }
 
-  // web_contents->GetController().Reload(
-  //     bypass_cache ? content::ReloadType::BYPASSING_CACHE
-  //                  : content::ReloadType::NORMAL,
-  //     true);
+  // Perform the actual reload
+  web_contents->GetController().Reload(
+      bypass_cache ? content::ReloadType::BYPASSING_CACHE
+                   : content::ReloadType::NORMAL,
+      true);
 
-  // return RespondNow(NoArguments());
-  return RespondNow(Error(std::move("not implemented")));
+  return RespondNow(NoArguments());
 }
 
 TabsRemoveFunction::TabsRemoveFunction() = default;

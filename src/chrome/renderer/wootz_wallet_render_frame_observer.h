@@ -9,15 +9,14 @@
 #include <optional>
 
 #include "chrome/common/wootz_renderer_configuration.mojom.h"
-#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
-#include "components/wootz_wallet/renderer/js_ethereum_provider.h"
-#include "components/wootz_wallet/renderer/js_solana_provider.h"
 #include "chrome/renderer/wootz_wallet_render_frame_observer_p3a_util.h"
+#include "components/wootz_wallet/common/wootz_wallet.mojom.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_frame_observer.h"
 #include "third_party/blink/public/web/web_navigation_type.h"
 #include "url/gurl.h"
 #include "v8/include/v8.h"
+#include "chrome/renderer/wootz_wallet_render_frame_observer_p3a_util.h"
 
 namespace wootz_wallet {
 

@@ -11,6 +11,11 @@ namespace zk_proof {
 
 // Struct to hold TLS data for a navigation
 struct TlsData {
+  TlsData();
+  TlsData(const TlsData& other);
+  TlsData& operator=(const TlsData& other);
+  ~TlsData();
+  
   std::vector<uint8_t> cert_hash;
   std::string headers_json;
   std::string url;
@@ -31,8 +36,8 @@ class TlsDataStore {
 
  private:
   friend struct base::DefaultSingletonTraits<TlsDataStore>;
-  TlsDataStore() = default;
-  ~TlsDataStore() = default;
+  TlsDataStore();
+  ~TlsDataStore();
 
   std::mutex data_mutex_;
   std::map<std::string, TlsData> tls_data_by_url_;

@@ -618,6 +618,9 @@ void WootzIsLockedFunction::OnIsLocked(bool is_locked) {
   Respond(ArgumentList(std::move(result_list)));
 }
 
+WootzGetAllAccountsFunction::WootzGetAllAccountsFunction() = default;
+
+WootzGetAllAccountsFunction::~WootzGetAllAccountsFunction() = default;
 
 ExtensionFunction::ResponseAction WootzGetAllAccountsFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());

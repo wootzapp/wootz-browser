@@ -94,4 +94,8 @@ std::optional<url::Origin> WootzWalletServiceDelegateImpl::GetActiveOrigin() {
   return origin;
 }
 
+content::BrowserContext* WootzWalletServiceDelegateImpl::GetBrowserContext() {
+  return context_;
+}
+
 }  // namespace wootz_wallet

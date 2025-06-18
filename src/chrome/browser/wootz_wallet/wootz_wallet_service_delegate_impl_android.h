@@ -44,6 +44,9 @@ class WootzWalletServiceDelegateImpl : public WootzWalletServiceDelegateBase {
                               ResetWebSitePermissionCallback callback) override;
   std::optional<url::Origin> GetActiveOrigin() override;
 
+  // WootzWalletServiceDelegate implementation
+  content::BrowserContext* GetBrowserContext();
+
  private:
   base::ObserverList<WootzWalletServiceDelegate::Observer> observer_list_;
 

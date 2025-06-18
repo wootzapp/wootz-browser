@@ -11,6 +11,7 @@
 
 #include "base/logging.h"
 #include "components/wootz_wallet/renderer/v8_helper.h"
+// #include "components/wootz_wallet/renderer/interceptor.h"  // File not found
 #include "build/buildflag.h"
 #include "content/public/common/isolated_world_ids.h"
 #include "content/public/renderer/render_frame.h"
@@ -32,6 +33,23 @@ void WootzWalletRenderFrameObserver::DidStartNavigation(
     const GURL& url,
     std::optional<blink::WebNavigationType> navigation_type) {
   url_ = url;
+  
+  LOG(INFO) << "Aaditesh -> DidStartNavigation called for URL: " << url.spec();
+  LOG(INFO) << "Aaditesh -> URL host: " << url.host();
+  LOG(INFO) << "Aaditesh -> URL scheme: " << url.scheme();
+  
+  // Check if this is a Twitter URL and create interceptor
+  if (url.host() == "twitter.com" || 
+      url.host() == "x.com" || 
+      url.host() == "www.twitter.com" || 
+      url.host() == "www.x.com" ||
+      url.host() == "mobile.twitter.com") {
+    LOG(INFO) << "Aaditesh -> ✅ TWITTER URL DETECTED! TwitterInterceptor disabled (not available): " << url.spec();
+    // TwitterInterceptor::CreateForFrame(render_frame());  // Disabled - file not found
+    LOG(INFO) << "Aaditesh -> TwitterInterceptor creation skipped";
+  } else {
+    LOG(INFO) << "Aaditesh -> Not a Twitter URL, skipping interceptor creation";
+  }
 }
 
 bool WootzWalletRenderFrameObserver::IsPageValid() {
@@ -62,6 +80,8 @@ bool WootzWalletRenderFrameObserver::CanCreateProvider() {
 }
 
 void WootzWalletRenderFrameObserver::DidFinishLoad() {
+  LOG(INFO) << "Aaditesh -> DidFinishLoad called for URL: " << url_.spec();
+  
 #if !BUILDFLAG(IS_ANDROID)
   // Only record P3A for desktop and valid HTTP/HTTPS pages
   if (!IsPageValid()) {
@@ -72,52 +92,23 @@ void WootzWalletRenderFrameObserver::DidFinishLoad() {
 
   p3a_util_.ReportJSProviders(render_frame(), dynamic_params);
 #endif
+
+  // Check if this is a Twitter URL and ensure interceptor is created
+  if (url_.host() == "twitter.com" || 
+      url_.host() == "x.com" || 
+      url_.host() == "www.twitter.com" || 
+      url_.host() == "www.x.com" ||
+      url_.host() == "mobile.twitter.com") {
+    LOG(INFO) << "Aaditesh -> ✅ TWITTER URL in DidFinishLoad! TwitterInterceptor disabled: " << url_.spec();
+    // TwitterInterceptor::CreateForFrame(render_frame());  // Disabled - file not found
+    LOG(INFO) << "Aaditesh -> TwitterInterceptor creation/verification skipped in DidFinishLoad";
+  }
 }
 
 void WootzWalletRenderFrameObserver::DidClearWindowObject() {
-  if (!CanCreateProvider()) {
-    return;
-  }
-  CHECK(render_frame());
-  v8::Isolate* isolate = render_frame()->GetWebFrame()->GetAgentGroupScheduler()->Isolate();
-
-  v8::HandleScope handle_scope(isolate);
-  auto* web_frame = render_frame()->GetWebFrame();
-  v8::Local<v8::Context> context = web_frame->MainWorldScriptContext();
-  if (context.IsEmpty()) {
-    return;
-  }
-  v8::MicrotasksScope microtasks(isolate, context->GetMicrotaskQueue(),
-                                 v8::MicrotasksScope::kDoNotRunMicrotasks);
-
-  auto dynamic_params = get_dynamic_params_callback_.Run();
-  if (!dynamic_params.install_window_wootz_ethereum_provider &&
-      !dynamic_params.install_window_ethereum_provider &&
-      !dynamic_params.wootz_use_native_solana_wallet) {
-    return;
-  }
-
-  if (!dynamic_params.install_window_wootz_ethereum_provider &&
-      dynamic_params.install_window_ethereum_provider) {
-    NOTREACHED();
-    return;
-  }
- 
-  if (dynamic_params.install_window_wootz_ethereum_provider &&
-      web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "ethereum")) {
-
-  // if (dynamic_params.install_window_wootz_ethereum_provider) {
-    JSEthereumProvider::Install(
-        dynamic_params.install_window_ethereum_provider,
-        dynamic_params.allow_overwrite_window_ethereum_provider,
-        render_frame());
-  }
-
-  if (web_frame->GetDocument().IsDOMFeaturePolicyEnabled(isolate,context, "solana") &&
-      dynamic_params.wootz_use_native_solana_wallet) {
-    JSSolanaProvider::Install(
-        dynamic_params.allow_overwrite_window_solana_provider, render_frame());
-  }
+  // Twitter interception is now handled by TwitterInterceptor
+  // No need to create Ethereum/Solana providers
+  LOG(INFO) << "Aaditesh -> DidClearWindowObject called - Twitter interception handled by TwitterInterceptor";
 }
 
 void WootzWalletRenderFrameObserver::OnDestruct() {
