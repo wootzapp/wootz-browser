@@ -476,6 +476,9 @@ StartupProfileInfo CreateInitialProfile(
 
   StartupProfileInfo profile_info;
 #if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_ANDROID)
+// force AdBlock updater initialisation
+  g_browser_process->adblock_updater();
+  LOG(INFO) << "AdBlock: Initializing AdBlock updater from chrome_browser_main.cc";
   profile_info = {ProfileManager::CreateInitialProfile(),
                   StartupProfileMode::kBrowserWindow};
 

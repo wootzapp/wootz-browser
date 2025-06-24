@@ -87,14 +87,25 @@ class WebDocumentSubresourceFilterImpl final
     return weak_ptr_factory_.GetWeakPtr();
   }
 
+  // Callback for notifying when a resource is blocked
+  using BlockedResourceCallback = base::RepeatingCallback<void(const GURL&)>;
+  
+  void SetBlockedResourceCallback(BlockedResourceCallback callback) {
+    blocked_resource_callback_ = std::move(callback);
+  }
+
  private:
   LoadPolicy getLoadPolicyImpl(
       const blink::WebURL& url,
       url_pattern_index::proto::ElementType element_type);
 
+  // Callback handler for blocked resources
+  void OnResourceBlocked(const GURL& url);
+
   mojom::ActivationState activation_state_;
   DocumentSubresourceFilter filter_;
   base::OnceClosure first_disallowed_load_callback_;
+  BlockedResourceCallback blocked_resource_callback_;
   base::WeakPtrFactory<WebDocumentSubresourceFilterImpl> weak_ptr_factory_{
       this};
 };

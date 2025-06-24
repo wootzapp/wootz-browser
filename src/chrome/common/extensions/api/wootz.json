@@ -633,7 +633,19 @@
                 "tx_hash": { "type": "string" },
                 "chainId": { "type": "string" },
                 "coinType": { "type": "integer" },
-                "origin": { "type": "string" }
+                "origin": { "type": "string" },
+                "transaction_amount": { "type": "string" },
+                "feeEstimation": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "baseFee": { "type": "number" },
+                      "computeUnits": { "type": "number" },
+                      "feePerComputeUnit": { "type": "number" }
+                    }
+                  }
+                }
               }
             }
           ]

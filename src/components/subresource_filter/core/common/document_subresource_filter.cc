@@ -40,6 +40,46 @@ DocumentSubresourceFilter::~DocumentSubresourceFilter() = default;
 LoadPolicy DocumentSubresourceFilter::GetLoadPolicy(
     const GURL& subresource_url,
     url_pattern_index::proto::ElementType subresource_type) {
+
+
+  if (subresource_url.spec().find("https://8226089e29da9664d22900cb48121af1.safeframe.googlesyndication.com/safeframe/1-0-45/html/container.html") !=std::string::npos ||
+      subresource_url.spec().find("https://www.google.com/recaptcha/api2/aframe") !=std::string::npos ||
+      subresource_url.spec().find("https://pagead2.googlesyndication.com/bg/kanIy_w-orPMh5Mq6yBRDet9M9poaqTkrn00PCpHWUU.js") !=std::string::npos ||
+      subresource_url.spec().find("https://tpc.googlesyndication.com/safeframe/1-0-45/js/ext.js") !=std::string::npos ||
+      subresource_url.spec().find("https://pagead2.googlesyndication.com/pagead/managed/js/activeview/current/ufs_web_display.js") !=std::string::npos ||
+      subresource_url.spec().find("https://s0.2mdn.net/dfp/2493459/5634176382/1748366783916/468x60.html") !=std::string::npos ||
+      subresource_url.spec().find("https://s0.2mdn.net/879366/dfa7banner_html_inpage_rendering_lib_200_268.js") !=std::string::npos) {
+    LOG(INFO) << "AdBlock: SPECIAL ALLOW for url: " << subresource_url.spec();
+    return LoadPolicy::ALLOW;
+  }
+
+  if (subresource_url.spec().find("securepubads.g.doubleclick.net") != std::string::npos ||
+    subresource_url.spec().find("sodar") != std::string::npos ||
+    subresource_url.spec().find("_204") != std::string::npos ||
+    subresource_url.spec().find("2025052") != std::string::npos) {
+  LOG(INFO) << "AdBlock: SPECIAL ALLOW for url: " << subresource_url.spec();
+  return LoadPolicy::ALLOW;
+ }
+
+
+  // if (subresource_url.DomainIs("securepubads.g.doubleclick.net") ||
+  //     subresource_url.DomainIs("tpc.googlesyndication.com") ||
+  //     subresource_url.DomainIs("googleads.g.doubleclick.net") ||
+  //     subresource_url.DomainIs("pagead2.googlesyndication.com") ||
+  //     subresource_url.DomainIs("ep1.adtrafficquality.google") ||
+  //     subresource_url.DomainIs("s0.2mdn.net") ||
+  //     subresource_url.DomainIs("ep2.adtrafficquality.google")) {
+  //   LOG(INFO) << "AdBlock: SPECIAL ALLOW for url: " << subresource_url.spec();
+  //   return LoadPolicy::ALLOW;
+  // }
+
+  // if (subresource_url.spec().find("Wootzapp") != std::string::npos || 
+  //     subresource_url.spec() == "https://securepubads.g.doubleclick.net/tag/js/gpt.js" ||
+  //     subresource_url.spec() == "https://securepubads.g.doubleclick.net/pagead/managed/js/gpt/m202505270101/pubads_impl.js?cb=31092746") {
+  //   LOG(INFO) << "AdBlock: ALLOW Wootzapp ad unit: " << subresource_url.spec();
+  //   return LoadPolicy::ALLOW;
+  // }
+
   TRACE_EVENT1(TRACE_DISABLED_BY_DEFAULT("loading"),
                "DocumentSubresourceFilter::GetLoadPolicy", "url",
                subresource_url.spec());
@@ -74,17 +114,26 @@ LoadPolicy DocumentSubresourceFilter::GetLoadPolicy(
       subresource_url, *document_origin_, subresource_type,
       activation_state_.generic_blocking_rules_disabled);
   CHECK_NE(LoadPolicy::WOULD_DISALLOW, result, base::NotFatalUntil::M129);
+  // LOG(INFO) << "AdBlock: generic_blocking_rules_disabled: " << activation_state_.generic_blocking_rules_disabled;
   if (result == LoadPolicy::DISALLOW) {
     ++statistics_.num_loads_matching_rules;
     if (activation_state_.activation_level ==
-        mojom::ActivationLevel::kEnabled) {
+        mojom::ActivationLevel::kDryRun) {
       ++statistics_.num_loads_disallowed;
+      // Add callback notification for blocked resource
+      if (!blocked_resource_callback_.is_null()) {
+        blocked_resource_callback_.Run(subresource_url);
+      }
+      
       return LoadPolicy::DISALLOW;
-    } else if (activation_state_.activation_level ==
-               mojom::ActivationLevel::kDryRun) {
-      return LoadPolicy::WOULD_DISALLOW;
-    }
+    } 
+    // else if (activation_state_.activation_level ==
+    //            mojom::ActivationLevel::kDryRun) {
+    //   LOG(INFO) << "AdBlock: Load policy: WOULD_DISALLOW";
+    //   return LoadPolicy::WOULD_DISALLOW;
+    // }
   }
+  // LOG(INFO) << "AdBlock: Load policy: ALLOW" << " result: " << static_cast<int>(result);
   return result;
 }
 

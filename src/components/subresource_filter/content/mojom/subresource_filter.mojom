@@ -22,6 +22,14 @@ interface SubresourceFilterAgent {
   // mojom::ActivationLevel::kDisabled and unchanged ad evidence.
   ActivateForNextCommittedLoad(ActivationState activation_state,
                                blink.mojom.FrameAdEvidence? ad_evidence);
+
+  // Sets the global ad configuration for this frame.
+  SetReplacementEnabled(bool enabled, 
+                        string ad_unit_path,
+                        string id_prefix,
+                        string script_url,
+                        string sizes_json,
+                        array<string> selectors);
 };
 
 // The browser host object that manages subresource filtering for a conceptual

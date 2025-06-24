@@ -79,31 +79,34 @@ void ActionBlockCreator::CreateBlocks() {
   // Check if it's a Twitter/blink tag
   bool isTwitterBlink = (action_spec_.tag == "blink" || action_spec_.tag == "registered");
   
-  // Start with basic container, adding Twitter-specific class if needed
+  // Enhanced container with improved styling and fixed width
   String containerClasses = isTwitterBlink 
       ? "action-block-div blink x-dark" 
       : "action-block-div blink dial-light";
   
-  data_ = (R"HTML(<div class=")HTML") + containerClasses + (R"HTML(">
-          <div class="w-full max-w-md">
-						<div class="w-full max-w-md">
-							<div class="blink dial-light">
-								<div style="border: 1px solid #35aeff;
-                  box-shadow: 0 0 4px rgba(53, 174, 255, 0.3), 0 2px 8px rgba(53, 174, 255, 0.2);
-                  background-color:rgb(245, 245, 245);
+  data_ = (R"HTML(<div class=")HTML") + containerClasses + (R"HTML(" style="width: 100%; max-width: 500px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+          <div style="width: 100%;">
+            <div style="width: 100%;">
+              <div class="blink dial-light">
+                <div style="border: 1px solid #1d9bf0;
+                  border-radius: 16px;
+                  box-shadow: 0 5px 15px rgba(29, 155, 240, 0.15), 0 2px 8px rgba(29, 155, 240, 0.1);
+                  background-color: #f5f5f5;
+                  overflow: hidden;
+                  width: 100%;
                   " class="border-stroke-primary bg-bg-primary shadow-action w-full cursor-default overflow-hidden rounded-2xl border">)HTML")
   + CreateIconDiv() + CreateLowerLayout() +
   (R"HTML(      </div>
-						  </div>
-						</div>
-					</div>
-        </div>)HTML");
+            </div>
+          </div>
+        </div>
+      </div>)HTML");
 }
 
 String ActionBlockCreator::CreateIconDiv() {
-  // error handling for image loading
-  String icon_div = (R"HTML(<div style="padding: 1rem;" onclick="window.location.href=')HTML") + blink_url_ + (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
+  String icon_div = (R"HTML(<div style="padding: 1rem; max-height: 300px; overflow: hidden;" onclick="window.location.href=')HTML") + blink_url_ + (R"HTML('" class="block max-h-[100cqw] overflow-y-hidden px-5 pt-5">
     <img class="aspect-auto w-full rounded-xl object-cover object-center" 
+         style="max-height: 240px; object-fit: cover; border-radius: 12px; width: 100%;"
          src=")HTML") + String(action_spec_.icon) + (R"HTML(" 
          alt="action-image"
          onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTUuMTI0IDJDMy4zNTYgMiAyIDMuNDU2IDIgNS4xMjRWMTAuODc2QzIgMTIuNjQ0IDMuNDU2IDE0IDUuMTI0IDE0SDEwLjg3NkMxMi42NDQgMTQgMTQgMTIuNTQ0IDE0IDEwLjg3NlY1LjEyNEMxNCAwIDAgMCAwIDBaIiBmaWxsPSIjOUE5QTlBIi8+PC9zdmc+Cg=='; this.classList.add('fallback-icon');">
@@ -112,7 +115,7 @@ String ActionBlockCreator::CreateIconDiv() {
 }
 
 String ActionBlockCreator::CreateLowerLayout() {
-  String lower_layout = (R"HTML(<div class="flex flex-col p-5 gap-4">)HTML") +
+  String lower_layout = (R"HTML(<div class="flex flex-col p-5 gap-4" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 16px;">)HTML") +
                         CreateSiteUrlWithIcon() +
                         CreateTitle()+
                         CreateDescription() +
@@ -147,7 +150,7 @@ String ActionBlockCreator::CreateSiteUrlWithIcon() {
 }
 
 String ActionBlockCreator::CreateTitle() {
-  String title = (R"HTML(<span class="text-text text-text-primary mb-1.5 break-words font-medium">)HTML") +
+  String title = (R"HTML(<span class="text-text text-text-primary mb-1.5 break-words font-medium" style="display: block; margin-bottom: 8px; font-size: 18px; font-weight: 600; color: #000000;">)HTML") +
                   ConvertUTF16String(action_spec_.title) +
                   (R"HTML(</span>)HTML");
   return title;
@@ -172,8 +175,8 @@ String ActionBlockCreator::DrawContentVector(std::vector<base::ActionSpecJson::F
 String ActionBlockCreator::CreateDescription() {
   String ending_tags[] = {String("</p>"),String("</ol>"),String("</ul>")};
   String description =
-      (R"HTML(<span class="text-subtext text-text-secondary mb-4 break-words">
-                <div>)HTML");
+      (R"HTML(<span class="text-subtext text-text-secondary mb-3 break-words" style="display: block; color: #536471; font-size: 15px; line-height: 1.3; margin: 0 0 8px 0;">
+                <div style="padding: 0;">)HTML");
   base::ActionSpecJson::ElementType current_tracking = base::ActionSpecJson::ElementType::BREAK;
   for(const auto& part : action_spec_.descriptionParts){
     if((current_tracking == base::ActionSpecJson::ElementType::ORDERED_LIST_ITEM ||
@@ -183,28 +186,26 @@ String ActionBlockCreator::CreateDescription() {
         description = description + ending_tags[int(current_tracking)];
     }
     if(part.type == base::ActionSpecJson::ElementType::HORIZONTAL_RULE) {
-      description = description + (R"HTML(<hr class="my-[0.5em]">)HTML");
+      description = description + (R"HTML(<hr class="my-[0.4em]">)HTML");
     }
     else if(part.type == base::ActionSpecJson::ElementType::HEADER) {
-      description = description + (R"HTML(<p class="mb-[0.35em] last:mb-0">)HTML")+DrawContentVector(part.content)+(R"HTML(</p>)HTML");
+      description = description + (R"HTML(<p class="mb-[0.2em] last:mb-0">)HTML")+DrawContentVector(part.content)+(R"HTML(</p>)HTML");
     }
     else if(part.type == base::ActionSpecJson::ElementType::UNORDERED_LIST_ITEM) {
       if(current_tracking != part.type) {  //First element of unordered list
-        description = description + (R"HTML(<ul class="list-inside list-disc [li>&amp;]:ps-4">)HTML");
-        // current_tracking_list_type = part.type;
+        description = description + (R"HTML(<ul class="list-inside list-disc [li>&amp;]:ps-3" style="margin: 4px 0;">)HTML");
       }
-      description = description + (R"HTML(<li>)HTML")+DrawContentVector(part.content)+(R"HTML(</li>)HTML");
+      description = description + (R"HTML(<li style="margin-bottom: 2px;">)HTML")+DrawContentVector(part.content)+(R"HTML(</li>)HTML");
     }
     else if(part.type == base::ActionSpecJson::ElementType::ORDERED_LIST_ITEM) {
       if(current_tracking != part.type) {  //First element of ordered list
-        description = description + (R"HTML(<ol class="list-inside list-decimal [li>&amp;]:ps-4">)HTML");
-        // current_tracking_list_type = part.type;
+        description = description + (R"HTML(<ol class="list-inside list-decimal [li>&amp;]:ps-3" style="margin: 4px 0;">)HTML");
       }
-      description = description + (R"HTML(<li>)HTML")+DrawContentVector(part.content)+(R"HTML(</li>)HTML");
+      description = description + (R"HTML(<li style="margin-bottom: 2px;">)HTML")+DrawContentVector(part.content)+(R"HTML(</li>)HTML");
     }
     else if(part.type == base::ActionSpecJson::ElementType::PARAGRAPH) {
       if(current_tracking != base::ActionSpecJson::ElementType::PARAGRAPH) {
-        description = description + (R"HTML(<p class="mb-[0.35em] last:mb-0">)HTML");
+        description = description + (R"HTML(<p class="mb-[0.2em] last:mb-0">)HTML");
       }
       description = description + DrawContentVector(part.content);
     }
@@ -240,7 +241,7 @@ String ActionBlockCreator::CreateWarningBlock() {
 
 //(R"HTML()HTML")
 String ActionBlockCreator::CreateActionBlock() {
-  String action_block = (R"HTML(<div id="::action_block_)HTML")+ String(std::to_string(action_spec_.id)) +(R"HTML(::" style="padding-top: 1rem; flex-direction: column; gap: 8px;">)HTML");
+  String action_block = (R"HTML(<div id="::action_block_)HTML")+ String(std::to_string(action_spec_.id)) +(R"HTML(::" style="padding-top: 1rem; display: flex; flex-direction: column; gap: 12px;">)HTML");
   if(action_spec_.links.empty()) {
     // Basic structure with only one button
     action_block = action_block + CreateBasicStructure();
@@ -250,22 +251,22 @@ String ActionBlockCreator::CreateActionBlock() {
     for(const auto& action : action_spec_.links) {
       if(action.type == "button" || action.type == "post") {
         if(is_start_of_button_block) {
-          action_block = action_block + (R"HTML(<div class="flex flex-wrap items-center gap-2">)HTML");
+          action_block = action_block + (R"HTML(<div class="flex flex-wrap items-center gap-2" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; width: 100%;">)HTML");
           is_start_of_button_block = false;
         }
-        action_block = action_block +  CreateButton(ConvertUTF16String(action.label), false, String(action.href), false, false);
+        action_block = action_block + CreateButton(ConvertUTF16String(action.label), false, String(action.href), false, false);
       }
       else if(action.type == "form") {
-        if(!is_start_of_button_block) {  // a button block stated but not finished
+        if(!is_start_of_button_block) {
           is_start_of_button_block = true;
-          action_block = action_block + (R"HTML(</div>)HTML");  // finish the button block here
+          action_block = action_block + (R"HTML(</div>)HTML");
         }
         action_block = action_block + CreateFormElement(action.parameters, action.href, ConvertUTF16String(action.label));
       }
     }
-    if(!is_start_of_button_block) {  // a button block stated but not finished
+    if(!is_start_of_button_block) {
       is_start_of_button_block = true;
-      action_block = action_block + (R"HTML(</div>)HTML");  // finish the button block here
+      action_block = action_block + (R"HTML(</div>)HTML");
     }
   }
   action_block = action_block + (R"HTML(</div>)HTML");
@@ -610,16 +611,16 @@ String ActionBlockCreator::CreateButton(String button_label,
   if(standalone_button) {
     button_layout = button_layout + (R"HTML(<div class="max-w-full flex-1 whitespace-nowrap">)HTML");
   } else {
-    button_layout = button_layout + (R"HTML( <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">)HTML");
+    button_layout = button_layout + (R"HTML(<div class="flex flex-grow basis-[calc(33.333%-2*4px)]" style="flex-grow: 1; flex-basis: calc(33.333% - 8px); margin: 4px; min-width: 120px;">)HTML");
   }
 
   if(is_form_submit_button) {  // its a form so button should be disabled
-    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white;" type="submit" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white; border-radius: 9999px; padding: 12px 20px; font-weight: 600; width: 100%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 8px rgba(29, 155, 240, 0.15); border: none; transition: all 0.2s ease;" type="submit" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
   }
   else {
     // Use data-href attribute to store the URL for the transaction handler
-    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white;" onclick="handleButtonClick(')HTML") + href +  (R"HTML(')" data-href=")HTML") + href + (R"HTML(" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
+    button_layout = button_layout + (R"HTML(<button style="background-color: #35aeff; color: white; border-radius: 9999px; padding: 12px 20px; font-weight: 600; width: 100%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 8px rgba(29, 155, 240, 0.15); border: none; transition: all 0.2s ease;" onclick="handleButtonClick(')HTML") + href +  (R"HTML(')" data-href=")HTML") + href + (R"HTML(" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none)HTML");
     if(is_disabled) {
       button_layout = button_layout + (R"HTML( bg-button-disabled text-text-button-disabled" disabled>)HTML");
     }
@@ -635,7 +636,7 @@ String ActionBlockCreator::CreateButton(String button_label,
     }
   }
   
-  button_layout = button_layout + (R"HTML(<span class="min-w-0 truncate">)HTML") + button_label;
+  button_layout = button_layout + (R"HTML(<span class="min-w-0 truncate" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px;">)HTML") + button_label;
   button_layout = button_layout +(R"HTML(</span>
 													  </button>
 												</div>)HTML");

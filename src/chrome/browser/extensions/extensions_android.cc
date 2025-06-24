@@ -22,6 +22,9 @@
 #include "extensions/common/manifest_handlers/icons_handler.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/image/image.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
+#include "components/prefs/pref_service.h"
+#include "base/logging.h"
 using base::android::ScopedJavaLocalRef;
 
 namespace extensions {
@@ -162,6 +165,26 @@ void JNI_Extensions_UninstallExtension(
   Profile* profile = ProfileManager::GetActiveUserProfile();
   if (!profile) {
     return;
+  }
+
+  const char* kArtifactExtensionName = "Artifact Extension";
+  extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(profile);
+  bool is_artifact_extension = false;
+  if (registry) {
+    for (const auto& extension : registry->enabled_extensions()) {
+      if (extension->id() == extension_id && extension->name() == kArtifactExtensionName) {
+        is_artifact_extension = true;
+        break;
+      }
+    }
+  }
+
+  if (is_artifact_extension) {
+    LOG(INFO) << "Disabling AdBlock and Ad Replacement on uninstalling the Artifact Extension";
+    PrefService* prefs = profile->GetPrefs();
+    prefs->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, false);
+    prefs->SetList(subresource_filter::prefs::kAdReplacementSelectors, base::Value::List());
+    prefs->CommitPendingWrite();
   }
 
   extensions::ExtensionService* extension_service =

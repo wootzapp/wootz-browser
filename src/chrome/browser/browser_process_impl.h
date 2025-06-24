@@ -215,6 +215,7 @@ class BrowserProcessImpl : public BrowserProcess,
 #endif
 
   component_updater::ComponentUpdateService* component_updater() override;
+  adblock_updater::AdBlockUpdaterService* adblock_updater() override;
   MediaFileSystemRegistry* media_file_system_registry() override;
   WebRtcLogUploader* webrtc_log_uploader() override;
   network_time::NetworkTimeTracker* network_time_tracker() override;
@@ -420,6 +421,8 @@ class BrowserProcessImpl : public BrowserProcess,
   // to concerns over integrity of data shared between profiles,
   // but some users of component updater only install per-user.
   std::unique_ptr<component_updater::ComponentUpdateService> component_updater_;
+
+  std::unique_ptr<adblock_updater::AdBlockUpdaterService> adblock_updater_;
 
 #if !BUILDFLAG(IS_ANDROID)
   // Used to create a singleton instance of SodaInstallerImpl, which can be

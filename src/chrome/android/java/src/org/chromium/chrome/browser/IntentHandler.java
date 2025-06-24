@@ -1534,6 +1534,7 @@ public class IntentHandler {
     interface Natives {
         boolean isCorsSafelistedHeader(String name, String value);
         void storeUtmSource(String utmSource);
+        void storeCampaign(String campaign);
     }
 
     /**
@@ -1549,13 +1550,20 @@ public class IntentHandler {
             Log.d("IntentHandler", "intent.getData() != null");
             Uri uri = intent.getData();
             String utmSource = uri.getQueryParameter("utm_source");
+            String campaign = uri.getQueryParameter("campaign");
             ext_utm_source = utmSource;
             Log.d("IntentHandler", "utmSource: " + utmSource);
+            Log.d("IntentHandler", "campaign: " + campaign);
             if (utmSource != null) {
                 Log.d("IntentHandler", "utmSource != null");
                 switchIconBasedOnUtm(utmSource);
                 // Store UTM source in shared preferences
                 storeUtmSource(utmSource);
+            }
+            if (campaign != null) {
+                Log.d("IntentHandler", "campaign != null");
+                // Store campaign in shared preferences
+                storeCampaign(campaign);
             }
         }
     }
@@ -1625,6 +1633,49 @@ public class IntentHandler {
                     Log.e("IntentHandler", "Error storing UTM source", e);
                 }
             }
+        }
+    }
+
+    /**
+     * Stores the campaign in shared preferences for later use.
+     * @param campaign The campaign to store
+     */
+    public static void storeCampaign(String campaign) {
+        if (campaign != null && !campaign.isEmpty()) {
+            try {
+                SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putString("last_campaign", campaign);
+                editor.putBoolean("campaign_needs_jni_processing", true);
+                editor.apply();
+                Log.d("IntentHandler", "Stored campaign: " + campaign + " in SharedPreferences");
+            } catch (Exception e) {
+                Log.e("IntentHandler", "Error storing campaign", e);
+            }
+        }
+    }
+
+    /**
+     * Processes the stored campaign if needed.
+     */
+    public static void processStoredCampaignIfNeeded() {
+        try {
+            SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+            boolean needsProcessing = prefs.getBoolean("campaign_needs_jni_processing", false);
+    
+            if (needsProcessing && LibraryLoader.getInstance().isInitialized()) {
+                String campaign = prefs.getString("last_campaign", "");
+                if (!campaign.isEmpty()) {
+                    // Call JNI to send to native
+                    IntentHandlerJni.get().storeCampaign(campaign);
+                    Log.d("IntentHandler", "Processed stored campaign via JNI: " + campaign);
+    
+                    // Mark as processed
+                    prefs.edit().putBoolean("campaign_needs_jni_processing", false).apply();
+                }
+            }
+        } catch (Exception e) {
+            Log.e("IntentHandler", "Error processing stored campaign", e);
         }
     }
 

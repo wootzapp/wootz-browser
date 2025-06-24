@@ -21,6 +21,7 @@ import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
 import org.chromium.components.browser_ui.widget.RadioButtonWithEditText;
 import org.chromium.components.browser_ui.widget.RadioButtonWithEditText.OnTextChangeListener;
+import org.chromium.base.ContextUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -153,6 +154,9 @@ public final class RadioButtonGroupHomepagePreference extends Preference
 
         mTitle = (TextView) holder.findViewById(R.id.title);
 
+        // Update Chrome NTP radio button text dynamically based on branding
+        updateChromeNtpText();
+
         mIsBoundToViewHolder = true;
         // Set up views with data provided by the delegate.
         if (mPreferenceValues != null) {
@@ -226,5 +230,23 @@ public final class RadioButtonGroupHomepagePreference extends Preference
     @VisibleForTesting
     TextView getTitleTextView() {
         return mTitle;
+    }
+
+    private void updateChromeNtpText() {
+        if (mChromeNtp == null) return;
+        
+        // Get the custom app name from SharedPreferences
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        
+        if (hasCustomBranding) {
+            // Get the original string and replace "WootzApp" with custom app name
+            String originalText = getContext().getString(R.string.options_homepage_wootzapp_homepage);
+            String dynamicText = originalText.replace("WootzApp", appName);
+            mChromeNtp.setPrimaryText(dynamicText);
+        } else {
+            // Use original text
+            mChromeNtp.setPrimaryText(getContext().getString(R.string.options_homepage_wootzapp_homepage));
+        }
     }
 }

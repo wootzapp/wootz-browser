@@ -28,11 +28,9 @@ StartupCrxInstallMessageHandler::StartupCrxInstallMessageHandler(content::WebUI*
       weak_factory_(this) {
   LOG(INFO) << "StartupCrxInstallMessageHandler constructor called";
 }
-
 StartupCrxInstallMessageHandler::~StartupCrxInstallMessageHandler() {
   is_destroyed_ = true;
 }
-
 void StartupCrxInstallMessageHandler::OnJavascriptDisallowed() {
   weak_factory_.InvalidateWeakPtrs();
 }
@@ -59,6 +57,12 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
                          weak_factory_.GetWeakPtr()));
   LOG(INFO) << "Registered getUtmSource handler";
   
+  web_ui_->RegisterMessageCallback(
+      "getCampaign",
+      base::BindRepeating(&StartupCrxInstallMessageHandler::HandleGetCampaign,
+                         weak_factory_.GetWeakPtr()));
+  LOG(INFO) << "Registered getCampaign handler";
+  
   // Add a test message that we can trigger manually
   web_ui_->RegisterMessageCallback(
       "testMessageHandler",
@@ -67,6 +71,73 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
       }));
   LOG(INFO) << "Registered testMessageHandler";
 }
+
+void StartupCrxInstallMessageHandler::HandleGetCampaign(const base::Value::List& args) {
+    LOG(INFO) << "HandleGetCampaign called with " << args.size() << " arguments";
+    if (is_destroyed_) {
+        LOG(INFO) << "Handler is destroyed, returning";
+        return;
+    }
+
+    Profile* profile = Profile::FromWebUI(web_ui_);
+    if (!profile) {
+        LOG(ERROR) << "Failed to get profile in HandleGetCampaign";
+        SendCampaignToFrontend("");
+        return;
+    }
+    LOG(INFO) << "Profile obtained successfully";
+
+    PrefService* prefs = profile->GetPrefs();
+    if (!prefs) {
+        LOG(ERROR) << "Failed to get prefs in HandleGetCampaign";
+        SendCampaignToFrontend("");
+        return;
+    }
+    LOG(INFO) << "PrefService obtained successfully";
+
+    std::string campaign;
+    LOG(INFO) << "Looking for preference: " << startup_crx_install::kCampaignPref;
+    const PrefService::Preference* pref =
+        prefs->FindPreference(startup_crx_install::kCampaignPref);
+    if (pref) {
+        LOG(INFO) << "Preference found: " << startup_crx_install::kCampaignPref;
+        campaign = prefs->GetString(startup_crx_install::kCampaignPref);
+        LOG(INFO) << "Retrieved campaign value: " << campaign;
+    } else {
+        LOG(ERROR) << "Preference not found: " << startup_crx_install::kCampaignPref;
+        // Try the non-namespaced preference as fallback
+        pref = prefs->FindPreference("campaign");
+        if (pref) {
+            LOG(INFO) << "Found non-namespaced preference: campaign";
+            campaign = prefs->GetString("campaign");
+            LOG(INFO) << "Retrieved campaign value from non-namespaced pref: " << campaign;
+        } else {
+            LOG(ERROR) << "Neither preference was found";
+        }
+    }
+    LOG(ERROR) << "Final campaign: " << campaign;
+    SendCampaignToFrontend(campaign);
+}
+
+void StartupCrxInstallMessageHandler::SendCampaignToFrontend(const std::string& campaign) {
+    if (is_destroyed_) {
+        LOG(INFO) << "Handler is destroyed, returning";
+        return;
+    }
+
+    LOG(INFO) << "Sending campaign to frontend: " << campaign;
+
+    base::Value campaign_value(campaign);
+
+    std::string debug_json;
+    base::JSONWriter::Write(campaign_value, &debug_json);
+    LOG(INFO) << "Campaign value as JSON: " << debug_json;
+
+    web_ui_->CallJavascriptFunctionUnsafe("handleCampaign", campaign_value);
+
+    LOG(INFO) << "Sent campaign to JS: " << campaign;
+}
+
 
 void StartupCrxInstallMessageHandler::HandleGetUtmSource(const base::Value::List& args) {
   LOG(INFO) << "HandleGetUtmSource called with " << args.size() << " arguments";

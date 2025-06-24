@@ -35,6 +35,7 @@ generate_jni("jni_headers") {
   sources = [ "android/java/src/org/chromium/chrome/browser/flags/CromiteNativeUtils.java" ]
   sources += [
     "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureMap.java",
+    "android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java",
     "android/java/src/org/chromium/chrome/browser/flags/ChromeSessionState.java",
   ]
 }
@@ -43,6 +44,8 @@ static_library("flags_android") {
    sources = [
     "android/cromite_native_utils.cc",
     "android/cromite_native_utils.h",
+    "android/chrome_feature_list.cc", 
+    "android/chrome_feature_list.h", 
   ]
   sources += [
      "android/chrome_session_state.cc",
