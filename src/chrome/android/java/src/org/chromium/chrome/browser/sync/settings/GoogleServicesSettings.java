@@ -48,6 +48,7 @@ import org.chromium.components.sync.SyncService.SyncStateChangedListener;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
+import org.chromium.base.ContextUtils;
 
 /**
  * Settings fragment controlling a number of features communicating with Google services, such as
@@ -280,6 +281,46 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
     }
 
     private void updatePreferences() {
+        // Update Allow Sign-in preference with dynamic branding
+        if (mAllowSignin != null) {
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !appName.equals("Browser");
+            
+            if (hasCustomBranding) {
+                // Update title: "Allow [AppName] sign-in"
+                String title = getString(R.string.allow_wootzapp_signin_title);
+                if (title.contains("Wootzapp")) {
+                    title = title.replace("Wootzapp", appName);
+                }
+                mAllowSignin.setTitle(title);
+                
+                // Update summary: "Shows prompts to sign in to [AppName]"
+                String summary = getString(R.string.allow_wootzapp_signin_summary);
+                if (summary.contains("WootzApp")) {
+                    summary = summary.replace("WootzApp", appName);
+                }
+                mAllowSignin.setSummary(summary);
+
+                // Update title for Usage and Crash Reporting
+                if (mUsageAndCrashReporting != null) {
+                    String usageTitle = getString(R.string.usage_and_crash_reports_title);
+                    if (usageTitle.contains("WootzApp")) {
+                        usageTitle = usageTitle.replace("WootzApp", appName);
+                    }
+                    mUsageAndCrashReporting.setTitle(usageTitle);
+                }
+
+                // Update summary for Improve Search Suggestions
+                if (mSearchSuggestions != null) {
+                    String improveSummary = getString(R.string.improve_search_suggestions_summary);
+                    if (improveSummary.contains("WootzApp")) {
+                        improveSummary = improveSummary.replace("WootzApp", appName);
+                    }
+                    mSearchSuggestions.setSummary(improveSummary);
+                }
+            }
+        }
+        
         mAllowSignin.setChecked(mPrefService.getBoolean(Pref.SIGNIN_ALLOWED));
         updatePasswordsAccountStoragePreference();
         mSearchSuggestions.setChecked(mPrefService.getBoolean(Pref.SEARCH_SUGGEST_ENABLED));
@@ -344,12 +385,26 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
                 mProfileDataCache
                         .getProfileDataOrDefault(account.getEmail())
                         .hasDisplayableEmailAddress();
-        mPasswordsAccountStorage.setSummary(
-                canDisplayEmail
-                        ? getString(
-                                R.string.passwords_account_storage_toggle_summary,
-                                syncService.getAccountInfo().getEmail())
-                        : getString(R.string.passwords_account_storage_toggle_summary_no_email));
+        
+        // Get dynamic app name for branding the passwords summary
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        
+        String summaryText;
+        if (canDisplayEmail) {
+            summaryText = getString(
+                    R.string.passwords_account_storage_toggle_summary,
+                    syncService.getAccountInfo().getEmail());
+        } else {
+            summaryText = getString(R.string.passwords_account_storage_toggle_summary_no_email);
+        }
+        
+        // Replace any WootzApp references with custom app name if needed
+        if (hasCustomBranding && summaryText.contains("WootzApp")) {
+            summaryText = summaryText.replace("WootzApp", appName);
+        }
+        
+        mPasswordsAccountStorage.setSummary(summaryText);
     }
 
     private ChromeManagedPreferenceDelegate createManagedPreferenceDelegate() {

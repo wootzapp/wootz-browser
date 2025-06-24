@@ -20,6 +20,7 @@ import org.chromium.chrome.browser.download.DirectoryOption;
 import org.chromium.chrome.browser.download.DownloadDirectoryProvider;
 import org.chromium.chrome.browser.download.R;
 import org.chromium.chrome.browser.download.StringUtils;
+import org.chromium.base.ContextUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -273,8 +274,23 @@ public class DownloadDirectoryAdapter extends ArrayAdapter<Object> {
 
     private void onDirectoryOptionsRetrieved(ArrayList<DirectoryOption> dirs) {
         int numOtherAdditionalDirectories = 0;
+        // Get appName from shared preferences, fallback to "Browser" if not set
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        String appNameLower = appName.toLowerCase();
         for (DirectoryOption dir : dirs) {
             DirectoryOption directory = (DirectoryOption) dir.clone();
+            // Replace 'wootzapp' with appNameLower in the location string for UI display
+            String newLocation = directory.location;
+            if (newLocation != null && newLocation.contains("wootzapp")) {
+                newLocation = newLocation.replace("wootzapp", appNameLower);
+            }
+            directory = new DirectoryOption(
+                directory.name,
+                newLocation,
+                directory.availableSpace,
+                directory.totalSpace,
+                directory.type
+            );
             switch (directory.type) {
                 case DirectoryOption.DownloadLocationDirectoryType.DEFAULT:
                     directory.name = mContext.getString(R.string.menu_downloads);

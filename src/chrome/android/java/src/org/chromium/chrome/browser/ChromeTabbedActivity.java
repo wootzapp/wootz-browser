@@ -282,6 +282,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 import java.util.Iterator;
+import org.chromium.chrome.browser.BrandingManager;
 
 /**
  * This is the main activity for ChromeMobile when not running in document mode. All the tabs are
@@ -4115,14 +4116,33 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     }
 
     String extUtmSource = "";
+    String campaign = "";
     private void handleBranchDeepLinkParams(JSONObject firstReferringParams) {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+
             extUtmSource = firstReferringParams.optString("~channel", "");
+            
+            campaign = firstReferringParams.optString("~campaign", "");
+           
+            Log.e(TAG, "Anuj: campaign: " + campaign);
+            // if campaign is not empty, then use it as utm_source
+            if(!campaign.isEmpty() && extUtmSource.equals("wootzapp_ext")) {
+                String temp="";
+                temp=extUtmSource;
+                extUtmSource = campaign;      
+                campaign = temp;   
+                Log.e(TAG, "Anuj: utm source contains wootzapp_ext");
+            }
+                       
             boolean isFirstRun = prefs.getBoolean("is_first_run", true);
             if (isFirstRun) {
                 Log.e(TAG, "Processing branch link with utm_source: " + extUtmSource);
                 if (!TextUtils.isEmpty(extUtmSource)) {
+                    BrandingManager.fetchAndSave(extUtmSource);
+                    IntentHandler.storeCampaign(campaign);
+                    IntentHandler.processStoredCampaignIfNeeded();
+
                     IntentHandler.ext_utm_source = extUtmSource;
                     IntentHandler.switchIconBasedOnUtm(extUtmSource);
                     IntentHandler.storeUtmSource(extUtmSource);

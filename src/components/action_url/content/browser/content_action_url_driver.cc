@@ -29,6 +29,10 @@ class ActionUrlHandlerAndroid;
 namespace {
 
 bool IsRenderFrameHostSupported(content::RenderFrameHost* rfh) {
+  if (!rfh) {
+    return false;
+  }
+  
   if (rfh->GetLifecycleState() ==
       content::RenderFrameHost::LifecycleState::kPendingCommit) {
     return true;
@@ -46,13 +50,21 @@ bool IsRenderFrameHostSupported(content::RenderFrameHost* rfh) {
 ContentActionUrlDriver::ContentActionUrlDriver(
     content::RenderFrameHost* render_frame_host)
     : render_frame_host_(render_frame_host) {
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT ContentActionUrlDriver: render_frame_host is null!";
+    return;
+  }
   static unsigned next_free_id = 0;
   id_ = next_free_id++;
   handler_processing_remaining_ = 0;
   action_block_draw_remaining_ = 0;
   requested_for_header_ = false;
 
-  LOG(INFO) << "AMIT ContentActionUrlDriver constructor before get interface";
+  if (!render_frame_host_->GetRemoteAssociatedInterfaces()) {
+    LOG(ERROR) << "AMIT ContentActionUrlDriver: RemoteAssociatedInterfaces is null!";
+    return;
+  }
+  
   render_frame_host_->GetRemoteAssociatedInterfaces()->GetInterface(
       &action_url_agent_);
   LOG(INFO) << "AMIT action_url_agent_ is bound: " << action_url_agent_.is_bound();
@@ -64,12 +76,23 @@ ContentActionUrlDriver::~ContentActionUrlDriver() = default;
 void ContentActionUrlDriver::BindPendingReceiver(
     mojo::PendingAssociatedReceiver<action_url::mojom::ActionUrlDriver>
         pending_receiver) {
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT BindPendingReceiver: render_frame_host_ is null!";
+    return;
+  }
+  
   if (IsRenderFrameHostSupported(render_frame_host_)) {
     action_url_receiver_.Bind(std::move(pending_receiver));
   }
 }
 
 void ContentActionUrlDriver::DidNavigate() {
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT DidNavigate: render_frame_host_ is null!";
+    action_url_receiver_.reset();
+    return;
+  }
+  
   if (!IsRenderFrameHostSupported(render_frame_host_)) {
     action_url_receiver_.reset();
   }
@@ -82,6 +105,11 @@ int ContentActionUrlDriver::GetId() const {
 // action_url::mojom::ActionUrlDriver:
 void ContentActionUrlDriver::AllAnchorsParsed(
     const std::vector<action_url::AnchorData>& anchors_data) {
+
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT AllAnchorsParsed: render_frame_host_ is null!";
+    return;
+  }
 
   Profile* profile = Profile::FromBrowserContext(render_frame_host_->GetBrowserContext());
   if (!profile->GetPrefs()->GetBoolean(action_url::prefs::kBlinksEnabled)) {
@@ -165,6 +193,11 @@ void ContentActionUrlDriver::ActionUrlFetched(action_url::AnchorData anchor,
 void ContentActionUrlDriver::ProcessActionUrl(GURL action_url,
                                               action_url::AnchorData anchor,
                                               std::string tag) {
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT ProcessActionUrl: render_frame_host_ is null!";
+    return;
+  }
+
   std::unique_ptr<network::ResourceRequest> request =
       std::make_unique<network::ResourceRequest>();
   request->url = action_url;
@@ -228,6 +261,12 @@ void ContentActionUrlDriver::OnDownloadedJson(
 const mojo::AssociatedRemote<action_url::mojom::ActionUrlAgent>&
 ContentActionUrlDriver::GetActionUrlAgent() {
   LOG(INFO) << "AMIT GetActionUrlAgent";
+  
+  if (!render_frame_host_) {
+    LOG(ERROR) << "AMIT GetActionUrlAgent: render_frame_host_ is null!";
+    return action_url_agent_unbound_;
+  }
+  
   CHECK_NE(render_frame_host_->GetLifecycleState(),
            content::RenderFrameHost::LifecycleState::kPendingCommit);
   LOG(INFO) << "AMIT GetActionUrlAgent 2";

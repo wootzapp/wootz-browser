@@ -32,6 +32,7 @@ import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.text.SpanApplier.SpanInfo;
+import org.chromium.base.ContextUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -564,10 +565,11 @@ public class SiteSettingsCategory {
         } else if (type == ContentSettingsType.NOTIFICATIONS) {
             permission_string = R.string.android_notifications_permission_off;
         }
+        String newAppName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
         return context.getResources()
                 .getString(
                         plural ? R.string.android_permission_off_plural : permission_string,
-                        appName);
+                        newAppName);
     }
 
     /** Returns the message to display when per-app permission is blocked. */

@@ -3113,7 +3113,7 @@ Your Google account may have other forms of browsing history like searches and a
         Keep
       </message>
       <message name="IDS_INSECURE_DOWNLOAD_DIALOG_DISCARD_TEXT" desc="Text label for the cancel button on the insecure download dialog for user to confirm the download.">
-        Discard
+        Discardf
       </message>
 
       <!-- Downloads location -->

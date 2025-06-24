@@ -15,6 +15,7 @@ import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.components.browser_ui.settings.FragmentSettingsLauncher;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
 import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.base.ContextUtils;
 
 /** Fragment containing Preload Pages settings. */
 public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBase
@@ -23,6 +24,7 @@ public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBa
                 Preference.OnPreferenceChangeListener {
     @VisibleForTesting static final String PREF_MANAGED_DISCLAIMER_TEXT = "managed_disclaimer_text";
     @VisibleForTesting static final String PREF_PRELOAD_PAGES = "preload_pages_radio_button_group";
+    @VisibleForTesting static final String PREF_SUMMARY = "summary";
 
     // An instance of SettingsLauncher that is used to launch Preload Pages subsections.
     private SettingsLauncher mSettingsLauncher;
@@ -60,6 +62,8 @@ public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBa
                 .setVisible(
                         managedPreferenceDelegate.isPreferenceClickDisabled(
                                 mPreloadPagesPreference));
+
+        updateSummaryPreference();
     }
 
     @Override
@@ -108,5 +112,21 @@ public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBa
         }
         PreloadPagesSettingsBridge.setState(getProfile(), newState);
         return true;
+    }
+
+    private void updateSummaryPreference() {
+        Preference summaryPreference = findPreference(PREF_SUMMARY);
+        if (summaryPreference != null) {
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !appName.equals("Browser");
+            
+            if (hasCustomBranding) {
+                String originalSummary = getContext().getString(R.string.preload_pages_summary);
+                String dynamicSummary = originalSummary.replace("WootzApp", appName);
+                summaryPreference.setSummary(dynamicSummary);
+            } else {
+                summaryPreference.setSummary(R.string.preload_pages_summary);
+            }
+        }
     }
 }

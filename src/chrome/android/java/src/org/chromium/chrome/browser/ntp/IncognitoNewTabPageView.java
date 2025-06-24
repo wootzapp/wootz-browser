@@ -89,10 +89,16 @@ public class IncognitoNewTabPageView extends FrameLayout {
         if (cardStub == null) return;
         if (mManager.shouldShowTrackingProtectionNtp()) {
             cardStub.setLayoutResource(R.layout.incognito_tracking_protection_card);
+            cardStub.inflate();
+            mDescriptionView.setTextWithAppNameReplacement(
+                R.id.tracking_protection_card,
+                R.id.tracking_protection_description_one,
+                R.string.new_tab_otr_third_party_blocked_cookie_part_one
+            );
         } else {
             cardStub.setLayoutResource(R.layout.incognito_cookie_controls_card);
+            cardStub.inflate();
         }
-        cardStub.inflate();
         mDescriptionView.formatTrackingProtectionText(getContext(), this);
     }
 
