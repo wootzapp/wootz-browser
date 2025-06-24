@@ -32,6 +32,21 @@
             "ethereum",
             "solana"
           ]
+        },
+        {
+          "id": "AdSize",
+          "type": "object",
+          "description": "Ad size configuration",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "description": "Width of the ad in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "description": "Height of the ad in pixels"
+            }
+          }
         }
       ],
       "functions": [
@@ -483,6 +498,61 @@
                 "type": "object",
                 "properties": {
                   "success": { "type": "boolean" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "replaceAd",
+          "type": "function",
+          "description": "Replaces ad elements in the DOM with configured GPT ads.",
+          "parameters": [
+            {
+              "name": "isEnabled",
+              "type": "boolean",
+              "description": "Whether ad replacement is enabled."
+            },
+            {
+              "name": "adConfig",
+              "type": "object",
+              "description": "Configuration for GPT ads",
+              "properties": {
+                "adUnitPath": {
+                  "type": "string",
+                  "description": "Ad unit path (e.g. '/22988389496/Wootzapp')"
+                },
+                "sizes": {
+                  "type": "array",
+                  "description": "Ad size configurations",
+                  "items": {"$ref": "AdSize"}
+                },
+                "idPrefix": {
+                  "type": "string",
+                  "description": "Prefix for ad container IDs (e.g. 'div-gpt-ad-1747671853981-')"
+                },
+                "scriptUrl": {
+                  "type": "string",
+                  "description": "URL to GPT script (e.g. 'https://securepubads.g.doubleclick.net/tag/js/gpt.js')"
+                }
+              }
+            },
+            {
+              "name": "selectors",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CSS selectors for ad elements to replace."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
                 }
               }
             ]

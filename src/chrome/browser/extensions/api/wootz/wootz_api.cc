@@ -56,8 +56,11 @@
 #include "base/logging.h"
 #include "components/zk_proof/zk_proof.h"
 #include "components/zk_proof/tls_info/tls_data_store.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/domain_block_checker.h"
 
 namespace extensions {
 
@@ -1211,6 +1214,90 @@ ExtensionFunction::ResponseAction WootzGenerateZKProofFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
+ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
+  LOG(INFO) << "WootzReplaceAdFunction::Run started with arguments: " << args().size();
+  
+  // Validate arguments structure
+  if (args().size() < 3 || !args()[0].is_bool() || !args()[1].is_dict() || !args()[2].is_list()) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Invalid arguments provided";
+    return RespondNow(Error("Invalid arguments format"));
+  }
+
+  bool is_enabled = args()[0].GetBool();
+  
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+  profile->GetPrefs()->SetBoolean(subresource_filter::prefs::kAdBlockGlobalEnabled, is_enabled);
+  
+  if(!is_enabled) {
+    LOG(INFO) << "WootzReplaceAdFunction: AdBlocking is disabled";
+    return RespondNow(NoArguments());
+  }
+
+  const base::Value::Dict& ad_config = args()[1].GetDict();
+  const base::Value::List& selectors_list = args()[2].GetList();
+  
+  // Extract values from adConfig
+  const std::string* ad_unit_path = ad_config.FindString("adUnitPath");
+  const std::string* id_prefix = ad_config.FindString("idPrefix");
+  const std::string* script_url = ad_config.FindString("scriptUrl");
+  const base::Value::List* sizes_list = ad_config.FindList("sizes");
+  
+  // Validate required fields
+  if (!ad_unit_path || !id_prefix || !sizes_list) {
+    LOG(ERROR) << "WootzReplaceAdFunction: Missing required adConfig fields";
+    return RespondNow(Error("adConfig missing required fields"));
+  }
+
+  std::vector<std::string> selectors;
+  for (const auto& val : selectors_list) {
+    if (val.is_string())
+      selectors.push_back(val.GetString());
+  }
+
+  base::Value::List converted_sizes;
+  for (const auto& size_value : *sizes_list) {
+    if (!size_value.is_dict()) continue;
+    
+    const base::Value::Dict& size_dict = size_value.GetDict();
+    
+    int width = size_dict.FindInt("width").value_or(-1);
+    int height = size_dict.FindInt("height").value_or(-1);
+    
+    // Skip if either width or height is invalid
+    if (width <= 0 || height <= 0) continue;
+    
+    // Create a pair array [width, height]
+    base::Value::List size_pair;
+    size_pair.Append(width);
+    size_pair.Append(height);
+    converted_sizes.Append(std::move(size_pair));
+  }
+
+  std::string sizes_json;
+  base::JSONWriter::Write(converted_sizes, &sizes_json);
+
+  PrefService* prefs = profile->GetPrefs();
+  
+  prefs->SetString(subresource_filter::prefs::kAdReplacementAdUnitPath, *ad_unit_path);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementIdPrefix, *id_prefix);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementScriptUrl, *script_url);
+  prefs->SetString(subresource_filter::prefs::kAdReplacementSizes, sizes_json);
+  
+  // Set selectors
+  subresource_filter::prefs::SetAdReplacementSelectors(prefs, selectors);
+
+  LOG(INFO) << "WootzReplaceAdFunction: Successfully stored ad replacement configuration";
+  LOG(INFO) << "  - Ad Unit Path: " << *ad_unit_path;
+  LOG(INFO) << "  - ID Prefix: " << *id_prefix;
+  LOG(INFO) << "  - Selectors count: " << selectors.size();
+
+  return RespondNow(NoArguments());
+}
+
 ExtensionFunction::ResponseAction WootzSetBlockedDomainsFunction::Run() {
   if (args().empty() || !args()[0].is_list())
     return RespondNow(Error("Invalid arguments"));
@@ -1222,7 +1309,13 @@ ExtensionFunction::ResponseAction WootzSetBlockedDomainsFunction::Run() {
   const base::Value::List& domains_list = args()[0].GetList();
   base::Value::List new_list;
   for (const auto& v : domains_list) {
-    if (v.is_string()) new_list.Append(v.GetString());
+    if (v.is_string()) {
+      const std::string& domain = v.GetString();
+      if (content::DomainBlockChecker::IsValidDomain(domain)) {
+        new_list.Append(domain);
+      }
+      // Silently skip invalid domains to avoid breaking existing functionality
+    }
   }
   profile->GetPrefs()->SetList(blocked_domains::prefs::kBlockedDomains, std::move(new_list));
   base::Value::Dict result;

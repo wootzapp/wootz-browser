@@ -8,6 +8,7 @@ namespace prefs {
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterListPref(kBlockedDomains);
+  registry->RegisterStringPref(kBlockedDomainsJson, std::string());
 }
 
 std::string GetBlockedDomainErrorPage() {

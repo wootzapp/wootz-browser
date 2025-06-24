@@ -14,6 +14,9 @@ namespace blocked_domains::prefs {
 // The pref key for blocked domains.
 inline constexpr char kBlockedDomains[] = "blocked_domains.blocked_domains";
 
+// The pref key for blocked domains in JSON format (used by Okta integration).
+inline constexpr char kBlockedDomainsJson[] = "blocked_domains.blocked_domains_json";
+
 // Registers blocked domains prefs.
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 

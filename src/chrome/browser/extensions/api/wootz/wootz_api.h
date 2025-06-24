@@ -361,6 +361,19 @@ class WootzSetBlinksEnabledFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+
+class WootzReplaceAdFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.replaceAd", WOOTZ_REPLACE_AD)
+  WootzReplaceAdFunction() = default;
+  WootzReplaceAdFunction(const WootzReplaceAdFunction&) = delete;
+  WootzReplaceAdFunction& operator=(const WootzReplaceAdFunction&) = delete;
+
+ protected:
+  ~WootzReplaceAdFunction() override {}
+  ResponseAction Run() override;
+};
+
 class WootzSetBlockedDomainsFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.setBlockedDomains", WOOTZ_SET_BLOCKED_DOMAINS)

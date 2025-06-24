@@ -30,6 +30,9 @@ class CONTENT_EXPORT DomainBlockChecker {
   // Convenience method for checking URLs through navigation handles
   bool IsUrlBlocked(const GURL& url, NavigationHandle* handle);
 
+  // Static utility function for domain validation with enhanced security
+  static bool IsValidDomain(const std::string& domain);
+
  private:
   friend class base::NoDestructor<DomainBlockChecker>;
   DomainBlockChecker();
@@ -41,8 +44,18 @@ class CONTENT_EXPORT DomainBlockChecker {
   // Check if any parent domain is blocked (subdomain matching)
   bool IsSubdomainBlocked(const std::string& host);
 
+  // Calculate hash of domain list content
+  size_t CalculateListHash(const base::Value::List& blocked_list);
+
+  // Enhanced security validation helpers
+  static bool IsValidTLD(const std::string& tld);
+  static bool IsReservedDomain(const std::string& domain);
+  static bool HasSuspiciousCharacters(const std::string& domain);
+  static bool IsValidDomainStructure(const std::string& domain);
+
   std::unordered_set<std::string> blocked_domains_;
   size_t cached_size_ = 0;
+  size_t cached_hash_ = 0;
 };
 
 }  // namespace content
