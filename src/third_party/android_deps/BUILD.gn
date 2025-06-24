@@ -2883,3 +2883,42 @@ if (!limit_android_deps) {
   }
 }
 # === Generated Code End ===
+
+android_aar_prebuilt("com_okta_android_okta_oidc_android_java") {
+  aar_path = "libs/com_okta_android_okta_oidc_android/okta-oidc-android-1.3.4.aar"
+  info_path = "libs/com_okta_android_okta_oidc_android/com_okta_android_okta_oidc_android.info"
+  enable_bytecode_checks = false
+  visibility = [
+    ":*",
+    "//third_party/androidx:*",
+    "//chrome/android:*",
+  ]
+  deps = [
+    "//third_party/androidx:androidx_browser_browser_java",
+    "//third_party/androidx:androidx_fragment_fragment_java",
+    ":com_squareup_okhttp3_okhttp_java",
+    ":com_google_code_gson_gson_java",
+  ]
+}
+
+java_prebuilt("com_squareup_okhttp3_okhttp_java") {
+  jar_path = "libs/com_squareup_okhttp3_okhttp/okhttp-4.9.3.jar"
+  output_name = "com_squareup_okhttp3_okhttp"
+  supports_android = true
+  enable_bytecode_checks = false
+  visibility = [
+    ":*",
+    "//third_party/androidx:*",
+    "//chrome/android:*",
+  ]
+}
+
+java_group("okta_android_java") {
+  preferred_dep = true
+  visibility = [
+    ":*",
+    "//third_party/androidx:*",
+    "//chrome/android:*",
+  ]
+  deps = [ ":com_okta_android_okta_oidc_android_java" ]
+}

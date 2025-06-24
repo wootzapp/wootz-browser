@@ -1970,6 +1970,11 @@ if (enable_java_templates) {
         args += [ "--max-sdk-version=${invoker.max_sdk_version}" ]
       }
 
+      # Add support for manifest placeholders (needed for Okta)
+      if (defined(invoker.manifest_placeholders)) {
+        args += [ "--placeholders=${invoker.manifest_placeholders}" ]
+      }
+
       if (treat_warnings_as_errors) {
         args += [ "--warnings-as-errors" ]
       }

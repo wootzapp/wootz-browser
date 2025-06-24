@@ -2290,6 +2290,7 @@ if (!is_robolectric && enable_java_templates) {
       forward_variables_from(invoker,
                              [
                                "manifest_package",
+                               "manifest_placeholders",  # Add this line
                                "max_sdk_version",
                              ])
       input_manifest = invoker.android_manifest
@@ -3286,6 +3287,7 @@ if (!is_robolectric && enable_java_templates) {
             "lint_suppressions_file",
             "loadable_modules",
             "manifest_package",
+            "manifest_placeholders",
             "max_sdk_version",
             "mergeable_android_manifests",
             "product_config_java_packages",
@@ -3426,6 +3428,7 @@ if (!is_robolectric && enable_java_templates) {
             "loadable_modules",
             "product_config_java_packages",
             "manifest_package",
+            "manifest_placeholders",
             "max_sdk_version",
             "min_sdk_version",
             "mergeable_android_manifests",

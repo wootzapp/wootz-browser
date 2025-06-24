@@ -1,0 +1,7 @@
+{
+  "client_id": "0oasm0g2hiVaQ8HD8697",
+  "redirect_uri": "com.wootzapp.web:/callback",
+  "end_session_redirect_uri": "com.wootzapp.web:/logout",
+  "scopes": ["openid", "profile", "email", "offline_access"],
+  "discovery_uri": "https://trial-7599136.okta.com/oauth2/default/.well-known/openid_configuration"
+} 

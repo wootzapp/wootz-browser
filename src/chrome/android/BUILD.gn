@@ -197,6 +197,7 @@ if (current_toolchain == default_toolchain) {
   android_resources("chrome_app_java_resources") {
     sources = chrome_java_resources
     sources += [ "//chrome/android/java/res_app/layout/main.xml" ]
+    sources += [ "java/res/raw/okta_oidc_config.json" ]
 
     deps = [
       ":chrome_base_module_resources",
@@ -713,6 +714,7 @@ if (current_toolchain == default_toolchain) {
       "//third_party/android_deps:io_branch_sdk_android_xiaomi_java",
       "//third_party/android_deps:store_galaxy_samsung_installreferrer_java",
       "//third_party/android_deps:branch_sdk_java",
+      "//third_party/android_deps:com_okta_android_okta_oidc_android_java",
       "//third_party/android_media:android_media_java",
       "//third_party/android_swipe_refresh:android_swipe_refresh_java",
       "//third_party/androidx:androidx_activity_activity_java",
@@ -2613,6 +2615,17 @@ if (current_toolchain == default_toolchain) {
     target_type = "android_apk"
     apk_name = "WootzApp"
     art_profile_path = "//chrome/android/baseline_profiles/profile.txt"
+
+    # Add Okta manifest variables
+    jinja_extra_variables = [
+      "appAuthRedirectScheme=com.wootzapp.web"
+    ]
+    
+    # Add manifest placeholders for Okta library
+    manifest_placeholders = [
+      "appAuthRedirectScheme=com.wootzapp.web"
+    ]
+    
     if (android_64bit_target_cpu) {
       # Ensure 64-bit chrome does not depend on 32-bit things.
       assert_no_deps =

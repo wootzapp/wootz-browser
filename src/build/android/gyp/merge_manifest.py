@@ -94,6 +94,9 @@ def main(argv):
   parser.add_argument('--warnings-as-errors',
                       action='store_true',
                       help='Treat all warnings as errors.')
+  # Add support for manifest placeholders (needed for Okta)
+  parser.add_argument('--placeholders',
+                      help='GN list of manifest placeholders in name=value format')
   args = parser.parse_args(argv)
 
   with action_helpers.atomic_output(args.output) as output:
@@ -114,6 +117,13 @@ def main(argv):
           '--property',
           'MAX_SDK_VERSION=' + args.max_sdk_version,
       ]
+
+    # Add placeholder support for Okta and other libraries
+    if args.placeholders:
+      placeholders = action_helpers.parse_gn_list(args.placeholders)
+      for placeholder in placeholders:
+        if '=' in placeholder:
+          cmd += ['--placeholder', placeholder]
 
     extras = action_helpers.parse_gn_list(args.extras)
 
