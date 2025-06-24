@@ -47,6 +47,21 @@
               "description": "Height of the ad in pixels"
             }
           }
+        },
+        {
+          "id": "PageElement",
+          "type": "object",
+          "description": "Describes an interactive element on the page",
+          "properties": {
+            "index": { "type": "integer" },
+            "tagName": { "type": "string" },
+            "text": { "type": "string", "optional": true },
+            "type": { "type": "string", "optional": true },
+            "isVisible": { "type": "boolean" },
+            "isClickable": { "type": "boolean", "optional": true },
+            "isFocusable": { "type": "boolean", "optional": true },
+            "elementType": { "type": "string", "optional": true }
+          }
         }
       ],
       "functions": [
@@ -553,6 +568,76 @@
                 "properties": {
                   "success": { "type": "boolean" },
                   "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getPageState",
+          "type": "function",
+          "description": "Gets enhanced page state including interactive elements",
+          "parameters": [
+            {
+              "name": "options",
+              "type": "object",
+              "properties": {
+                "debugMode": {"type": "boolean", "optional": true},
+                "includeHidden": {"type": "boolean", "optional": true}
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "pageState": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string"},
+                      "platform": {"type": "string"},
+                      "pageType": {"type": "string"},
+                      "elements": { "type": "array", "items": { "$ref": "PageElement" } }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "performAction",
+          "type": "function", 
+          "description": "Performs an action on the page",
+          "parameters": [
+            {
+              "name": "action",
+              "type": "string",
+              "description": "The action to perform: click, fill, scroll"
+            },
+            {
+              "name": "actionParams",
+              "type": "object",
+              "properties": {
+                "selector": {"type": "string", "optional": true},
+                "text": {"type": "string", "optional": true},
+                "direction": {"type": "string", "optional": true}
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback", 
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
                 }
               }
             ]

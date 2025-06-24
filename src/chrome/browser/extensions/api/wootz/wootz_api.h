@@ -374,5 +374,21 @@ class WootzReplaceAdFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzGetPageStateFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.getPageState", WOOTZ_GET_PAGE_STATE)
+ protected:
+  ~WootzGetPageStateFunction() override {}
+  ResponseAction Run() override;
+};
+
+class WootzPerformActionFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.performAction", WOOTZ_PERFORM_ACTION)
+ protected:
+  ~WootzPerformActionFunction() override {}
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

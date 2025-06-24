@@ -1406,6 +1406,43 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   return RespondNow(NoArguments());
 }
 
+ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
+  // Validate arguments
+  if (args().empty() || !args()[0].is_dict()) {
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  const base::Value::Dict& options = args()[0].GetDict();
+  bool debug_mode = options.FindBool("debugMode").value_or(false);
+  bool include_hidden = options.FindBool("includeHidden").value_or(false);
+  LOG(INFO) << "Kartik: Debug mode: " << debug_mode << " Include hidden: " << include_hidden;
+
+  return RespondLater();
+}
+
+ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
+  // Validate arguments
+  if (args().size() < 2 || !args()[0].is_string() || !args()[1].is_dict()) {
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  const std::string& action = args()[0].GetString();
+  
+  const base::Value::Dict& action_params = args()[1].GetDict();
+  const std::string* selector = action_params.FindString("selector");
+  const std::string* text = action_params.FindString("text");
+  const std::string* direction = action_params.FindString("direction");
+
+  LOG(INFO) << "Kartik:";
+  LOG(INFO) << "  - Action: " << action;
+  LOG(INFO) << "  - Selector: " << (selector ? *selector : "null");
+  LOG(INFO) << "  - Text: " << (text ? *text : "null");
+  LOG(INFO) << "  - Direction: " << (direction ? *direction : "null");
+
+
+  return RespondLater();
+}
+
 }  // namespace extensions
 
 void JNI_WootzBridge_OnConsentResult(JNIEnv* env, jboolean consented){
