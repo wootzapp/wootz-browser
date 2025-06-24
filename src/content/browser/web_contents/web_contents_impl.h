@@ -478,6 +478,7 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   void CenterSelection() override;
   void Paste() override;
   void PasteAndMatchStyle() override;
+  bool ShouldBlockCopyPaste(const std::string& operation_type);
   void Delete() override;
   void SelectAll() override;
   void CollapseSelection() override;

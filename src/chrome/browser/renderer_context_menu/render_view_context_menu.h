@@ -151,6 +151,8 @@ class RenderViewContextMenu
       base::OnceCallback<void(content::RenderFrameHost*,
                               blink::mojom::PluginActionType)> cb);
 
+  bool IsCopyPasteBlocked();
+
 #if BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
   lens::LensRegionSearchController* GetLensRegionSearchControllerForTesting() {
     return lens_region_search_controller_.get();

@@ -188,6 +188,7 @@
 #include "components/wootz_wallet/browser/keyring_service.h"
 #include "components/wootz_wallet/browser/keyring_service_migrations.h"
 #include "components/wootz_wallet/browser/pref_names.h"
+#include "components/wootz_scraping/browser/wootz_scraping_prefs.h"
 #include "components/variations/service/variations_service.h"
 #include "content/public/browser/render_process_host.h"
 #include "extensions/buildflags/buildflags.h"
@@ -200,6 +201,7 @@
 #include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
 #include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
 #include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
 #include "chrome/browser/background/background_mode_manager.h"
@@ -1916,7 +1918,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   extension_developer_mode_settings::RegisterProfilePrefs(registry);
   AnnouncementNotificationService::RegisterProfilePrefs(registry);
   autofill::prefs::RegisterProfilePrefs(registry);
-  blocked_domains::prefs::RegisterProfilePrefs(registry);
+  copy_paste_blocker::RegisterProfilePrefs(registry);
   browsing_data::prefs::RegisterBrowserUserPrefs(registry);
   capture_policy::RegisterProfilePrefs(registry);
   certificate_transparency::prefs::RegisterPrefs(registry);
