@@ -1,0 +1,19 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/chromeos/ui_mode.gni")
+
+component("automation_agent") {
+  sources = [
+    "browser/automation_controller.cc",
+    "browser/automation_controller.h",
+  ]
+
+  defines = [ "IS_AUTOMATION_AGENT_IMPL" ]
+
+  deps = [
+    "//base",
+    "//components/keyed_service/core",
+  ]
+}

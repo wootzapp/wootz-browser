@@ -1411,36 +1411,64 @@ ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
   if (args().empty() || !args()[0].is_dict()) {
     return RespondNow(Error("Invalid arguments"));
   }
+  LOG(INFO) << "Kartik: Getting page state, args: " << args().size();
 
   const base::Value::Dict& options = args()[0].GetDict();
   bool debug_mode = options.FindBool("debugMode").value_or(false);
   bool include_hidden = options.FindBool("includeHidden").value_or(false);
-  LOG(INFO) << "Kartik: Debug mode: " << debug_mode << " Include hidden: " << include_hidden;
+  
+  auto* controller = new automation_agent::AutomationController();
+  controller->GetPageState(
+      debug_mode,
+      include_hidden,
+      base::BindOnce(&WootzGetPageStateFunction::OnGetPageStateComplete,
+                     this,
+                     base::Owned(controller)));
 
   return RespondLater();
 }
 
+void WootzGetPageStateFunction::OnGetPageStateComplete(
+    automation_agent::AutomationController* controller,
+    base::Value::Dict result) {
+  LOG(INFO) << "Kartik: OnGetPageStateComplete, result: " << result.size();
+  Respond(WithArguments(std::move(result)));
+}
+
 ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
-  // Validate arguments
   if (args().size() < 2 || !args()[0].is_string() || !args()[1].is_dict()) {
     return RespondNow(Error("Invalid arguments"));
   }
-
+  LOG(INFO) << "Kartik: WootzPerformActionFunction::Run, args: " << args().size();
   const std::string& action = args()[0].GetString();
-  
   const base::Value::Dict& action_params = args()[1].GetDict();
+  
   const std::string* selector = action_params.FindString("selector");
   const std::string* text = action_params.FindString("text");
   const std::string* direction = action_params.FindString("direction");
 
-  LOG(INFO) << "Kartik:";
-  LOG(INFO) << "  - Action: " << action;
-  LOG(INFO) << "  - Selector: " << (selector ? *selector : "null");
-  LOG(INFO) << "  - Text: " << (text ? *text : "null");
-  LOG(INFO) << "  - Direction: " << (direction ? *direction : "null");
-
+  auto* controller = new automation_agent::AutomationController();
+  controller->PerformAction(
+      action,
+      selector ? *selector : "",
+      text ? *text : "",
+      direction ? *direction : "",
+      base::BindOnce(&WootzPerformActionFunction::OnActionComplete,
+                     this,
+                     base::Owned(controller)));
 
   return RespondLater();
+}
+
+void WootzPerformActionFunction::OnActionComplete(
+    automation_agent::AutomationController* controller,
+    bool success) {
+  LOG(INFO) << "Kartik: OnActionComplete, success: " << success;
+  if (success) {
+    Respond(NoArguments());
+  } else {
+    Respond(Error("Failed to perform action"));
+  }
 }
 
 }  // namespace extensions

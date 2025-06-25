@@ -33,6 +33,7 @@
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "third_party/blink/public/mojom/choosers/file_chooser.mojom.h"
 #include "mojo/public/cpp/bindings/receiver.h"
+#include "components/automation_agent/browser/automation_controller.h"
 
 #include "base/functional/callback.h"
 
@@ -380,6 +381,11 @@ class WootzGetPageStateFunction : public ExtensionFunction {
  protected:
   ~WootzGetPageStateFunction() override {}
   ResponseAction Run() override;
+
+ private:
+  void OnGetPageStateComplete(
+      automation_agent::AutomationController* controller,
+      base::Value::Dict result);
 };
 
 class WootzPerformActionFunction : public ExtensionFunction {
@@ -388,6 +394,11 @@ class WootzPerformActionFunction : public ExtensionFunction {
  protected:
   ~WootzPerformActionFunction() override {}
   ResponseAction Run() override;
+
+ private:
+  void OnActionComplete(
+      automation_agent::AutomationController* controller,
+      bool success);
 };
 
 }  // namespace extensions
