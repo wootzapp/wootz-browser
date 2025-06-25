@@ -34,6 +34,16 @@
           ]
         },
         {
+          "id": "CopyPasteBlockingMode",
+          "type": "string",
+          "enum": ["global", "whitelist", "blacklist"],
+          "description": "Mode for copy-paste blocking"
+        },
+        {
+          "id": "CopyPasteOperation",
+          "type": "string",
+          "enum": ["copy", "cut", "paste", "contextMenu", "selectAll", "dragDrop"],
+          "description": "Type of copy-paste operation"
           "id": "AdSize",
           "type": "object",
           "description": "Ad size configuration",
@@ -504,6 +514,125 @@
           }
         },
         {
+          "name": "setCopyPasteBlocking",
+          "type": "function",
+          "description": "Enables or disables copy-paste blocking for specific domains or globally",
+          "parameters": [
+            {
+              "name": "settings",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable or disable copy-paste blocking"
+                },
+                "mode": {
+                  "$ref": "CopyPasteBlockingMode",
+                  "description": "Blocking mode: global (all sites), whitelist (block except listed), blacklist (block only listed)"
+                },
+                "domains": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "optional": true,
+                  "description": "List of domains for whitelist/blacklist mode"
+                },
+                "blockTypes": {
+                  "type": "object",
+                  "optional": true,
+                  "properties": {
+                    "copy": { "type": "boolean", "description": "Block copy operations" },
+                    "cut": { "type": "boolean", "description": "Block cut operations" },
+                    "paste": { "type": "boolean", "description": "Block paste operations" },
+                    "contextMenu": { "type": "boolean", "description": "Block context menu" },
+                    "selectAll": { "type": "boolean", "description": "Block select all" },
+                    "dragDrop": { "type": "boolean", "description": "Block drag and drop" }
+                  }
+                }
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getCopyPasteBlockingSettings",
+          "type": "function",
+          "description": "Gets the current copy-paste blocking settings",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "settings",
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "mode": { "$ref": "CopyPasteBlockingMode" },
+                  "domains": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "blockTypes": {
+                    "type": "object",
+                    "properties": {
+                      "copy": { "type": "boolean" },
+                      "cut": { "type": "boolean" },
+                      "paste": { "type": "boolean" },
+                      "contextMenu": { "type": "boolean" },
+                      "selectAll": { "type": "boolean" },
+                      "dragDrop": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "addCopyPasteBlockingDomain",
+          "type": "function",
+          "description": "Adds a domain to the copy-paste blocking list",
+          "parameters": [
+            {
+              "name": "domain",
+              "type": "string",
+              "description": "Domain to add to the blocking list"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "removeCopyPasteBlockingDomain",
+          "type": "function",
+          "description": "Removes a domain from the copy-paste blocking list",
+          "parameters": [
+            {
+              "name": "domain",
+              "type": "string",
+              "description": "Domain to remove from the blocking list"
           "name": "replaceAd",
           "type": "function",
           "description": "Replaces ad elements in the DOM with configured GPT ads.",
@@ -553,6 +682,36 @@
                 "properties": {
                   "success": { "type": "boolean" },
                   "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "isCopyPasteBlockedForCurrentTab",
+          "type": "function",
+          "description": "Checks if copy-paste is blocked for the current active tab",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "blocked": { "type": "boolean" },
+                  "domain": { "type": "string" },
+                  "blockTypes": {
+                    "type": "object",
+                    "properties": {
+                      "copy": { "type": "boolean" },
+                      "cut": { "type": "boolean" },
+                      "paste": { "type": "boolean" },
+                      "contextMenu": { "type": "boolean" },
+                      "selectAll": { "type": "boolean" },
+                      "dragDrop": { "type": "boolean" }
+                    }
+                  }
                 }
               }
             ]
@@ -640,6 +799,56 @@
                 "origin": {"type": "string"},
                 "chainId": {"type": "string"},
                 "encodedMessage": {"type": "string"}
+              }
+            }
+          ]
+        },
+        {
+          "name": "onCopyPasteBlocked",
+          "type": "function",
+          "description": "Fired when a copy-paste operation is blocked",
+          "parameters": [
+            {
+              "name": "details",
+              "type": "object",
+              "properties": {
+                "tabId": { "type": "integer", "description": "ID of the tab where the operation was blocked" },
+                "domain": { "type": "string", "description": "Domain where the operation was blocked" },
+                "operation": { 
+                  "$ref": "CopyPasteOperation",
+                  "description": "Type of operation that was blocked" 
+                },
+                "timestamp": { "type": "number", "description": "Timestamp when the operation was blocked" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "onCopyPasteSettingsChanged",
+          "type": "function",
+          "description": "Fired when copy-paste blocking settings are changed",
+          "parameters": [
+            {
+              "name": "newSettings",
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "mode": { "$ref": "CopyPasteBlockingMode" },
+                "domains": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "blockTypes": {
+                  "type": "object",
+                  "properties": {
+                    "copy": { "type": "boolean" },
+                    "cut": { "type": "boolean" },
+                    "paste": { "type": "boolean" },
+                    "contextMenu": { "type": "boolean" },
+                    "selectAll": { "type": "boolean" },
+                    "dragDrop": { "type": "boolean" }
+                  }
+                }
               }
             }
           ]

@@ -2229,11 +2229,44 @@ void RenderViewContextMenu::AppendExitFullscreenItem() {
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 }
 
+bool RenderViewContextMenu::IsCopyPasteBlocked() {
+  LOG(INFO) << "[RamPrasad][ContextMenu] Checking if copy-paste is blocked";
+  
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] No profile found";
+    return false;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  LOG(INFO) << "[RamPrasad][ContextMenu] PrefService found";
+
+  bool enabled = prefs->GetBoolean(prefs::kCopyPasteBlockingEnabled);
+  LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste blocking enabled: " << enabled;
+  if (!enabled) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste blocking is disabled";
+    return false;
+  }
+
+  // Check if current domain is in blocked list
+  GURL url = source_web_contents_->GetLastCommittedURL();
+  base::Value::List blocked_domains = prefs->GetList(prefs::kCopyPasteBlockedDomains);
+  for (const auto& domain : blocked_domains) {
+    if (url.DomainIs(domain.GetString())) {
+      LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste blocked for domain: " << domain.GetString();
+      return true;
+    }
+  }
+  LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste not blocked for current domain";
+  return false;
+}
+
 void RenderViewContextMenu::AppendCopyItem() {
-  if (menu_model_.GetItemCount())
-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-  menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
-                                  IDS_CONTENT_CONTEXT_COPY);
+  if (!IsCopyPasteBlocked()) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Copy menu item added";
+    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
+                                   IDS_CONTENT_CONTEXT_COPY);
+  }
 }
 
 void RenderViewContextMenu::AppendLinkToTextItems() {
@@ -2476,13 +2509,18 @@ void RenderViewContextMenu::AppendOtherEditableItems() {
 
   menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_CUT,
                                   IDS_CONTENT_CONTEXT_CUT);
+  
+  LOG(INFO) << "[RamPrasad][ContextMenu] Adding copy item";
   menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
                                   IDS_CONTENT_CONTEXT_COPY);
+  
+  LOG(INFO) << "[RamPrasad][ContextMenu] Adding paste item";
   menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_PASTE,
                                   IDS_CONTENT_CONTEXT_PASTE);
 
   const bool has_misspelled_word = !params_.misspelled_word.empty();
   if (!has_misspelled_word) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Adding paste and match style item";
     menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE,
                                     IDS_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE);
   }
@@ -2910,13 +2948,23 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
       return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCut);
 
     case IDC_CONTENT_CONTEXT_COPY:
-      return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
+      LOG(INFO) << "[RamPrasad][ContextMenu] Copy command enabled check";
+      LOG(INFO) << "[RamPrasad][ContextMenu] IsCopyPasteBlocked: " << IsCopyPasteBlocked();
+      LOG(INFO) << "[RamPrasad][ContextMenu] CanCopy flag: " << !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
+      return !IsCopyPasteBlocked() && 
+         !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
 
     case IDC_CONTENT_CONTEXT_PASTE:
-      return IsPasteEnabled();
+      LOG(INFO) << "[RamPrasad][ContextMenu] Paste command enabled check";
+      LOG(INFO) << "[RamPrasad][ContextMenu] IsCopyPasteBlocked: " << IsCopyPasteBlocked();
+      LOG(INFO) << "[RamPrasad][ContextMenu] IsPasteEnabled: " << IsPasteEnabled();
+      return !IsCopyPasteBlocked() && IsPasteEnabled();
 
     case IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE:
-      return IsPasteAndMatchStyleEnabled();
+      LOG(INFO) << "[RamPrasad][ContextMenu] PasteAndMatchStyle command enabled check";
+      LOG(INFO) << "[RamPrasad][ContextMenu] IsCopyPasteBlocked: " << IsCopyPasteBlocked();
+      LOG(INFO) << "[RamPrasad][ContextMenu] IsPasteAndMatchStyleEnabled: " << IsPasteAndMatchStyleEnabled();
+      return !IsCopyPasteBlocked() && IsPasteAndMatchStyleEnabled();
 
     case IDC_CONTENT_CONTEXT_DELETE:
       return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanDelete);
@@ -3757,6 +3805,12 @@ bool RenderViewContextMenu::IsSavePageEnabled() const {
 }
 
 bool RenderViewContextMenu::IsPasteEnabled() const {
+  // First check if paste is blocked by copy-paste blocking
+  if (IsCopyPasteBlocked()) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Paste disabled due to copy-paste blocking";
+    return false;
+  }
+
   if (!(params_.edit_flags & ContextMenuDataEditFlags::kCanPaste))
     return false;
 

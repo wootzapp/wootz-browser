@@ -156,6 +156,9 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/referrer_type_converters.h"
 #include "content/public/common/url_constants.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
+#include "components/prefs/pref_service.h"
+#include "chrome/browser/profiles/profile.h"
 #include "media/base/media_switches.h"
 #include "media/base/user_input_monitor.h"
 #include "net/base/url_util.h"
@@ -3840,6 +3843,75 @@ void WebContentsImpl::RenderWidgetWasResized(
 
 KeyboardEventProcessingResult WebContentsImpl::PreHandleKeyboardEvent(
     const NativeWebKeyboardEvent& event) {
+
+  LOG(INFO) << "[RamPrasad][WebContents] PreHandleKeyboardEvent";
+
+  LOG(INFO) << "[RamPrasad][WebContents] PreHandleKeyboardEvent Details:"
+            << " Type=" << static_cast<int>(event.GetType())
+            << " Modifiers=" << event.GetModifiers()
+            << " KeyCode=" << event.windows_key_code
+            << " IsSystemKey=" << event.is_system_key
+            << " Text=" << event.text;
+
+  LOG(INFO) << "[RamPrasad][WebContents] ShouldBlockCopyPaste: " << ShouldBlockCopyPaste("paste");
+
+  // Check for Ctrl+V
+  if((event.GetModifiers() & blink::WebInputEvent::kControlKey) && event.windows_key_code == 'V') {
+    LOG(INFO) << "[RamPrasad][WebContents] Ctrl+V event";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Command+V
+  if((event.GetModifiers() & blink::WebInputEvent::kMetaKey) && event.windows_key_code == 'V') {
+    LOG(INFO) << "[RamPrasad][WebContents] Command+V event";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Also check for IME paste events
+  if (event.GetType() == blink::WebInputEvent::Type::kChar && 
+        event.windows_key_code == 0) {
+    LOG(INFO) << "[RamPrasad][WebContents] IME paste detected";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Critical: Check for Android system clipboard paste
+  if(event.GetType() == blink::WebInputEvent::Type::kRawKeyDown && 
+        event.windows_key_code == 0 && 
+        event.GetModifiers() == 0) {
+    LOG(INFO) << "[RamPrasad][WebContents] System clipboard paste detected";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Ctrl+C
+  if(event.GetModifiers() & blink::WebInputEvent::kControlKey && event.windows_key_code == 'C') {
+    LOG(INFO) << "[RamPrasad][WebContents] Ctrl+C event";
+    if(ShouldBlockCopyPaste("copy")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking copy event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Command+C
+  if(event.GetModifiers() & blink::WebInputEvent::kMetaKey && event.windows_key_code == 'C') {
+    LOG(INFO) << "[RamPrasad][WebContents] Command+C event";
+    if(ShouldBlockCopyPaste("copy")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking copy event";
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
   OPTIONAL_TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("content.verbose"),
                         "WebContentsImpl::PreHandleKeyboardEvent");
   auto* outermost_contents = GetOutermostWebContents();
@@ -5626,7 +5698,15 @@ void WebContentsImpl::Redo() {
 }
 
 void WebContentsImpl::Cut() {
+
+  LOG(INFO) << "[RamPrasad][WebContents] Cut operation requested";
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Cut");
+  
+  if (ShouldBlockCopyPaste("cut")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Cut operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -5637,15 +5717,106 @@ void WebContentsImpl::Cut() {
   RecordAction(base::UserMetricsAction("Cut"));
 }
 
+bool WebContentsImpl::ShouldBlockCopyPaste(const std::string& operation_type) {
+  LOG(INFO) << "[RamPrasad][WebContents] Checking if copy-paste should be blocked";
+  
+  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
+  if (!profile) {
+    LOG(INFO) << "[RamPrasad][WebContents] No profile found, not blocking";
+    return false;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  if (!prefs) {
+    LOG(INFO) << "[RamPrasad][WebContents] No prefs found, not blocking";
+    return false;
+  }
+
+  // Check if blocking is enabled globally
+  bool enabled = prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
+  if (!enabled) {
+    LOG(INFO) << "[RamPrasad][WebContents] Blocking disabled globally";
+    return false;
+  }
+
+  // Check if this specific operation type is blocked
+  const base::Value::Dict& block_types = prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes);
+  bool block_operation = block_types.FindBool(operation_type).value_or(true);
+  if (!block_operation) {
+    LOG(INFO) << "[RamPrasad][WebContents] Operation " << operation_type << " not blocked by type";
+    return false;
+  }
+
+  // Get blocking mode
+  std::string mode = prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
+  LOG(INFO) << "[RamPrasad][WebContents] Blocking mode: " << mode;
+
+  // If global mode, block everywhere
+  if (mode == "global") {
+    LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
+    return true;
+  }
+
+  // Get current URL's domain
+  GURL url = GetLastCommittedURL();
+  std::string current_domain = url.host();
+  LOG(INFO) << "[RamPrasad][WebContents] Current domain: " << current_domain;
+
+  // Get domain list
+  const base::Value::List& domains = prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+  
+  // Check if domain is in list
+  bool domain_in_list = false;
+  for (const auto& domain : domains) {
+    if (domain.is_string() && domain.GetString() == current_domain) {
+      domain_in_list = true;
+      LOG(INFO) << "[RamPrasad][WebContents] Domain in list: " << domain.GetString();
+      break;
+    }
+  }
+  
+  LOG(INFO) << "[RamPrasad][WebContents] Domain in list: " << domain_in_list;
+
+  // Apply whitelist/blacklist logic
+  if (mode == "whitelist") {
+    // In whitelist mode, block if domain is NOT in list
+    LOG(INFO) << "[RamPrasad][WebContents] Whitelist mode: blocking = " << !domain_in_list;
+    return !domain_in_list;
+  } else if (mode == "blacklist") {
+    // In blacklist mode, block if domain IS in list
+    LOG(INFO) << "[RamPrasad][WebContents] Blacklist mode: blocking = " << domain_in_list;
+    return domain_in_list;
+  }
+
+  LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
+  return true;
+}
+
 void WebContentsImpl::Copy() {
+  LOG(INFO) << "[RamPrasad][WebContents] Copy operation requested";
+  LOG(INFO) << "[RamPrasad][WebContents] ShouldBlockCopyPaste: " << ShouldBlockCopyPaste("copy");
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Copy");
-  auto* input_handler = GetFocusedFrameWidgetInputHandler();
-  if (!input_handler) {
+  
+  if (ShouldBlockCopyPaste("copy")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Copy operation blocked for domain: " 
+              << GetLastCommittedURL().host();
     return;
   }
 
+  LOG(INFO) << "[RamPrasad][WebContents] Copy operation allowed";
+
+  auto* input_handler = GetFocusedFrameWidgetInputHandler();
+  if (!input_handler) {
+    LOG(INFO) << "[RamPrasad][WebContents] No input handler found";
+    return;
+  }
+
+  LOG(INFO) << "[RamPrasad][WebContents] Input handler found";
+
   last_interaction_time_ = ui::EventTimeForNow();
   input_handler->Copy();
+  LOG(INFO) << "[RamPrasad][WebContents] Copy operation completed";
+  LOG(INFO) << "[RamPrasad][WebContents] RecordAction: Copy";
   RecordAction(base::UserMetricsAction("Copy"));
 }
 
@@ -5678,27 +5849,57 @@ void WebContentsImpl::CenterSelection() {
 }
 
 void WebContentsImpl::Paste() {
+  LOG(INFO) << "[RamPrasad][WebContents] Paste operation requested";
+  LOG(INFO) << "[RamPrasad][WebContents] ShouldBlockCopyPaste: " << ShouldBlockCopyPaste("paste");
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Paste");
+  
+  if (ShouldBlockCopyPaste("paste")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Paste operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
+  LOG(INFO) << "[RamPrasad][WebContents] Paste operation allowed";
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
   }
 
+  LOG(INFO) << "[RamPrasad][WebContents] Input handler found";
+
   last_interaction_time_ = ui::EventTimeForNow();
   input_handler->Paste();
+  LOG(INFO) << "[RamPrasad][WebContents] Paste operation completed";
+  LOG(INFO) << "[RamPrasad][WebContents] RecordAction: Paste";
   observers_.NotifyObservers(&WebContentsObserver::OnPaste);
   RecordAction(base::UserMetricsAction("Paste"));
 }
 
 void WebContentsImpl::PasteAndMatchStyle() {
+  LOG(INFO) << "[RamPrasad][WebContents] PasteAndMatchStyle operation requested";
+  LOG(INFO) << "[RamPrasad][WebContents] ShouldBlockCopyPaste: " << ShouldBlockCopyPaste("pasteAndMatchStyle");
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::PasteAndMatchStyle");
+  
+  if (ShouldBlockCopyPaste("pasteAndMatchStyle")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents PasteAndMatchStyle operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
+  LOG(INFO) << "[RamPrasad][WebContents] PasteAndMatchStyle operation allowed";
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
   }
 
+  LOG(INFO) << "[RamPrasad][WebContents] Input handler found";
+
   last_interaction_time_ = ui::EventTimeForNow();
   input_handler->PasteAndMatchStyle();
+  LOG(INFO) << "[RamPrasad][WebContents] PasteAndMatchStyle operation completed";
+  LOG(INFO) << "[RamPrasad][WebContents] RecordAction: PasteAndMatchStyle";
   observers_.NotifyObservers(&WebContentsObserver::OnPaste);
   RecordAction(base::UserMetricsAction("PasteAndMatchStyle"));
 }
@@ -5716,7 +5917,16 @@ void WebContentsImpl::Delete() {
 }
 
 void WebContentsImpl::SelectAll() {
+
+  LOG(INFO) << "[RamPrasad][WebContents] SelectAll operation requested";
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::SelectAll");
+  
+  if (ShouldBlockCopyPaste("selectAll")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents SelectAll operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -10305,6 +10515,11 @@ void WebContentsImpl::IsClipboardPasteAllowedByPolicy(
     const ClipboardMetadata& metadata,
     ClipboardPasteData clipboard_paste_data,
     IsClipboardPasteAllowedCallback callback) {
+  LOG(INFO) << "[RamPrasad][WebContents] IsClipboardPasteAllowedByPolicy";
+  if(ShouldBlockCopyPaste("paste")) {
+    LOG(INFO) << "[RamPrasad][WebContents] Paste blocked by policy";
+    return;
+  }
   ++suppress_unresponsive_renderer_count_;
   GetContentClient()->browser()->IsClipboardPasteAllowedByPolicy(
       source, destination, metadata, std::move(clipboard_paste_data),
