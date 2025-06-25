@@ -1,0 +1,28 @@
+// Copyright (c) 2024 The Wootzapp Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// you can obtain one at http://mozilla.org/MPL/2.0/.
+
+module wootz_scraping.mojom;
+
+import "mojo/public/mojom/base/time.mojom";
+import "mojo/public/mojom/base/values.mojom";
+import "url/mojom/origin.mojom";
+import "url/mojom/url.mojom";
+
+// For social media scraping, cookie extraction, and Twitter API functionality
+interface WootzScrapingService {
+
+  // Twitter cookie extraction methods for social authentication
+  GetTwitterCookies() => (bool success, string? auth_token, string? twitter_sess, string? error_message);
+  HasTwitterCookies() => (bool has_cookies);
+  
+  // Token scraping functionality - detects login and scrapes HttpOnly cookies
+  ScrapeHttpOnlyTokens() => (bool success, string? tokens, string? error_message);
+  
+  // Browser-side Twitter GraphQL API call using dynamic data from cURL generation
+  MakeTwitterGraphQLCall(string url, string method, string headers, string body) => (int32 status_code, string response_body, string error_message);
+  
+  // NEW: Standalone function that retrieves stored credentials and makes API call
+  MakeAPICallWithStoredCredentials();
+};

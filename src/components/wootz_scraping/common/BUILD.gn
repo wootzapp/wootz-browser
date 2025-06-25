@@ -1,0 +1,54 @@
+# Copyright (c) 2024 The Wootzapp Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//build/buildflag_header.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+import("//testing/test.gni")
+import("//tools/grit/preprocess_if_expr.gni")
+import("//tools/json_schema_compiler/json_schema_api.gni")
+
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  flags = [
+  ]
+}
+
+static_library("common") {
+  include_dirs = [ "//third_party/ethash/src/include" ]
+
+  sources = [
+  ]
+  deps = [
+    ":buildflags",
+    "//chrome/net/base:utils",
+    ":mojom",
+    "//components/base32",
+    "//components/prefs",
+    "//net",
+    "//url",
+  ]
+
+  public_deps = [ "//base" ]
+}
+
+source_set("common_constants") {
+  sources = [
+  ]
+  deps = [ ":mojom" ]
+}
+
+mojom("mojom") {
+  generate_java = true
+  sources = [
+    "wootz_scraping.mojom",
+  ]
+  public_deps = [
+    "//mojo/public/mojom/base",
+    "//url/mojom:url_mojom_gurl",
+    "//url/mojom:url_mojom_origin",
+  ]
+}
+

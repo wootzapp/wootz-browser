@@ -1,0 +1,40 @@
+# Copyright (c) 2024 The Wootzapp Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//testing/test.gni")
+
+source_set("wootz_scraping") {
+  sources = [
+    "wootz_scraping_service_factory.cc",
+    "wootz_scraping_service_factory.h",
+  ]
+  
+  if (is_android) {
+    sources += [
+      "wootz_scraping_service_delegate_impl_android.cc",
+      "wootz_scraping_service_delegate_impl_android.h",
+    ]
+  }
+  
+  deps = [
+    "//components/wootz_scraping/browser",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/common:mojom",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/profiles:profiles",
+    "//components/keyed_service/content",
+    "//components/keyed_service/core",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+  ]
+  
+  if (is_android) {
+    deps += [
+      "//chrome/browser/ui:ui",
+      "//services/network/public/cpp",
+    ]
+  }
+}

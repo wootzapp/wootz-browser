@@ -257,8 +257,9 @@
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 #include "chrome/renderer/media/chrome_key_systems.h"
 #endif
-#include "chrome/renderer/wootz_wallet_render_frame_observer.h"
 
+#include "chrome/renderer/wootz_scraping_render_frame_observer.h"
+#include "chrome/renderer/wootz_wallet_render_frame_observer.h"
 
 
 #include "components/safe_builtins/renderer/safe_builtins_helpers.h" // Jai
@@ -813,6 +814,7 @@ LOG(INFO) << "AMIT SandboxStatusExtension::Create";
 #endif
 
 
+    new wootz_scraping::WootzScrapingRenderFrameObserver(render_frame);
     new wootz_wallet::WootzWalletRenderFrameObserver(
         render_frame,
         base::BindRepeating(&WootzRenderThreadObserver::GetDynamicParams));

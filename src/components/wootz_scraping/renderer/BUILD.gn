@@ -1,0 +1,29 @@
+source_set("renderer") {
+  sources = [
+    "interceptor.cc",
+    "interceptor.h",
+    "resource_helper.cc",
+    "resource_helper.h",
+    "v8_helper.cc",
+    "v8_helper.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/common:mojom",
+    "//components/safe_builtins/renderer",
+    "//content/public/common",
+    "//content/public/renderer",
+    "//gin",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/network/public/mojom",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public/common",
+    "//v8",
+
+  ]
+}
+
+

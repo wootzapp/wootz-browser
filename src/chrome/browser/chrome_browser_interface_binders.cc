@@ -91,6 +91,9 @@
 #include "components/site_engagement/core/mojom/site_engagement_details.mojom.h"
 #include "components/translate/content/common/translate.mojom.h"
 #include "components/user_notes/user_notes_features.h"
+#include "components/wootz_scraping/browser/wootz_scraping_service.h"
+#include "chrome/browser/wootz_scraping/wootz_scraping_service_factory.h"
+#include "components/wootz_scraping/common/wootz_scraping.mojom.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -868,6 +871,13 @@ void BindVisualSuggestionsModelProvider(
 }
 #endif
 
+void BindWootzScrapingService(
+    content::RenderFrameHost* frame_host,
+    mojo::PendingReceiver<wootz_scraping::mojom::WootzScrapingService> receiver) {
+  auto* context = frame_host->GetProcess()->GetBrowserContext();
+  WootzScrapingServiceFactory::BindForContext(context, std::move(receiver));
+}
+
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 // A helper class to register ChromeOS Apps API binders. This includes the logic
 // that checks that the feature is allowed on Profile before registering a
@@ -948,6 +958,9 @@ void PopulateChromeFrameBinders(
 
   map->Add<blink::mojom::NoStatePrefetchProcessor>(
       base::BindRepeating(&BindNoStatePrefetchProcessor));
+
+  map->Add<wootz_scraping::mojom::WootzScrapingService>(
+      base::BindRepeating(&BindWootzScrapingService));
 
   if (performance_manager::PerformanceManager::IsAvailable()) {
     map->Add<performance_manager::mojom::DocumentCoordinationUnit>(
