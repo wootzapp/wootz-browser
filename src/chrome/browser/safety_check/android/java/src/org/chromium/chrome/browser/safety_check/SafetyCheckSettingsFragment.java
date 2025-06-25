@@ -16,11 +16,14 @@ import androidx.preference.PreferenceFragmentCompat;
 
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.ui.widget.ButtonCompat;
+import org.chromium.base.ContextUtils;
+import org.chromium.components.browser_ui.settings.TextMessagePreference;
 
 /** Settings fragment containing Safety check. This class represents a View in the MVC paradigm. */
 public class SafetyCheckSettingsFragment extends PreferenceFragmentCompat {
     private static final String SAFETY_CHECK_IMMEDIATE_RUN =
             "SafetyCheckSettingsFragment.safetyCheckImmediateRun";
+    private static final String SAFETY_CHECK_DESCRIPTION_KEY = "safety_check_description";
 
     /** The "Check" button at the bottom that needs to be added after the View is inflated. */
     private ButtonCompat mCheckButton;
@@ -38,10 +41,36 @@ public class SafetyCheckSettingsFragment extends PreferenceFragmentCompat {
         SettingsUtils.addPreferencesFromResource(this, R.xml.safety_check_preferences);
         getActivity().setTitle(getString(R.string.prefs_safety_check));
 
+        // Update safety check description with dynamic branding
+        updateSafetyCheckDescription();
+
         mRunSafetyCheckImmediately =
                 getArguments() != null
                         && getArguments().containsKey(SAFETY_CHECK_IMMEDIATE_RUN)
                         && getArguments().getBoolean(SAFETY_CHECK_IMMEDIATE_RUN);
+    }
+
+    /**
+     * Updates the safety check description with dynamic branding.
+     */
+    private void updateSafetyCheckDescription() {
+        TextMessagePreference descriptionPreference = 
+                (TextMessagePreference) findPreference(SAFETY_CHECK_DESCRIPTION_KEY);
+        
+        if (descriptionPreference != null) {
+            // Get dynamic app name for branding
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !appName.equals("Browser");
+            
+            if (hasCustomBranding) {
+                // Get the original title text and replace WootzApp with custom app name
+                String titleText = getString(R.string.safety_check_description);
+                if (titleText.contains("WootzApp")) {
+                    titleText = titleText.replace("WootzApp", appName);
+                    descriptionPreference.setTitle(titleText);
+                }
+            }
+        }
     }
 
     @Override

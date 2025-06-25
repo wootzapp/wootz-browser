@@ -380,7 +380,7 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to connecting state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]" style="flex-grow: 1; flex-basis: calc(33.333% - 8px); margin: 4px; min-width: 120px;">
               <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
                 <span class="min-w-0 truncate">Processing Transaction...</span>
               </button>
@@ -400,7 +400,7 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to fetching transaction state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]" style="flex-grow: 1; flex-basis: calc(33.333% - 8px); margin: 4px; min-width: 120px;">
               <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
                 <span class="min-w-0 truncate">Preparing Transaction...</span>
               </button>
@@ -442,7 +442,7 @@ String ScriptBlockStates::SolanaTransactionHandler() {
           // Update UI to signing state
           buttonContainer.innerHTML = `
             <div class="flex justify-center w-full">
-              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]">
+              <div class="flex flex-grow basis-[calc(33.333%-2*4px)]" style="flex-grow: 1; flex-basis: calc(33.333% - 8px); margin: 4px; min-width: 120px;">
               <button disabled style="background-color:rgb(68, 68, 68); color: white;" class="rounded-full text-text relative flex w-full items-center justify-center text-nowrap px-5 py-3 font-semibold transition-colors motion-reduce:transition-none bg-button-disabled text-text-button-disabled">
                 <span class="min-w-0 truncate">Waiting for approval...</span>
               </button>

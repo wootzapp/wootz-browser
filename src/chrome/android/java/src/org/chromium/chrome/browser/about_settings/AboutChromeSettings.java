@@ -9,10 +9,13 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.text.format.DateUtils;
+import android.text.TextUtils;
+import android.util.Log;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.tracing.settings.DeveloperSettings;
@@ -45,7 +48,8 @@ public class AboutChromeSettings extends PreferenceFragmentCompat
 
     @Override
     public void onCreatePreferences(Bundle bundle, String s) {
-        getActivity().setTitle(R.string.prefs_about_wootzapp);
+        // Set dynamic title based on branding
+        setDynamicTitle();
         SettingsUtils.addPreferencesFromResource(this, R.xml.about_wootzapp_preferences);
 
         Preference p = findPreference(PREF_APPLICATION_VERSION);
@@ -60,10 +64,41 @@ public class AboutChromeSettings extends PreferenceFragmentCompat
     }
 
     /**
+     * Set dynamic title based on current branding.
+     */
+    private void setDynamicTitle() {
+        // Read app name from SharedPreferences (same as BrandingManager)
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        Log.e("AboutChromeSettings", "setDynamicTitle: appName = " + appName);
+        
+        if (hasCustomBranding) {
+            // Create dynamic title: "About [AppName]"
+            Log.e("AboutChromeSettings", "setDynamicTitle: hasCustomBranding = " + hasCustomBranding);
+            String dynamicTitle = getString(R.string.prefs_about_wootzapp)
+                    .replace("WootzApp", appName);
+            Log.e("AboutChromeSettings", "setDynamicTitle: dynamicTitle = " + dynamicTitle);
+            getActivity().setTitle(dynamicTitle);
+        } else {
+            // Use original title
+            getActivity().setTitle(R.string.prefs_about_wootzapp);
+        }
+    }
+
+    /**
      * Build the application version to be shown.  In particular, this ensures the debug build
      * versions are more useful.
      */
     public static String getApplicationVersion(Context context, String version) {
+        // Get dynamic app name for branding
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        boolean hasCustomBranding = !appName.equals("Browser");
+        
+        // Replace "WootzApp" in version string with custom app name if needed
+        if (hasCustomBranding && version.contains("WootzApp")) {
+            version = version.replace("WootzApp", appName);
+        }
+        
         if (VersionInfo.isOfficialBuild()) {
             return version;
         }
@@ -78,7 +113,15 @@ public class AboutChromeSettings extends PreferenceFragmentCompat
         CharSequence updateTimeString =
                 DateUtils.getRelativeTimeSpanString(
                         info.lastUpdateTime, System.currentTimeMillis(), 0);
-        return context.getString(R.string.version_with_update_time, version, updateTimeString);
+        
+        String finalVersionString = context.getString(R.string.version_with_update_time, version, updateTimeString);
+        
+        // Also replace "WootzApp" in the final string if it exists
+        if (hasCustomBranding && finalVersionString.contains("WootzApp")) {
+            finalVersionString = finalVersionString.replace("WootzApp", appName);
+        }
+        
+        return finalVersionString;
     }
 
     @Override

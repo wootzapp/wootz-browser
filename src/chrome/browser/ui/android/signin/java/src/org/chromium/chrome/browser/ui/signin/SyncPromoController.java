@@ -5,10 +5,15 @@
 package org.chromium.chrome.browser.ui.signin;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.text.format.DateUtils;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 
 import androidx.annotation.DimenRes;
 import androidx.annotation.IntDef;
@@ -19,6 +24,7 @@ import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.BuildInfo;
+import org.chromium.base.ContextUtils;
 import org.chromium.base.Promise;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
@@ -55,11 +61,17 @@ import org.chromium.components.sync.SyncFeatureMap;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.base.task.AsyncTask;
 
+import java.io.InputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.List;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A controller for configuring the sync promo. It sets up the sync promo depending on the context:
@@ -624,11 +636,15 @@ public class SyncPromoController {
     // setupHotState().
     // The difference between the 2 will just be the avatar and the behavior of the primary button.
     private void setupColdState(PersonalizedSigninPromoView view) {
+        android.util.Log.e("SyncPromoController", "=== setupColdState() called ===");
         final Context context = view.getContext();
-        view.getImage().setImageResource(R.drawable.wootzapp_sync_logo);
-        setImageSize(context, view, R.dimen.signin_promo_cold_state_image_size);
+        android.util.Log.e("SyncPromoController", "setupColdState: Loading dynamic sync icon");
+        loadSyncPromoIcon(view.getImage());
 
-        view.getTitle().setText(mTitleStringId);
+        android.util.Log.e("SyncPromoController", "setupColdState: About to call getDynamicTitle()");
+        String dynamicTitle = getDynamicTitle(context);
+        android.util.Log.e("SyncPromoController", "setupColdState: Got title: '" + dynamicTitle + "'");
+        view.getTitle().setText(dynamicTitle);
         view.getDescription().setText(mDescriptionStringId);
 
         IdentityManager identityManager =
@@ -646,12 +662,16 @@ public class SyncPromoController {
     }
 
     private void setupHotState(PersonalizedSigninPromoView view) {
+        android.util.Log.e("SyncPromoController", "=== setupHotState() called ===");
         final Context context = view.getContext();
         Drawable accountImage = mProfileData.getImage();
         view.getImage().setImageDrawable(accountImage);
         setImageSize(context, view, R.dimen.sync_promo_account_image_size);
 
-        view.getTitle().setText(mTitleStringId);
+        android.util.Log.e("SyncPromoController", "setupHotState: About to call getDynamicTitle()");
+        String dynamicTitle = getDynamicTitle(context);
+        android.util.Log.e("SyncPromoController", "setupHotState: Got title: '" + dynamicTitle + "'");
+        view.getTitle().setText(dynamicTitle);
         view.getDescription().setText(mDescriptionStringId);
 
         IdentityManager identityManager =
@@ -869,5 +889,171 @@ public class SyncPromoController {
                                 signinManager
                                         .extractDomainName(coreAccountInfo.getEmail())
                                         .equals(GMAIL_DOMAIN));
+    }
+
+    /**
+     * Get dynamic title for sync promo based on access point and current branding.
+     * Falls back to default Chrome strings if no custom branding is available.
+     */
+    private String getDynamicTitle(Context context) {
+        android.util.Log.e("SyncPromoController", "=== getDynamicTitle() called ===");
+        android.util.Log.e("SyncPromoController", "Access Point: " + mAccessPoint);
+        
+        // Read app name directly from SharedPreferences (FIXED: same as BrandingManager)
+        String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+        
+        android.util.Log.e("SyncPromoController", "App name from SharedPrefs: '" + appName + "'");
+        android.util.Log.e("SyncPromoController", "mTitleStringId: " + mTitleStringId);
+        
+        boolean hasCustomBranding = !appName.equals("Browser");
+        android.util.Log.e("SyncPromoController", "Has custom branding: " + hasCustomBranding);
+        
+        String originalTitle = context.getString(mTitleStringId);
+        android.util.Log.e("SyncPromoController", "Original title: '" + originalTitle + "'");
+        
+        if (!hasCustomBranding) {
+            android.util.Log.e("SyncPromoController", "Using original Chrome title");
+            return originalTitle;
+        }
+        
+        String dynamicTitle = "";
+        
+        // Use dynamic app name for branded apps
+        switch (mAccessPoint) {
+            case SigninAccessPoint.BOOKMARK_MANAGER:
+                android.util.Log.e("SyncPromoController", "Processing BOOKMARK_MANAGER");
+                if (ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)) {
+                    dynamicTitle = context.getString(R.string.signin_promo_title_bookmarks)
+                            .replace("WootzApp", appName);
+                } else {
+                    dynamicTitle = context.getString(R.string.sync_promo_title_bookmarks)
+                            .replace("WootzApp", appName);
+                }
+                break;
+                
+            case SigninAccessPoint.RECENT_TABS:
+                android.util.Log.e("SyncPromoController", "Processing RECENT_TABS");
+                if (ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)) {
+                    dynamicTitle = context.getString(R.string.signin_promo_title_recent_tabs)
+                            .replace("WootzApp", appName);
+                } else {
+                    dynamicTitle = context.getString(R.string.sync_promo_title_recent_tabs)
+                            .replace("WootzApp", appName);
+                }
+                break;
+                
+            case SigninAccessPoint.SETTINGS:
+                android.util.Log.e("SyncPromoController", "Processing SETTINGS");
+                dynamicTitle = context.getString(R.string.sync_promo_title_settings)
+                        .replace("WootzApp", appName);
+                break;
+                        
+            case SigninAccessPoint.NTP_FEED_TOP_PROMO:
+                android.util.Log.e("SyncPromoController", "Processing NTP_FEED_TOP_PROMO");
+                if (ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)) {
+                    dynamicTitle = context.getString(R.string.signin_promo_title_ntp_feed_top_promo)
+                            .replace("WootzApp", appName);
+                } else {
+                    dynamicTitle = context.getString(R.string.sync_promo_title_ntp_content_suggestions)
+                            .replace("WootzApp", appName);
+                }
+                break;
+                
+            default:
+                android.util.Log.e("SyncPromoController", "Using fallback to original title");
+                dynamicTitle = originalTitle;
+                break;
+        }
+        
+        android.util.Log.e("SyncPromoController", "Final dynamic title: '" + dynamicTitle + "'");
+        android.util.Log.e("SyncPromoController", "=== getDynamicTitle() END ===");
+        
+        return dynamicTitle;
+    }
+
+    /**
+     * Load sync promo icon from saved URL or use default.
+     * Uses caching to avoid repeated downloads.
+     */
+    private static final Map<String, Bitmap> sIconCache = new HashMap<>();
+
+    private void loadSyncPromoIcon(ImageView imageView) {
+        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Starting to load icon");
+        
+        // Read icon URL directly from SharedPreferences (same as BrandingManager saves it)
+        String iconUrl = ContextUtils.getAppSharedPreferences().getString("icon_url", "");
+        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Icon URL = '" + iconUrl + "'");
+        
+        if (TextUtils.isEmpty(iconUrl)) {
+            // No custom icon URL, use default
+            android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: No URL, using default");
+            imageView.setImageResource(R.drawable.wootzapp_sync_logo);
+            return;
+        }
+        
+        // Check cache first
+        if (sIconCache.containsKey(iconUrl)) {
+            android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Found in cache, using cached bitmap");
+            Bitmap cachedBitmap = sIconCache.get(iconUrl);
+            if (cachedBitmap != null && !cachedBitmap.isRecycled()) {
+                imageView.setImageBitmap(cachedBitmap);
+                return;
+            } else {
+                // Remove invalid cached bitmap
+                sIconCache.remove(iconUrl);
+                android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Cached bitmap was invalid, removed from cache");
+            }
+        }
+        
+        // Set default first, then load async
+        imageView.setImageResource(R.drawable.wootzapp_sync_logo);
+        
+        // Load image from URL in background - using Chromium's AsyncTask
+        new AsyncTask<Void>() {
+            @Override
+            protected Void doInBackground() {
+                try {
+                    android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Downloading from " + iconUrl);
+                    URL url = new URL(iconUrl);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setDoInput(true);
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(10000);
+                    connection.connect();
+                    InputStream input = connection.getInputStream();
+                    Bitmap bitmap = BitmapFactory.decodeStream(input);
+                    connection.disconnect();
+                    
+                    if (bitmap != null) {
+                        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Successfully loaded bitmap");
+                        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Bitmap size: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+                        
+                        // Cache the bitmap for future use
+                        sIconCache.put(iconUrl, bitmap);
+                        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Cached bitmap for URL: " + iconUrl);
+                        
+                        // Update UI on main thread
+                        imageView.post(() -> {
+                            android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Setting bitmap to ImageView");
+                            imageView.setImageBitmap(bitmap);
+                        });
+                    } else {
+                        android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Bitmap is null, keeping default");
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Error loading icon", e);
+                    // Default icon already set, no need to change
+                }
+                return null;
+            }
+            
+            @Override
+            protected void onPostExecute(Void result) {
+                android.util.Log.e("SyncPromoController", "loadSyncPromoIcon: Async task completed");
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 }

@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <string>
 
 #include "base/containers/flat_set.h"
 #include "base/gtest_prod_util.h"
@@ -16,6 +17,7 @@
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/supports_user_data.h"
+#include "base/functional/callback.h"
 #include "components/safe_browsing/core/browser/db/database_manager.h"
 #include "components/subresource_filter/content/browser/safe_browsing_child_navigation_throttle.h"
 #include "components/subresource_filter/content/mojom/subresource_filter.mojom.h"
@@ -25,6 +27,7 @@
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
 #include "content/public/browser/render_frame_host_receiver_set.h"
 #include "third_party/blink/public/common/frame/frame_ad_evidence.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
 
 namespace content {
 class NavigationHandle;
@@ -424,6 +427,7 @@ class ContentSubresourceFilterThrottleManager
   // outlive this class which is owned by either a Page or NavigationHandle in
   // the WebContents.
   const raw_ref<ContentSubresourceFilterWebContentsHelper> web_contents_helper_;
+
 
   base::WeakPtrFactory<ContentSubresourceFilterThrottleManager>
       weak_ptr_factory_{this};

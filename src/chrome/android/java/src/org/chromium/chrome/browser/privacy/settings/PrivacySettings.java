@@ -54,6 +54,7 @@ import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.text.NoUnderlineClickableSpan;
 import org.chromium.ui.text.SpanApplier;
+import org.chromium.base.ContextUtils;
 
 /** Fragment to keep track of the all the privacy related preferences. */
 public class PrivacySettings extends ChromeBaseSettingsFragment
@@ -290,6 +291,22 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                     UserPrefs.get(getProfile()).getBoolean(Pref.CAN_MAKE_PAYMENT_ENABLED));
         }
 
+        // Update incognito lock preference title dynamically
+        IncognitoReauthSettingSwitchPreference incognitoLockPref =
+                (IncognitoReauthSettingSwitchPreference) findPreference(PREF_INCOGNITO_LOCK);
+        if (incognitoLockPref != null) {
+            // Get dynamic app name for branding
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !appName.equals("Browser");
+            
+            // Get title text and make it dynamic
+            String titleText = getContext().getString(R.string.settings_incognito_tab_lock_title);
+            if (hasCustomBranding && titleText.contains("WootzApp")) {
+                titleText = titleText.replace("WootzApp", appName);
+            }
+            incognitoLockPref.setTitle(titleText);
+        }
+
         Preference doNotTrackPref = findPreference(PREF_DO_NOT_TRACK);
         if (doNotTrackPref != null) {
             doNotTrackPref.setSummary(
@@ -308,9 +325,21 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
 
         Preference preloadPagesPreference = findPreference(PREF_PRELOAD_PAGES);
         if (preloadPagesPreference != null) {
-            preloadPagesPreference.setSummary(
-                    PreloadPagesSettingsFragment.getPreloadPagesSummaryString(
-                            getContext(), getProfile()));
+            // Get dynamic app name for branding
+            String appName = ContextUtils.getAppSharedPreferences().getString("app_name", "Browser");
+            boolean hasCustomBranding = !appName.equals("Browser");
+            
+            if (hasCustomBranding) {
+                // Use the main summary with dynamic branding instead of just the state
+                String originalSummary = getContext().getString(R.string.preload_pages_summary);
+                String dynamicSummary = originalSummary.replace("WootzApp", appName);
+                preloadPagesPreference.setSummary(dynamicSummary);
+            } else {
+                // Use the current state-based summary (original behavior)
+                preloadPagesPreference.setSummary(
+                        PreloadPagesSettingsFragment.getPreloadPagesSummaryString(
+                                getContext(), getProfile()));
+            }
         }
 
         Preference secureDnsPref = findPreference(PREF_SECURE_DNS);

@@ -54,6 +54,13 @@ mojom::ActionUrlDriver& ActionUrlAgent::GetActionUrlDriver() {
   //   return *deferring_password_manager_driver_;
   // }
   LOG(INFO) << "AMIT GetActionUrlDriver";
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT GetActionUrlDriver: render_frame() is null!";
+    // Return a static unbound driver to prevent crash
+    static mojo::AssociatedRemote<mojom::ActionUrlDriver> unbound_driver_;
+    return *unbound_driver_;
+  }
+  
   // Lazily bind this interface.
   if (!action_url_driver_) {
     LOG(INFO) << "AMIT GetActionUrlDriver 1";
@@ -70,12 +77,23 @@ void ActionUrlAgent::Reset() {
   action_block_counter_ = 1;
   renderer_anchor_cache_.clear();
   buffer_for_anchors_.clear();
-  GetActionUrlDriver().Reset();
+  
+  if (render_frame()) {
+    GetActionUrlDriver().Reset();
+  } else {
+    LOG(ERROR) << "AMIT Reset: render_frame() is null!";
+  }
 }
 
 // mojom::ActionUrlAgent:
 void ActionUrlAgent::SetUpHeader() {
   LOG(INFO) << "Unfurling :: " << __func__;
+  
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT SetUpHeader: render_frame() is null!";
+    return;
+  }
+  
   render_frame()->GetWebFrame()->GetDocument().SetUpActionUrlHeader();
 }
 
@@ -107,6 +125,12 @@ void ActionUrlAgent::ReplaceUrL(const std::string& json,
 void ActionUrlAgent::SetUpScriptBlock() {
   LOG(INFO)<< "AMIT Setting up action url script block in action url agent";
   LOG(INFO) << "Unfurling :: " << __func__;
+  
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT SetUpScriptBlock: render_frame() is null!";
+    return;
+  }
+  
   render_frame()->GetWebFrame()->GetDocument().SetUpActionUrlScriptBlock();
 }
 
@@ -127,6 +151,12 @@ void ActionUrlAgent::DidCommitProvisionalLoad(ui::PageTransition transition) {
 
 void ActionUrlAgent::DidCreateDocumentElement() {
   Reset();
+  
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT DidCreateDocumentElement: render_frame() is null!";
+    return;
+  }
+  
   render_frame()->GetWebFrame()->GetDocument().ResetScriptState();
 }
 
@@ -135,6 +165,12 @@ void ActionUrlAgent::DidDispatchDOMContentLoadedEvent() {
   // Parse the content and find all anchor elements
   LOG(INFO) << "Unfurling :: " << __func__;
   is_dom_content_loaded_ = true;
+  
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT DidDispatchDOMContentLoadedEvent: render_frame() is null!";
+    return;
+  }
+  
   render_frame()->GetWebFrame()->GetDocument().ResetScriptState();
   FindAnchorElementsOnPage(false);
 }
@@ -158,10 +194,23 @@ void ActionUrlAgent::WaitTillDynamicChangeTimer(base::OneShotTimer& timer) {
 
 // Top-level wrapper call to trigger DOM traversal to find anchor element.
 void ActionUrlAgent::FindAnchorElementsOnPage(bool is_dynamic) {
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT FindAnchorElementsOnPage: render_frame() is null!";
+    return;
+  }
+  
   const blink::WebDocument doc = render_frame()->GetWebFrame()->GetDocument();
   if (doc.IsNull() || doc.Body().IsNull()) {
     return;
   }
+
+  // Enabling only for x.com pages
+  GURL page_url = GURL(doc.Url());
+  if (!page_url.is_valid() || page_url.host() != "x.com") {
+    LOG(INFO) << "AMIT Skipping non-x.com page";
+    return;
+  }
+
   WebVector<WebAnchorElement> anchor_elements;
   if (is_dynamic) {
     buffer_mu_.Acquire();
@@ -405,6 +454,12 @@ void ActionUrlAgent::OnJsonParsed(WebAnchorElement anchor,
 void ActionUrlAgent::ActionBlockDrawCompleted() {
   LOG(INFO) << "Unfurling :: " << __func__;
   LOG(INFO) << "AMIT Action block draw completed";
+  
+  if (!render_frame()) {
+    LOG(ERROR) << "AMIT ActionBlockDrawCompleted: render_frame() is null!";
+    return;
+  }
+  
   GetActionUrlDriver().OnBlockDrawCompleted();
 }
 

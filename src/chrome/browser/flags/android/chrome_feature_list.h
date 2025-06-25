@@ -18,6 +18,7 @@ BASE_DECLARE_FEATURE(kAdaptiveButtonInTopToolbar);
 BASE_DECLARE_FEATURE(kAdaptiveButtonInTopToolbarTranslate);
 BASE_DECLARE_FEATURE(kAdaptiveButtonInTopToolbarAddToBookmarks);
 BASE_DECLARE_FEATURE(kAdaptiveButtonInTopToolbarCustomizationV2);
+BASE_DECLARE_FEATURE(kAdBlockFeature);
 BASE_DECLARE_FEATURE(kAddToHomescreenIPH);
 BASE_DECLARE_FEATURE(kAllowNewIncognitoTabIntents);
 BASE_DECLARE_FEATURE(kAndroidAppIntegration);

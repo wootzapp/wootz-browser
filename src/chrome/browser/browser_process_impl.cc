@@ -21,6 +21,7 @@
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
+#include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
@@ -1196,6 +1197,30 @@ BrowserProcessImpl::component_updater() {
       std::move(scheduler), brand);
 
   return component_updater_.get();
+}
+
+adblock_updater::AdBlockUpdaterService* BrowserProcessImpl::adblock_updater() {
+  if (adblock_updater_) {
+    LOG(INFO) << "AdBlock: Returning existing AdBlockUpdaterService instance";
+    return adblock_updater_.get();
+  }
+
+  if (!BrowserThread::CurrentlyOn(BrowserThread::UI)) {
+    LOG(WARNING) << "AdBlock: Not on UI thread, returning nullptr";
+    return nullptr;
+  }
+
+  std::unique_ptr<component_updater::UpdateScheduler> scheduler =
+      std::make_unique<component_updater::TimerUpdateScheduler>();
+
+  adblock_updater_ = std::make_unique<adblock_updater::AdBlockUpdaterService>(
+          g_browser_process->system_network_context_manager()->GetSharedURLLoaderFactory(),
+          std::move(scheduler),
+          g_browser_process->subresource_filter_ruleset_service(),
+          local_state()->GetString(prefs::kAdBlockFiltersURL));
+
+  LOG(INFO) << "AdBlock: Successfully created AdBlockUpdaterService";
+  return adblock_updater_.get();
 }
 
 void BrowserProcessImpl::OnKeepAliveStateChanged(bool is_keeping_alive) {

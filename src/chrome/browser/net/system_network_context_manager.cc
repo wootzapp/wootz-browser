@@ -5,6 +5,7 @@
 #include "chrome/browser/net/system_network_context_manager.h"
 
 #include <algorithm>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
@@ -550,6 +551,10 @@ SystemNetworkContextManager::SystemNetworkContextManager(
   if (value)
     is_quic_allowed_ = value->GetBool();
 #endif  // !BUILDFLAG(IS_ANDROID)
+  local_state_->SetDefaultPrefValue(prefs::kAdBlockFiltersURL,
+                                  base::Value("https://easylist.to/easylist/easylist.txt"));
+  LOG(INFO) << "AdBlock: Setting default AdBlock filters URL: https://easylist.to/easylist/easylist.txt";
+  
   shared_url_loader_factory_ = new URLLoaderFactoryForSystem(this);
 
   pref_change_registrar_.Init(local_state_);
@@ -642,6 +647,8 @@ SystemNetworkContextManager::~SystemNetworkContextManager() {
 void SystemNetworkContextManager::RegisterPrefs(PrefRegistrySimple* registry) {
   StubResolverConfigReader::RegisterPrefs(registry);
 
+  registry->RegisterStringPref(prefs::kAdBlockFiltersURL, std::string());
+  
   // Static auth params
   registry->RegisterStringPref(prefs::kAuthSchemes,
                                "basic,digest,ntlm,negotiate");

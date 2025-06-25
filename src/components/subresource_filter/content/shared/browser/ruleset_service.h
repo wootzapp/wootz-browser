@@ -185,7 +185,7 @@ class RulesetService {
   //
   // Virtual so that it can be mocked out in tests.
   virtual void IndexAndStoreAndPublishRulesetIfNeeded(
-      const UnindexedRulesetInfo& unindexed_ruleset_info);
+      const UnindexedRulesetInfo& unindexed_ruleset_info, bool ignore_recent_version = false);
 
   // Get the ruleset version associated with the current local_state_.
   IndexedRulesetVersion GetMostRecentlyIndexedVersion() const;
@@ -215,6 +215,12 @@ class RulesetService {
   // indexed ruleset version, or an invalid version on error. To be called on
   // the |background_task_runner|.
   static IndexedRulesetVersion IndexAndWriteRuleset(
+      const RulesetConfig& config,
+      const base::FilePath& indexed_ruleset_base_dir,
+      const UnindexedRulesetInfo& unindexed_ruleset_info);
+
+  // internal function used to wrap the temporary file deletion for unindexed rulesets
+  static IndexedRulesetVersion IndexAndWriteRulesetInternal(
       const RulesetConfig& config,
       const base::FilePath& indexed_ruleset_base_dir,
       const UnindexedRulesetInfo& unindexed_ruleset_info);

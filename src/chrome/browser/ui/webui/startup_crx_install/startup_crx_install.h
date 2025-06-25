@@ -36,6 +36,8 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   void SendUtmToFrontend(const std::string& utm_source);
 
   void HandleGetUtmSource(const base::Value::List& args);
+  void HandleGetCampaign(const base::Value::List& args);
+  void SendCampaignToFrontend(const std::string& campaign);
 
   raw_ptr<content::WebUI> web_ui_;
   bool is_destroyed_ = false;

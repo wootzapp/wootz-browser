@@ -356,6 +356,20 @@ CHAR_LIMIT guidelines:
         Control your data &amp; account
       </message>
 
+      <!-- AdBlock settings -->
+      <message name="IDS_PREFS_ADBLOCK" desc="Title of the AdBlock Settings screen. [CHAR-LIMIT=32]">
+        AdBlock settings
+      </message>
+      <message name="IDS_OPTIONS_ADBLOCK_EDIT_TITLE" desc="The title of the screen that allows users to change the URL that is used to fetch the ad blocker filters.">
+        Edit filters URL
+      </message>
+      <message name="IDS_OPTIONS_ADBLOCK_EDIT_LABEL" desc="The label for the edit text field that allows the user to change the URL that is used to fetch the ad blocker filters.">
+        Filters URL
+      </message>
+      <message name="IDS_ADBLOCK_HELP" desc="The title of the hyperlink that allows users to visit the web page with instructions for custom ad blocker filters.">
+        Visit help page
+      </message>
+
       <!-- Notification channels -->
       <message name="IDS_NOTIFICATION_CATEGORY_GROUP_GENERAL" desc='Subheading for "General" section of a list of notification categories. [CHAR_LIMIT=32]'>
         General
@@ -3099,7 +3113,7 @@ Your Google account may have other forms of browsing history like searches and a
         Keep
       </message>
       <message name="IDS_INSECURE_DOWNLOAD_DIALOG_DISCARD_TEXT" desc="Text label for the cancel button on the insecure download dialog for user to confirm the download.">
-        Discard
+        Discardf
       </message>
 
       <!-- Downloads location -->
