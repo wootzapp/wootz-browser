@@ -1,0 +1,78 @@
+# Copyright (c) 2024 The Wootzapp Authors. All rights reserved.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//build/config/features.gni")
+import("//third_party/protobuf/proto_library.gni")
+import("//tools/json_schema_compiler/json_schema_api.gni")
+
+
+static_library("browser") {
+  sources = [
+    "wootz_scraping_prefs.cc",
+    "wootz_scraping_prefs.h",
+    "wootz_scraping_service.cc",
+    "wootz_scraping_service.h",
+  ]
+  deps = [
+    ":twitter_scraping_bridge_jni",
+    ":pref_names",
+    "//base",
+    "//components/wootz_scraping/common",
+    "//components/wootz_scraping/common:mojom",
+    "//components/constants",
+    "//components/decentralized_dns/core",
+    "//components/filecoin/rs:rust_lib",
+    "//components/ipfs",
+    "//components/json/rs:rust_lib",
+    "//components/p3a_utils",
+    "//components/resources:strings_grit",
+    "//components/component_updater",
+    "//components/content_settings/core/browser",
+    "//components/country_codes",
+    "//components/keyed_service/core",
+    "//components/prefs",
+    "//components/sync_preferences",
+    "//components/update_client",
+    "//components/value_store",
+    "//crypto",
+    "//services/data_decoder/public/cpp",
+    "//services/network/public/cpp",
+    "//third_party/abseil-cpp:absl",
+    "//third_party/boringssl",
+    "//third_party/re2",
+    "//tools/json_schema_compiler:generated_api_util",
+    "//ui/base:base",
+    "//url",
+  ]
+
+  public_deps = [ "//components/api_request_helper" ]
+}
+
+source_set("pref_names") {
+  sources = [ "pref_names.h" ]
+}
+
+source_set("twitter_scraping_bridge_jni") {
+  sources = [
+    "twitter_scraping_bridge_jni.cc",
+    "twitter_scraping_bridge_jni.h",
+  ]
+  
+  deps = [
+    "//base",
+    "//chrome/browser/profiles",
+    "//content/public/browser",
+    "//net",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+  
+  if (is_android) {
+    deps += [
+      "//chrome/android:chrome_jni_headers",
+    ]
+  }
+}

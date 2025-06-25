@@ -1,0 +1,9 @@
+# WorkManager ProGuard rules
+-keep class * extends androidx.work.Worker
+-keep class * extends androidx.work.InputMerger
+-keep class androidx.work.impl.WorkManagerImpl {
+    public <init>(...);
+}
+-keep class androidx.work.impl.background.systemalarm.SystemAlarmService
+-keep class androidx.work.impl.background.systemjob.SystemJobService
+-keep class androidx.work.impl.foreground.SystemForegroundService

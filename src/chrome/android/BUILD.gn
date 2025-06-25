@@ -524,6 +524,7 @@ if (current_toolchain == default_toolchain) {
       "//chrome/browser/xsurface_provider:dependency_provider_impl_java",
       "//chrome/browser/xsurface_provider:java",
       "//components/wootz_wallet/common:mojom_java",
+      "//components/wootz_scraping/common:mojom_java",
       "//components/action_url/android:java",
       "//components/android_autofill/browser:java",
       "//components/autofill/android:autofill_features_java",
@@ -744,6 +745,7 @@ if (current_toolchain == default_toolchain) {
       "//third_party/kotlin_stdlib:kotlin_stdlib_java",
       "//third_party/metrics_proto:metrics_proto_java",
       "//third_party/android_deps:sentry_java",
+      "//third_party/androidx:androidx_work_work_runtime_java",
       "//ui/accessibility:ax_base_java",
       "//ui/android:ui_java",
       "//ui/android:ui_no_recycler_view_java",
@@ -2708,6 +2710,8 @@ if (current_toolchain == default_toolchain) {
       "java/src/org/chromium/chrome/browser/services/gcm/GCMBackgroundService.java",
       "java/src/org/chromium/chrome/browser/services/gcm/InvalidationGcmUpstreamSender.java",
       "java/src/org/chromium/chrome/browser/tracing/TracingNotificationService.java",
+      "java/src/org/chromium/chrome/browser/background/TwitterScrapingScheduler.java",
+      "java/src/org/chromium/chrome/browser/background/TwitterApiWorker.java",
     ]
     deps = [
       ":chrome_base_module_resources",
@@ -2755,6 +2759,13 @@ if (current_toolchain == default_toolchain) {
       "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_core_java",
       "//third_party/androidx:androidx_lifecycle_lifecycle_livedata_java",
       "//third_party/androidx:androidx_lifecycle_lifecycle_viewmodel_java",
+      "//third_party/androidx:androidx_work_work_runtime_java",
+      "//third_party/androidx:androidx_room_room_runtime_java",
+      "//third_party/androidx:androidx_sqlite_sqlite_android_java",
+      "//third_party/androidx:androidx_sqlite_sqlite_framework_android_java",
+      "//third_party/androidx:androidx_lifecycle_lifecycle_service_java",
+      "//third_party/androidx:androidx_startup_startup_runtime_java",
+      "//chrome/android/java/src/org/chromium/chrome/browser/background:twitter_scraping_bridge_jni_java",
     ]
 
     # More deps for DFMs.
@@ -3977,6 +3988,9 @@ libchrome_impl("libchrome") {
     # it comes before the actual (very slow) link step.
     deps = [ ":libchrome_inputs" ]
   }
+
+  # Add the JNI registration dependency
+  deps += ["//chrome/android/java/src/org/chromium/chrome/browser/background:twitter_scraping_bridge_jni_jni"]
 
   module_descs = chrome_module_descs
 

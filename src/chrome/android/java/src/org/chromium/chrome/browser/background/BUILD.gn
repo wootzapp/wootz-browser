@@ -1,0 +1,26 @@
+import("//build/config/android/rules.gni")
+import("//build/config/android/config.gni")
+import("//third_party/jni_zero/jni_zero.gni")
+
+generate_jni("twitter_scraping_bridge_jni_jni") {
+  sources = [ "TwitterScrapingBridgeJni.java"]
+  namespace = "wootz_scraping"
+}
+
+android_library("twitter_scraping_bridge_jni_java") {
+  sources = [ "TwitterScrapingBridgeJni.java"]
+
+  deps = [
+    "//build/android:build_java",
+    "//base:base_java",
+    "//third_party/jni_zero:jni_zero_java",
+    "//third_party/androidx:androidx_annotation_annotation_java",
+  ]
+
+  srcjar_deps = [ ":twitter_scraping_bridge_jni_jni" ]
+}
+
+generate_jni_registration("twitter_scraping_bridge_jni_jni_registration") {
+  java_targets = [ ":twitter_scraping_bridge_jni_java" ]
+  namespace = "wootz_scraping"
+}
